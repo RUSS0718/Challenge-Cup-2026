@@ -10,24 +10,32 @@ DEFAULT_API_BASE = "https://chat.intern-ai.org.cn/api/v1/chat/completions"
 DEFAULT_MODEL = "intern-s2-preview"
 
 
+class ChatClientError(RuntimeError):
+    """A sanitized failure category suitable for trace and local reports."""
+
+    def __init__(self, category: str) -> None:
+        super().__init__(category)
+        self.category = category
+
+
 class InternChatClient:
     """Small OpenAI-compatible chat client for the competition sample."""
 
     def __init__(
         self,
-        timeout: int = 120,
-        retry: int = 3,
+        timeout: int | None = None,
+        retry: int | None = None,
     ) -> None:
         raw_api_key = os.environ.get("INTERN_API_KEY")
         if not raw_api_key:
-            raise RuntimeError("Missing API key. Set INTERN_API_KEY.")
+            raise ChatClientError("configuration")
         self.authorization = (
             raw_api_key if raw_api_key.startswith("Bearer ") else f"Bearer {raw_api_key}"
         )
         self.api_base = os.environ.get("INTERN_API_BASE", DEFAULT_API_BASE)
         self.model = os.environ.get("INTERN_MODEL", DEFAULT_MODEL)
-        self.timeout = timeout
-        self.retry = retry
+        self.timeout = timeout if timeout is not None else _positive_int_env("INTERN_TIMEOUT_SECONDS", 30)
+        self.retry = retry if retry is not None else _positive_int_env("INTERN_RETRY_COUNT", 1)
 
     def chat(
         self,
@@ -46,7 +54,7 @@ class InternChatClient:
             "Authorization": self.authorization,
         }
 
-        last_error = None
+        last_category = "request"
         for attempt in range(self.retry):
             try:
                 response = requests.post(
@@ -58,9 +66,29 @@ class InternChatClient:
                 response.raise_for_status()
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
-            except Exception as exc:  # noqa: BLE001 - keep sample robust and simple.
-                last_error = exc
+            except requests.Timeout:
+                last_category = "timeout"
+            except requests.ConnectionError:
+                last_category = "connectivity"
+            except requests.HTTPError:
+                last_category = "http_status"
+            except (KeyError, TypeError, ValueError):
+                last_category = "invalid_response"
+            except requests.RequestException:
+                last_category = "request"
                 if attempt + 1 < self.retry:
                     time.sleep(2**attempt)
+                continue
+            if attempt + 1 < self.retry:
+                time.sleep(2**attempt)
 
-        raise RuntimeError(f"Chat completion failed after {self.retry} attempts: {last_error}")
+        raise ChatClientError(last_category)
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    """Read a bounded local diagnostic setting without exposing environment values."""
+    try:
+        value = int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
