@@ -1,0 +1,71 @@
+# 挑战杯 2026 赛事约束
+
+本仓库用于提交挑战杯 2026 人工智能赛道初赛的数学推理智能体。以下内容是
+提交与评测约束，不是可选的项目习惯。
+
+## 规则来源与优先级
+
+- 赛事特有规则以飞书文档为准：
+  https://aicarrier.feishu.cn/wiki/L90FwD9gJiqdg0k33RCcHTdcnrb
+- 若本仓库 README 与飞书文档冲突，必须遵循飞书文档。特别是飞书文档
+  2026-07-16 的 AtomGit 提交更新，已取代 README 中“提交 commit SHA”的旧说明。
+
+## 赛题与评分
+
+- 赛题目标是实现数学推理智能体。平台会在隐藏题目上调用
+  `agent.solve(problem: str, metadata: dict) -> dict`。
+- 主要评分依据是返回字段 `final_response` 的答案正确性。不要为了冗长推理或
+  trace 而牺牲最终答案的清晰性和正确性。
+- `trace` 为可选字段，可用于异常排查、结果展示，以及同分时的设计质量参考。
+
+## 必须兼容的平台接口
+
+- 仓库根目录必须包含 `user_agent.py`。
+- `user_agent.py` 必须导出 `ReasoningAgent` 类。
+- 平台会以 `ReasoningAgent(client=official_client)` 初始化该类。构造函数必须
+  兼容 `client` 参数，并可接受可选的额外参数。
+- 必须实现 `solve(self, problem: str, metadata: dict) -> dict`。
+- 返回值必须是可 JSON 序列化的字典，且包含非空字符串 `final_response`。最终
+  答案应明确、简洁，避免因模型输出截断而缺失答案。
+- 只能依赖公开 client 契约，即等价于
+  `client.chat(messages, temperature, max_tokens)` 的调用方式。不得访问 client
+  私有字段，也不得依赖本地 client 的内部实现。
+
+## 隐藏评测约束
+
+- 隐藏测试题和标准答案不会提供。不得读取、推断、构造或依赖隐藏测试、judger
+  内部信息或标准答案。
+- 样例数据中的 `answer` 字段仅用于本地调试。提交版本的求解逻辑不得使用它。
+- 不得假设题目按固定顺序执行、一定复用同一进程，或跨调用保留状态。每次
+  `solve` 都必须可独立运行。
+- `metadata` 可能不止包含 `idx`。只能使用已明确允许的正常元信息，且不得
+  要求其中存在答案或等价字段。
+
+## 运行、资源与安全约束
+
+- 官方 client 和平台 runner 负责模型访问、限流、token 统计、超时、并发与安全
+  控制。不得绕过、规避或尝试对抗这些控制。
+- 不得硬编码 API key、token、个人凭证，也不得假设本地存在固定 API 配置。
+- 必须控制模型调用次数和 token 用量。单题失败不应无谓地影响本地批处理的其余
+  题目。
+- 不得执行破坏性操作、恶意行为，或尝试利用评测环境漏洞。
+
+## 仓库与提交约束
+
+- 新增代码、提示词、工具和资源必须通过仓库相对路径读取。不得依赖开发机绝对
+  路径或未声明的本地文件。
+- 所有运行时依赖必须声明在 `requirements.txt` 或赛事明确允许的依赖清单中，并
+  确保可在隔离环境中稳定安装和复现。
+- 官方 baseline 可从 GitHub 获取；参赛代码必须托管在队伍 AtomGit 组织下的仓库。
+- 根据飞书文档 2026-07-16 更新，评测会拉取已关联并提交作品的仓库最新 `main`
+  分支。队伍须先在 AtomGit 作品页面点击“提交作品”。固定评测时间为北京时间
+  每日 12:00 与 24:00；不要采用旧 README 中提交 commit SHA 的流程。
+
+## Trace 与输出卫生
+
+- `trace` 中不得包含 API key、访问 token、个人信息、隐藏答案数据或其他敏感信息。
+- trace 必须简洁且可 JSON 序列化。应记录有用的决策摘要、工具结果和失败原因，
+  不要重复保存完整 prompt 或冗长模型输出。
+- 提交前必须验证：`user_agent.py` 可正常 import，
+  `ReasoningAgent(client=official_client)` 可初始化，且 `solve` 不依赖仅本地存在
+  的资源，并返回非空字符串 `final_response`。

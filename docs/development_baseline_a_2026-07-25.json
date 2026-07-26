@@ -1,0 +1,67 @@
+{
+  "dataset_size": 3,
+  "accuracy": 0.0,
+  "average_model_calls": 3.0,
+  "average_latency_seconds": 6.373,
+  "timeout_count": 3,
+  "empty_response_count": 0,
+  "failed_item_ids": [
+    0,
+    1,
+    2
+  ],
+  "total_elapsed_seconds": 19.118,
+  "configured_total_timeout_seconds": 20.0,
+  "records": [
+    {
+      "idx": 0,
+      "correct": false,
+      "latency_seconds": 6.412,
+      "model_calls": 3,
+      "finalization_status": "fallback",
+      "failure_reasons": [
+        "model_call_failed:timeout",
+        "model_call_failed:timeout",
+        "model_call_failed:timeout",
+        "no_valid_candidate"
+      ],
+      "timed_out": true,
+      "empty_response": false,
+      "failed": true
+    },
+    {
+      "idx": 1,
+      "correct": false,
+      "latency_seconds": 6.34,
+      "model_calls": 3,
+      "finalization_status": "fallback",
+      "failure_reasons": [
+        "model_call_failed:timeout",
+        "model_call_failed:timeout",
+        "model_call_failed:timeout",
+        "no_valid_candidate"
+      ],
+      "timed_out": true,
+      "empty_response": false,
+      "failed": true
+    },
+    {
+      "idx": 2,
+      "correct": false,
+      "latency_seconds": 6.367,
+      "model_calls": 3,
+      "finalization_status": "fallback",
+      "failure_reasons": [
+        "model_call_failed:timeout",
+        "model_call_failed:timeout",
+        "model_call_failed:timeout",
+        "no_valid_candidate"
+      ],
+      "timed_out": true,
+      "empty_response": false,
+      "failed": true
+    }
+  ],
+  "status": "ok",
+  "sympy_evidence_enabled": false
+}

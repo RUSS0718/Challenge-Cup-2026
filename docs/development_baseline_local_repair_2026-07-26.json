@@ -1,0 +1,50 @@
+{
+  "dataset_size": 3,
+  "accuracy": 0.0,
+  "average_model_calls": 6.0,
+  "average_latency_seconds": 25.48466666666667,
+  "timeout_count": 0,
+  "empty_response_count": 0,
+  "failed_item_ids": [],
+  "total_elapsed_seconds": 76.454,
+  "configured_total_timeout_seconds": 90.0,
+  "records": [
+    {
+      "idx": 0,
+      "correct": false,
+      "latency_seconds": 24.861,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "failed": false
+    },
+    {
+      "idx": 1,
+      "correct": false,
+      "latency_seconds": 30.599,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "failed": false
+    },
+    {
+      "idx": 2,
+      "correct": false,
+      "latency_seconds": 20.994,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "failed": false
+    }
+  ],
+  "status": "ok",
+  "sympy_evidence_enabled": false,
+  "dynamic_budget_enabled": false,
+  "local_repair_enabled": true
+}

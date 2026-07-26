@@ -222,6 +222,16 @@ export INTERN_API_KEY="sk-..."
 python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs
 ```
 
+在配置 `INTERN_API_KEY` 后，可运行本地开发集基准以记录准确率、平均模型调用数和平均延迟：
+
+```bash
+python -m scripts.evaluate_dev --input-file sample_data/dev.jsonl --timeout-seconds 30 --retry-count 1 --total-timeout-seconds 180 --output-file docs/development_baseline.json
+```
+
+该脚本只用于本地开发。它在评估脚本中读取样例 `answer` 计算指标，但不会将该字段传给 `ReasoningAgent.solve`，提交内核不依赖样例答案。输出 JSON 还包含超时数、空响应数、失败题目 ID、总耗时和配置的总预算；请求级超时限制单次调用，总预算会阻止后续题目启动，但不能中断已进入官方 client 的阻塞调用。
+
+`--enable-sympy-evidence` 只用于本地受控实验：它仅对完整的简单整数算术题生成候选一致性证据，默认关闭，且尚未获得开发集收益证据。
+
 本地 runner 默认并发数为 8。如需调整：
 
 ```bash
@@ -286,24 +296,23 @@ https://internlm.intern-ai.org.cn/api
 
 ## 提交方式
 
-参赛队伍可以在报名结束后提交作品进行判分，提交开放时间预计为 2026-07-01 起，具体以赛事通知为准。选手需要基于 baseline 仓库准备自己的提交代码，并向判分系统提交仓库地址与 commit SHA。
+赛事特有流程以飞书最新通知为准。根据 2026-07-16 更新，队伍须将参赛代码推送至队伍 AtomGit 组织仓库的 `main` 分支，并在 AtomGit 作品页面关联仓库、点击“提交作品”。评测拉取已关联仓库的最新 `main` 分支；不再采用提交固定 commit SHA 的旧流程。
 
 推荐流程：
 
 1. 获取 baseline 仓库代码。
-2. 在自己的仓库中完成实现。
+2. 在队伍 AtomGit 组织仓库中完成实现。
 3. 确保仓库根目录包含符合规范的 `user_agent.py`。
-4. 将代码推送到 GitHub 或平台指定的代码托管服务。
-5. 在判分系统中完成仓库授权。
-6. 向判分系统提交仓库地址和 commit SHA。
+4. 将可复现版本推送到 `main` 分支。
+5. 在 AtomGit 作品页面关联仓库并点击“提交作品”。
+6. 在每日北京时间 12:00 或 24:00 的固定评测后查看结果。
 
 关于仓库可见性：
 
-- 如果直接 fork 一个公开 baseline 仓库，fork 和提交内容通常也是公开可见的。
-- 如果不希望自己的方案公开，建议将 baseline clone 到本地后，推送到自己的 private repository。
-- 选手也可以保持仓库公开，但需自行承担方案被其他人看到的风险。
+- 参赛代码必须托管在队伍 AtomGit 组织下的仓库。
+- 仓库可见性、作品关联和最终材料要求以飞书通知与 AtomGit 页面为准。
 
-判分系统会以选手提交的 commit SHA 作为评测快照。请务必提交具体 commit SHA，而不是只提交分支名。分支名可能继续变化，commit SHA 才能保证结果可复现。
+不要依赖本 README 的旧提交说明；若与飞书赛事规则冲突，始终以飞书规则为准。
 
 ### 挑战杯官网材料提交
 
@@ -320,7 +329,7 @@ changshuai@pjlab.org.cn
 - 最终版本代码。
 - `user_agent.py` 及所有运行所需的辅助文件。
 - `requirements.txt` 或其它依赖说明。
-- 一份说明文件，写明队伍信息、题目名称、最终仓库地址、最终分支名称、最终 commit hash 和选择使用的模型。
+- 一份说明文件，写明队伍信息、题目名称、AtomGit 仓库地址、`main` 分支和选择使用的模型。
 
 提交前建议检查：
 
@@ -332,50 +341,12 @@ changshuai@pjlab.org.cn
 
 ## 自动判分系统
 
-自动判分系统预计 7 月上线，具体上线日期以赛事通知为准。
-
-判分系统上线前，如果选手需要提交作品并获取评测分数，可以将代码库打包成 `.zip` 文件发送邮件至：
-
-```text
-changshuai@pjlab.org.cn
-```
-
-邮件模板如下：
-
-```text
-邮件主题：[挑战杯初赛评测申请] 队伍名称 - 题目名称 - commit hash
-
-收件人：changshuai@pjlab.org.cn
-
-正文：
-队伍名称：
-
-题目名称：基于 Intern-S 系列模型的数学智能体设计与推理创新
-
-报名成员信息（至少填写 1 名挑战杯官网内报名成员）：
-- 姓名：
-- 学校：
-- 报名手机号：
-
-需要评测的代码版本：
-- 仓库地址：
-- 分支名称：main
-- commit hash：
-- 选择使用的模型：例如 intern-s2-preview
-
-附件：
-- 代码库 zip 文件名：
-
-备注：
-- 如有特殊依赖、运行说明或需要说明的异常情况，请在这里填写。
-```
-
-邮件评测同样以邮件中写明的分支名称和 commit hash 为准。请确保附件中的代码版本与邮件正文中的 commit hash 对应，避免评测结果无法复现。
+自动判分以 AtomGit 作品页面关联并已提交的仓库为准。平台在每日北京时间 12:00 与 24:00 拉取最新 `main` 分支进行评测；具体开放状态和次数限制以飞书赛事通知为准。
 
 判分系统的基本工作流程如下：
 
-1. 选手在系统中提交仓库地址与 commit SHA。
-2. 系统检查仓库授权，并拉取对应 commit 的代码。
+1. 队伍在 AtomGit 作品页面关联仓库并提交作品。
+2. 系统在固定评测时间拉取该仓库最新 `main` 分支的代码。
 3. 系统在隔离环境中安装依赖并加载 `user_agent.py`。
 4. 系统根据选手提交时选择的模型，使用官方 client 初始化 `ReasoningAgent`。
 5. 平台 runner 读取正式评测题，调用 `agent.solve(problem, metadata)`。
@@ -411,7 +382,7 @@ changshuai@pjlab.org.cn
 以下情况可能导致判分异常：
 
 - 仓库授权失败，系统无法拉取提交。
-- 提交的是分支名而不是 commit SHA。
+- AtomGit 仓库未关联、未提交作品，或 `main` 分支未包含待评测代码。
 - `user_agent.py` 不存在。
 - `ReasoningAgent` 类不存在或构造函数不接受 `client`。
 - `solve` 方法不存在、签名不符合要求或抛出异常。
