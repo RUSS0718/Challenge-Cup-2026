@@ -7,6 +7,7 @@ from fractions import Fraction
 from typing import Any
 
 POLICY_PROMPT = """你是严谨的数学推理智能体。解决用户给出的数学问题。先理解题意、约束与定义域，再给出简洁但充分的推导。最后一行必须使用“最终答案：”明确写出答案。"""
+ANSWER_ONLY_POLICY_PROMPT = """你是数学求解器。直接解题，不要输出 Thinking Process、计划、标题或格式说明。只输出一行“最终答案：”后接数学答案。"""
 VERIFIER_PROMPT = """你是数学解答审核员。独立检查候选答案是否能正确解决题目。
 若发现错误，指出第一个可证实的错误位置；不要复述完整解答。
 最后一行必须且只能为：VERDICT: A、VERDICT: B 或 VERDICT: UNCERTAIN。
@@ -18,25 +19,40 @@ class AgentConfig:
     verifier_voting_times: int = 1
     max_model_calls: int = 6
     policy_temperature: float = 0.6
+    policy_prompt: str = POLICY_PROMPT
     verifier_temperature: float = 0.0
     max_tokens: int = 256
+    l0_max_tokens: int = 1024
     verifier_max_tokens: int = 256
     enable_sympy_evidence: bool = False
     enable_dynamic_budget: bool = False
+    enable_l0_extended_tokens: bool = True
+    enable_l2_routing: bool = False
     enable_local_repair: bool = False
+    enable_uncertain_repair: bool = False
     max_repairs: int = 1
+    l2_max_model_calls: int = 8
 
 def extract_final_answer(response: str) -> str:
     if not isinstance(response, str) or not response.strip(): return ""
     boxed = _extract_boxed_answers(response)
     if boxed: return boxed[-1]
     markers = re.findall(r"(?:最终答案|答案|final\s+answer)\s*[:：]\s*([^\n\r]+)", response, re.IGNORECASE)
-    if markers: return markers[-1].strip()
+    if markers:
+        for marker in reversed(markers):
+            answer = marker.strip()
+            if not is_placeholder_answer(answer): return answer
+        return ""
     lines = [line.strip() for line in response.splitlines() if line.strip()]
     for line in reversed(lines):
         choice = re.fullmatch(r"(?:选项\s*)?([A-D])(?:[.。)])?", line, re.IGNORECASE)
         if choice: return choice.group(1).upper()
     return next((line for line in reversed(lines) if not re.fullmatch(r"(?:最终答案|答案|final\s+answer)\s*[:：]?", line, re.IGNORECASE)), "")
+
+def is_placeholder_answer(answer: str) -> bool:
+    """Reject output-format placeholders that are not mathematical answers."""
+    compact = answer.strip().lower().strip("。；;.,\"'”’ ")
+    return compact in {"[answer]", "<answer>", "答案", "answer"}
 
 def _extract_boxed_answers(text: str) -> list[str]:
     answers, cursor = [], 0
@@ -85,18 +101,14 @@ class ReasoningAgent:
         self.sympy_adapter = sympy_adapter
     def solve(self, problem: str, metadata: dict) -> dict:
         del metadata
-        budget, trace, candidates = {"used": 0}, [], []
+        trace, candidates = [], []
         generation_calls, level = self._generation_plan(problem)
-        trace.append({"step":"route_budget","level":level,"generation_calls":generation_calls,"max_model_calls":self.config.max_model_calls})
-        for candidate_id in range(generation_calls):
-            response, error = self._request(POLICY_PROMPT, f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}", self.config.policy_temperature, self.config.max_tokens, budget)
-            if response is None:
-                trace.append({"step":"generate_candidate","status":"skipped","candidate_id":candidate_id,"reason":error}); continue
-            answer = extract_final_answer(response)
-            if not answer:
-                trace.append({"step":"generate_candidate","status":"rejected","candidate_id":candidate_id,"reason":"answer_not_extractable"}); continue
-            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"evidence":[],"verification_status":"unverified","model_calls_used":1})
-            trace.append({"step":"generate_candidate","status":"ok","candidate_id":candidate_id})
+        budget = {"used": 0, "limit": self._model_call_limit(level)}
+        trace.append({"step":"route_budget","level":level,"generation_calls":generation_calls,"max_model_calls":budget["limit"]})
+        self._generate_candidates(problem, generation_calls, candidates, trace, budget, self._policy_max_tokens(level))
+        if self._should_escalate_l2(level, candidates):
+            trace.append({"step":"route_budget","level":"L2","generation_calls":1,"max_model_calls":budget["limit"],"reason":"answer_conflict"})
+            self._generate_candidates(problem, 1, candidates, trace, budget, self._policy_max_tokens("L2"))
         self._attach_controlled_tool_evidence(problem, candidates, trace)
         for group_id, group in self._answer_groups(candidates).items():
             for _ in range(self.config.verifier_voting_times):
@@ -116,24 +128,50 @@ class ReasoningAgent:
         best = self._select_candidate(candidates)
         trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"]})
         return {"final_response":best["answer"],"trace":trace}
+
+    def _generate_candidates(self, problem: str, generation_calls: int, candidates: list[dict[str, Any]], trace: list[dict[str, Any]], budget: dict[str, int], max_tokens: int) -> None:
+        candidate_start = max((item["candidate_id"] for item in candidates), default=-1) + 1
+        for candidate_id in range(generation_calls):
+            candidate_id += candidate_start
+            response, error = self._request(self.config.policy_prompt, f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}", self.config.policy_temperature, max_tokens, budget)
+            if response is None:
+                trace.append({"step":"generate_candidate","status":"skipped","candidate_id":candidate_id,"reason":error}); continue
+            answer = extract_final_answer(response)
+            if not answer:
+                trace.append({"step":"generate_candidate","status":"rejected","candidate_id":candidate_id,"reason":"answer_not_extractable"}); continue
+            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"evidence":[],"verification_status":"unverified","model_calls_used":1})
+            trace.append({"step":"generate_candidate","status":"ok","candidate_id":candidate_id})
     def _request(self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int, budget: dict[str,int]) -> tuple[str|None,str|None]:
-        if budget["used"] >= self.config.max_model_calls: return None, "model_call_budget_exhausted"
+        if budget["used"] >= budget["limit"]: return None, "model_call_budget_exhausted"
         budget["used"] += 1
         try: response = self.client.chat(messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}],temperature=temperature,max_tokens=max_tokens)
         except Exception as exc: return None, f"model_call_failed:{getattr(exc, 'category', type(exc).__name__)}"
         return (response.strip(), None) if isinstance(response,str) and response.strip() else (None,"empty_model_response")
     def _generation_plan(self, problem: str) -> tuple[int, str]:
         if not self.config.enable_dynamic_budget:
+            if self.config.enable_l0_extended_tokens and self._extract_simple_arithmetic_expression(problem):
+                return 1, "L0"
             return self.config.policy_sample_times, "fixed"
         if self._extract_simple_arithmetic_expression(problem):
             return 1, "L0"
         return min(2, self.config.policy_sample_times), "L1"
+    def _model_call_limit(self, level: str) -> int:
+        if self.config.enable_l2_routing and level != "L0":
+            return max(self.config.max_model_calls, self.config.l2_max_model_calls)
+        return self.config.max_model_calls
+    def _policy_max_tokens(self, level: str) -> int:
+        if level == "L0" and self.config.enable_l0_extended_tokens:
+            return self.config.l0_max_tokens
+        return self.config.max_tokens
+    def _should_escalate_l2(self, level: str, candidates: list[dict[str, Any]]) -> bool:
+        return self.config.enable_l2_routing and level != "L0" and len(self._answer_groups(candidates)) > 1
     def _repair_refuted_candidate(self, problem: str, candidates: list[dict[str, Any]], trace: list[dict[str, Any]], budget: dict[str, int]) -> None:
         if not self.config.enable_local_repair or not candidates:
             return
-        repairs = 0
+        repairs, has_pass = 0, any(candidate["verification_status"] == "pass" for candidate in candidates)
         for candidate in list(candidates):
-            if repairs >= self.config.max_repairs or candidate["verification_status"] != "fail":
+            trigger = "fail" if candidate["verification_status"] == "fail" else "uncertain_without_pass" if self.config.enable_uncertain_repair and not has_pass and candidate["verification_status"] == "uncertain" else None
+            if repairs >= self.config.max_repairs or trigger is None:
                 continue
             response, error = self._request(
                 POLICY_PROMPT,
@@ -145,7 +183,7 @@ class ReasoningAgent:
             repairs += 1
             answer = extract_final_answer(response or "")
             if not answer:
-                trace.append({"step":"repair_candidate","status":"skipped","candidate_id":candidate["candidate_id"],"reason":error or "answer_not_extractable"})
+                trace.append({"step":"repair_candidate","status":"skipped","candidate_id":candidate["candidate_id"],"trigger":trigger,"reason":error or "answer_not_extractable"})
                 continue
             repaired = {"candidate_id": max(item["candidate_id"] for item in candidates) + 1, "answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"evidence":[],"verification_status":"unverified","model_calls_used":1}
             calls_before = budget["used"]
@@ -155,7 +193,7 @@ class ReasoningAgent:
             repaired["evidence"].append({"source":"llm_audit","verdict":verdict})
             repaired["verification_status"] = self._merge_verdict("unverified", verdict)
             candidates.append(repaired)
-            trace.append({"step":"repair_candidate","status":"ok","candidate_id":repaired["candidate_id"],"from_candidate_id":candidate["candidate_id"],"audit_status":verdict if audit_response else "skipped","reason":audit_error})
+            trace.append({"step":"repair_candidate","status":"ok","candidate_id":repaired["candidate_id"],"from_candidate_id":candidate["candidate_id"],"trigger":trigger,"audit_status":verdict if audit_response else "skipped","reason":audit_error})
     @staticmethod
     def _parse_verdict(response: str|None) -> str:
         match = re.search(r"\bVERDICT\s*[:：]\s*(A|B|UNCERTAIN)\b", response or "", re.IGNORECASE)

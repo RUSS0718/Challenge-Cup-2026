@@ -1,3 +1,23 @@
 {"idx": 0, "problem": "设$\\mathbb{F}_{81}$为$81$元的有限域。$T=\\{\\alpha\\in\\mathbb{F}_{81}|\\mathbb{F}_{81}=\\mathbb{F}_3(\\alpha)\\}$。求$T$中元素的个数。", "answer": "72", "subject": "抽象代数", "source": "sample"}
 {"idx": 1, "problem": "Let $f_{\\text{inv}} : \\mathbb{R} \\to \\mathbb{R}$ be the inverse function of $f(x) = x^7 + x^5 + 3$. Put $F(x)=\\int_x^{-17} f_{\\text{inv}}(t)dt$. Find the numerical value of $F'(5)$.", "answer": "-1", "subject": "测度积分", "source": "sample"}
 {"idx": 2, "problem": "设函数 $ f(z) = \\frac{1}{(z-1)(z-2)^2(z-3)^3} $，其中 $ z $ 为复变量。求 $ f(z) $ 在简单极点 $ z = 1 $ 处的留数。", "answer": "-1/8", "subject": "复分析", "source": "sample"}
+{"idx": 3, "problem": "计算 17 * 6 - 23", "answer": "79", "subject": "受控算术", "source": "local_handcrafted_2026-07-26"}
+{"idx": 4, "problem": "求值 (18 + 6) / 3", "answer": "8", "subject": "受控算术", "source": "local_handcrafted_2026-07-26"}
+{"idx": 5, "problem": "calculate 2**5 + 7", "answer": "39", "subject": "受控算术", "source": "local_handcrafted_2026-07-26"}
+{"idx": 6, "problem": "evaluate (45 - 9) / 6 + 4", "answer": "10", "subject": "受控算术", "source": "local_handcrafted_2026-07-26"}
+{"idx": 7, "problem": "计算 7 * (12 - 5) + 9", "answer": "58", "subject": "受控算术", "source": "local_handcrafted_2026-07-26"}
+{"idx": 8, "problem": "求值 144 / 12 + 3**2", "answer": "21", "subject": "受控算术", "source": "local_handcrafted_2026-07-26"}
+{"idx": 9, "problem": "解方程 x^2 - 5x + 6 = 0。按从小到大的顺序给出两个根。", "answer": "2, 3", "subject": "代数", "source": "local_handcrafted_2026-07-26"}
+{"idx": 10, "problem": "解方程 x^2 - 1 = 0。给出全部实数解。", "answer": "-1, 1", "subject": "代数_多解", "source": "local_handcrafted_2026-07-26"}
+{"idx": 11, "problem": "求不等式 2x - 3 > 7 的解集。", "answer": "x > 5", "subject": "代数", "source": "local_handcrafted_2026-07-26"}
+{"idx": 12, "problem": "一个等差数列首项为 3，公差为 4。求第 10 项。", "answer": "39", "subject": "数列", "source": "local_handcrafted_2026-07-26"}
+{"idx": 13, "problem": "一个长方形长为 12、宽为 7，求面积。", "answer": "84", "subject": "几何", "source": "local_handcrafted_2026-07-26"}
+{"idx": 14, "problem": "半径为 3 的圆面积是多少？用 π 表示。", "answer": "9π", "subject": "几何", "source": "local_handcrafted_2026-07-26"}
+{"idx": 15, "problem": "袋中有 3 个红球和 2 个蓝球，不放回随机取 2 个球，恰好都是红球的概率是多少？", "answer": "3/10", "subject": "概率", "source": "local_handcrafted_2026-07-26"}
+{"idx": 16, "problem": "求向量 (2, -1) 与 (3, 4) 的点积。", "answer": "2", "subject": "线性代数", "source": "local_handcrafted_2026-07-26"}
+{"idx": 17, "problem": "求矩阵 [[1, 2], [3, 4]] 的行列式。", "answer": "-2", "subject": "线性代数", "source": "local_handcrafted_2026-07-26"}
+{"idx": 18, "problem": "求函数 y = x^3 - 2x 在 x = 2 处的导数值。", "answer": "10", "subject": "微积分", "source": "local_handcrafted_2026-07-26"}
+{"idx": 19, "problem": "计算定积分 ∫_0^2 3x dx。", "answer": "6", "subject": "微积分", "source": "local_handcrafted_2026-07-26"}
+{"idx": 20, "problem": "复数 (1 + 2i)(3 - i) 等于什么？", "answer": "5+5i", "subject": "复数", "source": "local_handcrafted_2026-07-26"}
+{"idx": 21, "problem": "一个班有 20 人，其中 12 人参加数学社团，9 人参加物理社团，5 人两个社团都参加。至少参加一个社团的人数是多少？", "answer": "16", "subject": "集合", "source": "local_handcrafted_2026-07-26"}
+{"idx": 22, "problem": "求 84 和 126 的最大公约数。", "answer": "42", "subject": "数论", "source": "local_handcrafted_2026-07-26"}

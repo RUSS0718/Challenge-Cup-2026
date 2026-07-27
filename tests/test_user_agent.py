@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from user_agent import AgentConfig, ReasoningAgent, answer_equivalence, extract_final_answer, normalize_answer
+from user_agent import ANSWER_ONLY_POLICY_PROMPT, AgentConfig, ReasoningAgent, answer_equivalence, extract_final_answer, normalize_answer
 
 
 class FakeClient:
@@ -29,6 +29,7 @@ class AnswerHandlingTest(unittest.TestCase):
         self.assertEqual("", extract_final_answer(" \n "))
         self.assertEqual("2", extract_final_answer("最终答案：1\n最终答案：2"))
         self.assertEqual("", extract_final_answer("Final answer:"))
+        self.assertEqual("", extract_final_answer('输出格式为“最终答案：[Answer]”。'))
 
     def test_extracts_equation_set_interval_vector_and_matrix_answers(self):
         self.assertEqual("x=2", extract_final_answer("最终答案：x=2"))
@@ -54,6 +55,7 @@ class AnswerHandlingTest(unittest.TestCase):
 class ReasoningAgentTest(unittest.TestCase):
     def test_default_generation_budget_is_bounded_for_local_api_latency(self):
         self.assertEqual(256, AgentConfig().max_tokens)
+        self.assertTrue(AgentConfig().enable_l0_extended_tokens)
 
     def test_extracts_answer_and_keeps_trace_compact(self):
         agent = ReasoningAgent(FakeClient(["推导略。\n最终答案： 7", "另一种推导。\nFinal answer: 7", "VERDICT: A", "VERDICT: A"]), AgentConfig(policy_sample_times=2, verifier_voting_times=1, max_model_calls=4))
@@ -132,6 +134,34 @@ class ReasoningAgentTest(unittest.TestCase):
         self.assertEqual(2, len(client.calls))
         self.assertEqual("L0", result["trace"][0]["level"])
 
+    def test_extended_l0_tokens_do_not_change_other_routes(self):
+        client = FakeClient(["最终答案：7", "VERDICT: A"])
+        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=2, enable_l0_extended_tokens=True, l0_max_tokens=1024))
+
+        agent.solve("计算 3+4", {})
+
+        self.assertEqual(1024, client.calls[0][2])
+        self.assertEqual(256, client.calls[1][2])
+
+    def test_answer_only_prompt_is_an_explicit_opt_in(self):
+        client = FakeClient(["最终答案：7", "VERDICT: A"])
+        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=2, enable_l0_extended_tokens=False, policy_prompt=ANSWER_ONLY_POLICY_PROMPT))
+
+        agent.solve("题", {})
+
+        self.assertEqual(ANSWER_ONLY_POLICY_PROMPT, client.calls[0][0][0]["content"])
+
+    def test_l2_escalates_conflicting_l1_candidates_within_its_explicit_budget(self):
+        client = FakeClient(["最终答案：1", "最终答案：2", "最终答案：2", "VERDICT: B", "VERDICT: A"])
+        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=3, verifier_voting_times=1, max_model_calls=6, enable_dynamic_budget=True, enable_l2_routing=True, l2_max_model_calls=8))
+
+        result = agent.solve("证明题", {})
+
+        self.assertEqual("2", result["final_response"])
+        self.assertEqual(5, len(client.calls))
+        self.assertTrue(any(entry["step"] == "route_budget" and entry["level"] == "L2" and entry["reason"] == "answer_conflict" for entry in result["trace"]))
+        self.assertEqual(8, result["trace"][0]["max_model_calls"])
+
     def test_local_repair_reaudits_a_refuted_candidate(self):
         client = FakeClient(["最终答案：1", "VERDICT: B", "最终答案：2", "VERDICT: A"])
         agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=4, enable_local_repair=True))
@@ -142,6 +172,25 @@ class ReasoningAgentTest(unittest.TestCase):
         self.assertEqual(4, len(client.calls))
         self.assertTrue(any(entry["step"] == "repair_candidate" and entry["status"] == "ok" for entry in result["trace"]))
 
+    def test_uncertain_repair_runs_only_when_no_candidate_passed_audit(self):
+        client = FakeClient(["最终答案：1", "VERDICT: UNCERTAIN", "最终答案：2", "VERDICT: A"])
+        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=4, enable_local_repair=True, enable_uncertain_repair=True))
+
+        result = agent.solve("题", {})
+
+        self.assertEqual("2", result["final_response"])
+        repair = next(entry for entry in result["trace"] if entry["step"] == "repair_candidate")
+        self.assertEqual("uncertain_without_pass", repair["trigger"])
+
+    def test_uncertain_repair_does_not_run_when_another_candidate_passed_audit(self):
+        client = FakeClient(["最终答案：1", "最终答案：2", "VERDICT: UNCERTAIN", "VERDICT: A"])
+        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=2, verifier_voting_times=1, max_model_calls=5, enable_local_repair=True, enable_uncertain_repair=True))
+
+        result = agent.solve("题", {})
+
+        self.assertEqual("2", result["final_response"])
+        self.assertFalse(any(entry["step"] == "repair_candidate" for entry in result["trace"]))
+
     def test_controlled_tool_path_validates_simple_arithmetic(self):
         agent = ReasoningAgent(FakeClient(["最终答案：7", "VERDICT: A"]), AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=2, enable_sympy_evidence=True))
         result = agent.solve("计算 3+4", {})
@@ -149,7 +198,7 @@ class ReasoningAgentTest(unittest.TestCase):
         self.assertEqual("SUPPORTED", tool_trace["claim_status"])
 
     def test_controlled_tool_evidence_selects_independently_verified_candidate(self):
-        agent = ReasoningAgent(FakeClient(["最终答案：8", "最终答案：7", "VERDICT: A", "VERDICT: A"]), AgentConfig(policy_sample_times=2, verifier_voting_times=1, max_model_calls=4, enable_sympy_evidence=True))
+        agent = ReasoningAgent(FakeClient(["最终答案：8", "最终答案：7", "VERDICT: A", "VERDICT: A"]), AgentConfig(policy_sample_times=2, verifier_voting_times=1, max_model_calls=4, enable_sympy_evidence=True, enable_l0_extended_tokens=False))
         result = agent.solve("计算 3+4", {})
         self.assertEqual("7", result["final_response"])
         self.assertEqual("controlled_tool_evidence", result["trace"][-1]["selection_basis"])
