@@ -1,0 +1,265 @@
+{
+  "dataset_size": 23,
+  "max_tokens": 256,
+  "raw_model_output_included": false,
+  "category_counts": {
+    "format_placeholder_echo": 9,
+    "incorrect_final_answer": 11,
+    "missing_final_marker": 3
+  },
+  "records": [
+    {
+      "idx": 0,
+      "subject": "抽象代数",
+      "correct": false,
+      "failure_category": "missing_final_marker",
+      "basis": "The response contains no explicit final-answer marker, so the requested answer was not produced.",
+      "answer_extracted": "The condition $\\mathbb{F}_{81} = \\mathbb{F}_3(\\alpha)$ means that the smallest subfield of $\\mathbb{F}_{81}$ containing $\\mathbb{F}_3$ and $\\alpha$ is the entire field $\\mathbb{",
+      "has_final_marker": false,
+      "starts_thinking_process": false,
+      "response_characters": 685
+    },
+    {
+      "idx": 1,
+      "subject": "测度积分",
+      "correct": false,
+      "failure_category": "missing_final_marker",
+      "basis": "The response contains no explicit final-answer marker, so the requested answer was not produced.",
+      "answer_extracted": "*   Is it invertible? Let's check the derivative: $f'(x) = 7x^6 + 5x^4$. Since $x^6 \\ge 0$ and $x^4 \\ge 0$, $f'(x) \\ge 0$ for all real $x$. Also, $f'(x) = 0$ only at $x=0$. Since the derivative is non-negative and zero only at isolated points, $f(x)$ is strictly increasing. Therefore, $f$ is a bijection from $\\mathbb{R}$ to $\\mathbb{R}$",
+      "has_final_marker": false,
+      "starts_thinking_process": false,
+      "response_characters": 668
+    },
+    {
+      "idx": 2,
+      "subject": "复分析",
+      "correct": false,
+      "failure_category": "missing_final_marker",
+      "basis": "The response contains no explicit final-answer marker, so the requested answer was not produced.",
+      "answer_extracted": "*   If $ z_0 $ is a simple pole of $ f(z) $, then the",
+      "has_final_marker": false,
+      "starts_thinking_process": false,
+      "response_characters": 720
+    },
+    {
+      "idx": 3,
+      "subject": "受控算术",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 779
+    },
+    {
+      "idx": 4,
+      "subject": "受控算术",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\" followed by the answer.",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 862
+    },
+    {
+      "idx": 5,
+      "subject": "受控算术",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\" followed by the answer.",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 743
+    },
+    {
+      "idx": 6,
+      "subject": "受控算术",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 792
+    },
+    {
+      "idx": 7,
+      "subject": "受控算术",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 834
+    },
+    {
+      "idx": 8,
+      "subject": "受控算术",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\".",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 923
+    },
+    {
+      "idx": 9,
+      "subject": "代数",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\" (Final Answer:) followed by the answer.",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 757
+    },
+    {
+      "idx": 10,
+      "subject": "代数_多解",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\" (Final Answer:) followed by the answer.",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 774
+    },
+    {
+      "idx": 11,
+      "subject": "代数",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\" followed by the answer.",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 812
+    },
+    {
+      "idx": 12,
+      "subject": "数列",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 794
+    },
+    {
+      "idx": 13,
+      "subject": "几何",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "[answer]\". There is a candidate number \"0\" mentioned, but it seems irrelevant to the calculation itself, perhaps indicating a multiple-choice context where I just need to output the answer. However, the instruction says \"Give a complete solution\" and \"Finally use '最终答案：' to explicitly write the answer\".",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 937
+    },
+    {
+      "idx": 14,
+      "subject": "几何",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 799
+    },
+    {
+      "idx": 15,
+      "subject": "概率",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\".",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 856
+    },
+    {
+      "idx": 16,
+      "subject": "线性代数",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\".",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 758
+    },
+    {
+      "idx": 17,
+      "subject": "线性代数",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\".",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 747
+    },
+    {
+      "idx": 18,
+      "subject": "微积分",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 728
+    },
+    {
+      "idx": 19,
+      "subject": "微积分",
+      "correct": false,
+      "failure_category": "incorrect_final_answer",
+      "basis": "An explicit final answer was extracted, but it differs from the local scoring answer.",
+      "answer_extracted": "\".",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 848
+    },
+    {
+      "idx": 20,
+      "subject": "复数",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 790
+    },
+    {
+      "idx": 21,
+      "subject": "集合",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 954
+    },
+    {
+      "idx": 22,
+      "subject": "数论",
+      "correct": false,
+      "failure_category": "format_placeholder_echo",
+      "basis": "The response repeats an output-format placeholder instead of supplying a mathematical answer.",
+      "answer_extracted": "",
+      "has_final_marker": true,
+      "starts_thinking_process": true,
+      "response_characters": 753
+    }
+  ]
+}

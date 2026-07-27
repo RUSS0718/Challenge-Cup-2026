@@ -1,0 +1,401 @@
+{
+  "dataset_size": 23,
+  "accuracy": 0.0,
+  "average_model_calls": 5.130434782608695,
+  "average_latency_seconds": 15.854478260869566,
+  "timeout_count": 0,
+  "empty_response_count": 0,
+  "answer_not_extractable_count": 0,
+  "answer_not_extractable_rate": 0.0,
+  "controlled_tool_call_count": 35,
+  "grouped_audit_call_count": 49,
+  "repair_attempt_count": 0,
+  "failed_item_ids": [],
+  "total_elapsed_seconds": 364.656,
+  "configured_total_timeout_seconds": 480.0,
+  "records": [
+    {
+      "idx": 0,
+      "correct": false,
+      "latency_seconds": 16.965,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 3,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 1,
+      "correct": false,
+      "latency_seconds": 16.753,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 3,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 2,
+      "correct": false,
+      "latency_seconds": 16.907,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 3,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 3,
+      "correct": false,
+      "latency_seconds": 14.319,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 3,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 4,
+      "correct": false,
+      "latency_seconds": 11.054,
+      "model_calls": 4,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 3,
+      "grouped_audit_calls": 1,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 5,
+      "correct": false,
+      "latency_seconds": 18.287,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 3,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 6,
+      "correct": false,
+      "latency_seconds": 14.652,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 3,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 7,
+      "correct": false,
+      "latency_seconds": 14.123,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 3,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 8,
+      "correct": false,
+      "latency_seconds": 14.327,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 3,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 9,
+      "correct": false,
+      "latency_seconds": 14.018,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 10,
+      "correct": false,
+      "latency_seconds": 15.483,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 11,
+      "correct": false,
+      "latency_seconds": 14.575,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 12,
+      "correct": false,
+      "latency_seconds": 17.819,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 3,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 13,
+      "correct": false,
+      "latency_seconds": 12.058,
+      "model_calls": 4,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 1,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 14,
+      "correct": false,
+      "latency_seconds": 14.59,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 15,
+      "correct": false,
+      "latency_seconds": 14.508,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 16,
+      "correct": false,
+      "latency_seconds": 14.68,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 17,
+      "correct": false,
+      "latency_seconds": 14.922,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 18,
+      "correct": false,
+      "latency_seconds": 16.139,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 19,
+      "correct": false,
+      "latency_seconds": 26.745,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 3,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 20,
+      "correct": false,
+      "latency_seconds": 16.697,
+      "model_calls": 5,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 2,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 21,
+      "correct": false,
+      "latency_seconds": 13.75,
+      "model_calls": 4,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 1,
+      "repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 22,
+      "correct": false,
+      "latency_seconds": 21.282,
+      "model_calls": 6,
+      "finalization_status": "selected",
+      "failure_reasons": [
+        "unsupported_problem"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 1,
+      "grouped_audit_calls": 3,
+      "repair_attempts": 0,
+      "failed": false
+    }
+  ],
+  "status": "ok",
+  "sympy_evidence_enabled": true,
+  "dynamic_budget_enabled": false,
+  "local_repair_enabled": false
+}

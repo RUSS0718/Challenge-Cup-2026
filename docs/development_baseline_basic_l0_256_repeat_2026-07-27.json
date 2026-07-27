@@ -1,0 +1,150 @@
+{
+  "dataset_size": 6,
+  "accuracy": 0.0,
+  "average_model_calls": 1.1666666666666667,
+  "average_latency_seconds": 3.4145,
+  "timeout_count": 0,
+  "empty_response_count": 0,
+  "answer_not_extractable_count": 5,
+  "answer_not_extractable_rate": 0.8333333333333334,
+  "controlled_tool_call_count": 0,
+  "grouped_audit_call_count": 1,
+  "repair_attempt_count": 0,
+  "l2_escalation_count": 0,
+  "uncertain_repair_attempt_count": 0,
+  "failed_item_ids": [
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "total_elapsed_seconds": 20.545,
+  "configured_total_timeout_seconds": 180.0,
+  "records": [
+    {
+      "idx": 3,
+      "correct": false,
+      "latency_seconds": 5.84,
+      "model_calls": 2,
+      "finalization_status": "selected",
+      "failure_reasons": [],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": false,
+      "controlled_tool_calls": 0,
+      "grouped_audit_calls": 1,
+      "repair_attempts": 0,
+      "l2_escalations": 0,
+      "uncertain_repair_attempts": 0,
+      "failed": false
+    },
+    {
+      "idx": 4,
+      "correct": false,
+      "latency_seconds": 2.936,
+      "model_calls": 1,
+      "finalization_status": "fallback",
+      "failure_reasons": [
+        "answer_not_extractable",
+        "no_valid_candidate"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": true,
+      "controlled_tool_calls": 0,
+      "grouped_audit_calls": 0,
+      "repair_attempts": 0,
+      "l2_escalations": 0,
+      "uncertain_repair_attempts": 0,
+      "failed": true
+    },
+    {
+      "idx": 5,
+      "correct": false,
+      "latency_seconds": 3.003,
+      "model_calls": 1,
+      "finalization_status": "fallback",
+      "failure_reasons": [
+        "answer_not_extractable",
+        "no_valid_candidate"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": true,
+      "controlled_tool_calls": 0,
+      "grouped_audit_calls": 0,
+      "repair_attempts": 0,
+      "l2_escalations": 0,
+      "uncertain_repair_attempts": 0,
+      "failed": true
+    },
+    {
+      "idx": 6,
+      "correct": false,
+      "latency_seconds": 2.853,
+      "model_calls": 1,
+      "finalization_status": "fallback",
+      "failure_reasons": [
+        "answer_not_extractable",
+        "no_valid_candidate"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": true,
+      "controlled_tool_calls": 0,
+      "grouped_audit_calls": 0,
+      "repair_attempts": 0,
+      "l2_escalations": 0,
+      "uncertain_repair_attempts": 0,
+      "failed": true
+    },
+    {
+      "idx": 7,
+      "correct": false,
+      "latency_seconds": 2.945,
+      "model_calls": 1,
+      "finalization_status": "fallback",
+      "failure_reasons": [
+        "answer_not_extractable",
+        "no_valid_candidate"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": true,
+      "controlled_tool_calls": 0,
+      "grouped_audit_calls": 0,
+      "repair_attempts": 0,
+      "l2_escalations": 0,
+      "uncertain_repair_attempts": 0,
+      "failed": true
+    },
+    {
+      "idx": 8,
+      "correct": false,
+      "latency_seconds": 2.91,
+      "model_calls": 1,
+      "finalization_status": "fallback",
+      "failure_reasons": [
+        "answer_not_extractable",
+        "no_valid_candidate"
+      ],
+      "timed_out": false,
+      "empty_response": false,
+      "answer_not_extractable": true,
+      "controlled_tool_calls": 0,
+      "grouped_audit_calls": 0,
+      "repair_attempts": 0,
+      "l2_escalations": 0,
+      "uncertain_repair_attempts": 0,
+      "failed": true
+    }
+  ],
+  "status": "ok",
+  "sympy_evidence_enabled": false,
+  "dynamic_budget_enabled": true,
+  "l0_extended_tokens_enabled": false,
+  "l2_routing_enabled": false,
+  "local_repair_enabled": false,
+  "uncertain_repair_enabled": false
+}

@@ -62,6 +62,7 @@
       "failed": true
     }
   ],
-  "status": "ok",
+  "status": "superseded_timeout_only",
+  "archive_note": "This 2026-07-25 report contains the obsolete all-timeout baseline. Use development_baseline_2026-07-25.json for the valid frozen baseline.",
   "sympy_evidence_enabled": false
 }
