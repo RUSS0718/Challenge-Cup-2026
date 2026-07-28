@@ -1,0 +1,17 @@
+P0.1 budget scan on 23 frozen dev items | concurrency=1 | total_timeout=600.0s | retry=1 | inter_tier_sleep=30s
+[main]   tier= 2 gen=1 acc= 17.4% (4/23) calls=1.70 lat=6.9s to=0 cap_ok=True elapsed=159s  -> budget_scan_tier_2_main_2026-07-28_172647.json
+[pause]   sleeping 30s before tier 6 to avoid rate limits.
+[main]   tier= 6 gen=3 acc= 17.4% (4/23) calls=4.09 lat=14.8s to=0 cap_ok=True elapsed=341s  -> budget_scan_tier_6_main_2026-07-28_172647.json
+[rerun]   top-2 tiers by accuracy: [2, 6]
+[rerun]   tier=2 rep=1 tier= 2 gen=1 acc= 26.1% (6/23) calls=1.74 lat=7.4s to=0 cap_ok=True elapsed=171s
+[pause]   sleeping 30s before rerun of tier 2 rep 2.
+[rerun]   tier=2 rep=2 tier= 2 gen=1 acc= 13.0% (3/23) calls=1.61 lat=7.5s to=0 cap_ok=True elapsed=173s
+[pause]   sleeping 30s before rerun of tier 6 rep 1.
+[rerun]   tier=6 rep=1 tier= 6 gen=3 acc= 21.7% (5/23) calls=3.65 lat=13.7s to=0 cap_ok=True elapsed=315s
+[pause]   sleeping 30s before rerun of tier 6 rep 2.
+[rerun]   tier=6 rep=2 tier= 6 gen=3 acc= 21.7% (5/23) calls=3.91 lat=13.4s to=0 cap_ok=True elapsed=308s
+[decide]  tier=2 rerun_correct=[6, 3] both>6=False
+[decide]  tier=6 rerun_correct=[5, 5] both>6=False
+[decide]  No tier reproducibly beats 6/23. KEEP 6-call default.
+[done]    summary -> budget_scan_summary_2026-07-28_172647.json
+EXIT=0

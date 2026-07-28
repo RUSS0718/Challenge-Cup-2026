@@ -23,6 +23,90 @@ def load_items(path: Path) -> list[dict[str, Any]]:
         return [json.loads(line) for line in file if line.strip()]
 
 
+def not_run_record(item: dict[str, Any]) -> dict[str, Any]:
+    """Record for an item skipped because the evaluation total timeout was exhausted."""
+    return {
+        "idx": item.get("idx"),
+        "correct": False,
+        "latency_seconds": 0.0,
+        "model_calls": 0,
+        "finalization_status": "not_run",
+        "failure_reasons": ["evaluation_total_timeout_exhausted"],
+        "timed_out": True,
+        "empty_response": False,
+        "empty_final_response": True,
+        "answer_not_extractable": False,
+        "controlled_tool_calls": 0,
+        "controlled_tool_supported": 0,
+        "controlled_tool_refuted": 0,
+        "controlled_tool_unknown": 0,
+        "grouped_audit_calls": 0,
+        "repair_attempts": 0,
+        "l2_escalations": 0,
+        "uncertain_repair_attempts": 0,
+        "failed": True,
+    }
+
+
+def evaluate_item_record(agent: ReasoningAgent, item: dict[str, Any]) -> dict[str, Any]:
+    """Solve one item and produce the same per-item record schema as ``evaluate``.
+
+    The agent never receives the sample ``answer``; it is only used locally for
+    scoring, matching the privacy boundary required by the competition rules.
+    """
+    started_at = time.perf_counter()
+    result = agent.solve(item["problem"], {"idx": item.get("idx")})
+    elapsed_seconds = time.perf_counter() - started_at
+    final_response = result.get("final_response")
+    trace = result.get("trace", [])
+    final_trace = next(
+        (entry for entry in reversed(trace) if entry.get("step") == "finalize"), {}
+    )
+    reasons = [
+        entry["reason"]
+        for entry in trace
+        if entry.get("reason")
+        and entry.get("status") in {"skipped", "rejected", "fallback", "not_run"}
+    ]
+    is_timeout = any("Timeout" in reason or "timeout" in reason for reason in reasons)
+    is_empty = any(reason == "empty_model_response" for reason in reasons)
+    answer_not_extractable = any(reason == "answer_not_extractable" for reason in reasons)
+    controlled_tool_calls = sum(entry.get("step") == "controlled_tool" for entry in trace)
+    tool_claim_statuses = [
+        entry["claim_status"]
+        for entry in trace
+        if entry.get("step") == "controlled_tool" and entry.get("claim_status")
+    ]
+    grouped_audit_calls = sum(entry.get("step") == "audit_answer_group" for entry in trace)
+    repair_attempts = sum(entry.get("step") == "repair_candidate" for entry in trace)
+    l2_escalations = sum(entry.get("step") == "route_budget" and entry.get("level") == "L2" for entry in trace)
+    uncertain_repair_attempts = sum(entry.get("step") == "repair_candidate" and entry.get("trigger") == "uncertain_without_pass" for entry in trace)
+    # A failed sampling or audit attempt is diagnostic evidence, not a failed
+    # item when finalization still selected a valid answer.
+    failed = final_trace.get("status") in {"fallback", "not_run"}
+    return {
+        "idx": item.get("idx"),
+        "correct": normalize(final_response or "") == normalize(item["answer"]),
+        "latency_seconds": round(elapsed_seconds, 3),
+        "model_calls": final_trace.get("model_calls", 0),
+        "finalization_status": final_trace.get("status"),
+        "failure_reasons": reasons,
+        "timed_out": is_timeout,
+        "empty_response": is_empty,
+        "empty_final_response": not isinstance(final_response, str) or not final_response.strip(),
+        "answer_not_extractable": answer_not_extractable,
+        "controlled_tool_calls": controlled_tool_calls,
+        "controlled_tool_supported": tool_claim_statuses.count("SUPPORTED"),
+        "controlled_tool_refuted": tool_claim_statuses.count("REFUTED"),
+        "controlled_tool_unknown": tool_claim_statuses.count("UNKNOWN"),
+        "grouped_audit_calls": grouped_audit_calls,
+        "repair_attempts": repair_attempts,
+        "l2_escalations": l2_escalations,
+        "uncertain_repair_attempts": uncertain_repair_attempts,
+        "failed": failed,
+    }
+
+
 def evaluate(
     agent: ReasoningAgent,
     items: list[dict[str, Any]],
@@ -32,59 +116,9 @@ def evaluate(
     total_started_at = time.perf_counter()
     for item in items:
         if total_timeout_seconds is not None and time.perf_counter() - total_started_at >= total_timeout_seconds:
-            records.append({"idx": item.get("idx"), "correct": False, "latency_seconds": 0.0, "model_calls": 0, "finalization_status": "not_run", "failure_reasons": ["evaluation_total_timeout_exhausted"], "timed_out": True, "empty_response": False, "answer_not_extractable": False, "controlled_tool_calls": 0, "controlled_tool_supported": 0, "controlled_tool_refuted": 0, "controlled_tool_unknown": 0, "grouped_audit_calls": 0, "repair_attempts": 0, "l2_escalations": 0, "uncertain_repair_attempts": 0, "failed": True})
+            records.append(not_run_record(item))
             continue
-        started_at = time.perf_counter()
-        result = agent.solve(item["problem"], {"idx": item.get("idx")})
-        elapsed_seconds = time.perf_counter() - started_at
-        trace = result.get("trace", [])
-        final_trace = next(
-            (entry for entry in reversed(trace) if entry.get("step") == "finalize"), {}
-        )
-        reasons = [
-            entry["reason"]
-            for entry in trace
-            if entry.get("reason")
-            and entry.get("status") in {"skipped", "rejected", "fallback", "not_run"}
-        ]
-        is_timeout = any("Timeout" in reason or "timeout" in reason for reason in reasons)
-        is_empty = any(reason == "empty_model_response" for reason in reasons)
-        answer_not_extractable = any(reason == "answer_not_extractable" for reason in reasons)
-        controlled_tool_calls = sum(entry.get("step") == "controlled_tool" for entry in trace)
-        tool_claim_statuses = [
-            entry["claim_status"]
-            for entry in trace
-            if entry.get("step") == "controlled_tool" and entry.get("claim_status")
-        ]
-        grouped_audit_calls = sum(entry.get("step") == "audit_answer_group" for entry in trace)
-        repair_attempts = sum(entry.get("step") == "repair_candidate" for entry in trace)
-        l2_escalations = sum(entry.get("step") == "route_budget" and entry.get("level") == "L2" for entry in trace)
-        uncertain_repair_attempts = sum(entry.get("step") == "repair_candidate" and entry.get("trigger") == "uncertain_without_pass" for entry in trace)
-        # A failed sampling or audit attempt is diagnostic evidence, not a failed
-        # item when finalization still selected a valid answer.
-        failed = final_trace.get("status") in {"fallback", "not_run"}
-        records.append(
-            {
-                "idx": item.get("idx"),
-                "correct": normalize(result["final_response"]) == normalize(item["answer"]),
-                "latency_seconds": round(elapsed_seconds, 3),
-                "model_calls": final_trace.get("model_calls", 0),
-                "finalization_status": final_trace.get("status"),
-                "failure_reasons": reasons,
-                "timed_out": is_timeout,
-                "empty_response": is_empty,
-                "answer_not_extractable": answer_not_extractable,
-                "controlled_tool_calls": controlled_tool_calls,
-                "controlled_tool_supported": tool_claim_statuses.count("SUPPORTED"),
-                "controlled_tool_refuted": tool_claim_statuses.count("REFUTED"),
-                "controlled_tool_unknown": tool_claim_statuses.count("UNKNOWN"),
-                "grouped_audit_calls": grouped_audit_calls,
-                "repair_attempts": repair_attempts,
-                "l2_escalations": l2_escalations,
-                "uncertain_repair_attempts": uncertain_repair_attempts,
-                "failed": failed,
-            }
-        )
+        records.append(evaluate_item_record(agent, item))
 
     total = len(records)
     return {
@@ -98,6 +132,7 @@ def evaluate(
         ),
         "timeout_count": sum(record["timed_out"] for record in records),
         "empty_response_count": sum(record["empty_response"] for record in records),
+        "empty_final_response_count": sum(record["empty_final_response"] for record in records),
         "answer_not_extractable_count": sum(record["answer_not_extractable"] for record in records),
         "answer_not_extractable_rate": (
             sum(record["answer_not_extractable"] for record in records) / total if total else 0.0
@@ -113,7 +148,48 @@ def evaluate(
         "failed_item_ids": [record["idx"] for record in records if record["failed"]],
         "total_elapsed_seconds": round(time.perf_counter() - total_started_at, 3),
         "configured_total_timeout_seconds": total_timeout_seconds,
+        "max_actual_model_calls": max((record["model_calls"] for record in records), default=0),
+        "budget_config": summarize_budget_config(agent),
         "records": records,
+    }
+
+
+def within_call_cap(report: dict[str, Any]) -> bool:
+    """Return True when every item's actual calls stayed within the tier hard cap.
+
+    The agent enforces the cap internally, but this gives an auditable check that
+    no exception path, answer-group count, or parse outcome produced more calls
+    than the declared per-question hard limit for the tier.
+    """
+    cap = (report.get("budget_config") or {}).get("max_model_calls")
+    if cap is None:
+        return True
+    return report.get("max_actual_model_calls", 0) <= cap
+
+
+
+def summarize_budget_config(agent: ReasoningAgent) -> dict[str, Any]:
+    """Expose the call-budget configuration carried by the agent, if any.
+
+    Used by local budget scans so each report declares the tier it represents.
+    Falls back to an empty dict when the agent does not expose a config (e.g. a
+    test double), keeping ``evaluate`` usable without a real agent.
+    """
+    config = getattr(agent, "config", None)
+    if config is None:
+        return {}
+    return {
+        "policy_sample_times": getattr(config, "policy_sample_times", None),
+        "max_model_calls": getattr(config, "max_model_calls", None),
+        "verifier_voting_times": getattr(config, "verifier_voting_times", None),
+        "max_tokens": getattr(config, "max_tokens", None),
+        "l0_max_tokens": getattr(config, "l0_max_tokens", None),
+        "enable_l0_extended_tokens": getattr(config, "enable_l0_extended_tokens", None),
+        "enable_sympy_evidence": getattr(config, "enable_sympy_evidence", None),
+        "enable_dynamic_budget": getattr(config, "enable_dynamic_budget", None),
+        "enable_l2_routing": getattr(config, "enable_l2_routing", None),
+        "enable_local_repair": getattr(config, "enable_local_repair", None),
+        "enable_uncertain_repair": getattr(config, "enable_uncertain_repair", None),
     }
 
 
@@ -132,6 +208,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--enable-local-repair", action="store_true")
     parser.add_argument("--enable-uncertain-repair", action="store_true")
     parser.add_argument("--answer-only-prompt", action="store_true")
+    parser.add_argument("--policy-sample-times", type=int, help="Number of candidate generations for the non-L0 path (budget scan).")
+    parser.add_argument("--max-model-calls", type=int, help="Per-question hard cap on model calls (budget scan).")
     parser.add_argument("--output-file")
     return parser.parse_args()
 
@@ -149,6 +227,8 @@ def main() -> None:
             enable_l2_routing=args.enable_l2_routing,
             enable_local_repair=args.enable_local_repair,
             enable_uncertain_repair=args.enable_uncertain_repair,
+            policy_sample_times=args.policy_sample_times if args.policy_sample_times is not None else AgentConfig.policy_sample_times,
+            max_model_calls=args.max_model_calls if args.max_model_calls is not None else AgentConfig.max_model_calls,
             policy_prompt=ANSWER_ONLY_POLICY_PROMPT if args.answer_only_prompt else AgentConfig.policy_prompt,
         )
         agent = ReasoningAgent(client=InternChatClient(timeout=args.timeout_seconds, retry=args.retry_count), config=config)
@@ -156,6 +236,7 @@ def main() -> None:
         if total_timeout is None:
             total_timeout = len(items) * config.max_model_calls * args.timeout_seconds * args.retry_count
         report = evaluate(agent, items, total_timeout)
+        report["within_call_cap"] = within_call_cap(report)
         report["status"] = "ok"
         report["sympy_evidence_enabled"] = args.enable_sympy_evidence
         report["dynamic_budget_enabled"] = args.enable_dynamic_budget

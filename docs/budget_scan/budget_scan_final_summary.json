@@ -1,0 +1,222 @@
+{
+  "_meta": {
+    "title": "P0.1 模型调用预算扫描 — 最终综合摘要",
+    "pipeline": "主扫描 (2/4/6/8/10/12) → 污染排除 → top-2 复评 (tier2, tier6) → 最终决策",
+    "generated": "2026-07-28T19:51:00+08:00",
+    "baseline_correct": 6,
+    "baseline_total": 23,
+    "supersedes": [
+      "summaries/budget_scan_summary_2026-07-28_160610.json — early partial tier2-only scan, superseded",
+      "summaries/budget_scan_summary_2026-07-28_160736.json — connectivity-polluted all-zero run, superseded",
+      "summaries/budget_scan_summary_2026-07-28_162142.json — partial tier4-only run, superseded",
+      "summaries/budget_scan_summary_2026-07-28_162638.json — main scan with polluted tier12, no reruns; data incorporated here",
+      "summaries/budget_scan_summary_2026-07-28_172647.json — rerun summary with tier2/tier6 only; data incorporated here"
+    ],
+    "data_sources": {
+      "main_scan_tiers_2_10": "logs/budget_scan_main_A.log + per_tier/*_162638.json",
+      "main_scan_tier_12": "per_tier/budget_scan_tier_12_main_2026-07-28_194340.json — clean re-run, 3/23, 0 connectivity errors, 454s",
+      "main_scan_tier_12_void": "per_tier/budget_scan_tier_12_main_2026-07-28_162638.json — 38 connectivity errors, VOID",
+      "reruns": "logs/budget_scan_reruns_C.log + per_tier/*_172647.json"
+    }
+  },
+
+  "phase_1_main_scan": {
+    "description": "对冻结 23 题开发集按 2/4/6/8/10/12 档位各运行一次。所有实验开关保持关闭，仅改变 candidate_gen × audit 次数。",
+    "parameters": {
+      "timeout_seconds_per_request": 15,
+      "retry_count": 1,
+      "total_timeout_seconds": 600,
+      "inter_tier_sleep_seconds": 30
+    },
+    "tiers": {
+      "2": {
+        "tier": 2,
+        "policy_sample_times": 1,
+        "accuracy": 0.2609,
+        "correct": "6/23",
+        "average_model_calls": 1.57,
+        "average_latency_seconds": 5.8,
+        "timeout_count": 0,
+        "within_call_cap": true,
+        "total_elapsed_seconds": 134,
+        "connectivity_error_count": 0,
+        "polluted": false,
+        "status": "valid"
+      },
+      "4": {
+        "tier": 4,
+        "policy_sample_times": 2,
+        "accuracy": 0.1304,
+        "correct": "3/23",
+        "average_model_calls": 2.70,
+        "average_latency_seconds": 9.0,
+        "timeout_count": 0,
+        "within_call_cap": true,
+        "total_elapsed_seconds": 207,
+        "connectivity_error_count": 0,
+        "polluted": false,
+        "status": "valid"
+      },
+      "6": {
+        "tier": 6,
+        "policy_sample_times": 3,
+        "accuracy": 0.2174,
+        "correct": "5/23",
+        "average_model_calls": 4.04,
+        "average_latency_seconds": 12.6,
+        "timeout_count": 0,
+        "within_call_cap": true,
+        "total_elapsed_seconds": 290,
+        "connectivity_error_count": 0,
+        "polluted": false,
+        "status": "valid (default configuration)"
+      },
+      "8": {
+        "tier": 8,
+        "policy_sample_times": 4,
+        "accuracy": 0.2174,
+        "correct": "5/23",
+        "average_model_calls": 4.83,
+        "average_latency_seconds": 15.1,
+        "timeout_count": 0,
+        "within_call_cap": true,
+        "total_elapsed_seconds": 347,
+        "connectivity_error_count": 0,
+        "polluted": false,
+        "status": "valid"
+      },
+      "10": {
+        "tier": 10,
+        "policy_sample_times": 5,
+        "accuracy": 0.1739,
+        "correct": "4/23",
+        "average_model_calls": 6.39,
+        "average_latency_seconds": 19.5,
+        "timeout_count": 0,
+        "within_call_cap": true,
+        "total_elapsed_seconds": 449,
+        "connectivity_error_count": 0,
+        "polluted": false,
+        "status": "valid"
+      },
+      "12": {
+        "tier": 12,
+        "policy_sample_times": 6,
+        "accuracy": 0.1304,
+        "correct": "3/23",
+        "average_model_calls": 6.74,
+        "average_latency_seconds": 19.7,
+        "timeout_count": 0,
+        "within_call_cap": true,
+        "total_elapsed_seconds": 454,
+        "connectivity_error_count": 0,
+        "polluted": false,
+        "status": "valid — clean re-run (original 162638 run had 38 connectivity errors and was voided)"
+      }
+    },
+    "findings": [
+      "准确率不随预算单调上升: tier2=6/23, tier4=3/23, tier6=tier8=5/23, tier10=4/23, tier12=3/23",
+      "2–12 档位准确率呈噪声平台 (3–6/23)，提高预算无稳定增益",
+      "tier2 以最低调用数 (1.57) 和最低延迟 (5.8s) 获得最高准确率 (6/23)，但仅与默认基线持平",
+      "全部 6 个档位 23/23 非空响应、0 超时、600s 内完成、within_call_cap=True"
+    ]
+  },
+
+  "phase_2_conditional_scan_gate": {
+    "trigger_condition": "tier10 或 tier12 相对低档仍有提升 AND 无超时 AND 600s 内完成",
+    "tier10_status": "4/23 < tier2(6/23), tier6(5/23), tier8(5/23) — 无提升信号",
+    "tier12_status": "3/23 < tier2/6/8 — 同样无提升；干净补跑证实 12 档位无收益",
+    "result": "未触发 — 14/16/18/20 条件上探未执行。2–12 档位已完整覆盖，无档位显示提升趋势。"
+  },
+
+  "phase_3_top2_rerun": {
+    "description": "从干净档位中选准确率最高的两个 (tier2, tier6)，各独立复评两次",
+    "ranking_method": "准确率降序 → 调用数升序 → 延迟升序；污染档位排除",
+    "top2_selected": [2, 6],
+    "note": "tier12 (3/23) 排名低于 tier2(6/23) 和 tier6(5/23)，不影响 top-2 选择",
+    "reruns": {
+      "2": [
+        {
+          "rep": 1,
+          "accuracy": 0.2609,
+          "correct": "6/23",
+          "average_model_calls": 1.74,
+          "average_latency_seconds": 7.4,
+          "timeout_count": 0,
+          "within_call_cap": true,
+          "total_elapsed_seconds": 171,
+          "connectivity_error_count": 0
+        },
+        {
+          "rep": 2,
+          "accuracy": 0.1304,
+          "correct": "3/23",
+          "average_model_calls": 1.61,
+          "average_latency_seconds": 7.5,
+          "timeout_count": 0,
+          "within_call_cap": true,
+          "total_elapsed_seconds": 173,
+          "connectivity_error_count": 0
+        }
+      ],
+      "6": [
+        {
+          "rep": 1,
+          "accuracy": 0.2174,
+          "correct": "5/23",
+          "average_model_calls": 3.65,
+          "average_latency_seconds": 13.7,
+          "timeout_count": 0,
+          "within_call_cap": true,
+          "total_elapsed_seconds": 315,
+          "connectivity_error_count": 0
+        },
+        {
+          "rep": 2,
+          "accuracy": 0.2174,
+          "correct": "5/23",
+          "average_model_calls": 3.91,
+          "average_latency_seconds": 13.4,
+          "timeout_count": 0,
+          "within_call_cap": true,
+          "total_elapsed_seconds": 308,
+          "connectivity_error_count": 0
+        }
+      ]
+    }
+  },
+
+  "phase_4_decision": {
+    "qualified_tiers": [],
+    "adopted_tier": null,
+    "decision": "KEEP 6-call default",
+    "rationale": [
+      "tier2 复评: [6/23, 3/23] — rep2 未达到 >6/23 门槛",
+      "tier6 复评: [5/23, 5/23] — 两次均未达到 >6/23 门槛",
+      "无档位两次独立复评均 >6/23，不具备替换资格"
+    ],
+    "gate_summary": {
+      "gate_1_accuracy": "FAIL — 两档复评均未满足两轮 >6/23",
+      "gate_2_non_empty": "PASS — 所有档位 23/23 非空响应",
+      "gate_3_no_timeout": "PASS — 所有档位 0 超时",
+      "budget_600s": "PASS — 所有干净档位 600s 内完成",
+      "call_cap": "PASS — 所有档位 within_call_cap=True",
+      "connectivity_pollution": "PASS — 全部 6 档位 0 connectivity errors（原 tier12 作废运行已排除）"
+    },
+    "adopted_config": null
+  },
+
+  "conclusion": {
+    "summary": "在 23 题冻结开发集上，2–12 次模型调用预算的准确率噪声平台为 3–6/23。tier2 (1 gen, 2-cap) 以最低成本达到 6/23 但复评不稳定 (6→3)。tier6 (3 gen, 6-cap, 当前默认) 复评两次稳定在 5/23。tier12 干净补跑 3/23。无档位可复现地优于 6/23 基线。保留 6 次默认配置是当前证据下安全的决策。14+ 条件上探因 tier10/12 无提升而正式关闭。",
+    "next_steps": [
+      "P0.1 交付完毕 → 转向 P0.2 统一失败口径诊断，分析截断和解析失败根因"
+    ],
+    "minimum_closure_status": {
+      "tier12_clean_scan": "done — 干净补跑 3/23, 0 conn_err, 454s, within 600s",
+      "gate_errors_fixed": "done — TODO_LIST.md 已修正门槛声明",
+      "tests_added": "done — 新增 28 项 P0.1 评测指标、gate、排序、采纳和污染排除测试；共 70 项测试全部通过",
+      "final_summary": "done — 本文件为单一最终综合摘要",
+      "document_conclusions_fixed": "done — TODO_LIST.md 已修正"
+    }
+  }
+}

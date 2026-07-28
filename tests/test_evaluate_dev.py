@@ -57,6 +57,14 @@ class RoutedAgent:
         }
 
 
+class EmptyFinalResponseAgent:
+    def solve(self, problem, metadata):
+        return {
+            "final_response": "",
+            "trace": [{"step": "finalize", "status": "selected", "model_calls": 1}],
+        }
+
+
 class EvaluateDevelopmentSetTest(unittest.TestCase):
     def test_answer_is_used_only_for_local_scoring(self):
         agent = CapturingAgent()
@@ -75,6 +83,14 @@ class EvaluateDevelopmentSetTest(unittest.TestCase):
         report = evaluate(agent, [{"idx": 1, "problem": "a", "answer": "42"}], total_timeout_seconds=0)
         self.assertEqual([], agent.calls)
         self.assertEqual([1], report["failed_item_ids"])
+
+    def test_report_tracks_empty_final_response_separately(self):
+        report = evaluate(
+            EmptyFinalResponseAgent(),
+            [{"idx": 2, "problem": "a", "answer": "42"}],
+        )
+        self.assertEqual(1, report["empty_final_response_count"])
+        self.assertEqual(0, report["empty_response_count"])
 
     def test_partial_candidate_failure_does_not_fail_successful_solution(self):
         report = evaluate(
