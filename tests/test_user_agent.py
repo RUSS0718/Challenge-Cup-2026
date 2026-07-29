@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from user_agent import ANSWER_ONLY_POLICY_PROMPT, AgentConfig, ReasoningAgent, answer_equivalence, extract_final_answer, normalize_answer
+from user_agent import ANSWER_FIRST_POLICY_PROMPT, ANSWER_ONLY_POLICY_PROMPT, POLICY_PROMPT, AgentConfig, ReasoningAgent, answer_equivalence, extract_final_answer, normalize_answer
 
 
 class FakeClient:
@@ -44,6 +44,19 @@ class AnswerHandlingTest(unittest.TestCase):
         self.assertEqual("1/2", normalize_answer("0.5"))
         self.assertEqual("sqrt(2)", normalize_answer(r"\sqrt{2}"))
         self.assertEqual("F(x)??", normalize_answer("F(x)??"))
+
+    def test_multi_numeric_roots_are_canonicalized_order_invariantly(self):
+        # Universal unordered multi-root set form; not bound to any sample idx.
+        self.assertEqual("-1,1", normalize_answer("x = 1, x = -1"))
+        self.assertEqual("-1,1", normalize_answer("-1, 1"))
+        self.assertEqual("-1,1", normalize_answer("x=-1 or x=1"))
+        self.assertEqual("-1,1", normalize_answer("{1, -1}"))
+        self.assertEqual("2,3", normalize_answer("x=3, x=2"))
+        self.assertEqual("EQUIVALENT", answer_equivalence("x=1, x=-1", "-1, 1"))
+        self.assertEqual("NOT_EQUIVALENT", answer_equivalence("-1, 1", "1, 2"))
+        # Ordered single vectors / inequalities stay untouched.
+        self.assertEqual("(1,2,3)", normalize_answer("(1,2,3)"))
+        self.assertEqual("x>5", normalize_answer("x > 5"))
 
     def test_equivalence_is_three_valued_and_conservative(self):
         self.assertEqual("EQUIVALENT", answer_equivalence("1/2", "0.5"))
@@ -150,6 +163,18 @@ class ReasoningAgentTest(unittest.TestCase):
         agent.solve("题", {})
 
         self.assertEqual(ANSWER_ONLY_POLICY_PROMPT, client.calls[0][0][0]["content"])
+
+    def test_default_policy_prompt_is_answer_first(self):
+        self.assertEqual(ANSWER_FIRST_POLICY_PROMPT, POLICY_PROMPT)
+        self.assertEqual(ANSWER_FIRST_POLICY_PROMPT, AgentConfig().policy_prompt)
+
+    def test_answer_first_prompt_matches_default_generation_prompt(self):
+        client = FakeClient(["最终答案：7", "VERDICT: A"])
+        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=2, enable_l0_extended_tokens=False))
+
+        agent.solve("题", {})
+
+        self.assertEqual(POLICY_PROMPT, client.calls[0][0][0]["content"])
 
     def test_l2_escalates_conflicting_l1_candidates_within_its_explicit_budget(self):
         client = FakeClient(["最终答案：1", "最终答案：2", "最终答案：2", "VERDICT: B", "VERDICT: A"])

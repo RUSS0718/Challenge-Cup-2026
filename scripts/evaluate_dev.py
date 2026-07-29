@@ -11,7 +11,7 @@ from typing import Any
 # `python scripts/evaluate_dev.py` invocation from the repository root.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from user_agent import ANSWER_ONLY_POLICY_PROMPT, AgentConfig, ReasoningAgent
+from user_agent import ANSWER_FIRST_POLICY_PROMPT, ANSWER_ONLY_POLICY_PROMPT, AgentConfig, ReasoningAgent
 
 
 def normalize(answer: str) -> str:
@@ -227,6 +227,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--enable-local-repair", action="store_true")
     parser.add_argument("--enable-uncertain-repair", action="store_true")
     parser.add_argument("--answer-only-prompt", action="store_true")
+    parser.add_argument("--answer-first-prompt", action="store_true")
     parser.add_argument("--policy-sample-times", type=int, help="Number of candidate generations for the non-L0 path (budget scan).")
     parser.add_argument("--max-model-calls", type=int, help="Per-question hard cap on model calls (budget scan).")
     parser.add_argument("--max-tokens", type=int, help="Non-L0 generation max tokens (default 1024). L0 always uses l0_max_tokens=1024.")
@@ -250,7 +251,7 @@ def main() -> None:
             policy_sample_times=args.policy_sample_times if args.policy_sample_times is not None else AgentConfig.policy_sample_times,
             max_model_calls=args.max_model_calls if args.max_model_calls is not None else AgentConfig.max_model_calls,
             max_tokens=args.max_tokens if args.max_tokens is not None else AgentConfig.max_tokens,
-            policy_prompt=ANSWER_ONLY_POLICY_PROMPT if args.answer_only_prompt else AgentConfig.policy_prompt,
+            policy_prompt=(ANSWER_FIRST_POLICY_PROMPT if args.answer_first_prompt else (ANSWER_ONLY_POLICY_PROMPT if args.answer_only_prompt else AgentConfig.policy_prompt)),
         )
         agent = ReasoningAgent(client=InternChatClient(timeout=args.timeout_seconds, retry=args.retry_count), config=config)
         total_timeout = args.total_timeout_seconds
@@ -266,6 +267,7 @@ def main() -> None:
         report["local_repair_enabled"] = args.enable_local_repair
         report["uncertain_repair_enabled"] = args.enable_uncertain_repair
         report["answer_only_prompt_enabled"] = args.answer_only_prompt
+        report["answer_first_prompt_enabled"] = args.answer_first_prompt
     except Exception as exc:
         report = {
             "status": "error",

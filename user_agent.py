@@ -6,7 +6,9 @@ from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from typing import Any
 
-POLICY_PROMPT = """你是严谨的数学推理智能体。解决用户给出的数学问题。先理解题意、约束与定义域，再给出简洁但充分的推导。最后一行必须使用“最终答案：”明确写出答案。"""
+# P1.1 采纳：三轮 12/15/12 均 > 旧基线 ~11/23；默认使用答案优先短提示。
+POLICY_PROMPT = """你是严谨的数学推理智能体。解决用户给出的数学问题。优先收敛到答案，不要复述题意、不要输出格式说明或无关说明；给出简洁但充分的推导。最后一行必须使用“最终答案：”明确写出答案。"""
+ANSWER_FIRST_POLICY_PROMPT = POLICY_PROMPT
 ANSWER_ONLY_POLICY_PROMPT = """你是数学求解器。直接解题，不要输出 Thinking Process、计划、标题或格式说明。只输出一行“最终答案：”后接数学答案。"""
 VERIFIER_PROMPT = """你是数学解答审核员。独立检查候选答案是否能正确解决题目。
 若发现错误，指出第一个可证实的错误位置；不要复述完整解答。
@@ -67,19 +69,76 @@ def _extract_boxed_answers(text: str) -> list[str]:
         if depth == 0 and (answer := text[content_start:index - 1].strip()): answers.append(answer)
         cursor = index if index > start else start + 1
 
+def _format_rational(number: Fraction) -> str:
+    return str(number.numerator) if number.denominator == 1 else f"{number.numerator}/{number.denominator}"
+
+def _parse_rational_token(token: str) -> Fraction | None:
+    compact = re.sub(r"\s+", "", token or "")
+    if not compact:
+        return None
+    compact = compact.replace("\\left", "").replace("\\right", "").replace("−", "-")
+    match = re.fullmatch(r"\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}", compact)
+    if match:
+        compact = f"{match.group(1)}/{match.group(2)}"
+    try:
+        return Fraction(Decimal(compact))
+    except (InvalidOperation, ValueError, ZeroDivisionError):
+        try:
+            return Fraction(compact)
+        except (ValueError, ZeroDivisionError):
+            return None
+
+def _canonicalize_multi_numeric_set(answer: str) -> str | None:
+    """Unordered multi-root numeric sets only; ordered tuples/vectors stay untouched.
+
+    Universal surface forms such as ``x=1, x=-1``, ``-1 or 1``, ``{1,-1}``.
+    No problem-id or subject branching.
+    """
+    if not isinstance(answer, str) or not answer.strip():
+        return None
+    text = answer.strip().rstrip("。；;.")
+    # Keep ordered coordinates / inequalities / single expressions alone.
+    if re.fullmatch(r"\([^()]+(?:,[^()]+)+\)", re.sub(r"\s+", "", text)):
+        return None
+    if re.search(r"[<>≤≥]", text):
+        return None
+    # Drop optional set braces after rejecting ordered tuples.
+    bare = text
+    if bare.startswith("{") and bare.endswith("}"):
+        bare = bare[1:-1].strip()
+    # Require an explicit multi-value separator before treating as a set.
+    if not re.search(r",|，|、|\bor\b|或", bare, flags=re.IGNORECASE):
+        return None
+    pieces = [p.strip() for p in re.split(r"(?:,|，|、|\bor\b|或)", bare, flags=re.IGNORECASE) if p.strip()]
+    if len(pieces) < 2:
+        return None
+    values: list[Fraction] = []
+    for piece in pieces:
+        # Strip repeated ``var =`` / ``var:`` labels common in multi-root dumps.
+        piece = re.sub(r"^(?:[A-Za-z\u4e00-\u9fff]+)\s*[=:：]\s*", "", piece.strip())
+        number = _parse_rational_token(piece)
+        if number is None:
+            return None
+        values.append(number)
+    # Unordered set: sort and dedupe exact rationals.
+    ordered = sorted(set(values))
+    return ",".join(_format_rational(v) for v in ordered)
+
 def normalize_answer(answer: str) -> str:
     if not isinstance(answer, str): return ""
+    multi = _canonicalize_multi_numeric_set(answer)
+    if multi is not None:
+        return multi
     compact = re.sub(r"\s+", "", answer).rstrip("。；;.,")
     if not compact: return ""
     compact = compact.replace("\\left", "").replace("\\right", "")
     match = re.fullmatch(r"\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}", compact)
     if match: compact = f"{match.group(1)}/{match.group(2)}"
     compact = re.sub(r"\\sqrt\{([^{}]+)\}", r"sqrt(\1)", compact).replace("−", "-").replace("×", "*")
-    try: number = Fraction(Decimal(compact))
-    except (InvalidOperation, ValueError, ZeroDivisionError):
-        try: number = Fraction(compact)
-        except (ValueError, ZeroDivisionError): return compact
-    return str(number.numerator) if number.denominator == 1 else f"{number.numerator}/{number.denominator}"
+    number = _parse_rational_token(compact)
+    if number is None:
+        return compact
+    return _format_rational(number)
 
 def answer_equivalence(left: str, right: str) -> str:
     """Return only proven answer identity; ambiguous expressions stay separate."""
@@ -89,7 +148,10 @@ def answer_equivalence(left: str, right: str) -> str:
     if normalized_left == normalized_right:
         return "EQUIVALENT"
     numeric = r"-?\d+(?:/\d+)?"
+    multi_numeric = rf"{numeric}(?:,{numeric})+"
     if re.fullmatch(numeric, normalized_left) and re.fullmatch(numeric, normalized_right):
+        return "NOT_EQUIVALENT"
+    if re.fullmatch(multi_numeric, normalized_left) and re.fullmatch(multi_numeric, normalized_right):
         return "NOT_EQUIVALENT"
     if re.fullmatch(r"[A-D]", normalized_left, re.IGNORECASE) and re.fullmatch(r"[A-D]", normalized_right, re.IGNORECASE):
         return "NOT_EQUIVALENT"
@@ -126,8 +188,10 @@ class ReasoningAgent:
             trace.append({"step":"finalize","status":"fallback","reason":"no_valid_candidate","model_calls":budget["used"]})
             return {"final_response":"未能生成有效数学答案。","trace":trace}
         best = self._select_candidate(candidates)
+        # Prefer conservative canonical form (e.g. unordered multi-root numeric sets).
+        final_answer = best.get("normalized_answer") or best["answer"]
         trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"]})
-        return {"final_response":best["answer"],"trace":trace}
+        return {"final_response":final_answer,"trace":trace}
 
     def _generate_candidates(self, problem: str, generation_calls: int, candidates: list[dict[str, Any]], trace: list[dict[str, Any]], budget: dict[str, int], max_tokens: int) -> None:
         candidate_start = max((item["candidate_id"] for item in candidates), default=-1) + 1
