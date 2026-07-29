@@ -1,6 +1,10 @@
 import unittest
 
-from scripts.evaluate_dev import evaluate
+from scripts.evaluate_dev import (
+    EXPECTED_SUBJECT_COUNTS,
+    evaluate,
+    validate_regression_items,
+)
 
 
 class CapturingAgent:
@@ -77,6 +81,27 @@ class EvaluateDevelopmentSetTest(unittest.TestCase):
         self.assertEqual([("What is the answer?", {"idx": 4})], agent.calls)
         self.assertEqual(0, report["timeout_count"])
         self.assertEqual([], report["failed_item_ids"])
+
+    def test_subject_and_answer_stay_out_of_solve_and_feed_grouped_metrics(self):
+        agent = CapturingAgent()
+        items = [
+            {"idx": 1, "problem": "求 6 * 7。", "answer": "42", "subject": "离散数学"},
+            {"idx": 2, "problem": "证明该结论。", "answer": "not 42", "subject": "测度积分"},
+            {"idx": 3, "problem": "求 6 * 7。", "answer": "42", "subject": "数值分析"},
+            {"idx": 4, "problem": "求 6 * 7。", "answer": "42", "subject": "概率论"},
+            {"idx": 5, "problem": "求 6 * 7。", "answer": "not 42", "subject": "非基础及进阶课程"},
+        ]
+
+        report = evaluate(agent, items)
+
+        self.assertTrue(all(set(metadata) == {"idx"} for _, metadata in agent.calls))
+        self.assertEqual(0.6, report["accuracy"])
+        self.assertEqual(1.0, report["strategy_families"]["离散—代数—优化"]["accuracy"])
+        self.assertEqual(0.0, report["strategy_families"]["连续纯数学"]["accuracy"])
+        self.assertEqual(1.0, report["subjects"]["数值分析"]["accuracy"])
+        self.assertEqual(0.75, report["problem_types"]["calculation"]["accuracy"])
+        self.assertEqual(0.0, report["problem_types"]["proof"]["accuracy"])
+        self.assertEqual(0.375, report["problem_type_macro_accuracy"])
 
     def test_total_timeout_skips_remaining_items(self):
         agent = CapturingAgent()
@@ -181,6 +206,42 @@ class MixedCandidateExtractionTest(unittest.TestCase):
         self.assertEqual(0, report["items_with_partial_rejection_count"])
         self.assertEqual(0, report["items_with_all_candidates_rejected_count"])
         self.assertEqual([], report["all_candidates_rejected_ids"])
+
+
+class RegressionDatasetValidationTest(unittest.TestCase):
+    def make_items(self):
+        items = []
+        idx = 0
+        for subject, count in EXPECTED_SUBJECT_COUNTS.items():
+            for offset in range(count):
+                items.append({
+                    "idx": idx,
+                    "problem": f"{subject} public problem {offset}",
+                    "answer": str(offset),
+                    "subject": subject,
+                    "source": "public_regression",
+                    "source_url": "https://example.org/open-textbook",
+                    "source_ref": "Chapter 1",
+                    "adaptation": "original_parameterized",
+                    "verification": "independent calculation",
+                })
+                idx += 1
+        return items
+
+    def test_accepts_complete_112_item_distribution(self):
+        self.assertEqual([], validate_regression_items(self.make_items()))
+
+    def test_rejects_duplicate_problem_and_missing_answer(self):
+        items = self.make_items()
+        items[1]["problem"] = items[0]["problem"]
+        items[2]["answer"] = ""
+        items[3]["source_url"] = "http://example.org/not-https"
+
+        errors = validate_regression_items(items)
+
+        self.assertIn("duplicate_problem", errors)
+        self.assertIn("empty_answer:2", errors)
+        self.assertIn("invalid_source_url:3", errors)
 
 
 if __name__ == "__main__":

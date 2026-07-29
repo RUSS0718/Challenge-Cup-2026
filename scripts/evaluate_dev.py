@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,32 @@ from typing import Any
 # `python scripts/evaluate_dev.py` invocation from the repository root.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from user_agent import ANSWER_FIRST_POLICY_PROMPT, ANSWER_ONLY_POLICY_PROMPT, AgentConfig, ReasoningAgent
+from user_agent import (
+    ANSWER_FIRST_POLICY_PROMPT,
+    ANSWER_ONLY_POLICY_PROMPT,
+    AgentConfig,
+    ReasoningAgent,
+    classify_problem_type,
+)
+
+
+SUBJECT_FAMILIES = {
+    "离散数学": "离散—代数—优化", "抽象代数": "离散—代数—优化",
+    "高等代数": "离散—代数—优化", "运筹学": "离散—代数—优化",
+    "测度积分": "连续纯数学", "微分几何": "连续纯数学", "复分析": "连续纯数学",
+    "泛函分析": "连续纯数学", "数学分析": "连续纯数学", "拓扑学": "连续纯数学",
+    "数值分析": "数值—微分方程", "常微分方程": "数值—微分方程",
+    "偏微分方程": "数值—微分方程", "概率论": "概率—统计",
+    "随机过程": "概率—统计", "统计推断": "概率—统计", "线性回归": "概率—统计",
+    "非基础及进阶课程": "通用高级",
+}
+EXPECTED_SUBJECT_COUNTS = {
+    "离散数学": 24, "数值分析": 13, "测度积分": 11, "微分几何": 9,
+    "概率论": 8, "抽象代数": 8, "随机过程": 7, "复分析": 7,
+    "常微分方程": 5, "统计推断": 4, "泛函分析": 4, "线性回归": 3,
+    "偏微分方程": 3, "非基础及进阶课程": 2, "高等代数": 1,
+    "运筹学": 1, "数学分析": 1, "拓扑学": 1,
+}
 
 
 def normalize(answer: str) -> str:
@@ -23,10 +49,52 @@ def load_items(path: Path) -> list[dict[str, Any]]:
         return [json.loads(line) for line in file if line.strip()]
 
 
+def validate_regression_items(items: list[dict[str, Any]]) -> list[str]:
+    errors = []
+    if len(items) != 112:
+        errors.append(f"dataset_size:{len(items)}")
+    for position, item in enumerate(items):
+        for field in (
+            "problem", "answer", "subject", "source", "source_url",
+            "source_ref", "adaptation", "verification",
+        ):
+            if not str(item.get(field, "")).strip():
+                errors.append(f"empty_{field}:{item.get('idx', position)}")
+        source_url = str(item.get("source_url", ""))
+        if source_url and not source_url.startswith("https://"):
+            errors.append(f"invalid_source_url:{item.get('idx', position)}")
+    indexes = [item.get("idx") for item in items]
+    if not all(isinstance(idx, int) for idx in indexes):
+        errors.append("invalid_idx")
+    elif len(set(indexes)) != len(indexes):
+        errors.append("duplicate_idx")
+    problems = [str(item.get("problem", "")).strip() for item in items]
+    if len(set(problems)) != len(problems):
+        errors.append("duplicate_problem")
+    if Counter(item.get("subject") for item in items) != Counter(EXPECTED_SUBJECT_COUNTS):
+        errors.append("subject_distribution_mismatch")
+    return errors
+
+
+def summarize_breakdown(records: list[dict[str, Any]], field: str) -> dict[str, dict[str, Any]]:
+    result = {}
+    for value in dict.fromkeys(record.get(field) for record in records):
+        if value is None:
+            continue
+        grouped = [record for record in records if record.get(field) == value]
+        correct = sum(record["correct"] for record in grouped)
+        result[value] = {"count": len(grouped), "correct": correct, "accuracy": correct / len(grouped)}
+    return result
+
+
 def not_run_record(item: dict[str, Any]) -> dict[str, Any]:
     """Record for an item skipped because the evaluation total timeout was exhausted."""
+    subject = item.get("subject")
     return {
         "idx": item.get("idx"),
+        "subject": subject,
+        "strategy_family": SUBJECT_FAMILIES.get(subject),
+        "problem_type": classify_problem_type(item["problem"]),
         "correct": False,
         "latency_seconds": 0.0,
         "model_calls": 0,
@@ -93,8 +161,12 @@ def evaluate_item_record(agent: ReasoningAgent, item: dict[str, Any]) -> dict[st
     # A failed sampling or audit attempt is diagnostic evidence, not a failed
     # item when finalization still selected a valid answer.
     failed = final_trace.get("status") in {"fallback", "not_run"}
+    subject = item.get("subject")
     return {
         "idx": item.get("idx"),
+        "subject": subject,
+        "strategy_family": SUBJECT_FAMILIES.get(subject),
+        "problem_type": classify_problem_type(item["problem"]),
         "correct": normalize(final_response or "") == normalize(item["answer"]),
         "latency_seconds": round(elapsed_seconds, 3),
         "model_calls": final_trace.get("model_calls", 0),
@@ -133,6 +205,9 @@ def evaluate(
         records.append(evaluate_item_record(agent, item))
 
     total = len(records)
+    strategy_families = summarize_breakdown(records, "strategy_family")
+    subjects = summarize_breakdown(records, "subject")
+    problem_types = summarize_breakdown(records, "problem_type")
     return {
         "dataset_size": total,
         "accuracy": sum(record["correct"] for record in records) / total if total else 0.0,
@@ -168,8 +243,18 @@ def evaluate(
         "configured_total_timeout_seconds": total_timeout_seconds,
         "max_actual_model_calls": max((record["model_calls"] for record in records), default=0),
         "budget_config": summarize_budget_config(agent),
+        "strategy_families": strategy_families,
+        "strategy_family_macro_accuracy": macro_accuracy(strategy_families),
+        "subjects": subjects,
+        "subject_macro_accuracy": macro_accuracy(subjects),
+        "problem_types": problem_types,
+        "problem_type_macro_accuracy": macro_accuracy(problem_types),
         "records": records,
     }
+
+
+def macro_accuracy(groups: dict[str, dict[str, Any]]) -> float:
+    return sum(group["accuracy"] for group in groups.values()) / len(groups) if groups else 0.0
 
 
 def within_call_cap(report: dict[str, Any]) -> bool:
@@ -231,6 +316,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--policy-sample-times", type=int, help="Number of candidate generations for the non-L0 path (budget scan).")
     parser.add_argument("--max-model-calls", type=int, help="Per-question hard cap on model calls (budget scan).")
     parser.add_argument("--max-tokens", type=int, help="Non-L0 generation max tokens (default 1024). L0 always uses l0_max_tokens=1024.")
+    parser.add_argument("--validate-regression-dataset", action="store_true")
     parser.add_argument("--output-file")
     return parser.parse_args()
 
@@ -241,6 +327,9 @@ def main() -> None:
         from llm_client import InternChatClient
 
         items = load_items(Path(args.input_file))
+        validation_errors = validate_regression_items(items) if args.validate_regression_dataset else []
+        if validation_errors:
+            raise ValueError(",".join(validation_errors))
         config = AgentConfig(
             enable_sympy_evidence=args.enable_sympy_evidence,
             enable_dynamic_budget=args.enable_dynamic_budget,
@@ -268,6 +357,7 @@ def main() -> None:
         report["uncertain_repair_enabled"] = args.enable_uncertain_repair
         report["answer_only_prompt_enabled"] = args.answer_only_prompt
         report["answer_first_prompt_enabled"] = args.answer_first_prompt
+        report["regression_dataset_valid"] = True if args.validate_regression_dataset else None
     except Exception as exc:
         report = {
             "status": "error",
