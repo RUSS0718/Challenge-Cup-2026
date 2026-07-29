@@ -1,0 +1,384 @@
+{
+  "dataset_size": 14,
+  "idx_range": "9-22",
+  "agent_config": {
+    "policy_sample_times": 3,
+    "max_model_calls": 6,
+    "max_tokens": 256,
+    "l0_max_tokens": 1024
+  },
+  "failure_type_counts": {
+    "model_wrong_or_extraction_captured_noise": 11,
+    "model_output_sufficient_but_agent_pipeline_lost_it": 1,
+    "model_output_insufficient_under_256_tokens": 2
+  },
+  "correct_count": 0,
+  "has_contrast_1024": true,
+  "raw_model_output_included": false,
+  "records": [
+    {
+      "idx": 9,
+      "subject": "代数",
+      "correct": false,
+      "final_response": "\" followed by the answer.",
+      "finalization_status": "selected",
+      "latency_seconds": 12.197,
+      "model_calls": 4,
+      "candidates_generated": 1,
+      "candidates_rejected": 2,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable",
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": true,
+        "failure_category": "correct",
+        "answer_extracted": "2, 3",
+        "has_final_marker": true,
+        "response_characters": 2702
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "2/3 candidates rejected; 1 survived. 1024-token single call produced correct answer (2702 chars). Evidence: model CAN solve this with enough output budget."
+    },
+    {
+      "idx": 10,
+      "subject": "代数_多解",
+      "correct": false,
+      "final_response": "\".",
+      "finalization_status": "selected",
+      "latency_seconds": 15.43,
+      "model_calls": 5,
+      "candidates_generated": 2,
+      "candidates_rejected": 1,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "format_placeholder_echo",
+        "answer_extracted": "x = 1, x = -1\" or \"最终答案：1, -1\". I'll use \"x = 1, x = -1\" for clarity.",
+        "has_final_marker": true,
+        "response_characters": 2513
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "1/3 candidates rejected; 2 survived. 1024-token call still produced placeholder echo (2513 chars). Evidence: even 1024 tokens is insufficient OR prompt format is confusing the model."
+    },
+    {
+      "idx": 11,
+      "subject": "代数",
+      "correct": false,
+      "final_response": "\".",
+      "finalization_status": "selected",
+      "latency_seconds": 14.986,
+      "model_calls": 5,
+      "candidates_generated": 2,
+      "candidates_rejected": 1,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "missing_final_marker",
+        "answer_extracted": "$$2x > 1",
+        "has_final_marker": false,
+        "response_characters": 67
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "1/3 candidates rejected; 2 survived. 1024-token call missing final marker (67 chars). Evidence: model output still truncated even at 1024 tokens."
+    },
+    {
+      "idx": 12,
+      "subject": "数列",
+      "correct": false,
+      "final_response": "未能生成有效数学答案。",
+      "finalization_status": "fallback",
+      "latency_seconds": 8.177,
+      "model_calls": 3,
+      "candidates_generated": 0,
+      "candidates_rejected": 3,
+      "all_candidates_rejected": true,
+      "failure_reasons": [
+        "answer_not_extractable",
+        "answer_not_extractable",
+        "answer_not_extractable",
+        "no_valid_candidate"
+      ],
+      "contrast_1024": {
+        "correct": true,
+        "failure_category": "correct",
+        "answer_extracted": "39",
+        "has_final_marker": true,
+        "response_characters": 261
+      },
+      "category": "all_candidates_rejected",
+      "failure_type": "model_output_sufficient_but_agent_pipeline_lost_it",
+      "basis": "All 3 candidates rejected; zero survived agent extraction. 1024-token single call produced correct answer (261 chars). Evidence: model CAN solve this with enough output budget."
+    },
+    {
+      "idx": 13,
+      "subject": "几何",
+      "correct": false,
+      "final_response": "\" followed by the answer.",
+      "finalization_status": "selected",
+      "latency_seconds": 11.099,
+      "model_calls": 4,
+      "candidates_generated": 1,
+      "candidates_rejected": 2,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable",
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "missing_final_marker",
+        "answer_extracted": "$$ \\text{面积} =",
+        "has_final_marker": false,
+        "response_characters": 71
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "2/3 candidates rejected; 1 survived. 1024-token call missing final marker (71 chars). Evidence: model output still truncated even at 1024 tokens."
+    },
+    {
+      "idx": 14,
+      "subject": "几何",
+      "correct": false,
+      "final_response": "未能生成有效数学答案。",
+      "finalization_status": "fallback",
+      "latency_seconds": 8.461,
+      "model_calls": 3,
+      "candidates_generated": 0,
+      "candidates_rejected": 3,
+      "all_candidates_rejected": true,
+      "failure_reasons": [
+        "answer_not_extractable",
+        "answer_not_extractable",
+        "answer_not_extractable",
+        "no_valid_candidate"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "format_placeholder_echo",
+        "answer_extracted": "”明确写出答案\".",
+        "has_final_marker": true,
+        "response_characters": 2812
+      },
+      "category": "all_candidates_rejected",
+      "failure_type": "model_output_insufficient_under_256_tokens",
+      "basis": "All 3 candidates rejected; zero survived agent extraction. 1024-token call still produced placeholder echo (2812 chars). Evidence: even 1024 tokens is insufficient OR prompt format is confusing the model."
+    },
+    {
+      "idx": 15,
+      "subject": "概率",
+      "correct": false,
+      "final_response": "$C(3, 2) = \\frac{3 \\times 2}{2 \\times 1} =",
+      "finalization_status": "selected",
+      "latency_seconds": 11.107,
+      "model_calls": 4,
+      "candidates_generated": 1,
+      "candidates_rejected": 2,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable",
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "format_placeholder_echo",
+        "answer_extracted": "”明确写出答案\" (The last line must explicitly write the answer using \"最终答案：\").",
+        "has_final_marker": true,
+        "response_characters": 2717
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "2/3 candidates rejected; 1 survived. 1024-token call still produced placeholder echo (2717 chars). Evidence: even 1024 tokens is insufficient OR prompt format is confusing the model."
+    },
+    {
+      "idx": 16,
+      "subject": "线性代数",
+      "correct": false,
+      "final_response": "\" (Final Answer:) followed by the answer.",
+      "finalization_status": "selected",
+      "latency_seconds": 11.473,
+      "model_calls": 4,
+      "candidates_generated": 1,
+      "candidates_rejected": 2,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable",
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "incorrect_final_answer",
+        "answer_extracted": "\".",
+        "has_final_marker": true,
+        "response_characters": 2501
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "2/3 candidates rejected; 1 survived. 1024-token call produced explicit but wrong answer (2501 chars). Evidence: model has a solving error, not just output truncation."
+    },
+    {
+      "idx": 17,
+      "subject": "线性代数",
+      "correct": false,
+      "final_response": "\" (Final Answer:).",
+      "finalization_status": "selected",
+      "latency_seconds": 10.997,
+      "model_calls": 4,
+      "candidates_generated": 1,
+      "candidates_rejected": 2,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable",
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "incorrect_final_answer",
+        "answer_extracted": "-2\".",
+        "has_final_marker": true,
+        "response_characters": 2878
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "2/3 candidates rejected; 1 survived. 1024-token call produced explicit but wrong answer (2878 chars). Evidence: model has a solving error, not just output truncation."
+    },
+    {
+      "idx": 18,
+      "subject": "微积分",
+      "correct": false,
+      "final_response": "\" followed by the answer.",
+      "finalization_status": "selected",
+      "latency_seconds": 13.441,
+      "model_calls": 5,
+      "candidates_generated": 2,
+      "candidates_rejected": 1,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "missing_final_marker",
+        "answer_extracted": "$$ y' = \\frac{d}{dx}(x^3) - \\frac{d}{",
+        "has_final_marker": false,
+        "response_characters": 187
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "1/3 candidates rejected; 2 survived. 1024-token call missing final marker (187 chars). Evidence: model output still truncated even at 1024 tokens."
+    },
+    {
+      "idx": 19,
+      "subject": "微积分",
+      "correct": false,
+      "final_response": "\".",
+      "finalization_status": "selected",
+      "latency_seconds": 11.376,
+      "model_calls": 4,
+      "candidates_generated": 2,
+      "candidates_rejected": 1,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "format_placeholder_echo",
+        "answer_extracted": "6\".",
+        "has_final_marker": true,
+        "response_characters": 2643
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "1/3 candidates rejected; 2 survived. 1024-token call still produced placeholder echo (2643 chars). Evidence: even 1024 tokens is insufficient OR prompt format is confusing the model."
+    },
+    {
+      "idx": 20,
+      "subject": "复数",
+      "correct": false,
+      "final_response": "\" followed by the answer.",
+      "finalization_status": "selected",
+      "latency_seconds": 13.293,
+      "model_calls": 5,
+      "candidates_generated": 2,
+      "candidates_rejected": 1,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": true,
+        "failure_category": "correct",
+        "answer_extracted": "5 + 5i",
+        "has_final_marker": true,
+        "response_characters": 2894
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "1/3 candidates rejected; 2 survived. 1024-token single call produced correct answer (2894 chars). Evidence: model CAN solve this with enough output budget."
+    },
+    {
+      "idx": 21,
+      "subject": "集合",
+      "correct": false,
+      "final_response": "$|M \\cup P| = 21",
+      "finalization_status": "selected",
+      "latency_seconds": 13.557,
+      "model_calls": 5,
+      "candidates_generated": 2,
+      "candidates_rejected": 1,
+      "all_candidates_rejected": false,
+      "failure_reasons": [
+        "answer_not_extractable"
+      ],
+      "contrast_1024": {
+        "correct": true,
+        "failure_category": "correct",
+        "answer_extracted": "16",
+        "has_final_marker": true,
+        "response_characters": 2781
+      },
+      "category": "partial_rejection",
+      "failure_type": "model_wrong_or_extraction_captured_noise",
+      "basis": "1/3 candidates rejected; 2 survived. 1024-token single call produced correct answer (2781 chars). Evidence: model CAN solve this with enough output budget."
+    },
+    {
+      "idx": 22,
+      "subject": "数论",
+      "correct": false,
+      "final_response": "未能生成有效数学答案。",
+      "finalization_status": "fallback",
+      "latency_seconds": 8.099,
+      "model_calls": 3,
+      "candidates_generated": 0,
+      "candidates_rejected": 3,
+      "all_candidates_rejected": true,
+      "failure_reasons": [
+        "answer_not_extractable",
+        "answer_not_extractable",
+        "answer_not_extractable",
+        "no_valid_candidate"
+      ],
+      "contrast_1024": {
+        "correct": false,
+        "failure_category": "format_placeholder_echo",
+        "answer_extracted": "",
+        "has_final_marker": true,
+        "response_characters": 2471
+      },
+      "category": "all_candidates_rejected",
+      "failure_type": "model_output_insufficient_under_256_tokens",
+      "basis": "All 3 candidates rejected; zero survived agent extraction. 1024-token call still produced placeholder echo (2471 chars). Evidence: even 1024 tokens is insufficient OR prompt format is confusing the model."
+    }
+  ]
+}

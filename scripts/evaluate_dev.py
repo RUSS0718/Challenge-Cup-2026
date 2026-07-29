@@ -45,6 +45,9 @@ def not_run_record(item: dict[str, Any]) -> dict[str, Any]:
         "l2_escalations": 0,
         "uncertain_repair_attempts": 0,
         "failed": True,
+        "candidates_generated": 0,
+        "candidates_rejected": 0,
+        "all_candidates_rejected": False,
     }
 
 
@@ -71,6 +74,12 @@ def evaluate_item_record(agent: ReasoningAgent, item: dict[str, Any]) -> dict[st
     is_timeout = any("Timeout" in reason or "timeout" in reason for reason in reasons)
     is_empty = any(reason == "empty_model_response" for reason in reasons)
     answer_not_extractable = any(reason == "answer_not_extractable" for reason in reasons)
+    # P0.2.1: per-item candidate generation/rejection counts from trace
+    generation_steps = [entry for entry in trace if entry.get("step") == "generate_candidate"]
+    candidates_generated = sum(1 for entry in generation_steps if entry.get("status") == "ok")
+    candidates_rejected = sum(1 for entry in generation_steps if entry.get("status") == "rejected")
+    # ponytail: all-rejected means one or more attempts, zero survivors
+    all_candidates_rejected = candidates_generated == 0 and candidates_rejected > 0
     controlled_tool_calls = sum(entry.get("step") == "controlled_tool" for entry in trace)
     tool_claim_statuses = [
         entry["claim_status"]
@@ -104,6 +113,9 @@ def evaluate_item_record(agent: ReasoningAgent, item: dict[str, Any]) -> dict[st
         "l2_escalations": l2_escalations,
         "uncertain_repair_attempts": uncertain_repair_attempts,
         "failed": failed,
+        "candidates_generated": candidates_generated,
+        "candidates_rejected": candidates_rejected,
+        "all_candidates_rejected": all_candidates_rejected,
     }
 
 
@@ -146,6 +158,12 @@ def evaluate(
         "l2_escalation_count": sum(record["l2_escalations"] for record in records),
         "uncertain_repair_attempt_count": sum(record["uncertain_repair_attempts"] for record in records),
         "failed_item_ids": [record["idx"] for record in records if record["failed"]],
+        # P0.2.1: candidate-level extraction breakdown
+        "candidates_generated_total": sum(record["candidates_generated"] for record in records),
+        "candidates_rejected_total": sum(record["candidates_rejected"] for record in records),
+        "items_with_partial_rejection_count": sum(bool(record["answer_not_extractable"]) for record in records),
+        "items_with_all_candidates_rejected_count": sum(bool(record["all_candidates_rejected"]) for record in records),
+        "all_candidates_rejected_ids": [record["idx"] for record in records if record["all_candidates_rejected"]],
         "total_elapsed_seconds": round(time.perf_counter() - total_started_at, 3),
         "configured_total_timeout_seconds": total_timeout_seconds,
         "max_actual_model_calls": max((record["model_calls"] for record in records), default=0),
@@ -183,6 +201,7 @@ def summarize_budget_config(agent: ReasoningAgent) -> dict[str, Any]:
         "max_model_calls": getattr(config, "max_model_calls", None),
         "verifier_voting_times": getattr(config, "verifier_voting_times", None),
         "max_tokens": getattr(config, "max_tokens", None),
+        "max_tokens": getattr(config, "max_tokens", None),
         "l0_max_tokens": getattr(config, "l0_max_tokens", None),
         "enable_l0_extended_tokens": getattr(config, "enable_l0_extended_tokens", None),
         "enable_sympy_evidence": getattr(config, "enable_sympy_evidence", None),
@@ -210,6 +229,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--answer-only-prompt", action="store_true")
     parser.add_argument("--policy-sample-times", type=int, help="Number of candidate generations for the non-L0 path (budget scan).")
     parser.add_argument("--max-model-calls", type=int, help="Per-question hard cap on model calls (budget scan).")
+    parser.add_argument("--max-tokens", type=int, help="Non-L0 generation max tokens (default 1024). L0 always uses l0_max_tokens=1024.")
     parser.add_argument("--output-file")
     return parser.parse_args()
 
@@ -229,6 +249,7 @@ def main() -> None:
             enable_uncertain_repair=args.enable_uncertain_repair,
             policy_sample_times=args.policy_sample_times if args.policy_sample_times is not None else AgentConfig.policy_sample_times,
             max_model_calls=args.max_model_calls if args.max_model_calls is not None else AgentConfig.max_model_calls,
+            max_tokens=args.max_tokens if args.max_tokens is not None else AgentConfig.max_tokens,
             policy_prompt=ANSWER_ONLY_POLICY_PROMPT if args.answer_only_prompt else AgentConfig.policy_prompt,
         )
         agent = ReasoningAgent(client=InternChatClient(timeout=args.timeout_seconds, retry=args.retry_count), config=config)
