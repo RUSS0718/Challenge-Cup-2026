@@ -1,7 +1,21 @@
+# Environment
+.env
+
+# IDE
+.vscode/
+
+# Python
 __pycache__/
 .venv/
 *.py[cod]
+
+# WorkBuddy
+.workbuddy/
+
+# Build outputs
 sample_outputs/
 outputs/
 *.tmp
+
+# OS
 .DS_Store
