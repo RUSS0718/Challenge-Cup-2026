@@ -1,10 +1,19 @@
 ﻿"""Budgeted mathematical reasoning agent with deterministic answer handling."""
 from __future__ import annotations
 import re
+import time
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from typing import Any
+
+# ── Task-type constants (universal, problem-text based) ────────────────────
+TASK_TYPE_CHOICE = "choice"
+TASK_TYPE_FILL_BLANK = "fill_blank"
+TASK_TYPE_CALCULATION = "calculation"
+TASK_TYPE_DERIVATION = "derivation"
+TASK_TYPE_PROOF = "proof"
+TASK_TYPE_EXPLANATION = "explanation"
 
 # P1.1 采纳：三轮 12/15/12 均 > 旧基线 ~11/23；默认使用答案优先短提示。
 POLICY_PROMPT = """你是严谨的数学推理智能体。解决用户给出的数学问题。优先收敛到答案，不要复述题意、不要输出格式说明或无关说明；给出简洁但充分的推导。最后一行必须使用“最终答案：”明确写出答案。"""
@@ -14,6 +23,75 @@ VERIFIER_PROMPT = """你是数学解答审核员。独立检查候选答案是�
 若发现错误，指出第一个可证实的错误位置；不要复述完整解答。
 最后一行必须且只能为：VERDICT: A、VERDICT: B 或 VERDICT: UNCERTAIN。
 A 表示未发现可证实错误，B 表示发现可证实错误，UNCERTAIN 表示无法判断。"""
+
+# ── Task-aware prompts ─────────────────────────────────────────────────────
+# Each prompt guides the model toward the expected output format for a specific
+# question type.  All are universal (never refer to sample idx or answer).
+
+CHOICE_PROMPT = """你是数学求解器。这是一道选择题。分析每个选项，选出唯一正确的一项。只需给出选项字母和一行简要理由。最后一行必须使用"最终答案：X"写出选项字母。"""
+
+FILL_BLANK_PROMPT = """你是数学求解器。这是一道填空题。直接计算并填入结果。最后一行必须使用"最终答案："写出填入值。"""
+
+CALCULATION_PROMPT = POLICY_PROMPT  # 复用已验证的 answer-first 提示词
+
+DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。给出完整的关键推导链，包含必要的中间步骤和定理引用。最后一行必须使用"最终答案："写出推导结果。"""
+
+PROOF_PROMPT = """你是严谨的数学推理智能体。这是一道证明题。给出完整而紧凑的证明，包含命题陈述、关键推理步骤和结论。最后一行必须使用"最终答案：证毕"或"最终答案："后接证明结论。"""
+
+EXPLANATION_PROMPT = """你是严谨的数学推理智能体。这是一道解释/说明题。给出清晰、紧凑的数学解释，包含关键定义和逻辑推理。最后一行必须使用"最终答案："写出核心结论。"""
+
+# Map task type → generation prompt.
+TASK_PROMPTS: dict[str, str] = {
+    TASK_TYPE_CHOICE: CHOICE_PROMPT,
+    TASK_TYPE_FILL_BLANK: FILL_BLANK_PROMPT,
+    TASK_TYPE_CALCULATION: CALCULATION_PROMPT,
+    TASK_TYPE_DERIVATION: DERIVATION_PROMPT,
+    TASK_TYPE_PROOF: PROOF_PROMPT,
+    TASK_TYPE_EXPLANATION: EXPLANATION_PROMPT,
+}
+
+# Proof / explanation types that should never be rejected just because
+# ``extract_final_answer`` found no "最终答案：" marker.
+_NON_NUMERIC_TASK_TYPES: frozenset[str] = frozenset({TASK_TYPE_PROOF, TASK_TYPE_EXPLANATION, TASK_TYPE_DERIVATION})
+
+
+def classify_problem_type(problem: str) -> str:
+    """Return the dominant math-problem type based on problem-text signals.
+
+    Classification is purely textual — no metadata, no sample idx, no subject.
+    Order matters: more-specific patterns are checked first.
+    """
+    if not isinstance(problem, str) or not problem.strip():
+        return TASK_TYPE_CALCULATION
+
+    text = problem.strip()
+
+    # ── Choice (format constraint, must precede content-type checks) ──
+    if (
+        re.search(r"(?:^|\n)\s*[A-D]\s*[.、．。]", text)
+        or re.search(r"下列.*?(?:正确|错误|不正确).*?[是有的]", text)
+        or re.search(r"选择|选项|单选|多选|[Cc]hoose\b|[Ss]elect\b", text)
+    ):
+        return TASK_TYPE_CHOICE
+
+    # ── Proof ──
+    if re.search(r"证明|求证|[Pp]rove\b|[Ss]how\s+that\b", text):
+        return TASK_TYPE_PROOF
+
+    # ── Explanation ──
+    if re.search(r"解释|说明理由|阐述|[Ee]xplain\b|[Dd]escribe\b|为什么", text):
+        return TASK_TYPE_EXPLANATION
+
+    # ── Derivation ──
+    if re.search(r"推导|导出|推演|[Dd]erive\b|[Dd]educe\b", text):
+        return TASK_TYPE_DERIVATION
+
+    # ── Fill-in-the-blank ──
+    if re.search(r"_{3,}|（\s*）|填空|填入|[Ff]ill\s+in\b", text):
+        return TASK_TYPE_FILL_BLANK
+
+    # ── Default: calculation ──
+    return TASK_TYPE_CALCULATION
 
 @dataclass
 class AgentConfig:
@@ -34,6 +112,12 @@ class AgentConfig:
     enable_uncertain_repair: bool = False
     max_repairs: int = 1
     l2_max_model_calls: int = 8
+    # ── P0: task-aware routing ──
+    enable_task_aware_prompt: bool = True
+    # ── P0: time convergence (per-question wall-clock) ──
+    enable_time_convergence: bool = True
+    solve_converge_timeout_seconds: float = 960.0   # ~16 min → stop new candidates
+    solve_hard_timeout_seconds: float = 1080.0       # ~18 min → stop all calls
 
 def extract_final_answer(response: str) -> str:
     if not isinstance(response, str) or not response.strip(): return ""
@@ -161,16 +245,29 @@ class ReasoningAgent:
     def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, **_: Any) -> None:
         self.client, self.config = client, config or AgentConfig()
         self.sympy_adapter = sympy_adapter
+
+    # ── Public API ──────────────────────────────────────────────────────
+
     def solve(self, problem: str, metadata: dict) -> dict:
         del metadata
+        # P0: classify problem type (universal, text-based)
+        problem_type = classify_problem_type(problem)
+
         trace, candidates = [], []
         generation_calls, level = self._generation_plan(problem)
-        budget = {"used": 0, "limit": self._model_call_limit(level)}
-        trace.append({"step":"route_budget","level":level,"generation_calls":generation_calls,"max_model_calls":budget["limit"]})
-        self._generate_candidates(problem, generation_calls, candidates, trace, budget, self._policy_max_tokens(level))
+        # P0: per-solve budget dict carries time for call isolation (no shared instance field).
+        budget: dict[str, Any] = {"used": 0, "limit": self._model_call_limit(level),
+                                   "solve_start": time.monotonic() if self.config.enable_time_convergence else None}
+        trace.append({"step":"route_budget","level":level,"generation_calls":generation_calls,"max_model_calls":budget["limit"],"problem_type":problem_type})
+
+        # P0: use task-aware prompt when enabled
+        task_prompt = self._task_policy_prompt(problem_type)
+        self._generate_candidates(problem, generation_calls, candidates, trace, budget, self._policy_max_tokens(level), task_prompt=task_prompt, problem_type=problem_type)
+
         if self._should_escalate_l2(level, candidates):
             trace.append({"step":"route_budget","level":"L2","generation_calls":1,"max_model_calls":budget["limit"],"reason":"answer_conflict"})
-            self._generate_candidates(problem, 1, candidates, trace, budget, self._policy_max_tokens("L2"))
+            self._generate_candidates(problem, 1, candidates, trace, budget, self._policy_max_tokens("L2"), task_prompt=task_prompt, problem_type=problem_type)
+
         self._attach_controlled_tool_evidence(problem, candidates, trace)
         for group_id, group in self._answer_groups(candidates).items():
             for _ in range(self.config.verifier_voting_times):
@@ -184,33 +281,100 @@ class ReasoningAgent:
                     candidate["verification_status"] = self._merge_verdict(candidate["verification_status"], verdict)
                 trace.append({"step":"audit_answer_group","status":verdict if response else "skipped","group_id":group_id,"candidate_ids":[candidate["candidate_id"] for candidate in group],"found_error":verdict=="fail","reason":error})
         self._repair_refuted_candidate(problem, candidates, trace, budget)
+
+        # ── Finalize ──
         if not candidates:
-            trace.append({"step":"finalize","status":"fallback","reason":"no_valid_candidate","model_calls":budget["used"]})
+            trace.append({"step":"finalize","status":"fallback","reason":"no_valid_candidate","model_calls":budget["used"],"problem_type":problem_type})
             return {"final_response":"未能生成有效数学答案。","trace":trace}
         best = self._select_candidate(candidates)
-        # Prefer conservative canonical form (e.g. unordered multi-root numeric sets).
-        final_answer = best.get("normalized_answer") or best["answer"]
-        trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"]})
+        # P0: task-aware final_response formatting
+        final_answer = self._format_task_final_response(best, problem_type)
+        trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"],"problem_type":problem_type})
         return {"final_response":final_answer,"trace":trace}
 
-    def _generate_candidates(self, problem: str, generation_calls: int, candidates: list[dict[str, Any]], trace: list[dict[str, Any]], budget: dict[str, int], max_tokens: int) -> None:
+    # ── Candidate generation ─────────────────────────────────────────────
+
+    def _generate_candidates(
+        self, problem: str, generation_calls: int,
+        candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
+        budget: dict[str, int], max_tokens: int,
+        task_prompt: str | None = None,
+        problem_type: str = TASK_TYPE_CALCULATION,
+    ) -> None:
+        prompt = task_prompt or self.config.policy_prompt
         candidate_start = max((item["candidate_id"] for item in candidates), default=-1) + 1
         for candidate_id in range(generation_calls):
+            # P0: time convergence — stop at soft/hard limits (per-solve, isolated via budget dict).
+            if self._time_hard_exceeded(budget.get("solve_start")):
+                trace.append({"step":"generate_candidate","status":"skipped","candidate_id":candidate_id + candidate_start,"reason":"solve_time_budget_exhausted"})
+                continue
+            if self._time_converge_exceeded(budget.get("solve_start")):
+                trace.append({"step":"generate_candidate","status":"skipped","candidate_id":candidate_id + candidate_start,"reason":"solve_time_convergence_triggered"})
+                continue
             candidate_id += candidate_start
-            response, error = self._request(self.config.policy_prompt, f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}", self.config.policy_temperature, max_tokens, budget)
+            response, error = self._request(prompt, f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}", self.config.policy_temperature, max_tokens, budget)
             if response is None:
                 trace.append({"step":"generate_candidate","status":"skipped","candidate_id":candidate_id,"reason":error}); continue
             answer = extract_final_answer(response)
-            if not answer:
+            # P0: non-numeric types — answer IS the full solution text (never a
+            #      short marker like "证毕" that would group different proofs together).
+            #      Placeholder detection uses extract_final_answer semantics, not
+            #      a hard length threshold (which would reject short valid proofs).
+            if problem_type in _NON_NUMERIC_TASK_TYPES:
+                if not answer or is_placeholder_answer(answer):
+                    trace.append({"step":"generate_candidate","status":"rejected","candidate_id":candidate_id,"reason":"placeholder_answer"})
+                    continue
+                answer = response.strip()
+            elif not answer:
                 trace.append({"step":"generate_candidate","status":"rejected","candidate_id":candidate_id,"reason":"answer_not_extractable"}); continue
-            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"evidence":[],"verification_status":"unverified","model_calls_used":1})
+            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
             trace.append({"step":"generate_candidate","status":"ok","candidate_id":candidate_id})
-    def _request(self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int, budget: dict[str,int]) -> tuple[str|None,str|None]:
+
+    # ── Model request ────────────────────────────────────────────────────
+
+    def _request(self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int, budget: dict[str, Any]) -> tuple[str|None, str|None]:
         if budget["used"] >= budget["limit"]: return None, "model_call_budget_exhausted"
+        # P0: hard time limit — refuse all new calls (per-solve isolation via budget dict).
+        if self._time_hard_exceeded(budget.get("solve_start")): return None, "solve_time_budget_exhausted"
         budget["used"] += 1
         try: response = self.client.chat(messages=[{"role":"system","content":system_prompt},{"role":"user","content":user_prompt}],temperature=temperature,max_tokens=max_tokens)
         except Exception as exc: return None, f"model_call_failed:{getattr(exc, 'category', type(exc).__name__)}"
         return (response.strip(), None) if isinstance(response,str) and response.strip() else (None,"empty_model_response")
+
+    # ── P0: time convergence helpers (call-isolated via explicit start_time) ─
+
+    def _time_converge_exceeded(self, start_time: float | None = None) -> bool:
+        """True when soft timeout reached — stop generating new candidates."""
+        if not self.config.enable_time_convergence or start_time is None:
+            return False
+        return (time.monotonic() - start_time) >= self.config.solve_converge_timeout_seconds
+
+    def _time_hard_exceeded(self, start_time: float | None = None) -> bool:
+        """True when hard timeout reached — stop all new model calls."""
+        if not self.config.enable_time_convergence or start_time is None:
+            return False
+        return (time.monotonic() - start_time) >= self.config.solve_hard_timeout_seconds
+
+    # ── P0: task-aware prompt selection ──────────────────────────────────
+
+    def _task_policy_prompt(self, problem_type: str) -> str:
+        """Return the generation prompt for a given problem type."""
+        if not self.config.enable_task_aware_prompt:
+            return self.config.policy_prompt
+        return TASK_PROMPTS.get(problem_type, self.config.policy_prompt)
+
+    def _format_task_final_response(self, best: dict[str, Any], problem_type: str) -> str:
+        """Format final_response according to problem type conventions.
+
+        - choice / fill_blank: return normalized answer (compact)
+        - calculation: return solution text with concise steps preserved
+        - derivation / proof / explanation: return the full solution text
+        """
+        if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK):
+            return best.get("normalized_answer") or best["answer"]
+        # Calculation keeps steps; non-numeric types keep full reasoning.
+        return best.get("solution") or best.get("answer", "")
+
     def _generation_plan(self, problem: str) -> tuple[int, str]:
         if not self.config.enable_dynamic_budget:
             if self.config.enable_l0_extended_tokens and self._extract_simple_arithmetic_expression(problem):
