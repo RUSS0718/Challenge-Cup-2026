@@ -54,7 +54,7 @@ class AnswerHandlingTest(unittest.TestCase):
 
 class ReasoningAgentTest(unittest.TestCase):
     def test_default_generation_budget_is_bounded_for_local_api_latency(self):
-        self.assertEqual(256, AgentConfig().max_tokens)
+        self.assertEqual(1024, AgentConfig().max_tokens)
         self.assertTrue(AgentConfig().enable_l0_extended_tokens)
 
     def test_extracts_answer_and_keeps_trace_compact(self):

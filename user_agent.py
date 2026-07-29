@@ -21,7 +21,7 @@ class AgentConfig:
     policy_temperature: float = 0.6
     policy_prompt: str = POLICY_PROMPT
     verifier_temperature: float = 0.0
-    max_tokens: int = 256
+    max_tokens: int = 1024
     l0_max_tokens: int = 1024
     verifier_max_tokens: int = 256
     enable_sympy_evidence: bool = False
