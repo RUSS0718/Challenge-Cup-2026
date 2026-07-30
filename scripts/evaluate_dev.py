@@ -2,8 +2,11 @@
 
 import argparse
 import json
+import re
 import sys
 import time
+import fractions
+import decimal
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -18,6 +21,9 @@ from user_agent import (
     AgentConfig,
     ReasoningAgent,
     classify_problem_type,
+    normalize_answer,
+    TASK_TYPE_CHOICE,
+    TASK_TYPE_FILL_BLANK,
 )
 
 
@@ -42,6 +48,55 @@ EXPECTED_SUBJECT_COUNTS = {
 
 def normalize(answer: str) -> str:
     return "".join(answer.split()).rstrip("。；;.").lower()
+
+
+def judge_correct(extracted: str, expected: str, problem_type: str = "") -> str:
+    """Three-level answer judge: exact → structured → UNKNOWN.
+
+    Returns 'correct', 'incorrect', or 'unknown'.
+    Never guesses; UNKNOWN means the judge cannot decide.
+    """
+    norm_ext = normalize(extracted)
+    norm_exp = normalize(expected)
+    # Level 1: normalized exact match
+    if norm_ext == norm_exp:
+        return "correct"
+    # Level 2: choice letters (case-insensitive single letter)
+    if problem_type == TASK_TYPE_CHOICE:
+        ext_letter = norm_ext.strip().upper()
+        exp_letter = norm_exp.strip().upper()
+        if len(ext_letter) == 1 and ext_letter == exp_letter:
+            return "correct"
+        if len(ext_letter) == 1 and len(exp_letter) == 1:
+            return "incorrect"
+        return "unknown"
+    # Level 2: predictable rational numbers
+    ext_num = _try_parse_rational(norm_ext)
+    exp_num = _try_parse_rational(norm_exp)
+    if ext_num is not None and exp_num is not None:
+        return "correct" if ext_num == exp_num else "incorrect"
+    # Level 3: SymPy (deferred — controlled tool not yet available)
+    # ponytail: SymPy equivalence when tool gateway exists; explicit comparison above covers basics.
+    return "unknown"
+
+
+def _try_parse_rational(text: str) -> fractions.Fraction | None:
+    """Try to parse a string as a plain rational number.
+
+    Returns None for any expression containing sqrt, variables, or non-numeric
+    symbols — the judge must not guess equivalence through stripping wrappers.
+    """
+    if not text or not text.strip():
+        return None
+    if re.search(r"sqrt|√", text):
+        return None  # radical: cannot safely compare without SymPy
+    try:
+        return fractions.Fraction(decimal.Decimal(text))
+    except Exception:
+        try:
+            return fractions.Fraction(text)
+        except Exception:
+            return None
 
 
 def load_items(path: Path) -> list[dict[str, Any]]:
@@ -116,6 +171,17 @@ def not_run_record(item: dict[str, Any]) -> dict[str, Any]:
         "candidates_generated": 0,
         "candidates_rejected": 0,
         "all_candidates_rejected": False,
+        # P3
+        "verdict": "incorrect",
+        "extracted_answer": "",
+        "verify_calls": 0,
+        "verify_errors": 0,
+        "revise_attempts": 0,
+        "revise_accepted": 0,
+        "revise_rejected": 0,
+        "revise_rolled_back": 0,
+        "reverify_calls": 0,
+        "reverify_errors": 0,
     }
 
 
@@ -158,16 +224,29 @@ def evaluate_item_record(agent: ReasoningAgent, item: dict[str, Any]) -> dict[st
     repair_attempts = sum(entry.get("step") == "repair_candidate" for entry in trace)
     l2_escalations = sum(entry.get("step") == "route_budget" and entry.get("level") == "L2" for entry in trace)
     uncertain_repair_attempts = sum(entry.get("step") == "repair_candidate" and entry.get("trigger") == "uncertain_without_pass" for entry in trace)
-    # A failed sampling or audit attempt is diagnostic evidence, not a failed
-    # item when finalization still selected a valid answer.
     failed = final_trace.get("status") in {"fallback", "not_run"}
     subject = item.get("subject")
+
+    # ── P3 metrics ──
+    ptype = classify_problem_type(item["problem"])
+    extracted = result.get("extracted_answer", "") or ""
+    verdict = judge_correct(extracted, str(item["answer"]), ptype)
+    verify_entries = [e for e in trace if e.get("step") == "verify"]
+    revise_entries = [e for e in trace if e.get("step") == "revise"]
+    reverify_entries = [e for e in trace if e.get("step") == "reverify"]
+    # Revision accepted but later rolled back by re-verify failure
+    revise_rolled_back = any(
+        e.get("status") == "fail" for e in reverify_entries
+    ) and any(e.get("status") == "ok" for e in revise_entries)
+
     return {
         "idx": item.get("idx"),
         "subject": subject,
         "strategy_family": SUBJECT_FAMILIES.get(subject),
-        "problem_type": classify_problem_type(item["problem"]),
-        "correct": normalize(result.get("extracted_answer", "") or "") == normalize(item["answer"]),
+        "problem_type": ptype,
+        "correct": verdict == "correct",
+        "verdict": verdict,
+        "extracted_answer": extracted,
         "latency_seconds": round(elapsed_seconds, 3),
         "model_calls": final_trace.get("model_calls", 0),
         "finalization_status": final_trace.get("status"),
@@ -188,6 +267,18 @@ def evaluate_item_record(agent: ReasoningAgent, item: dict[str, Any]) -> dict[st
         "candidates_generated": candidates_generated,
         "candidates_rejected": candidates_rejected,
         "all_candidates_rejected": all_candidates_rejected,
+        # P3 observability
+        "verify_calls": len(verify_entries),
+        "verify_errors": sum(e.get("error_count", 0) for e in verify_entries),
+        "revise_attempts": len(revise_entries),
+        "revise_accepted": (
+            1 if any(e.get("status") == "ok" for e in revise_entries) and not revise_rolled_back else 0
+        ),
+        "revise_rejected": sum(1 for e in revise_entries if e.get("status") == "rejected"),
+        "revise_rolled_back": 1 if revise_rolled_back else 0,
+        "reverify_calls": len(reverify_entries),
+        "reverify_errors": sum(e.get("error_count", 0) for e in reverify_entries),
+        "verify_call_count": len(verify_entries) + len(reverify_entries),  # total, regardless of label
     }
 
 
@@ -208,15 +299,39 @@ def evaluate(
     strategy_families = summarize_breakdown(records, "strategy_family")
     subjects = summarize_breakdown(records, "subject")
     problem_types = summarize_breakdown(records, "problem_type")
+
+    latencies = sorted(r["latency_seconds"] for r in records)
+    calls = sorted(r["model_calls"] for r in records)
+
+    def _p95(sorted_values: list[float]) -> float:
+        n = len(sorted_values)
+        if n == 0:
+            return 0.0
+        # nearest-rank: index = max(ceil(n * 0.95) - 1, 0)
+        idx = max(int(n * 0.95 + 0.999) - 1, 0)
+        return sorted_values[min(idx, n - 1)]
+
+    verdicts = Counter(r.get("verdict", "unknown") for r in records)
+    decided = verdicts["correct"] + verdicts["incorrect"]
+    unknown_count = verdicts.get("unknown", 0)
+    judge_total = sum(1 for r in records if r.get("verdict"))
+
     return {
         "dataset_size": total,
         "accuracy": sum(record["correct"] for record in records) / total if total else 0.0,
+        "strict_accuracy": verdicts["correct"] / total if total else 0.0,
+        "decided_accuracy": verdicts["correct"] / decided if decided else None,
+        "unknown_rate": unknown_count / total if total else 0.0,
+        "judge_coverage": decided / judge_total if judge_total else None,
+        "verdict_counts": dict(verdicts),
         "average_model_calls": (
             sum(record["model_calls"] for record in records) / total if total else 0.0
         ),
+        "p95_model_calls": _p95(calls),
         "average_latency_seconds": (
             sum(record["latency_seconds"] for record in records) / total if total else 0.0
         ),
+        "p95_latency_seconds": _p95(latencies),
         "timeout_count": sum(record["timed_out"] for record in records),
         "empty_response_count": sum(record["empty_response"] for record in records),
         "empty_final_response_count": sum(record["empty_final_response"] for record in records),
@@ -233,12 +348,20 @@ def evaluate(
         "l2_escalation_count": sum(record["l2_escalations"] for record in records),
         "uncertain_repair_attempt_count": sum(record["uncertain_repair_attempts"] for record in records),
         "failed_item_ids": [record["idx"] for record in records if record["failed"]],
-        # P0.2.1: candidate-level extraction breakdown
         "candidates_generated_total": sum(record["candidates_generated"] for record in records),
         "candidates_rejected_total": sum(record["candidates_rejected"] for record in records),
         "items_with_partial_rejection_count": sum(bool(record["answer_not_extractable"]) for record in records),
         "items_with_all_candidates_rejected_count": sum(bool(record["all_candidates_rejected"]) for record in records),
         "all_candidates_rejected_ids": [record["idx"] for record in records if record["all_candidates_rejected"]],
+        # ── P3 metrics ──
+        "verify_call_count": sum(record["verify_calls"] for record in records),
+        "verify_error_count": sum(record["verify_errors"] for record in records),
+        "revise_attempt_count": sum(record["revise_attempts"] for record in records),
+        "revise_accepted_count": sum(record["revise_accepted"] for record in records),
+        "revise_rejected_count": sum(record["revise_rejected"] for record in records),
+        "revise_rolled_back_count": sum(record["revise_rolled_back"] for record in records),
+        "reverify_call_count": sum(record["reverify_calls"] for record in records),
+        "reverify_error_count": sum(record["reverify_errors"] for record in records),
         "total_elapsed_seconds": round(time.perf_counter() - total_started_at, 3),
         "configured_total_timeout_seconds": total_timeout_seconds,
         "max_actual_model_calls": max((record["model_calls"] for record in records), default=0),
@@ -258,34 +381,33 @@ def macro_accuracy(groups: dict[str, dict[str, Any]]) -> float:
 
 
 def within_call_cap(report: dict[str, Any]) -> bool:
-    """Return True when every item's actual calls stayed within the tier hard cap.
+    """True when every item's actual calls stayed within the effective hard cap.
 
-    The agent enforces the cap internally, but this gives an auditable check that
-    no exception path, answer-group count, or parse outcome produced more calls
-    than the declared per-question hard limit for the tier.
+    The effective cap includes p3_call_boost when step verification is enabled.
     """
-    cap = (report.get("budget_config") or {}).get("max_model_calls")
+    bc = report.get("budget_config") or {}
+    cap = bc.get("effective_max_calls") or bc.get("max_model_calls")
     if cap is None:
         return True
     return report.get("max_actual_model_calls", 0) <= cap
 
 
-
 def summarize_budget_config(agent: ReasoningAgent) -> dict[str, Any]:
-    """Expose the call-budget configuration carried by the agent, if any.
-
-    Used by local budget scans so each report declares the tier it represents.
-    Falls back to an empty dict when the agent does not expose a config (e.g. a
-    test double), keeping ``evaluate`` usable without a real agent.
-    """
     config = getattr(agent, "config", None)
     if config is None:
         return {}
+    base = getattr(config, "max_model_calls", 6)
+    l2_enabled = getattr(config, "enable_l2_routing", False)
+    l2 = getattr(config, "l2_max_model_calls", 8) if l2_enabled else 0
+    base_calls = max(base, l2)
+    boost = getattr(config, "p3_call_boost", 0) if getattr(config, "enable_step_verification", False) else 0
     return {
         "policy_sample_times": getattr(config, "policy_sample_times", None),
-        "max_model_calls": getattr(config, "max_model_calls", None),
+        "max_model_calls": base,
+        "l2_max_model_calls": l2 if l2_enabled else None,
+        "effective_max_calls": base_calls + boost,
+        "p3_call_boost": boost,
         "verifier_voting_times": getattr(config, "verifier_voting_times", None),
-        "max_tokens": getattr(config, "max_tokens", None),
         "max_tokens": getattr(config, "max_tokens", None),
         "l0_max_tokens": getattr(config, "l0_max_tokens", None),
         "enable_l0_extended_tokens": getattr(config, "enable_l0_extended_tokens", None),
@@ -294,6 +416,9 @@ def summarize_budget_config(agent: ReasoningAgent) -> dict[str, Any]:
         "enable_l2_routing": getattr(config, "enable_l2_routing", None),
         "enable_local_repair": getattr(config, "enable_local_repair", None),
         "enable_uncertain_repair": getattr(config, "enable_uncertain_repair", None),
+        "enable_heterogeneous_reasoners": getattr(config, "enable_heterogeneous_reasoners", None),
+        "enable_step_verification": getattr(config, "enable_step_verification", None),
+        "enable_step_revision": getattr(config, "enable_step_revision", None),
     }
 
 
@@ -318,6 +443,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, help="Non-L0 generation max tokens (default 1024). L0 always uses l0_max_tokens=1024.")
     parser.add_argument("--validate-regression-dataset", action="store_true")
     parser.add_argument("--output-file")
+    # ── P2 / P3 toggles (explicit CLI, not default-value guessing) ──
+    parser.add_argument("--enable-heterogeneous", dest="enable_heterogeneous_reasoners", action="store_true")
+    parser.add_argument("--disable-heterogeneous", dest="enable_heterogeneous_reasoners", action="store_false")
+    parser.set_defaults(enable_heterogeneous_reasoners=AgentConfig.enable_heterogeneous_reasoners)
+    parser.add_argument("--enable-step-verification", dest="enable_step_verification", action="store_true")
+    parser.add_argument("--disable-step-verification", dest="enable_step_verification", action="store_false")
+    parser.set_defaults(enable_step_verification=AgentConfig.enable_step_verification)
+    parser.add_argument("--enable-step-revision", dest="enable_step_revision", action="store_true")
+    parser.add_argument("--disable-step-revision", dest="enable_step_revision", action="store_false")
+    parser.set_defaults(enable_step_revision=AgentConfig.enable_step_revision)
+    # ── Answer saving ──
+    parser.add_argument("--save-answers-to", help="Save compact {idx, extracted_answer, verdict} JSONL for offline re-judging.")
     return parser.parse_args()
 
 
@@ -337,6 +474,9 @@ def main() -> None:
             enable_l2_routing=args.enable_l2_routing,
             enable_local_repair=args.enable_local_repair,
             enable_uncertain_repair=args.enable_uncertain_repair,
+            enable_heterogeneous_reasoners=args.enable_heterogeneous_reasoners,
+            enable_step_verification=args.enable_step_verification,
+            enable_step_revision=args.enable_step_revision,
             policy_sample_times=args.policy_sample_times if args.policy_sample_times is not None else AgentConfig.policy_sample_times,
             max_model_calls=args.max_model_calls if args.max_model_calls is not None else AgentConfig.max_model_calls,
             max_tokens=args.max_tokens if args.max_tokens is not None else AgentConfig.max_tokens,
@@ -345,7 +485,11 @@ def main() -> None:
         agent = ReasoningAgent(client=InternChatClient(timeout=args.timeout_seconds, retry=args.retry_count), config=config)
         total_timeout = args.total_timeout_seconds
         if total_timeout is None:
-            total_timeout = len(items) * config.max_model_calls * args.timeout_seconds * args.retry_count
+            base_calls = max(config.max_model_calls, config.l2_max_model_calls if config.enable_l2_routing else 0)
+            effective_calls = base_calls
+            if config.enable_step_verification:
+                effective_calls += config.p3_call_boost
+            total_timeout = len(items) * effective_calls * args.timeout_seconds * args.retry_count
         report = evaluate(agent, items, total_timeout)
         report["within_call_cap"] = within_call_cap(report)
         report["status"] = "ok"
@@ -358,6 +502,15 @@ def main() -> None:
         report["answer_only_prompt_enabled"] = args.answer_only_prompt
         report["answer_first_prompt_enabled"] = args.answer_first_prompt
         report["regression_dataset_valid"] = True if args.validate_regression_dataset else None
+        # ── Save compact answers for offline re-judging ──
+        if args.save_answers_to:
+            with Path(args.save_answers_to).open("w", encoding="utf-8") as af:
+                for record in report["records"]:
+                    af.write(json.dumps({
+                        "idx": record["idx"],
+                        "extracted_answer": record.get("extracted_answer", ""),
+                        "verdict": record.get("verdict", "unknown"),
+                    }, ensure_ascii=False) + "\n")
     except Exception as exc:
         report = {
             "status": "error",

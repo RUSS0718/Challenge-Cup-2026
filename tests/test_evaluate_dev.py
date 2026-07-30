@@ -251,5 +251,141 @@ class RegressionDatasetValidationTest(unittest.TestCase):
         self.assertIn("invalid_source_url:3", errors)
 
 
+# ── P3.1: answer judge + evaluator correctness tests ────────────────────
+
+class JudgeCorrectTest(unittest.TestCase):
+    def test_exact_numeric_match(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct("42", "42"))
+        self.assertEqual("correct", judge_correct(" 42 ", "42"))
+
+    def test_rational_equivalence(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct("1/2", "0.5"))
+        self.assertEqual("correct", judge_correct("0.5", "1/2"))
+
+    def test_radical_returns_unknown_not_false_positive(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("unknown", judge_correct("sqrt(2)", "2"))
+        self.assertEqual("unknown", judge_correct("sqrt(4)", "2"))
+        self.assertEqual("unknown", judge_correct("sqrt(2)", "sqrt(3)"))
+
+    def test_choice_letters_case_insensitive(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct("A", "a", "choice"))
+        self.assertEqual("incorrect", judge_correct("A", "B", "choice"))
+
+    def test_unknown_for_plain_text(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("unknown", judge_correct("hello", "world"))
+        self.assertEqual("unknown", judge_correct("x=1", "x=2"))
+
+
+class P3EvaluatorMetricsTest(unittest.TestCase):
+    def test_report_includes_p3_fields(self):
+        from scripts.evaluate_dev import evaluate
+        agent = CapturingAgent()
+        report = evaluate(agent, [{"idx": 0, "problem": "q", "answer": "42"}])
+        self.assertIn("verdict_counts", report)
+        self.assertIn("strict_accuracy", report)
+        self.assertIn("decided_accuracy", report)
+        self.assertIn("unknown_rate", report)
+        self.assertIn("judge_coverage", report)
+        self.assertIn("p95_model_calls", report)
+        self.assertIn("p95_latency_seconds", report)
+
+    def test_record_has_p3_fields(self):
+        from scripts.evaluate_dev import evaluate
+        agent = CapturingAgent()
+        report = evaluate(agent, [{"idx": 0, "problem": "q", "answer": "42"}])
+        record = report["records"][0]
+        self.assertIn("verdict", record)
+        self.assertIn("extracted_answer", record)
+        self.assertIn("verify_calls", record)
+        self.assertIn("revise_attempts", record)
+        self.assertIn("revise_accepted", record)
+        self.assertIn("revise_rejected", record)
+        self.assertIn("revise_rolled_back", record)
+
+    def test_verdict_counts_sum_correctly(self):
+        from scripts.evaluate_dev import evaluate
+        agent = CapturingAgent()  # always returns "42"
+        items = [
+            {"idx": 0, "problem": "q0", "answer": "42"},
+            {"idx": 1, "problem": "q1", "answer": "999"},  # incorrect
+            {"idx": 2, "problem": "q2", "answer": "sqrt(2)"},  # unknown
+        ]
+        report = evaluate(agent, items)
+        vc = report["verdict_counts"]
+        self.assertEqual(1, vc.get("correct", 0))
+        self.assertEqual(1, vc.get("incorrect", 0))
+        self.assertEqual(1, vc.get("unknown", 0))
+
+    def test_budget_config_has_p2_p3_switches(self):
+        from scripts.evaluate_dev import summarize_budget_config
+        from user_agent import AgentConfig, ReasoningAgent
+        config = AgentConfig(enable_step_verification=True, p3_call_boost=3)
+        agent = ReasoningAgent.__new__(ReasoningAgent)
+        agent.config = config
+        bc = summarize_budget_config(agent)
+        self.assertTrue(bc["enable_step_verification"])
+        self.assertFalse(bc["enable_step_revision"])
+        self.assertEqual(9, bc["effective_max_calls"])
+        self.assertEqual(3, bc["p3_call_boost"])
+
+    def test_l2_effective_calls_accounts_for_l2_max(self):
+        from scripts.evaluate_dev import summarize_budget_config
+        from user_agent import AgentConfig, ReasoningAgent
+        config = AgentConfig(enable_l2_routing=True, l2_max_model_calls=8,
+                             enable_step_verification=True, p3_call_boost=3)
+        agent = ReasoningAgent.__new__(ReasoningAgent)
+        agent.config = config
+        bc = summarize_budget_config(agent)
+        # max(6, 8) + 3 = 11
+        self.assertEqual(11, bc["effective_max_calls"])
+
+    def test_rolled_back_revision_not_counted_as_accepted(self):
+        """Revision later rolled back → revise_accepted=0, revise_rolled_back=1."""
+        from scripts.evaluate_dev import evaluate
+        class RollbackAgent:
+            def solve(self, problem, metadata):
+                return {
+                    "final_response": "3",
+                    "extracted_answer": "3",
+                    "trace": [
+                        {"step": "finalize", "status": "selected", "model_calls": 3},
+                        {"step": "verify", "status": "ok", "error_count": 1},
+                        {"step": "revise", "status": "ok"},
+                        {"step": "reverify", "status": "fail", "error_count": 1},
+                    ],
+                }
+        report = evaluate(RollbackAgent(), [{"idx": 0, "problem": "q", "answer": "2"}])
+        record = report["records"][0]
+        self.assertEqual(0, record["revise_accepted"])
+        self.assertEqual(1, record["revise_rolled_back"])
+        self.assertEqual(0, report["revise_accepted_count"])
+        self.assertEqual(1, report["revise_rolled_back_count"])
+
+    def test_accepted_revision_has_no_rollback(self):
+        """Revision survives re-verify → accepted=1, rolled_back=0."""
+        from scripts.evaluate_dev import evaluate
+        class OkAgent:
+            def solve(self, problem, metadata):
+                return {
+                    "final_response": "2",
+                    "extracted_answer": "2",
+                    "trace": [
+                        {"step": "finalize", "status": "selected", "model_calls": 3},
+                        {"step": "verify", "status": "ok", "error_count": 1},
+                        {"step": "revise", "status": "ok"},
+                        {"step": "reverify", "status": "ok", "error_count": 0},
+                    ],
+                }
+        report = evaluate(OkAgent(), [{"idx": 0, "problem": "q", "answer": "2"}])
+        record = report["records"][0]
+        self.assertEqual(1, record["revise_accepted"])
+        self.assertEqual(0, record["revise_rolled_back"])
+
+
 if __name__ == "__main__":
     unittest.main()
