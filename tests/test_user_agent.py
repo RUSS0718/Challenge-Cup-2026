@@ -9,6 +9,8 @@ from user_agent import (
     TASK_TYPE_EXPLANATION, TASK_TYPE_FILL_BLANK, TASK_TYPE_PROOF,
     CALCULATION_PROMPT, CHOICE_PROMPT, DERIVATION_PROMPT,
     EXPLANATION_PROMPT, FILL_BLANK_PROMPT, PROOF_PROMPT, TASK_PROMPTS,
+    DIRECT_REASONER_PROMPT, ALTERNATIVE_REASONER_PROMPT,
+    STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
     answer_equivalence, classify_problem_type, extract_final_answer,
     normalize_answer,
 )
@@ -168,7 +170,7 @@ class ReasoningAgentTest(unittest.TestCase):
 
     def test_answer_only_prompt_is_an_explicit_opt_in(self):
         client = FakeClient(["最终答案：7", "VERDICT: A"])
-        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=2, enable_l0_extended_tokens=False, enable_task_aware_prompt=False, policy_prompt=ANSWER_ONLY_POLICY_PROMPT))
+        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=2, enable_l0_extended_tokens=False, enable_task_aware_prompt=False, policy_prompt=ANSWER_ONLY_POLICY_PROMPT, enable_heterogeneous_reasoners=False))
 
         agent.solve("题", {})
 
@@ -180,7 +182,7 @@ class ReasoningAgentTest(unittest.TestCase):
 
     def test_answer_first_prompt_matches_default_generation_prompt(self):
         client = FakeClient(["最终答案：7", "VERDICT: A"])
-        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=2, enable_l0_extended_tokens=False))
+        agent = ReasoningAgent(client, AgentConfig(policy_sample_times=1, verifier_voting_times=1, max_model_calls=2, enable_l0_extended_tokens=False, enable_heterogeneous_reasoners=False))
 
         agent.solve("题", {})
 
@@ -346,7 +348,8 @@ class TaskAwarePromptTest(unittest.TestCase):
         agent = ReasoningAgent(client,
             AgentConfig(policy_sample_times=1, verifier_voting_times=1,
                         max_model_calls=2, enable_task_aware_prompt=True,
-                        enable_l0_extended_tokens=False))
+                        enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False))
         agent.solve("这是一道证明题：证明1+1=2", {})
         self.assertEqual(PROOF_PROMPT, client.calls[0][0][0]["content"])
 
@@ -355,7 +358,8 @@ class TaskAwarePromptTest(unittest.TestCase):
         agent = ReasoningAgent(client,
             AgentConfig(policy_sample_times=1, verifier_voting_times=1,
                         max_model_calls=2, enable_task_aware_prompt=False,
-                        enable_l0_extended_tokens=False))
+                        enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False))
         agent.solve("这是一道证明题：证明1+1=2", {})
         self.assertEqual(POLICY_PROMPT, client.calls[0][0][0]["content"])
 
@@ -571,6 +575,279 @@ class TaskAwareSolveIntegrationTest(unittest.TestCase):
                         max_model_calls=2, enable_l0_extended_tokens=False))
         result = agent.solve("填入 ____ 的值。", {})
         self.assertEqual("42", result["final_response"])
+
+
+# ── P2: heterogeneous reasoner tests ────────────────────────────────────
+
+class HeterogeneousReasonerTest(unittest.TestCase):
+    """P2: verify that enable_heterogeneous_reasoners dispatches correctly."""
+
+    def test_disabled_uses_default_single_prompt(self):
+        """With P2 off, generation uses the task-aware prompt, not heterogeneous prompts."""
+        client = FakeClient(["最终答案：7", "VERDICT: A"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False))
+        result = agent.solve("计算 3+4", {})
+        self.assertIn("7", result["final_response"])
+        # Default path should NOT have reasoner tags
+        gen_entries = [e for e in result["trace"] if e.get("step") == "generate_candidate" and e.get("status") == "ok"]
+        for entry in gen_entries:
+            self.assertNotIn("reasoner", entry)
+
+    def test_enabled_dispatches_both_reasoners(self):
+        """P2 on: non-L0 items generate with both Direct and Alternative prompts."""
+        client = FakeClient([
+            "最终答案：5",   # direct reasoner
+            "最终答案：5",   # alternative reasoner
+            "VERDICT: A",
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=2, verifier_voting_times=1,
+                        max_model_calls=3, enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=True))
+        result = agent.solve("计算 2+3", {})
+        self.assertIn("5", result["final_response"])
+        gen_ok = [e for e in result["trace"] if e.get("step") == "generate_candidate" and e.get("status") == "ok"]
+        self.assertEqual(2, len(gen_ok))
+        self.assertEqual({"direct", "alternative"}, {e.get("reasoner") for e in gen_ok})
+
+    def test_l0_arithmetic_stays_single_direct_when_heterogeneous(self):
+        """L0 arithmetic items: 1 generation with direct reasoner, even with P2 on."""
+        # "计算 3+4" triggers L0 (simple arithmetic expression)
+        client = FakeClient(["最终答案：7", "VERDICT: A"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=2, enable_l0_extended_tokens=True,
+                        enable_heterogeneous_reasoners=True))
+        result = agent.solve("计算 3+4", {})
+        gen_ok = [e for e in result["trace"] if e.get("step") == "generate_candidate" and e.get("status") == "ok"]
+        self.assertEqual(1, len(gen_ok))
+        self.assertEqual("direct", gen_ok[0].get("reasoner"))
+
+    def test_default_config_has_heterogeneous_enabled(self):
+        """P2 is the default path — replaces same-prompt sampling."""
+        config = AgentConfig()
+        self.assertTrue(config.enable_heterogeneous_reasoners)
+
+    def test_heterogeneous_trace_includes_route_with_problem_type(self):
+        """Route budget trace entries still carry problem_type in P2 mode."""
+        client = FakeClient(["最终答案：7", "VERDICT: A"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=True))
+        result = agent.solve("计算 3+4", {})
+        route = next((e for e in result["trace"] if e.get("step") == "route_budget"), {})
+        self.assertEqual(TASK_TYPE_CALCULATION, route.get("problem_type"))
+
+    def test_extracted_answer_present_in_p2_mode(self):
+        """P2 mode: extracted_answer is still present for evaluator scoring."""
+        client = FakeClient(["最终答案：7", "VERDICT: A"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=True))
+        result = agent.solve("计算 3+4", {})
+        self.assertEqual("7", result.get("extracted_answer"))
+
+    def test_single_call_does_not_overflow(self):
+        """total_calls=1 → exactly 1 generation (no 1→2 overflow bug)."""
+        client = FakeClient(["最终答案：7", "VERDICT: A"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=True))
+        result = agent.solve("计算 3+4", {})
+        gen_ok = [e for e in result["trace"] if e.get("step") == "generate_candidate" and e.get("status") == "ok"]
+        self.assertEqual(1, len(gen_ok), f"expected 1 generation, got {len(gen_ok)}")
+
+    def test_proof_task_prompt_merged_into_reasoner(self):
+        """Proof-type task prompt is appended to reasoner prompt, not lost."""
+        client = FakeClient(["最终答案：证毕", "VERDICT: A"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=True))
+        agent.solve("这是一道证明题：证明1+1=2", {})
+        prompt_sent = client.calls[0][0][0]["content"]
+        # Must contain both the direct reasoner strategy AND the proof constraint
+        self.assertIn("证明", prompt_sent)
+
+
+# ── P3: step verification and revision tests ────────────────────────────
+
+class StepVerificationTest(unittest.TestCase):
+    """P3: merged verify + targeted revision + re-verify."""
+
+    def test_disabled_defaults_leave_best_unchanged(self):
+        """Without P3, best candidate is used as-is — no extra calls."""
+        client = FakeClient([
+            "最终答案：7",  # candidate
+            "VERDICT: A",    # audit
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_step_verification=False))
+        result = agent.solve("计算 3+4", {})
+        self.assertIn("7", result["final_response"])
+        self.assertFalse(any(e.get("step") == "verify" for e in result["trace"]))
+
+    def test_verify_runs_and_captures_errors(self):
+        """Merged verify call records errors in trace."""
+        client = FakeClient([
+            "最终答案：f'(a)=0",          # candidate
+            "VERDICT: A",                   # audit
+            "ERROR:step1:导数定义用错\nERRORS",  # merged verify
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=3, enable_l0_extended_tokens=False,
+                        enable_step_verification=True))
+        result = agent.solve("求导数", {})
+        sv = [e for e in result["trace"] if e.get("step") == "verify"]
+        self.assertTrue(sv, "verify trace entry missing")
+        self.assertEqual(1, sv[0].get("error_count"))
+
+    def test_all_ok_complete_skips_revision(self):
+        """ALL_OK:COMPLETE → no revision triggered."""
+        client = FakeClient([
+            "最终答案：7",              # candidate
+            "VERDICT: A",                # audit
+            "OK\nALL_OK:COMPLETE",       # merged verify
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=3, enable_l0_extended_tokens=False,
+                        enable_step_verification=True,
+                        enable_step_revision=True))
+        result = agent.solve("计算 3+4", {})
+        self.assertIn("7", result["final_response"])
+        self.assertFalse(any(e.get("step") == "revise" for e in result["trace"]))
+
+    def test_revision_rejects_unanswerable_output(self):
+        """Revision with no extractable answer → rejected, best unchanged."""
+        client = FakeClient([
+            "最终答案：3",                    # candidate (wrong)
+            "VERDICT: A",                       # audit
+            "ERROR:calc:1+1 != 3\nERRORS",     # verify
+            "Final answer: [Answer]",           # revision (no extractable)
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=4, enable_l0_extended_tokens=False,
+                        enable_step_verification=True,
+                        enable_step_revision=True))
+        result = agent.solve("计算 1+1", {})
+        rev = [e for e in result["trace"] if e.get("step") == "revise"]
+        self.assertTrue(rev)
+        self.assertEqual("rejected", rev[0]["status"])
+
+    def test_revision_accepted_and_reverified(self):
+        """Valid revision → accepted → re-verify runs."""
+        client = FakeClient([
+            "最终答案：3",                     # candidate
+            "VERDICT: A",                        # audit
+            "ERROR:calc:1+1=2 not 3\nERRORS",   # verify
+            "修正：1+1=2。\n最终答案：2",        # revision
+            "OK\nALL_OK:COMPLETE",               # re-verify
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=6, enable_l0_extended_tokens=False,
+                        enable_step_verification=True,
+                        enable_step_revision=True))
+        result = agent.solve("计算 1+1", {})
+        self.assertIn("2", result.get("extracted_answer", ""))
+        rev = [e for e in result["trace"] if e.get("step") == "revise"]
+        self.assertEqual("ok", rev[0]["status"])
+        self.assertTrue(any(e.get("step") == "reverify" for e in result["trace"]))
+
+    def test_reverify_error_rolls_back_revision(self):
+        """Re-verify finds errors → rollback to original answer."""
+        client = FakeClient([
+            "最终答案：3",                     # candidate (wrong)
+            "VERDICT: A",                        # audit
+            "ERROR:calc:1+1 != 3\nERRORS",      # verify
+            "最终答案：0",                        # revision (also wrong)
+            "ERROR:calc:1+1=2 not 0\nERRORS",   # re-verify finds error
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=6, enable_l0_extended_tokens=False,
+                        enable_step_verification=True,
+                        enable_step_revision=True))
+        result = agent.solve("计算 1+1", {})
+        rv = [e for e in result["trace"] if e.get("step") == "reverify"]
+        self.assertTrue(rv)
+        self.assertEqual("fail", rv[0]["status"])
+        # original answer preserved (3), not the bad revision (0)
+        self.assertIn("3", result.get("extracted_answer", ""))
+
+    def test_error_and_gap_parsing(self):
+        """Mixed ERROR: and GAPS in single response parse correctly."""
+        client = FakeClient([
+            "最终答案：0",
+            "VERDICT: A",
+            "OK\nERROR:第3步:除数为零\nALL_OK:GAPS:未检查定义域",
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=3, enable_l0_extended_tokens=False,
+                        enable_step_verification=True))
+        result = agent.solve("计算 1/0", {})
+        sv = [e for e in result["trace"] if e.get("step") == "verify"]
+        self.assertEqual(1, sv[0].get("error_count"))
+        self.assertEqual(1, sv[0].get("gap_count"))
+
+    def test_budget_exhausted_verify_skipped_not_ok(self):
+        """Budget exhausted → verify skipped, never recorded as ok."""
+        client = FakeClient([
+            "最终答案：7",
+            "VERDICT: A",
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_step_verification=True,
+                        p3_call_boost=0))  # no boost → budget stays at 2
+        result = agent.solve("计算 3+4", {})
+        verify_entries = [e for e in result["trace"] if e.get("step") == "verify"]
+        self.assertFalse(any(e.get("status") == "ok" for e in verify_entries),
+                         "verify should not report ok when budget was exhausted")
+
+    def test_malformed_verifier_output_is_inconclusive(self):
+        """Verifier output with no protocol lines → inconclusive, not ok with 0 errors."""
+        client = FakeClient([
+            "最终答案：7",                                # candidate
+            "VERDICT: A",                                  # audit
+            "This does not follow the verifier protocol",  # malformed verify
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=3, enable_l0_extended_tokens=False,
+                        enable_step_verification=True))
+        result = agent.solve("计算 3+4", {})
+        verify_entries = [e for e in result["trace"] if e.get("step") == "verify"]
+        self.assertTrue(verify_entries)
+        self.assertEqual("inconclusive", verify_entries[0]["status"])
+
+    def test_truncated_ok_without_terminal_is_inconclusive(self):
+        """A per-step OK without the required terminal verdict is incomplete."""
+        client = FakeClient([
+            "最终答案：7",
+            "VERDICT: A",
+            "OK",
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                        max_model_calls=3, enable_l0_extended_tokens=False,
+                        enable_step_verification=True))
+        result = agent.solve("计算 3+4", {})
+        verify_entries = [e for e in result["trace"] if e.get("step") == "verify"]
+        self.assertEqual("inconclusive", verify_entries[0]["status"])
 
 
 if __name__ == "__main__":

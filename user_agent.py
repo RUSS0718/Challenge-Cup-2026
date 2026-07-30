@@ -40,6 +40,50 @@ PROOF_PROMPT = """你是严谨的数学推理智能体。这是一道证明题�
 
 EXPLANATION_PROMPT = """你是严谨的数学推理智能体。这是一道解释/说明题。给出清晰、紧凑的数学解释，包含关键定义和逻辑推理。最后一行必须使用"最终答案："写出核心结论。"""
 
+# ── P2: heterogeneous reasoner prompts ──────────────────────────────────────
+# DirectReasoner uses standard forward derivation (definitions → theorems → answer).
+# AlternativeReasoner uses complementary strategies (contradiction, construction,
+# boundary checks, numerical verification) to approach from a different angle.
+# When both agree, confidence is high; conflicts are resolved by the audit step.
+
+DIRECT_REASONER_PROMPT = """你是数学推理智能体，使用标准正向推导方法。
+步骤：
+1. 明确关键定义和已知条件。
+2. 引用或陈述相关定理/公式。
+3. 从条件出发，逐步严格推演到结论，每步给出依据。
+4. 检查定义域、边界条件和遗漏情形。
+最后一行必须使用"最终答案："明确写出答案。"""
+
+ALTERNATIVE_REASONER_PROMPT = """你是数学推理智能体，使用互补策略从另一角度验证或求解。
+选择至少一种方法：
+- 反证法：假设结论不成立，推导矛盾。
+- 构造法：构造满足条件的实例或反例。
+- 边界/特例检查：验证极端值、退化情形。
+- 数值/代数验证：代入数值交叉检查。
+不要重复标准正向推导的全部步骤，聚焦于不同的推理路径或验证。
+最后一行必须使用"最终答案："明确写出答案。"""
+
+# ── P3: step verification and revision prompts ────────────────────────────
+# InternLM models embed a verbose "Thinking Process" before every response,
+# which consumes tokens and makes structured lemma extraction unreliable.
+# Strategy: single-call step-by-step verification instead of lemma extraction.
+
+STEP_VERIFY_PROMPT = """你是数学验证员。逐步检查以下解答：
+对每一步输出：OK 或 ERROR:步骤:原因。
+所有步骤检查完毕后，最后一行输出：
+ALL_OK:COMPLETE   — 全部正确且解答完整
+ALL_OK:GAPS:缺失1;缺失2   — 步骤正确但不完整
+ERRORS   — 发现有步骤错误（此时前面已有 ERROR 行指出）
+不要输出 Thinking Process。"""
+
+# ponytail: merged step+full verify into single call; split again if two-call accuracy measurably better.
+SOLUTION_VERIFY_PROMPT = STEP_VERIFY_PROMPT  # backward-compat alias
+
+STEP_REVISE_PROMPT = """你是数学修正员。原解答在指定步骤有错误。请只修正受影响的推导部分，保持正确步骤不变。
+输入包含：原题、原解答、错误定位和原因。
+输出修正后的完整解答。最后一行必须使用"最终答案："明确写出答案。"""
+
+
 # Map task type → generation prompt.
 TASK_PROMPTS: dict[str, str] = {
     TASK_TYPE_CHOICE: CHOICE_PROMPT,
@@ -118,6 +162,18 @@ class AgentConfig:
     enable_time_convergence: bool = True
     solve_converge_timeout_seconds: float = 960.0   # ~16 min → stop new candidates
     solve_hard_timeout_seconds: float = 1080.0       # ~18 min → stop all calls
+    # ── P2: heterogeneous reasoners ──
+    enable_heterogeneous_reasoners: bool = True
+    # ── P3: step verification + targeted revision ──
+    enable_step_verification: bool = False
+    enable_step_revision: bool = False
+    # P3 needs extra call budget beyond generation + audit.  The default
+    # max_model_calls (6) is consumed by 3 gen + 3 audit groups.  Step
+    # verification adds 1 call; revision adds 1; re-verify adds 1 more.
+    # Boost by 3 so the worst-case path (3gen+3audit+1verify+1revise+1reverify=9)
+    # fits within 6+3=9.
+    p3_call_boost: int = 3
+
 
 def extract_final_answer(response: str) -> str:
     if not isinstance(response, str) or not response.strip(): return ""
@@ -258,14 +314,22 @@ class ReasoningAgent:
         # P0: per-solve budget dict carries time for call isolation (no shared instance field).
         budget: dict[str, Any] = {"used": 0, "limit": self._model_call_limit(level),
                                    "solve_start": time.monotonic() if self.config.enable_time_convergence else None}
+        # P3: boost call budget so verification + revision have room beyond gen+audit.
+        if self.config.enable_step_verification:
+            budget["limit"] += self.config.p3_call_boost
         trace.append({"step":"route_budget","level":level,"generation_calls":generation_calls,"max_model_calls":budget["limit"],"problem_type":problem_type})
 
-        # P0: use task-aware prompt when enabled
-        task_prompt = self._task_policy_prompt(problem_type)
-        self._generate_candidates(problem, generation_calls, candidates, trace, budget, self._policy_max_tokens(level), task_prompt=task_prompt, problem_type=problem_type)
+        # ── Candidate generation ──
+        # P2: heterogeneous reasoners — replace same-prompt sampling with complementary strategies.
+        if self.config.enable_heterogeneous_reasoners:
+            self._generate_heterogeneous(problem, generation_calls, level, candidates, trace, budget, problem_type)
+        else:
+            task_prompt = self._task_policy_prompt(problem_type)
+            self._generate_candidates(problem, generation_calls, candidates, trace, budget, self._policy_max_tokens(level), task_prompt=task_prompt, problem_type=problem_type)
 
         if self._should_escalate_l2(level, candidates):
             trace.append({"step":"route_budget","level":"L2","generation_calls":1,"max_model_calls":budget["limit"],"reason":"answer_conflict"})
+            task_prompt = self._task_policy_prompt(problem_type)
             self._generate_candidates(problem, 1, candidates, trace, budget, self._policy_max_tokens("L2"), task_prompt=task_prompt, problem_type=problem_type)
 
         self._attach_controlled_tool_evidence(problem, candidates, trace)
@@ -285,12 +349,19 @@ class ReasoningAgent:
         # ── Finalize ──
         if not candidates:
             trace.append({"step":"finalize","status":"fallback","reason":"no_valid_candidate","model_calls":budget["used"],"problem_type":problem_type})
-            return {"final_response":"未能生成有效数学答案。","trace":trace}
+            return {"final_response":"未能生成有效数学答案。","trace":trace, "extracted_answer": ""}
         best = self._select_candidate(candidates)
+
+        # ── P3: step verification + targeted revision ──
+        if self.config.enable_step_verification and best.get("solution"):
+            self._verify_and_revise(problem, best, candidates, trace, budget, problem_type)
+
         # P0: task-aware final_response formatting
         final_answer = self._format_task_final_response(best, problem_type)
+        # Evaluator-facing compact answer (independent of final_response formatting)
+        extracted_answer = best.get("normalized_answer") or best.get("answer", "")
         trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"],"problem_type":problem_type})
-        return {"final_response":final_answer,"trace":trace}
+        return {"final_response":final_answer,"trace":trace, "extracted_answer": extracted_answer}
 
     # ── Candidate generation ─────────────────────────────────────────────
 
@@ -300,35 +371,92 @@ class ReasoningAgent:
         budget: dict[str, int], max_tokens: int,
         task_prompt: str | None = None,
         problem_type: str = TASK_TYPE_CALCULATION,
+        reasoner: str | None = None,  # P2: "direct" | "alternative" | None
     ) -> None:
         prompt = task_prompt or self.config.policy_prompt
         candidate_start = max((item["candidate_id"] for item in candidates), default=-1) + 1
+
+        def _tr(status: str, cid: int, **extras: Any) -> dict[str, Any]:
+            entry: dict[str, Any] = {"step": "generate_candidate", "status": status, "candidate_id": cid, **extras}
+            if reasoner:
+                entry["reasoner"] = reasoner
+            return entry
+
         for candidate_id in range(generation_calls):
-            # P0: time convergence — stop at soft/hard limits (per-solve, isolated via budget dict).
             if self._time_hard_exceeded(budget.get("solve_start")):
-                trace.append({"step":"generate_candidate","status":"skipped","candidate_id":candidate_id + candidate_start,"reason":"solve_time_budget_exhausted"})
+                trace.append(_tr("skipped", candidate_id + candidate_start, reason="solve_time_budget_exhausted"))
                 continue
             if self._time_converge_exceeded(budget.get("solve_start")):
-                trace.append({"step":"generate_candidate","status":"skipped","candidate_id":candidate_id + candidate_start,"reason":"solve_time_convergence_triggered"})
+                trace.append(_tr("skipped", candidate_id + candidate_start, reason="solve_time_convergence_triggered"))
                 continue
             candidate_id += candidate_start
             response, error = self._request(prompt, f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}", self.config.policy_temperature, max_tokens, budget)
             if response is None:
-                trace.append({"step":"generate_candidate","status":"skipped","candidate_id":candidate_id,"reason":error}); continue
+                trace.append(_tr("skipped", candidate_id, reason=error)); continue
             answer = extract_final_answer(response)
-            # P0: non-numeric types — answer IS the full solution text (never a
-            #      short marker like "证毕" that would group different proofs together).
-            #      Placeholder detection uses extract_final_answer semantics, not
-            #      a hard length threshold (which would reject short valid proofs).
             if problem_type in _NON_NUMERIC_TASK_TYPES:
                 if not answer or is_placeholder_answer(answer):
-                    trace.append({"step":"generate_candidate","status":"rejected","candidate_id":candidate_id,"reason":"placeholder_answer"})
+                    trace.append(_tr("rejected", candidate_id, reason="placeholder_answer"))
                     continue
                 answer = response.strip()
             elif not answer:
-                trace.append({"step":"generate_candidate","status":"rejected","candidate_id":candidate_id,"reason":"answer_not_extractable"}); continue
+                trace.append(_tr("rejected", candidate_id, reason="answer_not_extractable")); continue
             candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
-            trace.append({"step":"generate_candidate","status":"ok","candidate_id":candidate_id})
+            trace.append(_tr("ok", candidate_id))
+
+    # ── P2: heterogeneous candidate generation ───────────────────────────
+
+    def _generate_heterogeneous(
+        self, problem: str, total_calls: int, level: str,
+        candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
+        budget: dict[str, Any], problem_type: str,
+    ) -> None:
+        """Generate candidates with two complementary reasoning strategies.
+
+        L0 arithmetic stays single-path (1 direct generation).
+        Non-L0 splits calls between DirectReasoner and AlternativeReasoner.
+        Distribution: >=2 calls → 1 alternative + rest direct; 1 call → direct only.
+
+        Task-aware prompts are merged with reasoner strategies so that
+        choice / proof / explanation format constraints are not lost.
+        """
+        if level == "L0":
+            self._generate_candidates(problem, 1, candidates, trace, budget,
+                                      self._policy_max_tokens(level),
+                                      task_prompt=DIRECT_REASONER_PROMPT,
+                                      problem_type=problem_type,
+                                      reasoner="direct")
+            return
+
+        max_tokens = self._policy_max_tokens(level)
+
+        # ── Task-aware prompt (preserve format constraints) ──
+        task_prompt = self._task_policy_prompt(problem_type)
+        # Only append task constraint when it differs from the default calculation prompt
+        task_extra = ""
+        if task_prompt not in (POLICY_PROMPT, CALCULATION_PROMPT):
+            task_extra = "\n" + task_prompt
+
+        direct_prompt = DIRECT_REASONER_PROMPT + task_extra
+        alt_prompt = ALTERNATIVE_REASONER_PROMPT + task_extra
+
+        # ── Call distribution: ensure total  == total_calls ──
+        if total_calls <= 1:
+            self._generate_candidates(problem, total_calls, candidates, trace, budget,
+                                      max_tokens, task_prompt=direct_prompt,
+                                      problem_type=problem_type, reasoner="direct")
+            return
+
+        # >=2 calls: 1 alternative, remainder direct
+        alt_calls = 1
+        direct_calls = total_calls - alt_calls
+
+        self._generate_candidates(problem, direct_calls, candidates, trace, budget,
+                                  max_tokens, task_prompt=direct_prompt,
+                                  problem_type=problem_type, reasoner="direct")
+        self._generate_candidates(problem, alt_calls, candidates, trace, budget,
+                                  max_tokens, task_prompt=alt_prompt,
+                                  problem_type=problem_type, reasoner="alternative")
 
     # ── Model request ────────────────────────────────────────────────────
 
@@ -479,3 +607,130 @@ class ReasoningAgent:
             candidate["selection_basis"] = "controlled_tool_evidence" if candidate["tool_rank"] else "answer_consensus"
         has_unrefuted_candidate = any(candidate["tool_rank"] >= 0 for candidate in candidates)
         return max(candidates,key=lambda item:((item["tool_rank"] >= 0) if has_unrefuted_candidate else True, item["tool_rank"], item["consensus"], sum(evidence.get("verdict")=="pass" for evidence in item["evidence"]), -item["candidate_id"]))
+
+    # ── P3: step verification and targeted revision ──────────────────────
+
+    def _verify_and_revise(
+        self, problem: str, best: dict[str, Any],
+        _candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
+        budget: dict[str, Any], problem_type: str,
+    ) -> None:
+        """Verify best candidate's solution, optionally revise, re-verify.
+
+        All data is per-solve; never persists across problems.
+        """
+        solution = best.get("solution", "")
+        if not solution:
+            return
+
+        # ── Verify ──
+        step_errors, gaps, conclusive = self._verify_solution(problem, solution, trace, budget)
+        if conclusive is False:
+            trace.append({"step":"verify","status":"inconclusive","error_count":0,"gap_count":0})
+            return  # malformed verifier output → skip revision
+        if conclusive is None:
+            # _verify_solution already recorded skipped; no extra entry.
+            return
+
+        # Verify ran and produced meaningful output (may have 0 errors — that's ok).
+        trace.append({"step":"verify","status":"ok","error_count":len(step_errors),"gap_count":len(gaps)})
+
+        # ── Revise (if enabled and issues found) ──
+        if not self.config.enable_step_revision or not (step_errors or gaps):
+            return
+        revised = self._revise_with_guidance(
+            problem, solution, step_errors, gaps, trace, budget, problem_type,
+        )
+        if revised is None:
+            return
+        revised_answer = extract_final_answer(revised)
+        if not revised_answer:
+            trace.append({"step":"revise","status":"rejected","reason":"answer_not_extractable"})
+            return
+
+        # Save original in case re-verify fails.
+        saved = {"solution": best["solution"], "answer": best["answer"],
+                 "normalized_answer": best.get("normalized_answer", "")}
+        best["solution"] = revised
+        best["answer"] = revised_answer
+        best["normalized_answer"] = normalize_answer(revised_answer)
+        trace.append({"step":"revise","status":"ok"})
+
+        # ── Re-verify; rollback if new errors found ──
+        if budget["used"] < budget["limit"]:
+            re_errors, re_gaps, re_conclusive = self._verify_solution(problem, revised, trace, budget)
+            if re_conclusive is None:
+                pass  # skipped — keep revision.
+            elif re_conclusive is False:
+                trace.append({"step":"reverify","status":"inconclusive","error_count":0,"gap_count":0})
+                # Keep revision (verifier broken, not solution).
+            elif re_errors or re_gaps:
+                trace.append({"step":"reverify","status":"fail","error_count":len(re_errors),"gap_count":len(re_gaps)})
+                # Rollback: re-verify found errors the revision didn't fix.
+                best["solution"] = saved["solution"]
+                best["answer"] = saved["answer"]
+                best["normalized_answer"] = saved["normalized_answer"]
+            else:
+                trace.append({"step":"reverify","status":"ok","error_count":0,"gap_count":0})
+
+    def _verify_solution(
+        self, problem: str, solution: str,
+        trace: list[dict[str, Any]], budget: dict[str, Any],
+    ) -> tuple[list[dict[str, Any]], list[str], bool | None]:
+        """Single-call step-by-step verification + completeness check.
+
+        Returns (step_errors, gaps, conclusive):
+          - None → request failed / budget exhausted (skipped).
+          - False → response did not follow protocol (malformed verifier output).
+          - True  → response parsed; may have 0 errors (all clear).
+        """
+        user_prompt = f"题目：\n{problem}\n\n解答：\n{solution}"
+        response, error = self._request(STEP_VERIFY_PROMPT, user_prompt, 0.1, 1024, budget)
+        if response is None:
+            trace.append({"step":"verify","status":"skipped","reason":error})
+            return [], [], None
+        errors: list[dict[str, Any]] = []
+        gaps: list[str] = []
+        terminal_status: str | None = None
+        for line in response.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("ERROR:"):
+                parts = stripped[len("ERROR:"):].split(":", 1)
+                errors.append({"step": parts[0].strip() if parts else "",
+                               "reason": parts[1].strip() if len(parts) > 1 else stripped})
+            elif stripped == "ALL_OK:COMPLETE":
+                terminal_status = "complete"
+            elif stripped.startswith("ALL_OK:GAPS:"):
+                gap_text = stripped[len("ALL_OK:GAPS:"):]
+                gaps = [g.strip() for g in gap_text.split(";") if g.strip()]
+                terminal_status = "gaps" if gaps else None
+            elif stripped == "ERRORS":
+                terminal_status = "errors" if errors else None
+        if terminal_status is None:
+            return [], [], False  # malformed or truncated — no valid terminal verdict
+        return errors, gaps, True
+
+    def _revise_with_guidance(
+        self, problem: str, solution: str,
+        step_errors: list[dict[str, Any]], gaps: list[str],
+        trace: list[dict[str, Any]], budget: dict[str, Any], problem_type: str,
+    ) -> str | None:
+        parts = []
+        if step_errors:
+            first = step_errors[0]
+            parts.append(f"错误步骤：{first.get('step','?')}\n原因：{first.get('reason','?')}")
+        if gaps:
+            parts.append(f"遗漏：{'；'.join(gaps)}")
+        if not parts:
+            return None
+        error_text = "\n".join(parts)
+        user_prompt = (
+            f"原题：\n{problem}\n\n原解答：\n{solution}\n\n发现的问题：\n{error_text}\n\n请修正推导并给出新的完整解答。"
+        )
+        task_prompt = self._task_policy_prompt(problem_type)
+        response, error = self._request(STEP_REVISE_PROMPT, user_prompt, 0.4,
+                                        self.config.max_tokens, budget)
+        if response is None:
+            trace.append({"step":"revise","status":"skipped","reason":error})
+            return None
+        return response.strip() or None
