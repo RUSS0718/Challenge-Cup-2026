@@ -1,420 +1,231 @@
-# 赛题简介
+# Challenge Cup 2026 数学推理智能体
 
-本仓库是挑战杯人工智能赛道初赛的 baseline 仓库。赛题围绕 Intern-S 系列模型的数学智能体设计与推理创新展开，选手需要设计一个能够解决数学问题的推理智能体。智能体接收一道数学题文本，结合题目元信息进行推理，并输出最终答案。
+本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现，已经从官方 naive baseline
+演进为一个受调用预算约束的数学推理智能体。系统围绕题型识别、异构候选生成、
+答案抽取与分组审核、证据裁决、P3 逐步验证和题型化输出构建，同时保持赛事规定的
+单文件入口与公开 client 契约。
 
-选手的核心任务是实现：
+> 当前状态（2026-07-30）：P0-P3.1 已完成实现和本地验收，当前工作区
+> `153/153` 项单元测试通过。异构 Reasoner 与 P3 已实现，但尚未完成同一评测窗口下
+> 的四组双轮 A/B，因此“已实现”不等于“已证明能提升官方分数”。
 
-```python
-agent.solve(problem: str, metadata: dict) -> dict
-```
+## 当前能力
 
-平台会在正式评测时读取实际测试题，调用选手提交代码中的该入口函数，取得 `final_response`，并结合官方 judger 与标准答案进行判分。
+- 识别计算、选择、填空、证明、推导和解释六种输出题型。
+- 简单算术走 L0 单次 Direct 路径；其他题默认使用 `2 Direct + 1 Alternative`
+  生成互补候选。
+- 保守抽取最终答案，支持数值、多根集合、方程、区间、向量、矩阵及非数值长答案。
+- 对可证明等价的答案分组，每组只进行一次隔离上下文审核。
+- 按受控工具证据、答案共识、审核结果和固定候选 ID 进行确定性选择。
+- P3 合并执行逐步错误检查和完整性检查；验证器异常、截断或协议畸形不会被当成通过。
+- evaluator 支持三态 AnswerJudge、P95、Judge coverage、P3 状态统计、有效调用上限和
+  紧凑预测答案保存。
+- 所有单题状态仅在一次 `solve()` 内存在，不依赖题目顺序、进程复用或隐藏答案。
 
-本赛题鼓励选手探索不同的智能体设计方式，包括但不限于：
+当前默认开启异构 Reasoner 和 P3 验证，但关闭 P3 修正。修正路径仍有一个已知的
+fail-open 边界：复验 `skipped`、`inconclusive` 或无剩余预算时会保留修正答案。
+因此在改为 fail-closed 并完成 A/B 前，不应在正式提交路径启用
+`enable_step_revision=True`。
 
-- 提示词设计与多轮推理
-- 多候选生成、验证与选择
-- 规划、反思、纠错、答案格式化
-- 工具调用、检索、记忆或其它推理策略
-- 面向数学题的专门解析、符号计算或后处理
-
-最终评分主要依据 `final_response` 的答案正确性。`trace` 可用于记录智能体的推理与交互过程，便于异常排查、结果展示和同分情况下的设计质量参考。
-
-## Baseline 仓库说明
-
-本仓库提供一个 naive agent baseline，作用是帮助选手理解：
-
-- 赛题内容与本地调试方式
-- 输入数据格式
-- 智能体入口函数
-- 智能体输出格式
-- 平台 runner 与选手代码之间的调用关系
-
-Baseline 只是一个最小可运行示例，不限制选手的具体实现。选手可以保留、修改或替换其中的智能体逻辑，也可以新增模块、工具和依赖。但正式提交的仓库必须满足平台约定的入口规范。
-
-### 必须包含的文件
-
-选手提交的仓库根目录必须包含：
+## 求解流程
 
 ```text
-user_agent.py
+Problem
+  -> 题型识别与预算路由
+  -> Direct / Alternative Reasoner 候选池
+  -> 答案抽取、规范化与等价分组
+  -> 受控证据 / 分组审核
+  -> 确定性候选选择
+  -> P3 逐步与完整性验证
+  -> 可选单轮修正与复验
+  -> 题型化 Finalizer
+  -> final_response + compact trace
 ```
 
-平台 runner 会从该文件中加载选手实现。其它文件可以根据需要添加，例如：
+正式内核使用普通 Python 状态机，没有引入 LangGraph、AgentScope 或联网工具。
+`sympy_adapter.py` 是默认关闭的受控实验；stdio MCP、离线定理卡 RAG 和复杂能力冻结集
+仍属于后续阶段，不是当前运行时依赖。
 
-```text
-requirements.txt
-tools/
-prompts/
-utils/
-```
+## 默认配置
 
-但所有新增文件都应使用相对路径读取，不要依赖本地机器上的绝对路径。
+| 配置 | 默认值 | 说明 |
+| --- | --- | --- |
+| `policy_sample_times` | `3` | 非 L0 候选数量 |
+| `max_model_calls` | `6` | 基础模型调用上限 |
+| `max_tokens` | `1024` | 非 L0 生成上限 |
+| `l0_max_tokens` | `1024` | L0 生成上限 |
+| `enable_heterogeneous_reasoners` | `True` | 使用 Direct + Alternative |
+| `enable_step_verification` | `True` | 启用 P3 验证 |
+| `enable_step_revision` | `False` | 不启用 P3 修正 |
+| `p3_call_boost` | `3` | P3 开启后有效上限为 9 |
+| `enable_l2_routing` | `False` | 实验路由；开启后 P3 有效上限可达 11 |
+| `enable_sympy_evidence` | `False` | 受控 SymPy 实验 |
+| `enable_dynamic_budget` | `False` | 动态预算实验 |
+| `enable_local_repair` | `False` | 局部修复实验 |
+| `enable_uncertain_repair` | `False` | uncertain 修复实验 |
 
-### `user_agent.py` 必须遵守的规范
+## 赛事接口
 
-`user_agent.py` 中必须提供类：
-
-```python
-class ReasoningAgent:
-    ...
-```
-
-平台会使用官方 client 初始化该类：
+仓库根目录的 `user_agent.py` 导出：
 
 ```python
 from user_agent import ReasoningAgent
 
 agent = ReasoningAgent(client=official_client)
+result = agent.solve(problem, metadata)
 ```
 
-因此 `ReasoningAgent` 至少需要支持如下构造方式：
+返回值是可 JSON 序列化的字典，并始终包含非空字符串 `final_response`：
 
-```python
-def __init__(self, client, *args, **kwargs):
-    ...
-```
-
-其中 `client` 由平台提供。选手不要在代码中写死 API key，也不要假设本地存在固定的 API 配置文件。正式评测时，模型访问、限流、token 统计、超时控制等由官方 client 和平台 runner 统一管理。
-
-评测时平台提供的 client 与 baseline 中 `llm_client.py` 的 `InternChatClient` 结构一致，可作为本地实现参考。选手可以参考其中的 `chat(messages, temperature, max_tokens)` 调用方式组织模型请求：
-
-```python
-response = client.chat(
-    messages=[
-        {"role": "user", "content": problem},
-    ],
-    temperature=0.2,
-    max_tokens=4096,
-)
-```
-
-正式评测 client 可能包含额外的资源统计、限流和安全控制逻辑。选手代码只应依赖公开约定的调用接口，不要依赖 client 内部私有字段。
-
-`ReasoningAgent` 必须提供推理函数：
-
-```python
-def solve(self, problem: str, metadata: dict) -> dict:
-    ...
-```
-
-输入参数含义如下：
-
-- `problem`: 数学题题面文本。
-- `metadata`: 题目元信息字典，至少可能包含 `idx`。正式评测时，metadata 的具体字段以平台 runner 为准。选手代码不得依赖 `answer`、标准答案或隐藏评测数据。
-
-返回值必须是 `dict`，且必须包含非空字符串字段：
-
-```python
+```json
 {
-  "final_response": "最终答案"
-}
-```
-
-推荐同时返回 `trace`：
-
-```python
-{
-  "final_response": "最终答案",
+  "final_response": "最终答案或完整证明",
+  "extracted_answer": "用于本地评测的紧凑答案",
   "trace": [
-    {"step": "plan", "content": "..."},
-    {"step": "model_call", "content": "..."},
-    {"step": "finalize", "content": "..."}
+    {"step": "route_budget", "level": "fixed", "max_model_calls": 9},
+    {"step": "finalize", "status": "selected", "model_calls": 7}
   ]
 }
 ```
 
-字段要求：
+智能体只依赖公开模型调用契约：
 
-- `final_response` 必须是可读的最终答案，不能为空。
-- `trace` 可选，建议为列表，记录关键推理步骤、模型调用摘要、候选答案、验证过程等。
-- 返回内容必须可以被 JSON 序列化。
-- 不要在 `trace` 中写入 API key、访问令牌、个人隐私信息或其它敏感内容。
-
-### 实现自由度
-
-选手可以使用 baseline 中的 lagent 示例，也可以完全不用 lagent。平台只要求 `user_agent.py` 暴露符合规范的 `ReasoningAgent` 和 `solve` 方法。
-
-选手可以新增辅助函数、类和模块，也可以在 `ReasoningAgent` 内部维护状态。但需要注意：
-
-- 不要依赖评测题之间的固定顺序。
-- 不要假设多个题目一定在同一个进程中运行。
-- 不要依赖本地绝对路径。
-- 不要读取或构造隐藏测试集、标准答案或 judger 信息。
-- 不要在代码中硬编码 API key。
-- 不要输出恶意内容、执行破坏性操作或规避平台资源限制。
-
-## 输入数据与输出样例
-
-本地调试输入为 JSONL 文件，每行是一道题。每行至少包含：
-
-```json
-{"idx": 0, "problem": "题目文本"}
+```python
+client.chat(messages=messages, temperature=temperature, max_tokens=max_tokens)
 ```
 
-样例：
+代码不访问 client 私有字段，不读取样例 `answer`，不依赖本地绝对路径，也不在 trace
+中保存完整 Prompt、冗长模型原文或敏感信息。正式评分主要依据 `final_response`；
+`extracted_answer` 只用于本仓库的本地 evaluator。
 
-```json
-{"idx": 0, "problem": "设$\\mathbb{F}_{81}$为$81$元的有限域。$T=\\{\\alpha\\in\\mathbb{F}_{81}|\\mathbb{F}_{81}=\\mathbb{F}_3(\\alpha)\\}$。求$T$中元素的个数。", "answer": "72", "subject": "抽象代数", "source": "sample"}
+## 快速开始
+
+建议使用 Python 3.10+。
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-其中 `answer` 只会出现在样例数据中，用于选手本地对照调试。正式评测不会向 `solve` 传入标准答案。
+本地调用需要配置书生 API：
 
-本地 runner 会将每道题的结果保存为独立 JSON 文件：
-
-```text
-outputs/
-  0.json
-  1.json
-  2.json
+```powershell
+$env:INTERN_API_KEY = "your-api-key"
+# 可选：$env:INTERN_MODEL = "intern-s2-preview"
 ```
 
-成功输出样例：
+运行 3 道快速冒烟题：
 
-```json
-{
-  "idx": 0,
-  "status": "success",
-  "final_response": "72",
-  "trace": [
-    {
-      "step": "solve",
-      "content": "有限域 F_81 是 F_3 上 4 维扩张，生成整个扩张的元素个数为 81 - 9 = 72。"
-    }
-  ]
-}
-```
-
-异常输出样例：
-
-```json
-{
-  "idx": 0,
-  "status": "error",
-  "final_response": "",
-  "error": {
-    "type": "RuntimeError",
-    "message": "错误信息"
-  },
-  "trace": []
-}
-```
-
-本地调试时，如果某个 `idx.json` 已经存在且文件非空，runner 会跳过该题，便于中断后继续运行。
-
-## 本地调试
-
-安装依赖：
-
-```bash
-pip install -r requirements.txt
-```
-
-设置 API key：
-
-```bash
-export INTERN_API_KEY="sk-..."
-```
-
-运行样例：
-
-```bash
-# 快速冒烟测试（3 道官方样例）
+```powershell
 python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs
 ```
 
-在配置 `INTERN_API_KEY` 后，可在冻结 112 题短题知识覆盖集上运行评测：
+`main.py` 会为每道题生成独立 JSON 文件。正式评测不会把标准答案传给 `solve()`。
 
-```bash
-python -m scripts.evaluate_dev --timeout-seconds 30 --retry-count 1 --output-file docs/eval_result.json
+## 本地评测
+
+冻结的 `public_regression_112.jsonl` 覆盖 18 个数学方向，但 112 题当前都会被分类为
+`calculation`。它适合检查知识覆盖、解析、调用预算和输出链路，不能代表隐藏评测分布，
+也不能单独验证证明、推导、长条件、跨方向混合题或 P3 修正能力。
+
+运行当前默认路径：
+
+```powershell
+python -m scripts.evaluate_dev `
+  --input-file sample_data/public_regression_112.jsonl `
+  --validate-regression-dataset `
+  --output-file docs/eval_current.json `
+  --save-answers-to docs/eval_current_answers.jsonl
 ```
 
-评测脚本默认使用 `sample_data/public_regression_112.jsonl`。该集合覆盖公开的
-18 个数学方向，但当前 112 题都会被题型分类器识别为 `calculation`，不能单独
-验证证明、推导、解释、长题面、混合方向或 P3 修正能力，也不代表隐藏评测分布。
-对 3 题冒烟集运行：
-```bash
-python -m scripts.evaluate_dev --input-file sample_data/dev.jsonl --timeout-seconds 30 --output-file docs/smoke_result.json
+常用消融配置：
+
+```powershell
+# A：同 Prompt 采样，不启用 P3
+python -m scripts.evaluate_dev --disable-heterogeneous --disable-step-verification --disable-step-revision --output-file docs/eval_a.json
+
+# B：异构 Reasoner，不启用 P3
+python -m scripts.evaluate_dev --enable-heterogeneous --disable-step-verification --disable-step-revision --output-file docs/eval_b.json
+
+# C：异构 Reasoner + P3 验证，不启用修正
+python -m scripts.evaluate_dev --enable-heterogeneous --enable-step-verification --disable-step-revision --output-file docs/eval_c.json
 ```
 
-该脚本只用于本地开发。它在评估脚本中读取样例 `answer` 计算指标，但不会将该字段传给 `ReasoningAgent.solve`，提交内核不依赖样例答案。输出 JSON 还包含超时数、空响应数、失败题目 ID、总耗时和配置的总预算；请求级超时限制单次调用，总预算会阻止后续题目启动，但不能中断已进入官方 client 的阻塞调用。
+D 组“异构 + P3 验证和修正”必须先修复复验 fail-open，再用于正式对照。每组至少运行
+两轮，并共同报告准确率、题型宏平均、平均/P95 调用数、平均/P95 延迟、超时率、
+空响应率、Judge coverage、UNKNOWN 比例和 P3 状态分布。
 
-在 evaluator 补齐异构/P3 显式开关、有效调用上限、P95、数学等价判分和 P3
-状态统计前，运行结果只作参考观测，不作为功能晋升默认路径的完整证据。
+本地 AnswerJudge 当前支持：
 
-`--enable-sympy-evidence` 只用于本地受控实验：它仅对完整的简单整数算术题生成候选一致性证据，默认关闭，且尚未获得开发集收益证据。
+1. 规范化后的精确一致；
+2. 选择项和结构化有理数一致，例如 `1/2` 与 `0.5`；
+3. 无法可靠判断时返回 `UNKNOWN`，不猜测正确或错误。
 
-本地 runner 默认并发数为 8。如需调整：
+它不等同于官方 judger。集合、区间、矩阵和一般符号表达式的完整等价判定仍待后续
+受控工具接入。
 
-```bash
-export LOCAL_MAX_CONCURRENCY=4
+## 测试与提交前检查
+
+```powershell
+python -m unittest discover -s tests -v
+python -m py_compile user_agent.py llm_client.py sympy_adapter.py main.py scripts/evaluate_dev.py
+git diff --check
 ```
 
-本地调试结果只用于选手自测，不代表正式评测分数。正式评测会使用隐藏测试集、官方 client、平台 runner 和官方 judger。
+当前验收基线为 `153/153` 项测试通过。提交前还应确认：
 
-## Intern-S API 使用说明
+- `user_agent.py` 可正常 import；
+- `ReasoningAgent(client=official_client)` 可初始化；
+- client 请求失败时仍返回可序列化且非空的 `final_response`；
+- `requirements.txt` 包含全部运行时依赖；
+- 仓库没有 API key、个人路径、临时输出和样例答案特判；
+- 实际提交配置与 A/B 报告中的配置一致。
 
-选手可以使用报名挑战杯时填写的手机号注册书生 API 控制台：
+## 数据与目录
 
 ```text
-https://internlm.intern-ai.org.cn/api/document
+user_agent.py                         # 官方入口与当前求解内核
+llm_client.py                          # 本地官方 client 兼容实现
+sympy_adapter.py                       # 默认关闭的受控 SymPy 实验
+main.py                                # 本地逐题 runner
+scripts/evaluate_dev.py                # 本地 evaluator 与消融 CLI
+sample_data/dev.jsonl                  # 3 题快速冒烟集
+sample_data/public_regression_112.jsonl # 112 题短题知识覆盖集
+tests/                                 # 单元与回归测试
+TODO_LIST.md                           # 当前路线、Gate 和证据边界
+docs/                                  # 技术方案、开发记录与评测报告
 ```
 
-API 控制台主要用于：
+样例数据中的 `answer` 只允许 evaluator 在本地评分时读取。求解逻辑不得使用题号、
+固定题面、样例答案或本地标签进行特判。
 
-- 查看 API docs 和可用模型列表。
-- 获取、创建或管理 API key。
-- 申请更高的 RPM / TPM 流控。
-- 查看调用量、配额和使用情况。
+## 当前路线
 
-书生 API 控制台中的 API 均可免费使用。平台会对普通用户执行流控策略：
+- **已完成**：题型识别、异构 Reasoner、P3-lite 验证/可选修正、P3.1 evaluator
+  可信度修复。
+- **下一步**：修复 P3 修正复验 fail-open；建立 40-60 题复杂能力冻结集；完成
+  A/B/C/D 四组双轮评测并决定默认晋升配置。
+- **后续**：按证据接入受控本地工具、离线定理卡 RAG，再考虑进一步模块化。
+- **暂不引入**：正式运行时 LangGraph、AgentScope、Lean 4、HTTP MCP、联网工具或
+  任意 Python/Shell 执行。
 
-```text
-RPM 30
-TPM 150000
-```
+详细设计和开发证据见：
 
-如果本地调试或实验需要更高流控，可以前往以下页面申请提升：
+- [TODO_LIST.md](TODO_LIST.md)
+- [技术文档](<docs/技术文档(2).md>)
+- [系统方案文档](<docs/系统方案文档(2).md>)
+- [开发记录](docs/开发记录.md)
+- [P1.5 迁移总结](docs/p1_5/p1_5_migration_summary.md)
 
-```text
-https://internlm.intern-ai.org.cn/api/strategy
-```
+## 官方提交
 
-申请时请在备注中填写“挑战杯”。通常情况下，200 RPM 以内的流控提升会在 1-2 个工作日内生效。具体生效时间以 API 控制台状态为准。
+赛事特有规则以[飞书赛事文档](https://aicarrier.feishu.cn/wiki/L90FwD9gJiqdg0k33RCcHTdcnrb)
+为准。根据 2026-07-16 更新，评测拉取作品已关联仓库的最新 `main` 分支，不再使用
+提交固定 commit SHA 的旧流程。
 
-选手可以使用 API 控制台下的任意可用模型作为智能体 base model，例如：
+1. 将可复现版本推送到队伍 AtomGit 组织仓库的 `main` 分支。
+2. 在 AtomGit 作品页面关联仓库并点击“提交作品”。
+3. 平台在北京时间每日 12:00 与 24:00 的固定窗口拉取最新 `main` 进行评测。
 
-- `intern-s1`
-- `intern-s1-pro`
-- `intern-s2-preview`
-
-本地使用 baseline runner 调试时，可以通过环境变量指定模型：
-
-```bash
-export INTERN_MODEL="intern-s2-preview"
-```
-
-如需调整 API endpoint，请以书生 API 控制台文档中的接口地址为准配置 `INTERN_API_BASE`。
-
-提交仓库至评分系统时，选手可以选择智能体实际使用的模型。正式评测时，平台 runner 会通过官方 client 使用该模型进行调用。
-
-评分系统 client 使用的 API 来自书生 API 控制台：
-
-```text
-https://internlm.intern-ai.org.cn/api
-```
-
-建议选手本地调试时也使用同一份 API 控制台，避免本地实验环境和正式评分环境之间产生模型行为、接口格式或网关策略差异。
-
-## 提交方式
-
-赛事特有流程以飞书最新通知为准。根据 2026-07-16 更新，队伍须将参赛代码推送至队伍 AtomGit 组织仓库的 `main` 分支，并在 AtomGit 作品页面关联仓库、点击“提交作品”。评测拉取已关联仓库的最新 `main` 分支；不再采用提交固定 commit SHA 的旧流程。
-
-推荐流程：
-
-1. 获取 baseline 仓库代码。
-2. 在队伍 AtomGit 组织仓库中完成实现。
-3. 确保仓库根目录包含符合规范的 `user_agent.py`。
-4. 将可复现版本推送到 `main` 分支。
-5. 在 AtomGit 作品页面关联仓库并点击“提交作品”。
-6. 在每日北京时间 12:00 或 24:00 的固定评测后查看结果。
-
-关于仓库可见性：
-
-- 参赛代码必须托管在队伍 AtomGit 组织下的仓库。
-- 仓库可见性、作品关联和最终材料要求以飞书通知与 AtomGit 页面为准。
-
-不要依赖本 README 的旧提交说明；若与飞书赛事规则冲突，始终以飞书规则为准。
-
-### 挑战杯官网材料提交
-
-判分系统用于初赛榜单评测，挑战杯官网材料提交用于满足赛事报名与材料归档要求。两者都需要完成。
-
-初赛截止前，请根据挑战杯官网要求，将自己的最终版本代码仓库与赛题要求的其它材料打包成 `.zip` 文件，提交到挑战杯官网，并发送邮件至：
-
-```text
-changshuai@pjlab.org.cn
-```
-
-建议压缩包内至少包含：
-
-- 最终版本代码。
-- `user_agent.py` 及所有运行所需的辅助文件。
-- `requirements.txt` 或其它依赖说明。
-- 一份说明文件，写明队伍信息、题目名称、AtomGit 仓库地址、`main` 分支和选择使用的模型。
-
-提交前建议检查：
-
-- `user_agent.py` 可以被正常 import。
-- `ReasoningAgent(client=official_client)` 可以正常初始化。
-- `solve(problem, metadata)` 返回包含非空 `final_response` 的字典。
-- 所有依赖都已写入 `requirements.txt` 或赛事另行指定的依赖文件。
-- 代码中没有硬编码 API key、个人路径、临时文件路径或调试用标准答案。
-
-## 自动判分系统
-
-自动判分以 AtomGit 作品页面关联并已提交的仓库为准。平台在每日北京时间 12:00 与 24:00 拉取最新 `main` 分支进行评测；具体开放状态和次数限制以飞书赛事通知为准。
-
-判分系统的基本工作流程如下：
-
-1. 队伍在 AtomGit 作品页面关联仓库并提交作品。
-2. 系统在固定评测时间拉取该仓库最新 `main` 分支的代码。
-3. 系统在隔离环境中安装依赖并加载 `user_agent.py`。
-4. 系统根据选手提交时选择的模型，使用官方 client 初始化 `ReasoningAgent`。
-5. 平台 runner 读取正式评测题，调用 `agent.solve(problem, metadata)`。
-6. 系统收集 `final_response`、`trace`、运行耗时、异常信息和资源使用情况。
-7. 官方 judger 结合标准答案对结果进行判分。
-8. 系统返回最终分数以及是否存在异常。
-
-正式评测时：
-
-- 平台会使用官方闭源测试集。
-- 平台会使用来自书生 API 控制台的官方 client，不使用选手自带 API key。
-- 平台会统一控制超时、并发、模型调用预算和资源限制。
-- 平台不会向选手返回逐题题目、标准答案、judger 细节或逐题详细反馈。
-- 如果代码无法安装、无法 import、入口函数不符合规范、运行超时、输出格式错误或触发安全策略，系统会标记异常。
-
-## 初赛评分与晋级
-
-初赛完全采取客观评分方式对所有参赛队伍进行排名。排名依据为初赛截止日期时，判分系统榜单上的队伍最终排名。
-
-在初赛截止日期前，组委会会根据整体赛题完成质量、参赛队伍分数分布等情况，公布进入决赛的最低分数线。进入决赛的队伍数量少于 30 支，具体晋级名单以赛事官方通知为准。
-
-## 提交次数限制
-
-从判分系统上线日到初赛截止时间，每支队伍的提交次数限制为：
-
-- 每天最多提交 2 次。
-- 每周最多提交 10 次。
-
-判分系统只会给出最终分数以及是否存在异常。请选手在本地充分调试后再提交正式评测，避免因格式错误、依赖缺失或超时浪费提交次数。
-
-## 常见异常
-
-以下情况可能导致判分异常：
-
-- 仓库授权失败，系统无法拉取提交。
-- AtomGit 仓库未关联、未提交作品，或 `main` 分支未包含待评测代码。
-- `user_agent.py` 不存在。
-- `ReasoningAgent` 类不存在或构造函数不接受 `client`。
-- `solve` 方法不存在、签名不符合要求或抛出异常。
-- 返回值不是字典。
-- `final_response` 缺失、为空或不是字符串。
-- 返回值无法 JSON 序列化。
-- 依赖无法安装或版本冲突。
-- 运行超时或资源使用超过平台限制。
-- 代码依赖本地绝对路径、私有文件或未声明资源。
-- 代码包含硬编码密钥、恶意行为或规避评测限制的逻辑。
-
-## 实现建议
-
-为了提高提交稳定性，建议选手：
-
-- 保持入口接口简单稳定，把复杂逻辑封装到内部模块。
-- 对模型输出做答案抽取和格式化，避免 `final_response` 过长或答案不明确。
-- 对异常进行适度处理，保证单题失败不会影响整体运行。
-- 控制模型调用次数和 token 使用，避免超时。
-- 在本地使用样例数据完整跑通安装、初始化、推理和输出保存流程。
-- 保留清晰的 `trace`，但不要记录敏感信息。
-
-本仓库的 baseline 仅用于说明接口和基本思路。正式比赛欢迎选手提交更强、更稳定、更有创造性的数学智能体实现。
+提交、推送和作品页面操作都应单独确认。本地数据集结果只用于研发，不代表正式成绩。
