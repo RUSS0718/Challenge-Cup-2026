@@ -219,16 +219,28 @@ export INTERN_API_KEY="sk-..."
 运行样例：
 
 ```bash
+# 快速冒烟测试（3 道官方样例）
 python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs
 ```
 
-在配置 `INTERN_API_KEY` 后，可运行本地开发集基准以记录准确率、平均模型调用数和平均延迟：
+在配置 `INTERN_API_KEY` 后，可在冻结 112 题短题知识覆盖集上运行评测：
 
 ```bash
-python -m scripts.evaluate_dev --input-file sample_data/dev.jsonl --timeout-seconds 30 --retry-count 1 --total-timeout-seconds 180 --output-file docs/development_baseline.json
+python -m scripts.evaluate_dev --timeout-seconds 30 --retry-count 1 --output-file docs/eval_result.json
+```
+
+评测脚本默认使用 `sample_data/public_regression_112.jsonl`。该集合覆盖公开的
+18 个数学方向，但当前 112 题都会被题型分类器识别为 `calculation`，不能单独
+验证证明、推导、解释、长题面、混合方向或 P3 修正能力，也不代表隐藏评测分布。
+对 3 题冒烟集运行：
+```bash
+python -m scripts.evaluate_dev --input-file sample_data/dev.jsonl --timeout-seconds 30 --output-file docs/smoke_result.json
 ```
 
 该脚本只用于本地开发。它在评估脚本中读取样例 `answer` 计算指标，但不会将该字段传给 `ReasoningAgent.solve`，提交内核不依赖样例答案。输出 JSON 还包含超时数、空响应数、失败题目 ID、总耗时和配置的总预算；请求级超时限制单次调用，总预算会阻止后续题目启动，但不能中断已进入官方 client 的阻塞调用。
+
+在 evaluator 补齐异构/P3 显式开关、有效调用上限、P95、数学等价判分和 P3
+状态统计前，运行结果只作参考观测，不作为功能晋升默认路径的完整证据。
 
 `--enable-sympy-evidence` 只用于本地受控实验：它仅对完整的简单整数算术题生成候选一致性证据，默认关闭，且尚未获得开发集收益证据。
 

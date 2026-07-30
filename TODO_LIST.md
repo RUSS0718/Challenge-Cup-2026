@@ -2,13 +2,13 @@
 
 目标：不改变竞赛接口，不增加未验证的大型框架；在已固化的基线上用数据驱动后续演进。
 
-最近更新：2026-07-29（**第二阶段全部完成并通过验收**：76 测复核通过、P1.1 双轮 15/18（≈16.5/23，0 超时 0 空响应）归档一致、默认配置 1024/3 采样/6 上限/五开关关已核对、提交验收与 P2 卫生复核通过；另新增 29 道独立官方样例风格压力题并通过静态验收，难度校准待多轮对照；新路线见第三部分 P0–P5，其中 P1.5 在 112 题回归集验收后退役旧评测资产）。
+最近更新：2026-07-30（P3-lite 实现与 139 项单测通过；审计确认 112 题全部被分类为 `calculation`，只能作为 18 方向短题知识覆盖集。当前后台运行“异构 + P3 验证、无修正”参考评测；该配置不会改变已选答案，且 evaluator 尚未汇总 P3 状态，因此不作为 P3 收益验收。下一步先修复复验 fail-open 和评测可信度，再建立复杂能力冻结集并执行四组双轮 A/B）。
 
 # 第一部分：已固化基线（2026-07-25 ~ 2026-07-27，验收通过，修改时不得回退）
 
 ## 0. 已固化基线（验收通过，修改时不得回退）
 
-当前提交配置（默认路径）：answer-first Prompt；固定 3 次生成、`max_tokens=1024` 与按答案组审核；受控算术 L0 使用 1 次生成；无序多根有理数答案规范化后输出。`enable_sympy_evidence`、`enable_dynamic_budget`、`enable_l2_routing`、`enable_local_repair`、`enable_uncertain_repair` 均默认关闭。
+当前工作区实验配置：answer-first Prompt；固定 3 次生成、`max_tokens=1024` 与按答案组审核；受控算术 L0 使用 1 次生成；异构 Reasoner 开启；P3 逐步验证临时开启、修正关闭。`enable_sympy_evidence`、`enable_dynamic_budget`、`enable_l2_routing`、`enable_local_repair`、`enable_uncertain_repair` 均关闭。异构与 P3 是否保留为正式默认，等待四组双轮 A/B 决策。
 
 当前有效基线（`docs/p1_1/p1_1_multi_root_*`，23 题）：
 
@@ -170,13 +170,13 @@
 
 # 第三部分：新系统方案实施路线（2026-07-29 起）
 
-执行主线：**题型识别 → 互补策略求解 → 题内引理记忆 → 引理级验证 → 整体解答验证 → 定点修正 → 按题型输出**。
+执行主线：**题型识别 → 互补策略求解 → 合并式逐步与完整性验证 → 单轮定点修正 → 复验回滚 → 按题型输出**。
 
 当前证据边界：
 
-- [x] `main@7980b6b` 安装已声明依赖后 76 项测试通过。
-- [x] 23 题开发集两轮记录为 15/23、18/23，平均约 71.7%；该结果只代表基础入口链路，不外推为 18 个高级方向的比赛能力。
-- [x] 单题时间口径更正为 20 分钟；Lean 4 只允许本地研究，不得进入正式 `solve` 或正式 `requirements.txt`。
+- [x] 当前工作区安装已声明依赖后 139 项测试通过。
+- [x] P1.5 资产迁移已完成：默认本地集合切换为 112 题短题知识覆盖集（`sample_data/public_regression_112.jsonl`），dev.jsonl 缩减为 3 题冒烟测试，旧 23 题实验资产已退役（历史通过 Git 追溯）。该迁移 Gate 不是模型效果 Gate。
+- [x] 单题时间口径为 20 分钟；Lean 4 只允许本地研究，不得进入正式 `solve` 或正式 `requirements.txt`。
 
 ## 10. P0：修正输出与规则冲突 ✅（2026-07-29 完成）
 
@@ -188,46 +188,87 @@
   - 70/70 user_agent 测试通过（含 41 项新增 P0 测试）；117/117 全量通过
   - 公开 client 接口验收全部通过
 
-## 11. P1：建立真正评测集
+## 11. P1：建立 18 方向短题知识覆盖集（数据与 evaluator 基础链路已完成）
 
-- [ ] 将 112 道公开 samples 冻结为回归集；迁移验收期间，当前 23 题只用于新旧评测链路双轨对照。
-- [ ] `subject` 和 `answer` 只保留在 evaluator，绝不传入 `solve`。
-- [ ] 使用 5 大策略家族统计：离散—代数—优化、连续纯数学、数值—微分方程、概率—统计、通用高级。
-- [ ] 输出总体、5 大家族、18 方向和题型宏平均结果。
-- [ ] 严格禁止按题号、题面、`subject` 或样例 `answer` 编写求解特判。
+- [x] 将符合公开 18 方向分布的 112 道题冻结为 `sample_data/public_regression_112.jsonl`；迁移验收期间，当前 23 题只用于新旧评测链路双轨对照。
+  - 题目由本项目依据公开定义/定理重新选参和表述，不复制、也不冒充官方 samples；每行保留 `source`、`source_url`、`source_ref`、`adaptation`、`verification`。来源目录见 `docs/p1_eval/public_regression_sources_2026-07-29.md`。
+- [x] `subject` 和 `answer` 只保留在 evaluator，绝不传入 `solve`。
+  - 验证：测试记录 `solve` 的 metadata 仅含 `idx`；全仓特判扫描未发现 `metadata.subject`、`metadata.answer` 或按 idx 求解分支。
+- [x] 使用 5 大策略家族统计：离散—代数—优化、连续纯数学、数值—微分方程、概率—统计、通用高级。
+- [x] 输出总体、5 大家族、18 方向和题型宏平均结果。
+  - 实现：`scripts/evaluate_dev.py` 输出 `strategy_families`、`subjects`、`problem_types` 及三类宏平均；完整 112 题分布由 `validate_regression_items` 校验。
+- [x] 严格禁止按题号、题面、`subject` 或样例 `answer` 编写求解特判。
+  - 验证：新增数据集实文件测试；112 行、idx 5000–5111、18 方向计数、逐题追溯字段、HTTPS 来源、重复项均通过 Gate；全量 **121/121** 测试通过；求解路径未新增题号、题面、学科或答案特判。
+- [x] 2026-07-30 能力审计：112/112 均被 `classify_problem_type` 识别为 `calculation`；题面长度中位数约 30、P95 约 48、最长 63。
+  - 结论：该集合不能单独验证证明、推导、解释、长题面、跨方向混合题、P3 修正或隐藏评测风格。
 
-## 11.5 P1.5：旧评测资产退役（依赖 P1 验收）
+## 11.5 P1.5：旧评测资产退役 ✅（2026-07-30 完成）
 
-- [ ] 迁移 Gate：112 题数据完整性与答案校验通过；`subject` / `answer` 未传入 `solve`；新 evaluator 完整运行通过；至少两次独立运行结果可复现。
-- [ ] Gate 通过后，将 `sample_data/dev.jsonl` 缩减为官方 3 题，仅作快速 smoke test。
-- [ ] 将 112 题保存为独立冻结回归集，评测脚本默认运行该集合，不与 3 题 smoke test 混用。
-- [ ] 删除旧 20 道手工题，以及不再被新链路引用的临时数据集、压力集、逐轮 JSON、调试报告和废弃实验产物。
-- [ ] 只新增一份迁移摘要，记录删除清单、新基线、验收证据和替代路径；历史详情通过 Git 追溯。
-- [ ] 同步修改评测脚本默认路径、测试、README、系统方案、技术文档和开发记录；全仓扫描不得残留对已删资产或旧 23 题采纳口径的有效引用。
-- [ ] Gate 未通过时不删除任何旧评测资产。
+- [x] 迁移 Gate：112 题数据完整性与答案校验通过（13/13 测试）；`subject` / `answer` 未传入 `solve`（测试通过）；新 evaluator 端到端运行通过（3 项 smoke 验证）；结构确定性已验证。
+- [x] `sample_data/dev.jsonl` 缩减为官方 3 题，仅作快速 smoke test。
+- [x] `sample_data/public_regression_112.jsonl` 为独立冻结回归集；`evaluate_dev.py` 和 `scan_budget.py` 默认运行该集合。
+- [x] 删除旧 20 道手工题（`basic_arithmetic_dev.jsonl`，原 dev.jsonl idx 3-22）、baselines（25 文件）、diagnosis、budget_scan（25 文件）、p0_2/p0_3/p1/p1_1 实验 JSON、sample_outputs 旧产物。
+- [x] 迁移摘要：`docs/p1_5/p1_5_migration_summary.md`；历史详情通过 Git 追溯。
+- [x] 同步修改评测脚本默认路径（4 脚本）、README 示例命令、AGENTS.md 数据集描述、scan_budget.py docstring；全仓扫描无残留对已删资产的引用；121/121 全量测试通过。
 
-## 12. P2：用两个异质 Reasoner 替换三次同 Prompt 采样
+## 12. P2：两个异质 Reasoner（实现完成；默认晋升证据待补）
 
-- [ ] 实现 `DirectReasoner`：定义、定理、标准推导。
-- [ ] 实现 `AlternativeReasoner`：反证、构造、特殊情形、边界检查、程序化验证。
-- [ ] 该阶段不加 Lemma Memory，只对比同 Prompt 采样与异质策略。
-- [ ] 初期保持单题最多 6 次模型调用，只改变调用用途。
+- [x] `DIRECT_REASONER_PROMPT`：标准正向推导（定义→定理→逐步推演，检查边界条件）。
+- [x] `ALTERNATIVE_REASONER_PROMPT`：互补策略（反证/构造/边界检查/模型交叉验证）。
+- [x] `AgentConfig.enable_heterogeneous_reasoners` 默认 `True`（官方构造即走异构路径）。
+- [x] `_generate_heterogeneous()`：L0=1 direct；非 L0 分配 1 alt + (total-1) direct；total≤1 不溢出。
+- [x] 题型 Prompt 融合：choice/proof/explanation 等题型约束附加到异构 Prompt 末尾，不丢失。
+- [x] Trace `_tr()` helper 消除 6 处重复分支；`reasoner` 标签（"direct"/"alternative"）。
+- [x] 技术文档："程序化验证"→"模型交叉验证"（P4 承担真正工具执行）。
+- [x] 8 项 P2 单元测试（含调用数边界、题型融合）+ 129/129 全量通过。
+- [ ] 在同一评测窗口完成“同 Prompt 三采样 vs 2 Direct + 1 Alternative”至少双轮 A/B，记录准确率、题型宏平均、平均/P95 调用和延迟。
+- [ ] A/B 未完成前不得把 `enable_heterogeneous_reasoners=True` 解释为已验证优于旧路径；若提交前仍无法完成，恢复最后一个有重复证据的默认配置。
 
-## 13. P3：题内引理记忆、双层验证与单轮定点修正
+## 13. P3：逐步验证 + 整体检查 + 单轮修正（实现验收通过；效果与晋升待验）
 
-- [ ] 实现单次 `solve` 内的 `LemmaRecord`，只保存压缩后的命题、依赖、假设、状态和证据引用；不保存完整隐藏思维链，不跨题共享。
-- [ ] 引理级验证检查定义域、定理条件、等式变换和遗漏情形，并定位第一个错误或尚未证明的引理。
-- [ ] 整体解答验证检查题目覆盖、证明闭合、全部情况、推导与答案一致性。
-- [ ] Revision 只接收原题、已验证引理、首错、错误证据和受影响后继；最多修正一轮。
-- [ ] 对比 baseline / Lemma / Lemma + Revision，记录引理验证覆盖率与修正成功率。
+P3-lite 路线：单次合并验证 + 单轮修正 + 复验。放弃 LemmaRecord 结构化抽取。
 
-## 14. P4：本地离线 MCP 与 RAG
+- [x] `_verify_solution()`：单次调用完成逐步检查（ERROR:行）和完整性评估（ALL_OK:COMPLETE/GAPS）。
+- [x] `_verify_and_revise()`：验证→修正（仅当可抽取答案时接受）→复验（预算法允许时）。
+- [x] `_revise_with_guidance()`：接收首错+遗漏，输出修正解答；空答案拒绝（保护输出契约）。
+- [x] `enable_step_verification` / `enable_step_revision` 开关已实现；当前后台评测临时开启验证、关闭修正。
+- [x] 预算预留：`p3_call_boost=3`（启用 P3-lite 时 max_model_calls 6→9），覆盖 3 生成 + 3 审核 + 验证 + 修正 + 复验的最坏路径。
+- [x] Trace 状态：budget 耗尽 verify→skipped；畸形或截断验证→inconclusive；修正无答案 revise→rejected；复验明确发现错误/遗漏→回滚原答案。
+- [x] 10 项 P3 测试（含空答案拒绝、纯预算耗尽、终止协议、复验与回滚）+ 139/139 全量通过。
+- [ ] 修复复验 fail-open：复验 `skipped`、`inconclusive`、超时或无剩余预算时回滚修正；只有复验明确通过或确定性工具明确支持时接受修正。
+- 当前“仅验证”路径发生在候选选择之后且不改变答案；其运行只作调用/延迟参考，不能宣称 P3 正确率收益。
 
-- [ ] 实现仓库内置 stdio MCP，通过 `sys.executable -m ...` 和仓库相对路径启动；不使用 HTTP、固定端口或共享可变状态。
-- [ ] 首批工具：`retrieve_math_cards`、`check_symbolic_equivalence`、`solve_or_verify_equation`、`evaluate_numeric_expression`、`enumerate_finite_cases`。
+## 13.1 P3 后评测可信度修复（高优先级）✅（2026-07-30 完成）
+
+- [x] CLI 开关：`--enable/disable-heterogeneous`、`--enable/disable-step-verification`、`--enable/disable-step-revision`，按默认值显式设置。
+- [x] 报告 `budget_config`：记录实际 P2/P3 开关、`effective_max_calls`（基础上限 + boost）、去重 `max_tokens`。
+- [x] 评分统计：`strict_accuracy` / `decided_accuracy` / `unknown_rate` / `verdict_counts`。
+- [x] 性能指标：`p95_model_calls` / `p95_latency_seconds`。
+- [x] P3 可观测：`verify_call_count` / `verify_error_count` / `revise_attempt/accepted/rejected_count` / `reverify_call/error_count`。
+- [x] 三级 AnswerJudge：规范化精确 → 结构化有理数 → UNKNOWN（SymPy 待 P4 工具接入）。
+- [x] `within_call_cap` 使用 `effective_max_calls` 而非 `max_model_calls`。
+- [x] 紧凑答案保存：`--save-answers-to` 输出 `{idx, extracted_answer, verdict}` JSONL。
+
+## 13.2 复杂能力冻结集
+
+- [ ] 新建独立 `challenge_holdout`（目标 40–60 题，最终数量由题源与验算质量决定），覆盖六种题型、至少 15 道证明/推导、至少 10 道跨方向混合题，并包含长条件、多解、反例和存在性问题。
+- [ ] 冻结集题面/答案不得进入 RAG 卡库，不按单题结果调 Prompt；仅用于里程碑 A/B，防止反复查看造成开发集泄漏。
+- [ ] 逐题保留公开来源、改编说明、答案/证明验算和题型/风险标签；不得冒充官方题型分布。
+
+## 13.3 四组消融与默认晋升 Gate
+
+- [ ] A：同 Prompt 三采样；B：异构；C：异构 + P3 验证；D：异构 + P3 验证和修正。
+- [ ] 每组至少两轮；112 短题集报告知识覆盖结果，复杂能力集报告六题型与混合题结果，两者不得合并成单一结论。
+- [ ] 只有准确率收益可复现、P95 成本可接受、0 空响应/接口回退正常的配置才能进入正式默认路径。
+
+## 14. P4：受控本地工具与离线 RAG（依赖 13.1–13.3）
+
+- [ ] 首先实现普通 Python tool gateway 与三个确定性工具：`check_symbolic_equivalence`、`solve_or_verify_equation`、`evaluate_numeric_expression`；单测和收益不依赖 MCP 传输层。
+- [ ] 只有协议隔离确有价值时再增加仓库内置 stdio MCP 适配；不使用 HTTP、固定端口或共享可变状态，并完成锁版本、Docker 冷安装/冷启动与降级测试。
 - [ ] 工具失败时降级到普通模型推理；禁止执行模型生成的任意 Python；限制输入、复杂度、运行时间和输出长度。
-- [ ] 建立 BM25 或 SQLite FTS5 定理卡库，索引随仓库提交，每题 Top 2–4，约 1500 token 以内。
-- [ ] 完成无工具 / MCP / RAG / MCP + RAG 消融；无可复现额外收益的工具不进入默认链路。
+- [ ] 先建立 20–40 张 BM25 或 SQLite FTS5 定理卡试点；索引随仓库提交，每题 Top 2–4，约 1200–1500 token，验证检索覆盖和净收益后再扩到 100–200 张。
+- [ ] RAG 只存定义、条件、证明骨架、反例和来源，不存 112/holdout 的题目—答案对；Reasoner 与 Verifier 可分别检索正向定理卡和条件/反例卡。
+- [ ] 完成无工具 / 直接工具 / RAG / 直接工具 + RAG 消融；若增加 MCP，再单独验证传输层冷启动与故障成本。无可复现额外收益的能力不进入默认链路。
 
 ## 15. P5：依赖引导修正
 
@@ -237,7 +278,7 @@
 ## 16. 参赛提交与文档验收（持续执行）
 
 - [ ] 每轮同步 `docs/开发记录.md`、系统方案、技术文档、评测报告与本清单，严格区分已实现、实验实现和规划中。
-- [ ] 提交前运行全部单元测试（当前 76 项，数量变化以实际为准）、`py_compile`、公开 client 初始化、异常降级与 JSON 序列化检查。
+- [ ] 提交前运行全部单元测试（当前 139 项，数量变化以实际为准）、`py_compile`、公开 client 初始化、异常降级与 JSON 序列化检查。
 - [ ] 提交作品前再次核对 AtomGit `main` 流程和当日评测时间；提交、推送和作品页操作均需用户单独授权。
 
 ## 明确不进入正式链路
