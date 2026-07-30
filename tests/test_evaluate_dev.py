@@ -15,6 +15,7 @@ class CapturingAgent:
         self.calls.append((problem, metadata))
         return {
             "final_response": "42",
+            "extracted_answer": "42",
             "trace": [{"step": "finalize", "status": "selected", "model_calls": 2}],
         }
 
@@ -23,6 +24,7 @@ class PartiallyFailingAgent:
     def solve(self, problem, metadata):
         return {
             "final_response": "42",
+            "extracted_answer": "42",
             "trace": [
                 {
                     "step": "generate_candidate",
@@ -39,6 +41,7 @@ class ObservableAgent:
     def solve(self, problem, metadata):
         return {
             "final_response": "42",
+            "extracted_answer": "42",
             "trace": [
                 {"step": "generate_candidate", "status": "rejected", "reason": "answer_not_extractable"},
                 {"step": "controlled_tool", "status": "SUCCESS", "claim_status": "SUPPORTED"},
@@ -54,6 +57,7 @@ class RoutedAgent:
     def solve(self, problem, metadata):
         return {
             "final_response": "42",
+            "extracted_answer": "42",
             "trace": [
                 {"step": "route_budget", "status": "selected", "reason": "answer_conflict"},
                 {"step": "finalize", "status": "selected", "model_calls": 2},
@@ -65,6 +69,7 @@ class EmptyFinalResponseAgent:
     def solve(self, problem, metadata):
         return {
             "final_response": "",
+            "extracted_answer": "",
             "trace": [{"step": "finalize", "status": "selected", "model_calls": 1}],
         }
 
@@ -162,6 +167,7 @@ class AgentWithMixedCandidates:
     def solve(self, problem, metadata):
         return {
             "final_response": "42",
+            "extracted_answer": "42",
             "trace": [
                 {"step": "generate_candidate", "status": "ok", "candidate_id": 0},
                 {"step": "generate_candidate", "status": "rejected", "candidate_id": 1, "reason": "answer_not_extractable"},
@@ -175,6 +181,7 @@ class AgentWithOnlyOkayCandidates:
     def solve(self, problem, metadata):
         return {
             "final_response": "42",
+            "extracted_answer": "42",
             "trace": [
                 {"step": "generate_candidate", "status": "ok", "candidate_id": 0},
                 {"step": "generate_candidate", "status": "ok", "candidate_id": 1},

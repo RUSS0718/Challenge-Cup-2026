@@ -1,4 +1,4 @@
-"""P0.1 model-call budget scan for the frozen 23-question development set.
+"""P0.1 model-call budget scan tool (legacy: 23-item dev set experiment).
 
 Goal (per TODO_LIST.md P0.1): without changing prompt, token limits, answer
 handling, verification approach, or tool toggles, compare different candidate
@@ -279,14 +279,14 @@ def fmt(report: dict[str, Any]) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="P0.1 model-call budget scan.")
-    parser.add_argument("--input-file", default="sample_data/dev.jsonl")
+    parser.add_argument("--input-file", default="sample_data/public_regression_112.jsonl")
     parser.add_argument("--timeout-seconds", type=int, default=15)
     parser.add_argument("--retry-count", type=int, default=1)
     parser.add_argument("--total-timeout-seconds", type=float, default=TOTAL_BUDGET_SECONDS)
     parser.add_argument("--inter-tier-sleep", type=int, default=15,
                         help="Seconds to pause between tiers so the model endpoint is not "
                              "hammered by back-to-back heavy evaluations (rate-limit guard).")
-    parser.add_argument("--output-dir", default="docs/budget_scan")
+    parser.add_argument("--output-dir", default="docs/scan_output")
     parser.add_argument(
         "--main-tiers",
         default=",".join(str(t) for t in MAIN_TIERS),

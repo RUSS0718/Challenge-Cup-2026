@@ -167,7 +167,7 @@ def evaluate_item_record(agent: ReasoningAgent, item: dict[str, Any]) -> dict[st
         "subject": subject,
         "strategy_family": SUBJECT_FAMILIES.get(subject),
         "problem_type": classify_problem_type(item["problem"]),
-        "correct": normalize(final_response or "") == normalize(item["answer"]),
+        "correct": normalize(result.get("extracted_answer", "") or "") == normalize(item["answer"]),
         "latency_seconds": round(elapsed_seconds, 3),
         "model_calls": final_trace.get("model_calls", 0),
         "finalization_status": final_trace.get("status"),
@@ -299,7 +299,7 @@ def summarize_budget_config(agent: ReasoningAgent) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate the agent on a local development JSONL.")
-    parser.add_argument("--input-file", default="sample_data/dev.jsonl")
+    parser.add_argument("--input-file", default="sample_data/public_regression_112.jsonl")
     parser.add_argument("--timeout-seconds", type=int, default=30)
     parser.add_argument("--retry-count", type=int, default=1)
     parser.add_argument("--total-timeout-seconds", type=float)
