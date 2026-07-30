@@ -165,7 +165,7 @@ class AgentConfig:
     # ── P2: heterogeneous reasoners ──
     enable_heterogeneous_reasoners: bool = True
     # ── P3: step verification + targeted revision ──
-    enable_step_verification: bool = False
+    enable_step_verification: bool = True
     enable_step_revision: bool = False
     # P3 needs extra call budget beyond generation + audit.  The default
     # max_model_calls (6) is consumed by 3 gen + 3 audit groups.  Step
@@ -658,7 +658,7 @@ class ReasoningAgent:
 
         # ── Re-verify; rollback if new errors found ──
         if budget["used"] < budget["limit"]:
-            re_errors, re_gaps, re_conclusive = self._verify_solution(problem, revised, trace, budget)
+            re_errors, re_gaps, re_conclusive = self._verify_solution(problem, revised, trace, budget, step_label="reverify")
             if re_conclusive is None:
                 pass  # skipped — keep revision.
             elif re_conclusive is False:
@@ -676,6 +676,7 @@ class ReasoningAgent:
     def _verify_solution(
         self, problem: str, solution: str,
         trace: list[dict[str, Any]], budget: dict[str, Any],
+        step_label: str = "verify",
     ) -> tuple[list[dict[str, Any]], list[str], bool | None]:
         """Single-call step-by-step verification + completeness check.
 
@@ -683,31 +684,39 @@ class ReasoningAgent:
           - None → request failed / budget exhausted (skipped).
           - False → response did not follow protocol (malformed verifier output).
           - True  → response parsed; may have 0 errors (all clear).
+
+        ``step_label`` distinguishes first verify ("verify") from re-verify
+        after revision ("reverify") so trace entries don't collide.
         """
         user_prompt = f"题目：\n{problem}\n\n解答：\n{solution}"
         response, error = self._request(STEP_VERIFY_PROMPT, user_prompt, 0.1, 1024, budget)
         if response is None:
-            trace.append({"step":"verify","status":"skipped","reason":error})
+            trace.append({"step": step_label, "status": "skipped", "reason": error})
             return [], [], None
         errors: list[dict[str, Any]] = []
         gaps: list[str] = []
-        terminal_status: str | None = None
+        has_conclusive = False  # requires ERROR: / ALL_OK:COMPLETE, or validated GAPS/ERRORS
+        saw_errors_line = False  # "ERRORS" without preceding ERROR: is malformed
         for line in response.splitlines():
             stripped = line.strip()
             if stripped.startswith("ERROR:"):
+                has_conclusive = True
                 parts = stripped[len("ERROR:"):].split(":", 1)
                 errors.append({"step": parts[0].strip() if parts else "",
                                "reason": parts[1].strip() if len(parts) > 1 else stripped})
             elif stripped == "ALL_OK:COMPLETE":
-                terminal_status = "complete"
+                has_conclusive = True
             elif stripped.startswith("ALL_OK:GAPS:"):
                 gap_text = stripped[len("ALL_OK:GAPS:"):]
                 gaps = [g.strip() for g in gap_text.split(";") if g.strip()]
-                terminal_status = "gaps" if gaps else None
+                if gaps:
+                    has_conclusive = True  # only if at least one non-empty gap parsed
             elif stripped == "ERRORS":
-                terminal_status = "errors" if errors else None
-        if terminal_status is None:
-            return [], [], False  # malformed or truncated — no valid terminal verdict
+                saw_errors_line = True
+        if saw_errors_line and errors:
+            has_conclusive = True  # ERRORS only valid when preceded by ERROR: lines
+        if not has_conclusive:
+            return [], [], False  # malformed — no protocol verdict found
         return errors, gaps, True
 
     def _revise_with_guidance(
