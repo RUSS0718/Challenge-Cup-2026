@@ -1,9 +1,27 @@
+import contextlib
 import os
 import unittest
 from unittest.mock import patch
 
 from llm_client import InternChatClient
 from scripts.evaluate_token_ladder import gate_check, summarize
+
+
+@contextlib.contextmanager
+def _env(**kwargs):
+    """Temporarily set env vars without patch.dict, which copies the whole
+    os.environ and trips on >32K injected vars (e.g. ACC_PRODUCT_CONFIG_V3)."""
+    saved = {k: os.environ.get(k) for k in kwargs}
+    for k, v in kwargs.items():
+        os.environ[k] = v
+    try:
+        yield
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 class _Resp:
@@ -34,6 +52,7 @@ def _rec(**overrides):
         "output_tokens": 100,
         "thinking_leak": False,
         "answer_marker_present": True,
+        "final_response_thinking": False,
     }
     base.update(overrides)
     return base
@@ -41,14 +60,14 @@ def _rec(**overrides):
 
 class TokenLadderTest(unittest.TestCase):
     def test_finish_reason_recorded_on_success(self):
-        with patch.dict(os.environ, {"INTERN_API_KEY": "test"}, clear=True):
+        with _env(INTERN_API_KEY="test", INTERN_API_BASE="http://x", INTERN_RETRY_COUNT="1"):
             client = InternChatClient(timeout=1, retry=1)
         with patch("llm_client.requests.post", return_value=_Resp("x", "length")):
             self.assertEqual("x", client.chat([], 0.0, 1024))
         self.assertEqual(["length"], client.finish_reasons)
 
     def test_completion_tokens_and_raw_content_recorded(self):
-        with patch.dict(os.environ, {"INTERN_API_KEY": "test"}, clear=True):
+        with _env(INTERN_API_KEY="test", INTERN_API_BASE="http://x", INTERN_RETRY_COUNT="1"):
             client = InternChatClient(timeout=1, retry=1)
         with patch("llm_client.requests.post", return_value=_Resp("最终答案：42", "stop")):
             self.assertEqual("最终答案：42", client.chat([], 0.0, 1024))

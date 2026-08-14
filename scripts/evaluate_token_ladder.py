@@ -68,10 +68,10 @@ def _detect_answer_marker(text: str) -> bool:
     return bool(text and _ANSWER_MARKER_RE.search(text))
 
 
-def _worker_agent(token: int, timeout: int, retry: int) -> tuple[InternChatClient, ReasoningAgent]:
+def _worker_agent(token: int, timeout: int, retry: int, temperature: float) -> tuple[InternChatClient, ReasoningAgent]:
     if getattr(_local, "client", None) is None:
         client = InternChatClient(timeout=timeout, retry=retry)
-        config = AgentConfig(max_tokens=token, l0_max_tokens=token)
+        config = AgentConfig(max_tokens=token, l0_max_tokens=token, policy_temperature=temperature)
         _local.client = client
         _local.agent = ReasoningAgent(client=client, config=config)
     return _local.client, _local.agent
@@ -187,15 +187,16 @@ def gate_check(report: dict) -> dict:
     }
 
 
-def run_tier(token: int, items: list[dict], timeout: int, retry: int, workers: int) -> dict:
+def run_tier(token: int, items: list[dict], timeout: int, retry: int, workers: int, temperature: float) -> dict:
     def work(item):
-        client, agent = _worker_agent(token, timeout, retry)
+        client, agent = _worker_agent(token, timeout, retry, temperature)
         return solve_one(agent, client, item)
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         records = list(ex.map(work, items))
     report = summarize(records)
     report["token"] = token
+    report["temperature"] = temperature
     report["gate"] = gate_check(report)
     report["records"] = records
     return report
@@ -204,6 +205,7 @@ def run_tier(token: int, items: list[dict], timeout: int, retry: int, workers: i
 def fmt(report: dict) -> str:
     return (
         f"token={report['token']:>4} "
+        f"temp={report.get('temperature', 0.6)} "
         f"len={report['main_finish_reason_length_rate']*100:5.1f}% "
         f"marker={report['answer_marker_coverage']*100:5.1f}% "
         f"amark={report['answer_marker_rate']*100:5.1f}% "
@@ -226,6 +228,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout-seconds", type=int, default=60)
     parser.add_argument("--retry-count", type=int, default=1)
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
+    parser.add_argument("--temperature", type=float, default=0.6,
+                        help="policy_temperature for the main/retry calls (single-variable sweep).")
     parser.add_argument("--output-file", help="JSON path for reports (rewritten after each tier).")
     return parser.parse_args()
 
@@ -235,9 +239,9 @@ def main() -> None:
     items = load_items(Path(args.input_file))
     tokens = [int(t) for t in args.tokens.split(",") if t.strip()]
     reports = []
-    print(f"token ladder on {len(items)} items | tokens={tokens} | workers={args.workers} | timeout={args.timeout_seconds}s retry={args.retry_count}")
+    print(f"token ladder on {len(items)} items | tokens={tokens} | temperature={args.temperature} | workers={args.workers} | timeout={args.timeout_seconds}s retry={args.retry_count}")
     for token in tokens:
-        report = run_tier(token, items, args.timeout_seconds, args.retry_count, args.workers)
+        report = run_tier(token, items, args.timeout_seconds, args.retry_count, args.workers, args.temperature)
         reports.append(report)
         print(f"[tier] {fmt(report)}")
         if args.output_file:
