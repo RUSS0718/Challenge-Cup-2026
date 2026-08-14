@@ -249,11 +249,13 @@ P3-lite 路线：单次合并验证 + 单轮修正 + 复验。放弃 LemmaRecord
 - [x] `within_call_cap` 使用 `effective_max_calls` 而非 `max_model_calls`。
 - [x] 紧凑答案保存：`--save-answers-to` 输出 `{idx, extracted_answer, verdict}` JSONL。
 
-## 13.2 复杂能力冻结集
+## 13.2 复杂能力冻结集（历史规划条目，已由 ## 18 完成并冻结）
 
-- [ ] 新建独立 `challenge_holdout`（目标 40–60 题，最终数量由题源与验算质量决定），覆盖六种题型、至少 15 道证明/推导、至少 10 道跨方向混合题，并包含长条件、多解、反例和存在性问题。
-- [ ] 冻结集题面/答案不得进入 RAG 卡库，不按单题结果调 Prompt；仅用于里程碑 A/B，防止反复查看造成开发集泄漏。
-- [ ] 逐题保留公开来源、改编说明、答案/证明验算和题型/风险标签；不得冒充官方题型分布。
+> 以下为 2026-07 的原始规划；实际落地见 ## 18（48 题冻结集 + A/B/C 实验），本段仅作历史留存，不再作为待办。
+
+- [x] 新建独立 `challenge_holdout`（实际建成 48 题冻结集 `sample_data/complex_capability_freeze_48.jsonl`），覆盖六种题型、10 道证明 + 10 道推导 + 10 道解释、12 道跨方向混合题，并包含长条件题。
+- [x] 冻结集题面/答案不得进入 RAG 卡库，不按单题结果调 Prompt；仅用于里程碑 A/B（已按此执行）。
+- [x] 逐题保留公开来源、改编说明、答案/证明验算和题型/风险标签（字段见 `freeze_set_design.md`）。
 
 ## 13.3 四组消融与默认晋升 Gate
 
@@ -278,7 +280,7 @@ P3-lite 路线：单次合并验证 + 单轮修正 + 复验。放弃 LemmaRecord
 ## 16. 参赛提交与文档验收（持续执行）
 
 - [ ] 每轮同步 `docs/开发记录.md`、系统方案、技术文档、评测报告与本清单，严格区分已实现、实验实现和规划中。
-- [ ] 提交前运行全部单元测试（当前 159 项，数量变化以实际为准）、`py_compile`、公开 client 初始化、异常降级与 JSON 序列化检查。
+- [ ] 提交前运行全部单元测试（当前 183 项，数量变化以实际为准）、`py_compile`、公开 client 初始化、异常降级与 JSON 序列化检查。
 - [ ] 提交作品前再次核对 AtomGit `main` 流程和当日评测时间；提交、推送和作品页操作均需用户单独授权。
 
 ## 17. P0 止血版本（官方评测 0 分根因修复）✅ 2026-08-13 完成
@@ -304,7 +306,10 @@ P3-lite 路线：单次合并验证 + 单轮修正 + 复验。放弃 LemmaRecord
 - [x] 建集：`sample_data/complex_capability_freeze_48.jsonl`（choice6/fill_blank6/calc6/derivation10/proof10/explanation10；长条件12、跨方向12；公开教材改编24 + AI生成24；纯命题2）。校验全过（分布/隔离/分类一致性/答案自洽）。设计 `docs/13_2/freeze_set_design.md`；脚本 `scripts/build_freeze_set.py`、`validate_freeze_set.py`、`analyze_freeze_set.py`。
 - [x] 双轮纯基线（3072，未改任何开关）：choice 91.7% / fill_blank 100% / calc 83.3%；**derivation/proof/explanation 全 0%**（60 题次全 unknown）。报告 `docs/13_2/freeze_baseline_report.md`。
 - [x] 诊断（命中决策规则 #2）：根因=输出卫生，非能力。三 prompt 缺「不要输出 thinking」压制语 → InternLM thinking 吃光 3072（length 47.9–50%）→ 答案标记被截断 + 非数值题型 `extracted_answer`=完整响应 → judge 拿 thinking 开头 vs 数值 → unknown。incorrect=0。
-- [ ] 待决策方向（通用、不绑题号）：① derivation/proof/explanation 三 prompt 补 thinking 压制语；② 答案标记前置 + 非数值题型改走标记抽取（完整解答仍进 final_response，判分取标记后答案）。实施前需在冻结集双轮 A/B 验证。
+- [x] 实验 A（thinking 压制，双轮）：thinking 泄漏 31/40%，length 35.4/45.8%，三类仍 0%。压制语部分有效但未根除；第一位阻塞实为「非数值题型用完整响应当答案」。报告 `ab_a_report.md`。
+- [x] 实验 B（答案前置，双轮）：标记出现率 100%；think=False 时标记段语义正确率 93–100%，think=True 被复述占位符污染。答案前置协议成功。报告 `ab_b_report.md`。
+- [x] 实验 C（答案段抽取，双轮）：derivation 0%→80%，宏平均 45.8%→61.9%，thinking 泄漏 16.7–18.8%、length 25–27%。proof/explanation 答案段正确提取但本地 judge 解析不了「命题成立；…=X」前缀（官方看 final_response，非 extracted_answer）。报告 `ab_c_report.md`。
+- [ ] 待决策（按审核路线图）：① C2 真实答案块识别 + 条件重试语义；② 实验 D final_response 输出卫生（去 thinking/Prompt 回显/伪标记）；③ proof/explanation 结论前缀的有边界规范化（不全局套用）；④ 之后再做 temperature 0.2/0.6、3072/4096 单变量实验。
 
 ## 明确不进入正式链路
 
