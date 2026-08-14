@@ -33,7 +33,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from llm_client import InternChatClient  # noqa: E402
 from user_agent import (  # noqa: E402
-    AgentConfig, ReasoningAgent, classify_problem_type, extract_answer_segment,
+    AgentConfig, ReasoningAgent, classify_problem_type, parse_structure_f,
 )
 from scripts.evaluate_dev import load_items, judge_correct  # noqa: E402
 
@@ -66,6 +66,15 @@ def _detect_thinking(text: str) -> bool:
 
 def _detect_answer_marker(text: str) -> bool:
     return bool(text and _ANSWER_MARKER_RE.search(text))
+
+
+def _f_answer_segment(raws: list[str], ptype: str) -> str:
+    """F 三状态解析的答案段（与求解路径 parse_structure_f 一致）。"""
+    for r in raws:
+        parsed = parse_structure_f(r, ptype)
+        if parsed["status"] == "structured":
+            return parsed["answer"]
+    return ""
 
 
 def _worker_agent(token: int, timeout: int, retry: int, temperature: float) -> tuple[InternChatClient, ReasoningAgent]:
@@ -111,7 +120,7 @@ def solve_one(agent: ReasoningAgent, client: InternChatClient, item: dict) -> di
         "output_tokens": sum(toks),
         "thinking_leak": any(_detect_thinking(r) for r in raws),
         "answer_marker_present": any(_detect_answer_marker(r) for r in raws),
-        "marker_segment": next((extract_answer_segment(r) for r in raws if extract_answer_segment(r)), ""),
+        "marker_segment": _f_answer_segment(raws, ptype),
         # 实验 D 验收：final_response 本身的 thinking 污染（官方主评分字段）。
         "final_response_thinking": _detect_thinking(result.get("final_response", "") or ""),
         # 实验 F 离线对照：完整响应 + 题型，供解析器离线复现（不进入 report 汇总）。

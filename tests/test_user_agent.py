@@ -1204,5 +1204,46 @@ class ParseStructureFTest(unittest.TestCase):
         self.assertFalse(_is_placeholder_segment("命题成立"))
 
 
+class F2IntegrationTest(unittest.TestCase):
+    """实验 F2：F 三状态解析接入 solve 路径的行为单测。"""
+
+    def _agent(self, responses):
+        return ReasoningAgent(FakeClient(responses),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=2, enable_task_aware_prompt=True,
+                        enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False, enable_step_verification=False))
+
+    def test_f_parser_extracts_clean_answer_and_records_status(self):
+        resp = 'Thinking Process: analyze...\n\n最终答案：3\n\n证明：\n1+1=2'
+        result = self._agent([resp]).solve("证明：1+1=2", {})
+        self.assertEqual("3", result["extracted_answer"])
+        gen = [e for e in result["trace"] if e.get("step") == "generate_candidate"]
+        self.assertEqual("structured", gen[0]["parse_status"])
+        self.assertIn("最终答案：3", result["final_response"])
+        self.assertNotIn("Thinking Process", result["final_response"])
+
+    def test_f_parser_meta_marker_not_answer_triggers_retry(self):
+        # 第一次响应 thinking 里嵌「最终答案」，无独立答案块 → 触发条件重试
+        resp1 = 'The prompt asks for "最终答案：" first, then the proof.'
+        resp2 = '最终答案：5\n\n证明：\n2+3=5'
+        result = self._agent([resp1, resp2]).solve("证明：2+3=5", {})
+        self.assertEqual("5", result["extracted_answer"])
+        self.assertTrue(any(e.get("step") == "conditional_retry" for e in result["trace"]))
+        gen = [e for e in result["trace"] if e.get("step") == "generate_candidate"]
+        # 第一个候选 no_answer_block，第二个 structured
+        self.assertEqual("no_answer_block", gen[0]["parse_status"])
+        self.assertEqual("structured", gen[1]["parse_status"])
+
+    def test_f_parser_placeholder_answer_is_rejected(self):
+        # 占位符答案 → no_answer_block，不应把 "[Core Answer]" 当答案
+        resp1 = '最终答案：[Core Answer]\n\n证明：\n...'
+        resp2 = '最终答案：7\n\n证明：\n3+4=7'
+        result = self._agent([resp1, resp2]).solve("证明：3+4=7", {})
+        self.assertEqual("7", result["extracted_answer"])
+        gen = [e for e in result["trace"] if e.get("step") == "generate_candidate"]
+        self.assertEqual("no_answer_block", gen[0]["parse_status"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -718,24 +718,33 @@ class ReasoningAgent:
                 trace.append(_tr("skipped", candidate_id, reason=error)); continue
             answer = extract_final_answer(response)
             structured = True  # 数值题型：answer 非空即清晰答案
+            parse_status: str | None = None  # 仅非数值题型记录（实验 F trace 契约）
             if problem_type in _NON_NUMERIC_TASK_TYPES:
-                # 13.2 实验 C/D：answer-first 协议下，判分用「最终答案」后的答案段，
-                # 而非完整响应；final_response 由 reconstruct_final_response 重建。
-                # 仅拒绝携带占位符答案标记的格式回显。
+                # 13.2 实验 F：用三状态行解析替代 extract_answer_segment——答案标记
+                # 必须是独立结构行，嵌在 thinking/约束说明/引号/列表里的伪标记不识别；
+                # 占位符（<…>/[Core Answer]/[Option Letter]/…）在解析内拒绝。
                 if _has_placeholder_answer(response):
                     trace.append(_tr("rejected", candidate_id, reason="placeholder_answer"))
                     continue
-                answer = extract_answer_segment(response)
-                structured = bool(answer)
-                if not answer:
-                    # 无真实答案块 → 保留完整响应兜底（structured=False，可触发条件重试）。
+                parsed = parse_structure_f(response, problem_type)
+                parse_status = parsed["status"]
+                if parse_status == "structured":
+                    answer = parsed["answer"]
+                    structured = True
+                else:
+                    # 无真实答案块（no_answer_block / no_body）→ 完整响应兜底，
+                    # structured=False，可触发至多一次条件重试（F1 契约）。
                     answer = response.strip()
+                    structured = False
             elif not answer:
                 trace.append(_tr("rejected", candidate_id, reason="answer_not_extractable",
                                  truncation_signals=_truncation_signals(response, answer)))
                 continue
             candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"structured":structured,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
-            trace.append(_tr("ok", candidate_id))
+            if parse_status is not None:
+                trace.append(_tr("ok", candidate_id, parse_status=parse_status))
+            else:
+                trace.append(_tr("ok", candidate_id))
 
     # ── P2: heterogeneous candidate generation ───────────────────────────
 
@@ -834,7 +843,7 @@ class ReasoningAgent:
         if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
             return best.get("normalized_answer") or best["answer"]
         solution = best.get("solution") or best.get("answer", "")
-        return reconstruct_final_response(solution, problem_type)
+        return reconstruct_final_response_f(solution, problem_type)
 
     def _generation_plan(self, problem: str) -> tuple[int, str]:
         if not self.config.enable_dynamic_budget:
