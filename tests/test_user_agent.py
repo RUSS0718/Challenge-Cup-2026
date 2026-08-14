@@ -12,7 +12,7 @@ from user_agent import (
     DIRECT_REASONER_PROMPT, ALTERNATIVE_REASONER_PROMPT,
     STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
     answer_equivalence, classify_problem_type, extract_final_answer,
-    extract_answer_segment, normalize_answer,
+    extract_answer_segment, normalize_answer, reconstruct_final_response,
 )
 
 
@@ -1016,6 +1016,105 @@ class AnswerSegmentExtractionTest(unittest.TestCase):
 
     def test_placeholder_echo_only_returns_empty(self):
         self.assertEqual("", extract_answer_segment("最终答案：<只写最终表达式>"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 13.2 实验 C2：真实答案块识别（跳过 thinking 引用/引号/元文本）+ 英文标题
+# ═══════════════════════════════════════════════════════════════════════════
+
+class C2AnswerBlockTest(unittest.TestCase):
+
+    def test_marker_quoted_inside_thinking_is_skipped(self):
+        resp = 'Thinking Process: I must write "最终答案：42" as the format says\n最终答案：7'
+        self.assertEqual("7", extract_answer_segment(resp))
+
+    def test_marker_in_english_thinking_quote_is_skipped(self):
+        resp = 'Here is a thinking process: the prompt says "Final Answer: <only write final expression>"\n最终答案：31'
+        self.assertEqual("31", extract_answer_segment(resp))
+
+    def test_marker_in_markdown_list_is_skipped(self):
+        resp = '- Final Answer: <placeholder>\n最终答案：31\n\n推导：\n...'
+        self.assertEqual("31", extract_answer_segment(resp))
+
+    def test_english_body_header_stops_segment(self):
+        self.assertEqual("31", extract_answer_segment("最终答案：31\n\nProof:\n完整证明..."))
+
+    def test_fake_marker_before_real_marker(self):
+        resp = 'Final Answer: <only write final expression>\n最终答案：31\n\n推导：\n...'
+        self.assertEqual("31", extract_answer_segment(resp))
+
+    def test_only_fake_marker_returns_empty(self):
+        resp = 'Final Answer: <only write final expression>\nDerivation: <complete chain>'
+        self.assertEqual("", extract_answer_segment(resp))
+
+    def test_meta_instruction_marker_is_skipped(self):
+        resp = 'The system prompt asks for Final Answer first...\n最终答案：31\n\n推导：\n...'
+        self.assertEqual("31", extract_answer_segment(resp))
+
+    def test_inequality_set_tuple_natural_language_preserved(self):
+        self.assertEqual("x > 3", extract_answer_segment("最终答案：x > 3\n\n推导：..."))
+        self.assertEqual("{1, 2, 3}", extract_answer_segment("最终答案：{1, 2, 3}"))
+        self.assertEqual("无法证明", extract_answer_segment("最终答案：无法证明\n\n证明：..."))
+
+
+class ConditionalRetrySemanticsTest(unittest.TestCase):
+
+    def test_conditional_retry_when_main_has_no_real_answer_block(self):
+        client = FakeClient([
+            'Thinking Process: ... "Final Answer: <只写最终表达式>"...',  # 主调用：假标记
+            '最终答案：31\n\n推导：\n关键步骤...',  # 重试：真标记
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False, enable_step_verification=False))
+        result = agent.solve("推导某表达式的值", {})
+        self.assertTrue(any(e.get("step") == "conditional_retry" for e in result["trace"]))
+        self.assertIn("31", result["extracted_answer"])
+
+    def test_fallback_full_response_when_both_calls_lack_real_answer(self):
+        client = FakeClient([
+            'Thinking Process: 1. Analyze...',  # 主调用：无真标记
+            'More thinking process...',  # 重试：无真标记
+        ])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=2, enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False, enable_step_verification=False))
+        result = agent.solve("证明某命题", {})
+        self.assertTrue(any(e.get("step") == "conditional_retry" for e in result["trace"]))
+        # 两次都无真答案块 → 完整响应兜底，final_response 非空
+        self.assertTrue(result["final_response"].strip())
+        self.assertEqual(2, len(client.calls))  # 至多一次重试
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 13.2 实验 D：final_response 输出卫生（重建干净答案）
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ReconstructFinalResponseTest(unittest.TestCase):
+
+    def test_drops_thinking_prefix_keeps_answer_and_body(self):
+        resp = 'Thinking Process: 1. Analyze...\n最终答案：31\n\n推导：\n关键步骤：由定义得...'
+        out = reconstruct_final_response(resp, TASK_TYPE_DERIVATION)
+        self.assertEqual("最终答案：31\n\n推导：\n关键步骤：由定义得...", out)
+
+    def test_unrecognized_structure_returns_original(self):
+        resp = '这是一段没有答案标记和正文标题的文本'
+        self.assertEqual(resp, reconstruct_final_response(resp, TASK_TYPE_PROOF))
+
+    def test_proof_not_collapsed_to_bare_number(self):
+        resp = '最终答案：命题成立；矩阵 A 的行列式为 -1\n\n证明：\n设 A 为正交矩阵...'
+        out = reconstruct_final_response(resp, TASK_TYPE_PROOF)
+        self.assertIn("命题成立；矩阵 A 的行列式为 -1", out)
+        self.assertIn("设 A 为正交矩阵", out)
+
+    def test_english_body_header_rebuilt_with_chinese_header(self):
+        resp = '最终答案：31\n\nProof:\nComplete proof...'
+        out = reconstruct_final_response(resp, TASK_TYPE_PROOF)
+        self.assertIn("最终答案：31", out)
+        self.assertIn("证明：", out)
+        self.assertIn("Complete proof", out)
 
 
 if __name__ == "__main__":

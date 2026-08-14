@@ -112,6 +112,8 @@ def solve_one(agent: ReasoningAgent, client: InternChatClient, item: dict) -> di
         "thinking_leak": any(_detect_thinking(r) for r in raws),
         "answer_marker_present": any(_detect_answer_marker(r) for r in raws),
         "marker_segment": next((extract_answer_segment(r) for r in raws if extract_answer_segment(r)), ""),
+        # 实验 D 验收：final_response 本身的 thinking 污染（官方主评分字段）。
+        "final_response_thinking": _detect_thinking(result.get("final_response", "") or ""),
     }
 
 
@@ -159,6 +161,7 @@ def summarize(records: list[dict]) -> dict:
         "average_latency_seconds": sum(r["latency_seconds"] for r in records) / total if total else 0.0,
         "thinking_leak_rate": thinking_leaks / total if total else 0.0,
         "answer_marker_rate": marker_present / total if total else 0.0,
+        "final_response_thinking_rate": sum(1 for r in records if r["final_response_thinking"]) / total if total else 0.0,
         "average_output_tokens": sum(tokens) / total if total else 0.0,
         "p95_output_tokens": _p95(tokens),
     }

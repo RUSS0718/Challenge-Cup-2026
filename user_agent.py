@@ -231,15 +231,27 @@ def extract_final_answer(response: str) -> str:
     return ""
 
 
-# ── 13.2 实验 C：非数值题型答案段抽取（answer-first 协议）────────────────────
+# ── 13.2 实验 C/D：非数值题型答案段抽取（answer-first 协议）──────────────────
 # 答案前置后，非数值题型（derivation/proof/explanation）的响应以「最终答案：<结论>」
 # 开头，正文在后。这里抽取首个「真正」的答案段，跳过 thinking 复述的占位符。
 _ANSWER_MARKER_POS_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]", re.IGNORECASE)
+# 段边界：下一个结构标题（中英文正文标题 + 答案标记）。
 _ANSWER_SEGMENT_STOP_RE = re.compile(
-    r"\n\s*(?:推导|证明|解释|最终答案|final\s+answer|答案)\s*[:：]", re.IGNORECASE
+    r"\n\s*(?:推导|证明|解释|Derivation|Proof|Explanation|最终答案|final\s+answer|答案)\s*[:：]",
+    re.IGNORECASE,
+)
+# 正文标题（用于 final_response 重建时定位正文起点）。
+_BODY_HEADER_RE = re.compile(
+    r"(?:^|\n)\s*(?:推导|证明|解释|Derivation|Proof|Explanation)\s*[:：]\s*",
+    re.IGNORECASE,
 )
 _ANSWER_ECHO_RE = re.compile(
     r"only\s+write|complete\s+chain|followed\s+by|final\s+expression|只写|简洁|独立判定|最终表达式|核心回答",
+    re.IGNORECASE,
+)
+# thinking 元文本（假标记常出现在这类句子里）。
+_THINKING_CONTEXT_RE = re.compile(
+    r"system\s+prompt|asks?\s+for|format\s+instruction|following\s+structure|meta-?analysis",
     re.IGNORECASE,
 )
 
@@ -247,23 +259,49 @@ _ANSWER_ECHO_RE = re.compile(
 def extract_answer_segment(response: str) -> str:
     """Return the genuine answer segment from an answer-first response, or "".
 
-    Extracts the first "最终答案：" segment that is not a thinking-process echo
-    (marker followed by a placeholder like "<…>" or prompt boilerplate).  The
-    segment is returned verbatim — no global numeric normalization, so proofs,
-    explanations, inequalities, sets and tuples keep their original semantics.
+    Extracts the first "最终答案：" segment that is a real structural answer
+    block, not a thinking-process echo: it skips placeholder echoes ("<…>"),
+    prompt boilerplate, markers quoted inside thinking text, and markers
+    sitting in meta-instruction sentences ("the system prompt asks for…").
+    The segment is returned verbatim — no global numeric normalization, so
+    proofs, explanations, inequalities, sets and tuples keep their semantics.
     """
     if not isinstance(response, str) or not response.strip():
         return ""
     for m in _ANSWER_MARKER_POS_RE.finditer(response):
         seg = _take_answer_segment(response, m.end())
-        if seg and not _is_answer_echo(seg):
-            return seg
+        if not seg or _is_answer_echo(seg):
+            continue
+        if _is_marker_in_thinking_quote(response, m.start()):
+            continue
+        return seg
     return ""
+
+
+def _is_marker_in_thinking_quote(text: str, pos: int) -> bool:
+    """True when a marker sits inside a thinking quote / meta sentence, not a
+    standalone structural line."""
+    # 只看标记所在行内、标记前的内容（不跨行，避免误伤下一行的真标记）。
+    line_start = text.rfind("\n", 0, pos) + 1
+    ctx = text[line_start:pos]
+    # Unbalanced double quote (marker inside a quoted echo).
+    if ctx.count('"') % 2 == 1:
+        return True
+    # Unbalanced Chinese quote pair.
+    if ctx.count("“") != ctx.count("”") or ctx.count("‘") != ctx.count("’"):
+        return True
+    # Marker right after a Markdown list bullet ("- Final Answer: …").
+    if re.fullmatch(r"[-*]\s*", ctx.strip()):
+        return True
+    # Meta-instruction sentence on the same line.
+    if _THINKING_CONTEXT_RE.search(ctx):
+        return True
+    return False
 
 
 def _take_answer_segment(text: str, start: int) -> str:
     """Slice the segment right after a marker, up to the next structure header
-    (推导/证明/解释/最终答案) or a blank line."""
+    (推导/证明/解释/最终答案, 中英文) or a blank line."""
     rest = text[start:]
     stop = _ANSWER_SEGMENT_STOP_RE.search(rest)
     blank = re.search(r"\n\s*\n", rest)
@@ -285,6 +323,44 @@ def _is_answer_echo(seg: str) -> bool:
     if _ANSWER_ECHO_RE.search(s):
         return True  # prompt boilerplate echoed inside thinking
     return False
+
+
+_BODY_HEADER_NAME = {
+    TASK_TYPE_DERIVATION: "推导",
+    TASK_TYPE_PROOF: "证明",
+    TASK_TYPE_EXPLANATION: "解释",
+}
+
+
+def reconstruct_final_response(response: str, problem_type: str) -> str:
+    """Rebuild a clean answer-first final_response, or return the original.
+
+    Drops the thinking / prompt echo that precedes the real answer block, keeps
+    the answer conclusion and the body after the structure header, and re-emits
+    them as「最终答案：<结论>」+「<正文标题>：<正文>」.  Never collapses a proof
+    into a bare number.  When the structure cannot be reliably identified, the
+    original response is returned unchanged (no aggressive trimming).
+    """
+    if not isinstance(response, str) or not response.strip():
+        return response or ""
+    answer_pos = -1
+    answer_seg = ""
+    for m in _ANSWER_MARKER_POS_RE.finditer(response):
+        seg = _take_answer_segment(response, m.end())
+        if seg and not _is_answer_echo(seg) and not _is_marker_in_thinking_quote(response, m.start()):
+            answer_pos = m.start()
+            answer_seg = seg
+            break
+    if answer_pos < 0 or not answer_seg:
+        return response  # 无真实答案块 → 不裁剪
+    body_m = _BODY_HEADER_RE.search(response, answer_pos + 1)
+    if not body_m:
+        return response  # 无正文标题 → 不裁剪
+    body = response[body_m.end():].strip()
+    if not body:
+        return response  # 正文为空 → 不裁剪
+    header = _BODY_HEADER_NAME.get(problem_type, "证明")
+    return f"最终答案：{answer_seg}\n\n{header}：\n{body}"
 
 
 def _is_answer_like(answer: str) -> bool:
@@ -564,22 +640,24 @@ class ReasoningAgent:
             if response is None:
                 trace.append(_tr("skipped", candidate_id, reason=error)); continue
             answer = extract_final_answer(response)
+            structured = True  # 数值题型：answer 非空即清晰答案
             if problem_type in _NON_NUMERIC_TASK_TYPES:
-                # 13.2 实验 C：answer-first 协议下，判分用「最终答案」后的答案段，
-                # 而非完整响应；final_response 仍保留完整解答（见 _format_task_final_response）。
+                # 13.2 实验 C/D：answer-first 协议下，判分用「最终答案」后的答案段，
+                # 而非完整响应；final_response 由 reconstruct_final_response 重建。
                 # 仅拒绝携带占位符答案标记的格式回显。
                 if _has_placeholder_answer(response):
                     trace.append(_tr("rejected", candidate_id, reason="placeholder_answer"))
                     continue
                 answer = extract_answer_segment(response)
+                structured = bool(answer)
                 if not answer:
-                    # 无真正的答案段 → 保留完整响应（不丢弃证明/解释题），judge 判 unknown。
+                    # 无真实答案块 → 保留完整响应兜底（structured=False，可触发条件重试）。
                     answer = response.strip()
             elif not answer:
                 trace.append(_tr("rejected", candidate_id, reason="answer_not_extractable",
                                  truncation_signals=_truncation_signals(response, answer)))
                 continue
-            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
+            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"structured":structured,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
             trace.append(_tr("ok", candidate_id))
 
     # ── P2: heterogeneous candidate generation ───────────────────────────
@@ -673,11 +751,13 @@ class ReasoningAgent:
         """Format final_response according to problem type conventions.
 
         - choice / fill_blank / calculation: return the compact normalized answer
-        - derivation / proof / explanation: return the full solution text
+        - derivation / proof / explanation: rebuild a clean answer-first response
+          (drop thinking / prompt echo, keep the conclusion + body)
         """
         if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
             return best.get("normalized_answer") or best["answer"]
-        return best.get("solution") or best.get("answer", "")
+        solution = best.get("solution") or best.get("answer", "")
+        return reconstruct_final_response(solution, problem_type)
 
     def _generation_plan(self, problem: str) -> tuple[int, str]:
         if not self.config.enable_dynamic_budget:
@@ -758,8 +838,19 @@ class ReasoningAgent:
         return match.group(1).strip() if match else None
     @staticmethod
     def _has_clear_answer(candidates: list[dict[str, Any]]) -> bool:
-        """True when at least one candidate carries a non-empty extracted answer."""
-        return any(bool(candidate.get("answer")) for candidate in candidates)
+        """True when at least one candidate carries a clear answer.
+
+        Non-numeric types (proof/derivation/explanation) require a real
+        structured answer block (``structured=True``); a fallback full-response
+        candidate does NOT count as clear, so a conditional retry can fire.
+        """
+        for candidate in candidates:
+            if candidate.get("problem_type") in _NON_NUMERIC_TASK_TYPES:
+                if candidate.get("structured"):
+                    return True
+            elif bool(candidate.get("answer")):
+                return True
+        return False
 
     @staticmethod
     def _answer_groups(candidates: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -787,7 +878,7 @@ class ReasoningAgent:
             candidate["tool_rank"] = 1 if "SUPPORTED" in tool_claims else -1 if "REFUTED" in tool_claims else 0
             candidate["selection_basis"] = "controlled_tool_evidence" if candidate["tool_rank"] else "answer_consensus"
         has_unrefuted_candidate = any(candidate["tool_rank"] >= 0 for candidate in candidates)
-        return max(candidates,key=lambda item:((item["tool_rank"] >= 0) if has_unrefuted_candidate else True, item["tool_rank"], item["consensus"], sum(evidence.get("verdict")=="pass" for evidence in item["evidence"]), -item["candidate_id"]))
+        return max(candidates,key=lambda item:((item["tool_rank"] >= 0) if has_unrefuted_candidate else True, item["tool_rank"], item.get("structured", True), item["consensus"], sum(evidence.get("verdict")=="pass" for evidence in item["evidence"]), -item["candidate_id"]))
 
     # ── P3: step verification and targeted revision ──────────────────────
 
