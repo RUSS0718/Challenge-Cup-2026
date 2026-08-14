@@ -313,7 +313,8 @@ P3-lite 路线：单次合并验证 + 单轮修正 + 复验。放弃 LemmaRecord
 - [x] 实验 阶段4 temperature 0.6 vs 0.2（单变量，workers=3，各双轮）：0.2 未降 thinking 泄漏（35.4%/25.0% vs 29.2%/25.0%）、宏平均 60.6% vs 62.2%（−1.7pp）。**结论：temperature 不是泄漏根因，保持 0.6 不变**。报告 `docs/13_2/temperature_report.md`。
 - [x] 实验 E（非数值题型 Prompt 协议收敛，workers=3 双轮）：删「请给出完整解答」「候选编号」+ 收敛为「必要且充分的可核验步骤」+ 统一禁令。「候选编号」元分析消失（局部有效），但 thinking 泄漏**反升**（33/35% vs 基线 29/25%）、宏平均 59.7% vs 62.2%（−2.5pp）、derivation 85→70% 回退。**结论：Prompt 压制语到天花板，实验 E 失败**。报告 `docs/13_2/expE_report.md`。
 - [x] 实验 F0（离线可行性验证）：回退实验 E → C2+D 基线；实现三状态行解析 `parse_structure_f`（答案标记必须独立结构行 + 占位符拒绝 + 中英文正文标题 + 不在正文内删 thinking 词）+ 16 单测 + `--save-raw-dir` 完整响应 dump + 离线对照脚本。**结果：F 安全（4 门槛全过）+ 局部收益（修正 6003/6016 两题 extracted_answer 误判），但无法消除的 7 题污染全部 finish_reason=length（正文内部 self-check 被截断）**。命中「失败集中于 length」分流。报告 `docs/13_2/f0_report.md`。
-- [ ] 实验 F1/F2（待决策）：F0 已证 F 安全+局部收益，但 5% 污染门槛无法靠解析达到（污染在 length 截断正文内部）。分流：① 接入 F（无副作用 + 修正误判）后跑 F2 在线双轮看准确率；② 按「失败集中于 length」讨论 3072 vs 4096（已满足 3 条件：7/7 length、部分两次调用无答案块、非 stop 格式复述）。
+- [x] 实验 F2（F 接入在线双轮，3072）：非数值题型答案抽取/final_response 重建接入 `parse_structure_f`/`reconstruct_final_response_f`，trace 加 parse_status。**结果：F 解析 Gate 全过 + 无回归 Gate 全过，derivation 两轮合并 90%（基线 70%，F 修正 thinking 误判的收益）**；宏平均 62.2%/59.4% 无回退；calls 1.08/1.06。**F 安全晋升，可作 4096 实验基线**。报告 `docs/13_2/f2_report.md`。
+- [ ] 实验 3072 vs 4096（单变量，F2 通过后启动）：3072 复用 F2 双轮，4096 再跑两轮。需新增成本指标（主调用 avg/P95 completion tokens、每题总 tokens、按并发 3 估整轮时间）。晋升门槛：两轮 length≤20%、no_answer_block=0、final_response 污染两轮≤5%、调用不增、derivation 不降、无回退、token 成本增幅≤25% 或重试抵消、6h 留≥25% 余量。不测 8192。
 
 ## 明确不进入正式链路
 
