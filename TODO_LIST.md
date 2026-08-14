@@ -310,7 +310,8 @@ P3-lite 路线：单次合并验证 + 单轮修正 + 复验。放弃 LemmaRecord
 - [x] 实验 B（答案前置，双轮）：标记出现率 100%；think=False 时标记段语义正确率 93–100%，think=True 被复述占位符污染。答案前置协议成功。报告 `ab_b_report.md`。
 - [x] 实验 C（答案段抽取，双轮）：derivation 0%→80%，宏平均 45.8%→61.9%，thinking 泄漏 16.7–18.8%、length 25–27%。proof/explanation 答案段正确提取但本地 judge 解析不了「命题成立；…=X」前缀（官方看 final_response，非 extracted_answer）。报告 `ab_c_report.md`。
 - [x] 实验 C2 + D（真实答案块识别 + final_response 输出卫生，双轮）：C2 跳过 thinking 引用/引号/Markdown/元文本、支持英文标题、无真实答案块触发至多一次条件重试；D 重建干净 final_response。197 测试通过。结果：acc 50.0%/47.9%；**final_response thinking 污染 12.5%/20.8%（门槛≤5% 未达）**；thinking 泄漏 31/33%；length 33.3/39.6%。**112 题回归 83.9%（+3.1pp 无回退）**。报告 `docs/13_2/c2d_report.md`。
-- [ ] 待决策（按审核路线图）：① 单变量治理 thinking 泄漏（temperature 0.6→0.2 双轮 A/B + 更强压制）——这是 final_response 污染未达标的根因；② 3072/4096 token 实验（仅当正文截断确证损害证明完整性时）；③ proof/explanation 结论前缀的有边界规范化（不全局套用，低优先级）。
+- [x] 实验 阶段4 temperature 0.6 vs 0.2（单变量，workers=3，各双轮）：0.2 未降 thinking 泄漏（35.4%/25.0% vs 29.2%/25.0%）、宏平均 60.6% vs 62.2%（−1.7pp）。**结论：temperature 不是泄漏根因，保持 0.6 不变**。报告 `docs/13_2/temperature_report.md`。
+- [ ] 待决策（按审核路线图）：① 3072/4096 token 实验——启动条件（C2/D 已解决伪标记与 thinking 前缀）**尚未满足**（泄漏仍 25–35%），暂不启动；② proof/explanation 结论前缀的有边界规范化（不全局套用，低优先级）；③ 泄漏治理回到 Prompt 协议层或抽取/重建层。
 
 ## 明确不进入正式链路
 
