@@ -101,6 +101,7 @@ def solve_one(agent: ReasoningAgent, client: InternChatClient, item: dict) -> di
     frs = client.finish_reasons[before:]
     raws = client.raw_contents[before:]
     toks = client.completion_tokens[before:]
+    lats = client.latencies[before:]
     trace = result.get("trace", [])
     final = next((e for e in reversed(trace) if e.get("step") == "finalize"), {})
     ptype = classify_problem_type(item["problem"])
@@ -118,6 +119,12 @@ def solve_one(agent: ReasoningAgent, client: InternChatClient, item: dict) -> di
         "expected": str(item["answer"]),
         "latency_seconds": round(elapsed, 3),
         "output_tokens": sum(toks),
+        # 13.2 token A/B：逐调用 completion tokens 与 latency（主调用 vs 条件重试）。
+        "main_completion_tokens": toks[0] if toks else 0,
+        "retry_completion_tokens": toks[1] if len(toks) > 1 else 0,
+        "total_completion_tokens": sum(toks),
+        "main_latency_seconds": round(lats[0], 3) if lats else None,
+        "retry_latency_seconds": round(lats[1], 3) if len(lats) > 1 else None,
         "thinking_leak": any(_detect_thinking(r) for r in raws),
         "answer_marker_present": any(_detect_answer_marker(r) for r in raws),
         "marker_segment": _f_answer_segment(raws, ptype),
@@ -147,11 +154,21 @@ def summarize(records: list[dict]) -> dict:
     retry_frs = [r["retry_finish_reason"] for r in records if r["retry_finish_reason"]]
     calls = sorted(r["model_calls"] for r in records)
     tokens = sorted(r["output_tokens"] for r in records)
+    main_tokens = sorted(r["main_completion_tokens"] for r in records)
+    total_tokens_per_q = sorted(r["total_completion_tokens"] for r in records)
+    latencies = sorted(r["latency_seconds"] for r in records)
     correct = sum(1 for r in records if r["verdict"] == "correct")
     decided = sum(1 for r in records if r["verdict"] in ("correct", "incorrect"))
     retried = sum(1 for r in records if r["had_conditional_retry"])
     thinking_leaks = sum(1 for r in records if r["thinking_leak"])
     marker_present = sum(1 for r in records if r["answer_marker_present"])
+    # 13.2 token A/B 成本：主调用 vs 重试逐调用 completion tokens + latency。
+    main_tokens_sum = sum(r["main_completion_tokens"] for r in records)
+    retry_tokens_sum = sum(r["retry_completion_tokens"] for r in records)
+    total_tokens_sum = sum(r["total_completion_tokens"] for r in records)
+    avg_lat = sum(latencies) / total if total else 0.0
+    p95_lat = _p95(latencies)
+    chunks_112 = -(-112 // 3)  # ceil(112 / 3)
     return {
         "dataset_size": total,
         "main_finish_reason_counts": dict(Counter(main_frs)),
@@ -170,12 +187,23 @@ def summarize(records: list[dict]) -> dict:
         "accuracy": correct / total if total else 0.0,
         "decided_accuracy": correct / decided if decided else None,
         "verdict_counts": dict(Counter(r["verdict"] for r in records)),
-        "average_latency_seconds": sum(r["latency_seconds"] for r in records) / total if total else 0.0,
+        "average_latency_seconds": avg_lat,
+        "p95_latency_seconds": p95_lat,
         "thinking_leak_rate": thinking_leaks / total if total else 0.0,
         "answer_marker_rate": marker_present / total if total else 0.0,
         "final_response_thinking_rate": sum(1 for r in records if r["final_response_thinking"]) / total if total else 0.0,
         "average_output_tokens": sum(tokens) / total if total else 0.0,
         "p95_output_tokens": _p95(tokens),
+        # 13.2 token A/B 成本指标（逐调用，非估算）。
+        "main_completion_tokens_avg": main_tokens_sum / total if total else 0.0,
+        "main_completion_tokens_p95": _p95(main_tokens),
+        "total_completion_tokens_avg": total_tokens_sum / total if total else 0.0,
+        "total_completion_tokens_p95": _p95(total_tokens_per_q),
+        "total_completion_tokens_sum": total_tokens_sum,
+        "retry_token_share": retry_tokens_sum / total_tokens_sum if total_tokens_sum else 0.0,
+        # 按并发 3 估算 112 题整轮 wall-time：理想均值 + 保守上界（P95 latency）。
+        "estimated_112_wall_time_seconds": avg_lat * chunks_112,
+        "estimated_112_wall_time_upper_seconds": p95_lat * chunks_112,
     }
 
 

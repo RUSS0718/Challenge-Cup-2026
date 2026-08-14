@@ -50,6 +50,11 @@ def _rec(**overrides):
         "verdict": "correct",
         "latency_seconds": 1.0,
         "output_tokens": 100,
+        "main_completion_tokens": 100,
+        "retry_completion_tokens": 0,
+        "total_completion_tokens": 100,
+        "main_latency_seconds": 1.0,
+        "retry_latency_seconds": None,
         "thinking_leak": False,
         "answer_marker_present": True,
         "final_response_thinking": False,
@@ -126,6 +131,30 @@ class TokenLadderTest(unittest.TestCase):
         self.assertTrue(gate["gate1_passed"])
         self.assertTrue(gate["gate2_passed"])
         self.assertEqual(0.0, gate["invalid_rate"])
+
+    def test_latency_recorded_per_call(self):
+        with _env(INTERN_API_KEY="test", INTERN_API_BASE="http://x", INTERN_RETRY_COUNT="1"):
+            client = InternChatClient(timeout=1, retry=1)
+        with patch("llm_client.requests.post", return_value=_Resp("x", "stop")):
+            self.assertEqual("x", client.chat([], 0.0, 1024))
+        self.assertEqual(1, len(client.latencies))
+        self.assertGreaterEqual(client.latencies[0], 0.0)
+
+    def test_summarize_token_cost_metrics(self):
+        records = [
+            _rec(main_completion_tokens=500, retry_completion_tokens=0, total_completion_tokens=500),
+            _rec(main_completion_tokens=400, retry_completion_tokens=300, total_completion_tokens=700,
+                 had_conditional_retry=True, model_calls=2),
+        ]
+        report = summarize(records)
+        self.assertEqual(500, report["main_completion_tokens_p95"])
+        self.assertEqual(700, report["total_completion_tokens_p95"])
+        self.assertEqual(1200, report["total_completion_tokens_sum"])
+        # retry token 占比 = 300 / 1200 = 0.25
+        self.assertAlmostEqual(0.25, report["retry_token_share"])
+        # estimated wall time = avg_latency * ceil(112/3) = 1.0 * 38
+        self.assertAlmostEqual(38.0, report["estimated_112_wall_time_seconds"])
+        self.assertAlmostEqual(38.0, report["estimated_112_wall_time_upper_seconds"])
 
 
 if __name__ == "__main__":

@@ -45,6 +45,9 @@ class InternChatClient:
         # untouched and never sees these lists.
         self.completion_tokens: List[int] = []
         self.raw_contents: List[str] = []
+        # 13.2 token A/B: per-call wall-clock latency (aligned with the lists above,
+        # appended once per successful chat call so before/after slicing works).
+        self.latencies: List[float] = []
 
     def chat(
         self,
@@ -64,6 +67,7 @@ class InternChatClient:
         }
 
         last_category = "request"
+        started = time.perf_counter()
         for attempt in range(self.retry):
             try:
                 response = requests.post(
@@ -83,6 +87,7 @@ class InternChatClient:
                     self.completion_tokens.append(0)
                 content = choice["message"]["content"]
                 self.raw_contents.append(content if isinstance(content, str) else "")
+                self.latencies.append(time.perf_counter() - started)
                 return content
             except requests.Timeout:
                 last_category = "timeout"
