@@ -39,6 +39,12 @@ class InternChatClient:
         # P0.1: per-call finish_reason log (local diagnostic only; the official
         # client keeps its own counters).  Appended in call order for serial runs.
         self.finish_reasons: List[str] = []
+        # 13.2 A/B diagnostics: per-call completion token count and raw content,
+        # so the evaluator can measure thinking-leak rate / marker rate / output
+        # tokens without re-requesting.  Local-only; the official client is
+        # untouched and never sees these lists.
+        self.completion_tokens: List[int] = []
+        self.raw_contents: List[str] = []
 
     def chat(
         self,
@@ -70,7 +76,14 @@ class InternChatClient:
                 data = response.json()
                 choice = data["choices"][0]
                 self.finish_reasons.append(choice.get("finish_reason") or "")
-                return choice["message"]["content"]
+                usage = data.get("usage") or {}
+                try:
+                    self.completion_tokens.append(int(usage.get("completion_tokens") or 0))
+                except (TypeError, ValueError):
+                    self.completion_tokens.append(0)
+                content = choice["message"]["content"]
+                self.raw_contents.append(content if isinstance(content, str) else "")
+                return content
             except requests.Timeout:
                 last_category = "timeout"
             except requests.ConnectionError:

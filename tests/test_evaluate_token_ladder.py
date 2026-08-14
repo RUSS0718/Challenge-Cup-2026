@@ -14,7 +14,10 @@ class _Resp:
         pass
 
     def json(self):
-        return {"choices": [{"message": {"content": self._content}, "finish_reason": self._fr}]}
+        return {
+            "choices": [{"message": {"content": self._content}, "finish_reason": self._fr}],
+            "usage": {"completion_tokens": len(self._content)},
+        }
 
 
 def _rec(**overrides):
@@ -28,6 +31,9 @@ def _rec(**overrides):
         "model_calls": 1,
         "verdict": "correct",
         "latency_seconds": 1.0,
+        "output_tokens": 100,
+        "thinking_leak": False,
+        "answer_marker_present": True,
     }
     base.update(overrides)
     return base
@@ -40,6 +46,30 @@ class TokenLadderTest(unittest.TestCase):
         with patch("llm_client.requests.post", return_value=_Resp("x", "length")):
             self.assertEqual("x", client.chat([], 0.0, 1024))
         self.assertEqual(["length"], client.finish_reasons)
+
+    def test_completion_tokens_and_raw_content_recorded(self):
+        with patch.dict(os.environ, {"INTERN_API_KEY": "test"}, clear=True):
+            client = InternChatClient(timeout=1, retry=1)
+        with patch("llm_client.requests.post", return_value=_Resp("最终答案：42", "stop")):
+            self.assertEqual("最终答案：42", client.chat([], 0.0, 1024))
+        self.assertEqual([len("最终答案：42")], client.completion_tokens)
+        self.assertEqual(["最终答案：42"], client.raw_contents)
+
+    def test_summarize_thinking_and_marker_rates(self):
+        from scripts.evaluate_token_ladder import _detect_thinking, _detect_answer_marker
+        self.assertTrue(_detect_thinking("Thinking Process: 1. Analyze the problem"))
+        self.assertFalse(_detect_thinking("推导过程如下：由定义得"))
+        self.assertTrue(_detect_answer_marker("最终答案：3"))
+        self.assertFalse(_detect_answer_marker("推导过程如下"))
+        records = [
+            _rec(output_tokens=120, thinking_leak=True, answer_marker_present=True),
+            _rec(output_tokens=80, thinking_leak=False, answer_marker_present=False),
+        ]
+        report = summarize(records)
+        self.assertEqual(0.5, report["thinking_leak_rate"])
+        self.assertEqual(0.5, report["answer_marker_rate"])
+        self.assertEqual(100, report["average_output_tokens"])
+        self.assertEqual(120, report["p95_output_tokens"])
 
     def test_summarize_length_rate_and_marker_coverage(self):
         records = [

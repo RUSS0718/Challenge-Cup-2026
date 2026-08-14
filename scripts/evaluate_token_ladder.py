@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import threading
 import time
@@ -31,7 +32,9 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from llm_client import InternChatClient  # noqa: E402
-from user_agent import AgentConfig, ReasoningAgent, classify_problem_type  # noqa: E402
+from user_agent import (  # noqa: E402
+    AgentConfig, ReasoningAgent, classify_problem_type, extract_answer_segment,
+)
 from scripts.evaluate_dev import load_items, judge_correct  # noqa: E402
 
 DEFAULT_TOKENS = [1536, 2048, 3072]
@@ -46,6 +49,23 @@ MAX_AVG_CALLS = 1.5
 MAX_INVALID_RATE = 0.02
 
 _local = threading.local()
+
+# 13.2 A/B diagnostics: detect thinking-process leakage and explicit answer
+# markers in the raw response, without saving the full response into any report.
+_THINKING_RE = re.compile(
+    r"Thinking\s*Process|thinking\s*process|Here['\u2019]?s?\s+a?\s*thinking"
+    r"|the\s+user\s+wants\s+me\s+to|Let\s+me\s+(?:think|analyze|solve|derive)",
+    re.IGNORECASE,
+)
+_ANSWER_MARKER_RE = re.compile(r"最终答案|final\s+answer|答案\s*[:：]", re.IGNORECASE)
+
+
+def _detect_thinking(text: str) -> bool:
+    return bool(text and _THINKING_RE.search(text))
+
+
+def _detect_answer_marker(text: str) -> bool:
+    return bool(text and _ANSWER_MARKER_RE.search(text))
 
 
 def _worker_agent(token: int, timeout: int, retry: int) -> tuple[InternChatClient, ReasoningAgent]:
@@ -70,6 +90,8 @@ def solve_one(agent: ReasoningAgent, client: InternChatClient, item: dict) -> di
     result = agent.solve(item["problem"], {"idx": item.get("idx")})
     elapsed = time.perf_counter() - started
     frs = client.finish_reasons[before:]
+    raws = client.raw_contents[before:]
+    toks = client.completion_tokens[before:]
     trace = result.get("trace", [])
     final = next((e for e in reversed(trace) if e.get("step") == "finalize"), {})
     ptype = classify_problem_type(item["problem"])
@@ -86,6 +108,10 @@ def solve_one(agent: ReasoningAgent, client: InternChatClient, item: dict) -> di
         "extracted_answer": result.get("extracted_answer", "") or "",
         "expected": str(item["answer"]),
         "latency_seconds": round(elapsed, 3),
+        "output_tokens": sum(toks),
+        "thinking_leak": any(_detect_thinking(r) for r in raws),
+        "answer_marker_present": any(_detect_answer_marker(r) for r in raws),
+        "marker_segment": next((extract_answer_segment(r) for r in raws if extract_answer_segment(r)), ""),
     }
 
 
@@ -106,9 +132,12 @@ def summarize(records: list[dict]) -> dict:
     main_frs = [r["main_finish_reason"] for r in records if r["main_finish_reason"]]
     retry_frs = [r["retry_finish_reason"] for r in records if r["retry_finish_reason"]]
     calls = sorted(r["model_calls"] for r in records)
+    tokens = sorted(r["output_tokens"] for r in records)
     correct = sum(1 for r in records if r["verdict"] == "correct")
     decided = sum(1 for r in records if r["verdict"] in ("correct", "incorrect"))
     retried = sum(1 for r in records if r["had_conditional_retry"])
+    thinking_leaks = sum(1 for r in records if r["thinking_leak"])
+    marker_present = sum(1 for r in records if r["answer_marker_present"])
     return {
         "dataset_size": total,
         "main_finish_reason_counts": dict(Counter(main_frs)),
@@ -128,6 +157,10 @@ def summarize(records: list[dict]) -> dict:
         "decided_accuracy": correct / decided if decided else None,
         "verdict_counts": dict(Counter(r["verdict"] for r in records)),
         "average_latency_seconds": sum(r["latency_seconds"] for r in records) / total if total else 0.0,
+        "thinking_leak_rate": thinking_leaks / total if total else 0.0,
+        "answer_marker_rate": marker_present / total if total else 0.0,
+        "average_output_tokens": sum(tokens) / total if total else 0.0,
+        "p95_output_tokens": _p95(tokens),
     }
 
 
@@ -170,10 +203,13 @@ def fmt(report: dict) -> str:
         f"token={report['token']:>4} "
         f"len={report['main_finish_reason_length_rate']*100:5.1f}% "
         f"marker={report['answer_marker_coverage']*100:5.1f}% "
+        f"amark={report['answer_marker_rate']*100:5.1f}% "
+        f"think={report['thinking_leak_rate']*100:5.1f}% "
         f"nonempty={report['nonempty_final_response_rate']*100:5.1f}% "
         f"calls={report['average_model_calls']:.2f}(p95={report['p95_model_calls']:.0f}) "
         f"total={report['total_model_calls']} "
         f"acc={report['accuracy']*100:4.1f}% "
+        f"tok={report['average_output_tokens']:.0f}(p95={report['p95_output_tokens']:.0f}) "
         f"lat={report['average_latency_seconds']:.1f}s "
         f"G1={report['gate']['gate1_passed']} G2={report['gate']['gate2_passed']}"
     )

@@ -295,7 +295,16 @@ P3-lite 路线：单次合并验证 + 单轮修正 + 复验。放弃 LemmaRecord
 - [x] P1 方向诊断（2026-08-14）：3072 下 judge 三层判定 **incorrect=0**（三轮均 0），未知题 20–22 个中约 15 个是「数学等价但表示不一致」（LaTeX 残留/变量名/符号形式），约 5–7 个是「thinking process 泄漏到答案标记」或抽取残留。**结论：模型能力不是瓶颈，P1 的「多候选/审核/验证」无恢复空间；剩余 gap 在表示规范化与提示词泄漏治理，不在求解能力。**
 - [x] 确定性工具覆盖面评估：`_extract_simple_arithmetic_expression` 在 112 题覆盖面 = 0（题面全自然语言），`enable_sympy_evidence` 无默认收益，保持关闭。
 - [x] 评测侧 SymPy 等价层 + 规范化清理：`judge_correct` 增加 Level 3 严格 SymPy 等价（radical/代数式，不猜）；`normalize_answer` 清理 `$`/`\(\)`/`**`/尾引号；`is_placeholder_answer` 拒绝「明确写出答案」等提示词回显。全量 166/166。
-- [ ] 后续（可选）：复杂能力冻结集 13.2 与 P3 修正仍按原 Gate 执行；表示规范化的剩余项（`\pi`/π、`e^{}` 分组、变量名归一）需逐项单测、双轮 A/B，且不绑定题号。
+- [ ] 后续（可选）：P3 修正仍按原 Gate 执行；表示规范化的剩余项（`\pi`/π、`e^{}` 分组、变量名归一）需逐项单测、双轮 A/B，且不绑定题号。
+
+## 18. 复杂能力冻结集 13.2 ✅ 2026-08-14 完成建设 + 双轮基线
+
+112 题全为短 calculation，无法证明证明/推导/解释、长题面、跨方向题与 P3 的收益。新建 48 题冻结集。
+
+- [x] 建集：`sample_data/complex_capability_freeze_48.jsonl`（choice6/fill_blank6/calc6/derivation10/proof10/explanation10；长条件12、跨方向12；公开教材改编24 + AI生成24；纯命题2）。校验全过（分布/隔离/分类一致性/答案自洽）。设计 `docs/13_2/freeze_set_design.md`；脚本 `scripts/build_freeze_set.py`、`validate_freeze_set.py`、`analyze_freeze_set.py`。
+- [x] 双轮纯基线（3072，未改任何开关）：choice 91.7% / fill_blank 100% / calc 83.3%；**derivation/proof/explanation 全 0%**（60 题次全 unknown）。报告 `docs/13_2/freeze_baseline_report.md`。
+- [x] 诊断（命中决策规则 #2）：根因=输出卫生，非能力。三 prompt 缺「不要输出 thinking」压制语 → InternLM thinking 吃光 3072（length 47.9–50%）→ 答案标记被截断 + 非数值题型 `extracted_answer`=完整响应 → judge 拿 thinking 开头 vs 数值 → unknown。incorrect=0。
+- [ ] 待决策方向（通用、不绑题号）：① derivation/proof/explanation 三 prompt 补 thinking 压制语；② 答案标记前置 + 非数值题型改走标记抽取（完整解答仍进 final_response，判分取标记后答案）。实施前需在冻结集双轮 A/B 验证。
 
 ## 明确不进入正式链路
 
