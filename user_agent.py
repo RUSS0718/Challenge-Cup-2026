@@ -34,26 +34,32 @@ FILL_BLANK_PROMPT = """你是数学求解器。这是一道填空题。直接计
 
 CALCULATION_PROMPT = POLICY_PROMPT  # 复用已验证的 answer-first 提示词
 
-DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
+DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。直接作答，响应必须从最终答案：开始，只包含以下两个区块：
 
-最终答案：<只写最终表达式、数值或结论>
+最终答案：<可独立判定的结论>
 
 推导：
-<完整的关键推导链、中间步骤和定理引用>"""
+<必要且充分的可核验步骤>
 
-PROOF_PROMPT = """你是严谨的数学推理智能体。这是一道证明题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
+不要复述题目、指令或格式，不要输出分析计划、Thinking Process、自我检查或语言选择说明。"""
+
+PROOF_PROMPT = """你是严谨的数学推理智能体。这是一道证明题。直接作答，响应必须从最终答案：开始，只包含以下两个区块：
 
 最终答案：<命题成立/不成立及必要的核心结论；若题目要求求值则写求得的值>
 
 证明：
-<完整而紧凑的证明，含命题陈述、关键推理步骤和结论>"""
+<必要且充分的正式证明，含关键推理步骤和结论>
 
-EXPLANATION_PROMPT = """你是严谨的数学推理智能体。这是一道解释/说明题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
+不要复述题目、指令或格式，不要输出分析计划、Thinking Process、自我检查或语言选择说明。"""
+
+EXPLANATION_PROMPT = """你是严谨的数学推理智能体。这是一道解释/说明题。直接作答，响应必须从最终答案：开始，只包含以下两个区块：
 
 最终答案：<一句能够独立判定的核心回答>
 
 解释：
-<清晰、紧凑的数学解释，含关键定义和逻辑推理>"""
+<必要且充分的核心解释，含关键定义和逻辑推理>
+
+不要复述题目、指令或格式，不要输出分析计划、Thinking Process、自我检查或语言选择说明。"""
 
 # ── P2: heterogeneous reasoner prompts ──────────────────────────────────────
 # DirectReasoner uses standard forward derivation (definitions → theorems → answer).
@@ -636,7 +642,14 @@ class ReasoningAgent:
                 trace.append(_tr("skipped", candidate_id + candidate_start, reason="solve_time_convergence_triggered"))
                 continue
             candidate_id += candidate_start
-            response, error = self._request(prompt, f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}", self.config.policy_temperature, max_tokens, budget)
+            # 13.2 实验 E：非数值题型（derivation/proof/explanation）的协议已完整
+            # 收敛进 system prompt；用户消息只放题目，删除「请给出完整解答」（诱发长
+            # thinking）与「候选编号」（诱发元分析，评测日志证实模型在 thinking 里
+            # 反复分析"候选编号是否是元数据、要不要忽略"）。数值题型保持原协议。
+            user_msg = (f"题目：\n{problem}"
+                        if problem_type in _NON_NUMERIC_TASK_TYPES
+                        else f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}")
+            response, error = self._request(prompt, user_msg, self.config.policy_temperature, max_tokens, budget)
             if response is None:
                 trace.append(_tr("skipped", candidate_id, reason=error)); continue
             answer = extract_final_answer(response)

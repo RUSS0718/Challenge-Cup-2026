@@ -375,6 +375,34 @@ class TaskAwarePromptTest(unittest.TestCase):
         agent.solve("这是一道证明题：证明1+1=2", {})
         self.assertEqual(PROOF_PROMPT, client.calls[0][0][0]["content"])
 
+    def test_non_numeric_user_message_drops_conflict_phrases(self):
+        """实验 E：非数值题型用户消息删「请给出完整解答」「候选编号」，只放题目。"""
+        client = FakeClient(["最终答案：2\n\n证明：\n1+1=2"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=2, enable_task_aware_prompt=True,
+                        enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False, enable_step_verification=False))
+        agent.solve("这是一道证明题：证明1+1=2", {})
+        user_msg = client.calls[0][0][1]["content"]
+        self.assertNotIn("请给出完整解答", user_msg)
+        self.assertNotIn("候选编号", user_msg)
+        self.assertIn("题目：", user_msg)
+        self.assertIn("证明1+1=2", user_msg)
+
+    def test_numeric_user_message_keeps_full_solution_protocol(self):
+        """实验 E 只改非数值题型：计算题用户消息仍含「请给出完整解答」「候选编号」。"""
+        client = FakeClient(["最终答案：3"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=2, enable_task_aware_prompt=True,
+                        enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False, enable_step_verification=False))
+        agent.solve("计算 1+2", {})
+        user_msg = client.calls[0][0][1]["content"]
+        self.assertIn("请给出完整解答", user_msg)
+        self.assertIn("候选编号", user_msg)
+
     def test_task_policy_prompt_disabled_uses_default(self):
         client = FakeClient(["最终答案：42", "VERDICT: A"])
         agent = ReasoningAgent(client,
