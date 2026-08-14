@@ -17,5 +17,8 @@ sample_outputs/
 outputs/
 *.tmp
 
+# 13.2 本地评测原始数据（仅保留汇总报告，避免仓库体积膨胀）
+docs/13_2/*.json
+
 # OS
 .DS_Store
