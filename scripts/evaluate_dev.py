@@ -75,9 +75,40 @@ def judge_correct(extracted: str, expected: str, problem_type: str = "") -> str:
     exp_num = _try_parse_rational(norm_exp)
     if ext_num is not None and exp_num is not None:
         return "correct" if ext_num == exp_num else "incorrect"
-    # Level 3: SymPy (deferred — controlled tool not yet available)
-    # ponytail: SymPy equivalence when tool gateway exists; explicit comparison above covers basics.
+    # Level 3: strict SymPy equivalence for radicals / algebraic expressions
+    # that Level 2 cannot compare.  Never guesses: unsupported → unknown.
+    sympy_eq = _try_sympy_equivalence(norm_ext, norm_exp)
+    if sympy_eq is True:
+        return "correct"
+    if sympy_eq is False:
+        return "incorrect"
     return "unknown"
+
+
+def _try_sympy_equivalence(left: str, right: str) -> bool | None:
+    """Strict SymPy equivalence for the judge's Level 3.
+
+    True when both sides parse and simplify to the same expression; False when
+    both are pure numbers (no free symbols) and differ; None (unknown) otherwise
+    or on any parse error — the judge must not guess through SymPy.
+    """
+    if not left or not right or len(left) > 200 or len(right) > 200:
+        return None
+    try:
+        import sympy
+        a = sympy.sympify(left)
+        b = sympy.sympify(right)
+    except Exception:
+        return None
+    try:
+        diff = sympy.simplify(a - b)
+    except Exception:
+        return None
+    if diff == 0:
+        return True
+    if not (getattr(a, "free_symbols", set()) or getattr(b, "free_symbols", set())):
+        return False  # both pure numbers and differ → provably incorrect
+    return None  # symbolic and not provably equal → unknown
 
 
 def _try_parse_rational(text: str) -> fractions.Fraction | None:

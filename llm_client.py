@@ -36,6 +36,9 @@ class InternChatClient:
         self.model = os.environ.get("INTERN_MODEL", DEFAULT_MODEL)
         self.timeout = timeout if timeout is not None else _positive_int_env("INTERN_TIMEOUT_SECONDS", 30)
         self.retry = retry if retry is not None else _positive_int_env("INTERN_RETRY_COUNT", 1)
+        # P0.1: per-call finish_reason log (local diagnostic only; the official
+        # client keeps its own counters).  Appended in call order for serial runs.
+        self.finish_reasons: List[str] = []
 
     def chat(
         self,
@@ -65,7 +68,9 @@ class InternChatClient:
                 )
                 response.raise_for_status()
                 data = response.json()
-                return data["choices"][0]["message"]["content"]
+                choice = data["choices"][0]
+                self.finish_reasons.append(choice.get("finish_reason") or "")
+                return choice["message"]["content"]
             except requests.Timeout:
                 last_category = "timeout"
             except requests.ConnectionError:

@@ -139,14 +139,21 @@ def classify_problem_type(problem: str) -> str:
 
 @dataclass
 class AgentConfig:
-    policy_sample_times: int = 3
-    verifier_voting_times: int = 1
-    max_model_calls: int = 6
+    # ── P0 stop-bleeding defaults ─────────────────────────────────────────
+    # Official runs showed 1024-token truncation fanning one question into ~7
+    # model calls (~98.7% finish_reason=length) with near-zero accuracy.
+    # Single main call + at most one conditional retry; no per-candidate audit
+    # and no verify-only P3.  3072 tokens is the P0.1 ladder result: the lowest
+    # cap that clears Gate 2 (finish_reason=length <= 20%, marker coverage >=
+    # 95%) with reproducible accuracy (81.2% / 80.4% across two runs).
+    policy_sample_times: int = 1
+    verifier_voting_times: int = 0
+    max_model_calls: int = 2
     policy_temperature: float = 0.6
     policy_prompt: str = POLICY_PROMPT
     verifier_temperature: float = 0.0
-    max_tokens: int = 1024
-    l0_max_tokens: int = 1024
+    max_tokens: int = 3072
+    l0_max_tokens: int = 3072
     verifier_max_tokens: int = 256
     enable_sympy_evidence: bool = False
     enable_dynamic_budget: bool = False
@@ -163,38 +170,116 @@ class AgentConfig:
     solve_converge_timeout_seconds: float = 960.0   # ~16 min → stop new candidates
     solve_hard_timeout_seconds: float = 1080.0       # ~18 min → stop all calls
     # ── P2: heterogeneous reasoners ──
-    enable_heterogeneous_reasoners: bool = True
+    enable_heterogeneous_reasoners: bool = False
     # ── P3: step verification + targeted revision ──
-    enable_step_verification: bool = True
+    enable_step_verification: bool = False
     enable_step_revision: bool = False
-    # P3 needs extra call budget beyond generation + audit.  The default
-    # max_model_calls (6) is consumed by 3 gen + 3 audit groups.  Step
-    # verification adds 1 call; revision adds 1; re-verify adds 1 more.
-    # Boost by 3 so the worst-case path (3gen+3audit+1verify+1revise+1reverify=9)
-    # fits within 6+3=9.
+    # P3 needs extra call budget beyond generation + audit.  When P3 is
+    # re-enabled later, this boost reserves room for verify + revise + re-verify.
     p3_call_boost: int = 3
 
 
+_ANSWER_MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]\s*([^\n\r]+)", re.IGNORECASE)
+_CHOICE_LINE_RE = re.compile(r"^(?:选项\s*)?([A-Da-d])(?:[.。)）]?)\s*$")
+# A standalone answer line must be pure math (no CJK prose / sentence punctuation).
+_MATH_ONLY_LINE_RE = re.compile(r"^[\sA-Za-z0-9+\-*/=<>≤≥.,(){}[\]^_'\\|±×÷]+$")
+# Natural-language connectives that mark a truncated / prose fragment.
+_CONNECTIVE_RE = re.compile(r"(因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导)")
+
+
 def extract_final_answer(response: str) -> str:
-    if not isinstance(response, str) or not response.strip(): return ""
-    boxed = _extract_boxed_answers(response)
-    if boxed: return boxed[-1]
-    markers = re.findall(r"(?:最终答案|答案|final\s+answer)\s*[:：]\s*([^\n\r]+)", response, re.IGNORECASE)
-    if markers:
-        for marker in reversed(markers):
-            answer = marker.strip()
-            if not is_placeholder_answer(answer): return answer
+    """Return a clean, explicit answer or "" (no arbitrary last-line fallback).
+
+    Accepts only: a closed ``\\boxed{...}``, an explicit ``最终答案：`` /
+    ``Final answer:`` / ``答案：`` marker with an answer-like value, or a
+    standalone short answer line (option letter / number / fraction / equation /
+    set).  A truncated natural-language tail line is never treated as an answer.
+    """
+    if not isinstance(response, str) or not response.strip():
         return ""
+    boxed = _extract_boxed_answers(response)
+    if boxed:
+        return boxed[-1]
+    markers = _ANSWER_MARKER_RE.findall(response)
+    for marker in reversed(markers):
+        answer = marker.strip()
+        if answer and not is_placeholder_answer(answer) and _is_answer_like(answer):
+            return answer
     lines = [line.strip() for line in response.splitlines() if line.strip()]
     for line in reversed(lines):
-        choice = re.fullmatch(r"(?:选项\s*)?([A-D])(?:[.。)])?", line, re.IGNORECASE)
-        if choice: return choice.group(1).upper()
-    return next((line for line in reversed(lines) if not re.fullmatch(r"(?:最终答案|答案|final\s+answer)\s*[:：]?", line, re.IGNORECASE)), "")
+        choice = _CHOICE_LINE_RE.match(line)
+        if choice:
+            return choice.group(1).upper()
+        standalone = _is_standalone_answer_line(line)
+        if standalone is not None:
+            return standalone
+    return ""
+
+
+def _is_answer_like(answer: str) -> bool:
+    """A marker value must look like a short mathematical result, not trailing prose."""
+    s = answer.strip().strip("。；;.,\"'“”’ ")
+    if not s or len(s) > 60:
+        return False
+    if re.search(r"[，,、;；:：=<>]\s*$", s):
+        return False  # ends mid-sentence → truncated
+    if re.search(r"(?:因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导)$", s):
+        return False  # ends with a reasoning connective → truncated
+    return True
+
+
+def _is_standalone_answer_line(line: str) -> str | None:
+    """Return a standalone short math answer line, or None if not answer-like."""
+    s = line.strip()
+    if not s or len(s) > 60 or is_placeholder_answer(s):
+        return None
+    if re.search(r"[，。；;、？！\n]", s):
+        return None  # sentence punctuation → prose, not a bare answer
+    if _CONNECTIVE_RE.search(s):
+        return None  # contains a reasoning connective → prose
+    if not _MATH_ONLY_LINE_RE.fullmatch(s):
+        return None  # contains CJK / non-math characters
+    if not (re.search(r"\d", s) or re.search(r"[=<>≤≥]", s)):
+        return None  # no numeric or relational content
+    return s
+
+
+def _has_placeholder_answer(response: str) -> bool:
+    """True if an answer marker in the response resolves to a placeholder token."""
+    for marker in _ANSWER_MARKER_RE.findall(response or ""):
+        if is_placeholder_answer(marker):
+            return True
+    return False
+
 
 def is_placeholder_answer(answer: str) -> bool:
-    """Reject output-format placeholders that are not mathematical answers."""
+    """Reject output-format placeholders and prompt echoes that are not answers."""
     compact = answer.strip().lower().strip("。；;.,\"'”’ ")
-    return compact in {"[answer]", "<answer>", "答案", "answer"}
+    return compact in {
+        "[answer]", "<answer>", "答案", "answer",
+        "明确写出答案", "写出答案", "请写出答案", "最终答案",
+    }
+
+
+def _truncation_signals(response: str, answer: str) -> list[str]:
+    """Proxy signals for finish_reason=length truncation (client returns str only).
+
+    These are observability-only hints; the solver's only hard decision is
+    ``no clear answer → at most one recovery call``.
+    """
+    signals: list[str] = []
+    text = (response or "").rstrip()
+    if not answer:
+        signals.append("no_extractable_answer")
+    if re.search(r"[，,、;；:：=<>]\s*$", text):
+        signals.append("ends_with_connective_punctuation")
+    if re.search(r"(?:因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导)$", text):
+        signals.append("ends_with_connective_word")
+    if "\\boxed{" in text and text.rfind("}") < text.rfind("\\boxed{"):
+        signals.append("unclosed_boxed")
+    if text.endswith("\\"):
+        signals.append("ends_with_backslash")
+    return signals
 
 def _extract_boxed_answers(text: str) -> list[str]:
     answers, cursor = [], 0
@@ -269,8 +354,10 @@ def normalize_answer(answer: str) -> str:
     multi = _canonicalize_multi_numeric_set(answer)
     if multi is not None:
         return multi
-    compact = re.sub(r"\s+", "", answer).rstrip("。；;.,")
+    compact = re.sub(r"\s+", "", answer).rstrip("。；;.,\"")
     if not compact: return ""
+    # Strip display-math / markdown wrappers so LaTeX answers normalize cleanly.
+    compact = compact.replace("$", "").replace("\\(", "").replace("\\)", "").replace("**", "")
     compact = compact.replace("\\left", "").replace("\\right", "")
     match = re.fullmatch(r"\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}", compact)
     if match: compact = f"{match.group(1)}/{match.group(2)}"
@@ -326,6 +413,18 @@ class ReasoningAgent:
         else:
             task_prompt = self._task_policy_prompt(problem_type)
             self._generate_candidates(problem, generation_calls, candidates, trace, budget, self._policy_max_tokens(level), task_prompt=task_prompt, problem_type=problem_type)
+
+        # ── P0 stop-bleeding: conditional retry (≤1 recovery call) ──
+        # A truncated / malformed main call yields no clear answer; allow exactly
+        # one recovery generation.  Audit and P3 are off by default, so a bad
+        # response can no longer fan out into many extra model calls.
+        if not self._has_clear_answer(candidates):
+            trace.append({"step": "conditional_retry", "reason": "no_clear_answer",
+                          "model_calls": budget["used"]})
+            task_prompt = self._task_policy_prompt(problem_type)
+            self._generate_candidates(problem, 1, candidates, trace, budget,
+                                      self._policy_max_tokens(level),
+                                      task_prompt=task_prompt, problem_type=problem_type)
 
         if self._should_escalate_l2(level, candidates):
             trace.append({"step":"route_budget","level":"L2","generation_calls":1,"max_model_calls":budget["limit"],"reason":"answer_conflict"})
@@ -395,12 +494,17 @@ class ReasoningAgent:
                 trace.append(_tr("skipped", candidate_id, reason=error)); continue
             answer = extract_final_answer(response)
             if problem_type in _NON_NUMERIC_TASK_TYPES:
-                if not answer or is_placeholder_answer(answer):
+                # Proof / derivation / explanation deliver the full response as
+                # the answer; only reject format-instruction echoes carrying a
+                # placeholder answer token.
+                if _has_placeholder_answer(response):
                     trace.append(_tr("rejected", candidate_id, reason="placeholder_answer"))
                     continue
                 answer = response.strip()
             elif not answer:
-                trace.append(_tr("rejected", candidate_id, reason="answer_not_extractable")); continue
+                trace.append(_tr("rejected", candidate_id, reason="answer_not_extractable",
+                                 truncation_signals=_truncation_signals(response, answer)))
+                continue
             candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
             trace.append(_tr("ok", candidate_id))
 
@@ -494,13 +598,11 @@ class ReasoningAgent:
     def _format_task_final_response(self, best: dict[str, Any], problem_type: str) -> str:
         """Format final_response according to problem type conventions.
 
-        - choice / fill_blank: return normalized answer (compact)
-        - calculation: return solution text with concise steps preserved
+        - choice / fill_blank / calculation: return the compact normalized answer
         - derivation / proof / explanation: return the full solution text
         """
-        if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK):
+        if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
             return best.get("normalized_answer") or best["answer"]
-        # Calculation keeps steps; non-numeric types keep full reasoning.
         return best.get("solution") or best.get("answer", "")
 
     def _generation_plan(self, problem: str) -> tuple[int, str]:
@@ -580,6 +682,11 @@ class ReasoningAgent:
     def _extract_simple_arithmetic_expression(problem: str) -> str | None:
         match = re.fullmatch(r"\s*(?:计算|求值|calculate|evaluate)?\s*([0-9+\-*/().\s]+)\s*[?？]?\s*", problem, re.IGNORECASE)
         return match.group(1).strip() if match else None
+    @staticmethod
+    def _has_clear_answer(candidates: list[dict[str, Any]]) -> bool:
+        """True when at least one candidate carries a non-empty extracted answer."""
+        return any(bool(candidate.get("answer")) for candidate in candidates)
+
     @staticmethod
     def _answer_groups(candidates: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
         groups: dict[str, list[dict[str, Any]]] = {}

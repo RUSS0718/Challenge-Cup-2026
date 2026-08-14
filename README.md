@@ -5,15 +5,59 @@
 答案抽取与分组审核、证据裁决、P3 逐步验证和题型化输出构建，同时保持赛事规定的
 单文件入口与公开 client 契约。
 
-> 当前状态（2026-07-30）：P0-P3.1 已完成实现和本地验收，当前工作区
+> 当前状态（2026-08-02）：P0-P3.1 已完成实现和本地验收，当前工作区
 > `153/153` 项单元测试通过。异构 Reasoner 与 P3 已实现，但尚未完成同一评测窗口下
 > 的四组双轮 A/B，因此“已实现”不等于“已证明能提升官方分数”。
 
-## 当前能力
+## 当前 Agent 架构
+
+当前系统是“确定性 Python Harness + 受调用预算约束的模型推理”，不是由多个常驻
+子 Agent 组成的分布式系统。`ReasoningAgent` 在每次 `solve()` 中创建并维护本题的
+候选、证据、预算和 trace；调用结束后不保留跨题状态，也不使用 `metadata` 中的题号、
+学科或答案信息。
+
+```mermaid
+flowchart TD
+    runner["官方 runner"] --> entry["user_agent.py\nReasoningAgent.solve(problem, metadata)"]
+    entry --> classify["文本题型识别\nchoice / fill_blank / calculation / derivation / proof / explanation"]
+    classify --> route{"预算路由"}
+    route -->|"简单算术 L0"| direct["Direct × 1"]
+    route -->|"默认 fixed"| heterogeneous["Direct × 2\nAlternative × 1"]
+    route -->|"实验开关"| experimental["动态预算 L1\n冲突时可升级 L2"]
+    direct --> extract["答案抽取与规范化"]
+    heterogeneous --> extract
+    experimental --> extract
+    extract --> groups["答案等价分组"]
+    groups --> evidence["可选受控工具证据\n默认关闭"]
+    evidence --> audit["每个答案组一次隔离审核"]
+    audit --> select["确定性候选选择"]
+    select --> verify{"P3 验证开启?"}
+    verify -->|"是"| p3["一次调用：逐步错误检查\n完整性检查"]
+    verify -->|"否"| finalizer["题型化 Finalizer"]
+    p3 --> revision{"修正开启且发现问题?"}
+    revision -->|"是"| revise["单轮修正 + 复验\n当前默认关闭"]
+    revision -->|"否"| finalizer
+    revise --> finalizer
+    finalizer --> output["final_response\nextracted_answer\ncompact trace"]
+```
+
+各层职责如下：
+
+| 层 | 当前实现 | 默认行为 |
+| --- | --- | --- |
+| 入口与编排 | `ReasoningAgent.solve()`；每题独立维护状态 | 官方只需构造 `ReasoningAgent(client=...)` |
+| 题型识别 | 基于题面文本的通用规则，不读取 `metadata` | 开启，生成题型对应的输出提示 |
+| 候选生成 | `DirectReasoner` 使用定义—定理—正向推导；`AlternativeReasoner` 使用反证、构造、边界或数值/代数交叉检查 | 非 L0 为 `2 Direct + 1 Alternative`；两者是同一 client 的互补提示，不是独立常驻 Agent |
+| 答案处理 | 抽取、占位符拒绝、数值/无序多根集合规范化、仅对可证明等价项分组 | 开启 |
+| 审核与裁决 | 每个答案组一次隔离 LLM 审核；结合受控工具证据、组内共识、审核结果和候选 ID 确定性选择 | LLM 分组审核开启；工具证据关闭 |
+| P3 | 对最终候选一次性执行逐步错误检查和完整性检查 | 验证开启，修正关闭 |
+| 输出 | 选择/填空返回紧凑答案；其他题型保留完整解答 | 返回 `final_response`、本地评测用 `extracted_answer` 和紧凑 `trace` |
+
+### 当前能力
 
 - 识别计算、选择、填空、证明、推导和解释六种输出题型。
 - 简单算术走 L0 单次 Direct 路径；其他题默认使用 `2 Direct + 1 Alternative`
-  生成互补候选。
+  生成互补候选。候选生成和审核共享本题调用预算。
 - 保守抽取最终答案，支持数值、多根集合、方程、区间、向量、矩阵及非数值长答案。
 - 对可证明等价的答案分组，每组只进行一次隔离上下文审核。
 - 按受控工具证据、答案共识、审核结果和固定候选 ID 进行确定性选择。
@@ -27,38 +71,38 @@ fail-open 边界：复验 `skipped`、`inconclusive` 或无剩余预算时会保
 因此在改为 fail-closed 并完成 A/B 前，不应在正式提交路径启用
 `enable_step_revision=True`。
 
-## 求解流程
+## 求解流程与边界
 
-```text
-Problem
-  -> 题型识别与预算路由
-  -> Direct / Alternative Reasoner 候选池
-  -> 答案抽取、规范化与等价分组
-  -> 受控证据 / 分组审核
-  -> 确定性候选选择
-  -> P3 逐步与完整性验证
-  -> 可选单轮修正与复验
-  -> 题型化 Finalizer
-  -> final_response + compact trace
-```
+正式内核使用普通 Python 状态机，没有引入 LangGraph、AgentScope 或联网工具。模型只
+负责生成候选解答、审核候选组，以及在显式开启时执行验证/修正；代码负责题型路由、
+调用/时间预算、答案解析、等价分组、证据范围、确定性选择、终止和降级。
 
-正式内核使用普通 Python 状态机，没有引入 LangGraph、AgentScope 或联网工具。
-`sympy_adapter.py` 是默认关闭的受控实验；stdio MCP、离线定理卡 RAG 和复杂能力冻结集
-仍属于后续阶段，不是当前运行时依赖。
+`sympy_adapter.py` 是默认关闭的受控实验，并且当前只对简单算术题面提供工具证据；
+stdio MCP、离线定理卡 RAG 和复杂能力冻结集仍属于后续阶段，不是当前运行时依赖。
+
+每题的时间保护为：默认约 16 分钟后停止新增候选，约 18 分钟后停止发起新的模型调用；
+这是应用层保护，不能替代官方单题 20 分钟限制。
 
 ## 默认配置
 
+> P0 止血版本（2026-08-13）：官方评测曾因 1024 token 截断 + 末行兜底抽取把一题放大到约 7 次调用，触发系统负载终止。默认路径已压缩为单次主调用 + 最多一次条件重试，token 上限 3072（P0.1 阶梯实验选定：1536/2048/3072 准确率 67.9%/75.0%/80.8%，仅 3072 通过 Gate 2 截断硬门槛），关闭审核、异构与 P3。
+
 | 配置 | 默认值 | 说明 |
 | --- | --- | --- |
-| `policy_sample_times` | `3` | 非 L0 候选数量 |
-| `max_model_calls` | `6` | 基础模型调用上限 |
-| `max_tokens` | `1024` | 非 L0 生成上限 |
-| `l0_max_tokens` | `1024` | L0 生成上限 |
-| `enable_heterogeneous_reasoners` | `True` | 使用 Direct + Alternative |
-| `enable_step_verification` | `True` | 启用 P3 验证 |
-| `enable_step_revision` | `False` | 不启用 P3 修正 |
-| `p3_call_boost` | `3` | P3 开启后有效上限为 9 |
-| `enable_l2_routing` | `False` | 实验路由；开启后 P3 有效上限可达 11 |
+| `policy_sample_times` | `1` | 主求解调用次数 |
+| `verifier_voting_times` | `0` | 每个答案组的审核次数（关闭） |
+| `max_model_calls` | `2` | 基础模型调用上限（1 主调用 + 至多 1 条件重试） |
+| `max_tokens` | `3072` | 非 L0 生成上限 |
+| `l0_max_tokens` | `3072` | L0 生成上限 |
+| `verifier_max_tokens` | `256` | 答案组审核生成上限；P3 验证使用独立固定预算 |
+| `enable_task_aware_prompt` | `True` | 使用题型化输出提示 |
+| `enable_l0_extended_tokens` | `True` | 允许简单算术进入 L0 路径 |
+| `enable_time_convergence` | `True` | 启用每题 16/18 分钟收敛与硬停止保护 |
+| `enable_heterogeneous_reasoners` | `False` | 异构 Reasoner（关闭） |
+| `enable_step_verification` | `False` | P3 验证（关闭） |
+| `enable_step_revision` | `False` | P3 修正（关闭） |
+| `p3_call_boost` | `3` | P3 开启后基础上限增加 3 |
+| `enable_l2_routing` | `False` | 实验路由 |
 | `enable_sympy_evidence` | `False` | 受控 SymPy 实验 |
 | `enable_dynamic_budget` | `False` | 动态预算实验 |
 | `enable_local_repair` | `False` | 局部修复实验 |

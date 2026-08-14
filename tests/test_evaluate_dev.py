@@ -264,11 +264,18 @@ class JudgeCorrectTest(unittest.TestCase):
         self.assertEqual("correct", judge_correct("1/2", "0.5"))
         self.assertEqual("correct", judge_correct("0.5", "1/2"))
 
-    def test_radical_returns_unknown_not_false_positive(self):
+    def test_radical_is_strictly_compared_via_sympy(self):
         from scripts.evaluate_dev import judge_correct
-        self.assertEqual("unknown", judge_correct("sqrt(2)", "2"))
-        self.assertEqual("unknown", judge_correct("sqrt(4)", "2"))
-        self.assertEqual("unknown", judge_correct("sqrt(2)", "sqrt(3)"))
+        # SymPy Level 3 proves equality/difference for radicals it can parse.
+        self.assertEqual("correct", judge_correct("sqrt(4)", "2"))
+        self.assertEqual("incorrect", judge_correct("sqrt(2)", "2"))
+        self.assertEqual("incorrect", judge_correct("sqrt(2)", "sqrt(3)"))
+
+    def test_symbolic_algebraic_equivalence(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct("(x+1)*(x-1)", "x**2-1"))
+        # symbolic but not provably equal (x vs x^2 coincide only at 0/1) → unknown
+        self.assertEqual("unknown", judge_correct("x", "x**2"))
 
     def test_choice_letters_case_insensitive(self):
         from scripts.evaluate_dev import judge_correct
@@ -313,7 +320,7 @@ class P3EvaluatorMetricsTest(unittest.TestCase):
         items = [
             {"idx": 0, "problem": "q0", "answer": "42"},
             {"idx": 1, "problem": "q1", "answer": "999"},  # incorrect
-            {"idx": 2, "problem": "q2", "answer": "sqrt(2)"},  # unknown
+            {"idx": 2, "problem": "q2", "answer": "x"},     # unknown (symbolic, can't compare to 42)
         ]
         report = evaluate(agent, items)
         vc = report["verdict_counts"]
@@ -330,7 +337,8 @@ class P3EvaluatorMetricsTest(unittest.TestCase):
         bc = summarize_budget_config(agent)
         self.assertTrue(bc["enable_step_verification"])
         self.assertFalse(bc["enable_step_revision"])
-        self.assertEqual(9, bc["effective_max_calls"])
+        # P0 stop-bleeding default max_model_calls=2 → 2 + 3 boost = 5
+        self.assertEqual(5, bc["effective_max_calls"])
         self.assertEqual(3, bc["p3_call_boost"])
 
     def test_l2_effective_calls_accounts_for_l2_max(self):
@@ -341,7 +349,7 @@ class P3EvaluatorMetricsTest(unittest.TestCase):
         agent = ReasoningAgent.__new__(ReasoningAgent)
         agent.config = config
         bc = summarize_budget_config(agent)
-        # max(6, 8) + 3 = 11
+        # max(2, 8) + 3 = 11
         self.assertEqual(11, bc["effective_max_calls"])
 
     def test_rolled_back_revision_not_counted_as_accepted(self):

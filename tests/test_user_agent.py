@@ -57,6 +57,19 @@ class AnswerHandlingTest(unittest.TestCase):
         self.assertEqual("sqrt(2)", normalize_answer(r"\sqrt{2}"))
         self.assertEqual("F(x)??", normalize_answer("F(x)??"))
 
+    def test_normalization_strips_display_math_wrappers(self):
+        # Universal LaTeX/markdown wrapper cleanup — never bound to a sample idx.
+        self.assertEqual("1/2", normalize_answer(r"$\frac{1}{2}$"))
+        self.assertEqual("1/2", normalize_answer(r"\(\frac{1}{2}\)"))
+        self.assertEqual("10", normalize_answer('10"'))
+        self.assertEqual("(x-2)^2", normalize_answer(r"**$(x-2)^2$**"))
+
+    def test_prompt_echo_is_placeholder(self):
+        from user_agent import is_placeholder_answer
+        self.assertTrue(is_placeholder_answer("明确写出答案"))
+        self.assertTrue(is_placeholder_answer('"明确写出答案"'))
+        self.assertFalse(is_placeholder_answer("42"))
+
     def test_multi_numeric_roots_are_canonicalized_order_invariantly(self):
         # Universal unordered multi-root set form; not bound to any sample idx.
         self.assertEqual("-1,1", normalize_answer("x = 1, x = -1"))
@@ -79,7 +92,7 @@ class AnswerHandlingTest(unittest.TestCase):
 
 class ReasoningAgentTest(unittest.TestCase):
     def test_default_generation_budget_is_bounded_for_local_api_latency(self):
-        self.assertEqual(1024, AgentConfig(enable_step_verification=False).max_tokens)
+        self.assertEqual(3072, AgentConfig(enable_step_verification=False).max_tokens)
         self.assertTrue(AgentConfig(enable_step_verification=False).enable_l0_extended_tokens)
 
     def test_extracts_answer_and_keeps_trace_compact(self):
@@ -451,13 +464,14 @@ class NonNumericTaskTypeTest(unittest.TestCase):
             "步骤3：在最后一行写出最终答案。\n"
             "最终答案：[Answer]"
         )
-        client = FakeClient([format_echo, "VERDICT: A"])
+        client = FakeClient([format_echo, "数学归纳法分为基础步骤与归纳步骤两部分。最终答案：归纳法原理阐述完毕。"])
         agent = ReasoningAgent(client,
-            AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
                         max_model_calls=2, enable_l0_extended_tokens=False, enable_step_verification=False))
         result = agent.solve("解释数学归纳法。", {})
-        # Long format echo → extract_final_answer finds "[Answer]" placeholder → rejected
-        self.assertEqual("fallback", result["trace"][-1].get("status"))
+        # The placeholder echo is rejected, never used as the answer.
+        self.assertTrue(any(e.get("reason") == "placeholder_answer" for e in result["trace"]))
+        self.assertIn("归纳法", result["final_response"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -512,7 +526,7 @@ class TimeConvergenceTest(unittest.TestCase):
                              enable_l0_extended_tokens=False, enable_step_verification=False)
         agent = ReasoningAgent(client, config)
         result = agent.solve("计算 1+1", {})
-        self.assertEqual("最终答案：7", result["final_response"])
+        self.assertEqual("7", result["final_response"])
         self.assertNotEqual("fallback", result["trace"][-1].get("status"))
 
     def test_time_disabled_does_not_block_calls(self):
@@ -523,7 +537,7 @@ class TimeConvergenceTest(unittest.TestCase):
                         max_model_calls=2, enable_time_convergence=False,
                         enable_l0_extended_tokens=False, enable_step_verification=False))
         result = agent.solve("计算 3+4", {})
-        self.assertEqual("最终答案：7", result["final_response"])
+        self.assertEqual("7", result["final_response"])
 
     def test_trace_includes_problem_type_in_route_budget(self):
         """Every route_budget and finalize trace entry carries problem_type."""
@@ -626,10 +640,10 @@ class HeterogeneousReasonerTest(unittest.TestCase):
         self.assertEqual(1, len(gen_ok))
         self.assertEqual("direct", gen_ok[0].get("reasoner"))
 
-    def test_default_config_has_heterogeneous_enabled(self):
-        """P2 is the default path — replaces same-prompt sampling."""
+    def test_default_config_has_heterogeneous_disabled(self):
+        """P0 stop-bleeding: heterogeneous reasoners are off by default."""
         config = AgentConfig(enable_step_verification=False)
-        self.assertTrue(config.enable_heterogeneous_reasoners)
+        self.assertFalse(config.enable_heterogeneous_reasoners)
 
     def test_heterogeneous_trace_includes_route_with_problem_type(self):
         """Route budget trace entries still carry problem_type in P2 mode."""
@@ -878,6 +892,66 @@ class StepVerificationTest(unittest.TestCase):
         result = agent.solve("计算 3+4", {})
         verify_entries = [e for e in result["trace"] if e.get("step") == "verify"]
         self.assertEqual("inconclusive", verify_entries[0]["status"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# P0 stop-bleeding: truncation → bounded calls, strict extraction, compact output
+# ═══════════════════════════════════════════════════════════════════════════
+
+class P0StopBleedingTest(unittest.TestCase):
+
+    def test_default_config_is_stop_bleeding(self):
+        config = AgentConfig()
+        self.assertEqual(1, config.policy_sample_times)
+        self.assertEqual(0, config.verifier_voting_times)
+        self.assertEqual(2, config.max_model_calls)
+        self.assertEqual(3072, config.max_tokens)
+        self.assertFalse(config.enable_heterogeneous_reasoners)
+        self.assertFalse(config.enable_step_verification)
+        self.assertFalse(config.enable_step_revision)
+        self.assertFalse(config.enable_l2_routing)
+        self.assertFalse(config.enable_local_repair)
+
+    def test_truncated_response_triggers_at_most_two_calls(self):
+        """Truncated main call (no answer marker) → exactly one recovery call, never 7."""
+        client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
+        agent = ReasoningAgent(client)  # default stop-bleeding config
+        result = agent.solve("计算 3+4", {})
+        self.assertIn("7", result["final_response"])
+        self.assertLessEqual(len(client.calls), 2)
+        self.assertTrue(any(e.get("step") == "conditional_retry" for e in result["trace"]))
+
+    def test_clear_answer_skips_conditional_retry(self):
+        """A clear main answer ends immediately with a single model call."""
+        client = FakeClient(["最终答案：7"])
+        agent = ReasoningAgent(client)
+        result = agent.solve("计算 3+4", {})
+        self.assertEqual("7", result["final_response"])
+        self.assertEqual(1, len(client.calls))
+        self.assertFalse(any(e.get("step") == "conditional_retry" for e in result["trace"]))
+
+    def test_truncated_last_line_is_not_taken_as_answer(self):
+        self.assertEqual("", extract_final_answer("推导过程如下\n因此我们代入得到"))
+        self.assertEqual("", extract_final_answer("计算得到\n根据公式代入"))
+        self.assertEqual("", extract_final_answer("步骤1：求导\n步骤2：代入"))
+
+    def test_calculation_returns_compact_normalized_answer(self):
+        client = FakeClient(["推导若干……\n最终答案：1/2"])
+        agent = ReasoningAgent(client,
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=2, enable_heterogeneous_reasoners=False,
+                        enable_step_verification=False, enable_l0_extended_tokens=False))
+        result = agent.solve("计算某表达式", {})
+        self.assertEqual("1/2", result["final_response"])
+
+    def test_truncation_signals_recorded_on_rejected_candidate(self):
+        client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
+        agent = ReasoningAgent(client)
+        result = agent.solve("计算 3+4", {})
+        rejected = [e for e in result["trace"]
+                    if e.get("step") == "generate_candidate" and e.get("status") == "rejected"]
+        self.assertTrue(rejected)
+        self.assertIn("no_extractable_answer", rejected[0].get("truncation_signals", []))
 
 
 if __name__ == "__main__":

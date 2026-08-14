@@ -278,8 +278,24 @@ P3-lite 路线：单次合并验证 + 单轮修正 + 复验。放弃 LemmaRecord
 ## 16. 参赛提交与文档验收（持续执行）
 
 - [ ] 每轮同步 `docs/开发记录.md`、系统方案、技术文档、评测报告与本清单，严格区分已实现、实验实现和规划中。
-- [ ] 提交前运行全部单元测试（当前 139 项，数量变化以实际为准）、`py_compile`、公开 client 初始化、异常降级与 JSON 序列化检查。
+- [ ] 提交前运行全部单元测试（当前 159 项，数量变化以实际为准）、`py_compile`、公开 client 初始化、异常降级与 JSON 序列化检查。
 - [ ] 提交作品前再次核对 AtomGit `main` 流程和当日评测时间；提交、推送和作品页操作均需用户单独授权。
+
+## 17. P0 止血版本（官方评测 0 分根因修复）✅ 2026-08-13 完成
+
+官方评测出现「评分任务超过系统负载主动终止」与 112 题仅 2 正确的 0 分现象。已确认根因不是单纯模型数学能力差，而是：**1024 token 截断 → 末行兜底抽取 → 多个伪候选 → 审核+验证 → 请求膨胀 → 最终仍输出截断文本**（约 780 次请求 / 98.7% finish_reason=length）。
+
+- [x] 默认配置压缩为单次主调用：`policy_sample_times=1`、`verifier_voting_times=0`、`max_model_calls=2`；关闭 heterogeneous / step_verification / step_revision / l2_routing / local_repair。理想 112 次、最坏 224 次（较 780 减少约 71%–86%）。
+- [x] 收紧 `extract_final_answer`：去掉「最后一个非空行兜底」，仅接受 `\boxed{}`、`最终答案：`/`Final answer:`/`答案：` 标记、独立短答案行（数字/分数/方程/集合/选项字母）；自然语言截断末行不再作为答案。
+- [x] 计算题 `final_response` 返回紧凑规范化答案；证明/推导/解释保留完整解答（占位符回显仍拒绝）。
+- [x] 主调用无明确答案 → 最多一次条件重试；记录截断代理信号（答案标记/闭合 boxed/结尾标点与连接词/未闭合公式）。
+- [x] 回归测试：`P0StopBleedingTest` 覆盖「截断触发 ≤2 调用、清晰答案跳过重试、严格抽取、紧凑输出、截断信号」；全量 159/159 通过。
+- [x] P0.1 实验脚本：`llm_client.InternChatClient` 增加 `finish_reasons` 记录；新增 `scripts/evaluate_token_ladder.py`（按题切片统计主调用/重试 length 率、答案标记覆盖率、Gate 1/2）+ `tests/test_evaluate_token_ladder.py`（4 项，全量 163/163）。
+- [x] P0.1 token 阶梯实验执行并决策：1536/2048/3072 干净跑 112 题，准确率 67.9% / 75.0% / 80.8%（3072 双轮 81.2%/80.4%）；仅 3072 通过 Gate 2（length 10.7%/17.9% ≤ 20%、marker ≥ 95%）。**ADOPT 3072**，`max_tokens`/`l0_max_tokens` 默认 2048→3072。报告 `docs/p0_1/p0_1_summary_report.md`。
+- [x] P1 方向诊断（2026-08-14）：3072 下 judge 三层判定 **incorrect=0**（三轮均 0），未知题 20–22 个中约 15 个是「数学等价但表示不一致」（LaTeX 残留/变量名/符号形式），约 5–7 个是「thinking process 泄漏到答案标记」或抽取残留。**结论：模型能力不是瓶颈，P1 的「多候选/审核/验证」无恢复空间；剩余 gap 在表示规范化与提示词泄漏治理，不在求解能力。**
+- [x] 确定性工具覆盖面评估：`_extract_simple_arithmetic_expression` 在 112 题覆盖面 = 0（题面全自然语言），`enable_sympy_evidence` 无默认收益，保持关闭。
+- [x] 评测侧 SymPy 等价层 + 规范化清理：`judge_correct` 增加 Level 3 严格 SymPy 等价（radical/代数式，不猜）；`normalize_answer` 清理 `$`/`\(\)`/`**`/尾引号；`is_placeholder_answer` 拒绝「明确写出答案」等提示词回显。全量 166/166。
+- [ ] 后续（可选）：复杂能力冻结集 13.2 与 P3 修正仍按原 Gate 执行；表示规范化的剩余项（`\pi`/π、`e^{}` 分组、变量名归一）需逐项单测、双轮 A/B，且不绑定题号。
 
 ## 明确不进入正式链路
 
