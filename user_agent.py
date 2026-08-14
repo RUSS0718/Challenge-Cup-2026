@@ -231,6 +231,62 @@ def extract_final_answer(response: str) -> str:
     return ""
 
 
+# ── 13.2 实验 C：非数值题型答案段抽取（answer-first 协议）────────────────────
+# 答案前置后，非数值题型（derivation/proof/explanation）的响应以「最终答案：<结论>」
+# 开头，正文在后。这里抽取首个「真正」的答案段，跳过 thinking 复述的占位符。
+_ANSWER_MARKER_POS_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]", re.IGNORECASE)
+_ANSWER_SEGMENT_STOP_RE = re.compile(
+    r"\n\s*(?:推导|证明|解释|最终答案|final\s+answer|答案)\s*[:：]", re.IGNORECASE
+)
+_ANSWER_ECHO_RE = re.compile(
+    r"only\s+write|complete\s+chain|followed\s+by|final\s+expression|只写|简洁|独立判定|最终表达式|核心回答",
+    re.IGNORECASE,
+)
+
+
+def extract_answer_segment(response: str) -> str:
+    """Return the genuine answer segment from an answer-first response, or "".
+
+    Extracts the first "最终答案：" segment that is not a thinking-process echo
+    (marker followed by a placeholder like "<…>" or prompt boilerplate).  The
+    segment is returned verbatim — no global numeric normalization, so proofs,
+    explanations, inequalities, sets and tuples keep their original semantics.
+    """
+    if not isinstance(response, str) or not response.strip():
+        return ""
+    for m in _ANSWER_MARKER_POS_RE.finditer(response):
+        seg = _take_answer_segment(response, m.end())
+        if seg and not _is_answer_echo(seg):
+            return seg
+    return ""
+
+
+def _take_answer_segment(text: str, start: int) -> str:
+    """Slice the segment right after a marker, up to the next structure header
+    (推导/证明/解释/最终答案) or a blank line."""
+    rest = text[start:]
+    stop = _ANSWER_SEGMENT_STOP_RE.search(rest)
+    blank = re.search(r"\n\s*\n", rest)
+    end = len(rest)
+    if stop:
+        end = min(end, stop.start())
+    if blank:
+        end = min(end, blank.start())
+    return rest[:end].strip()
+
+
+def _is_answer_echo(seg: str) -> bool:
+    """True when a marker segment is a placeholder/prompt echo, not a real answer."""
+    s = seg.strip()
+    if not s:
+        return True
+    if re.match(r"^<[^>]*>", s):
+        return True  # "<只写…>" placeholder copied verbatim
+    if _ANSWER_ECHO_RE.search(s):
+        return True  # prompt boilerplate echoed inside thinking
+    return False
+
+
 def _is_answer_like(answer: str) -> bool:
     """A marker value must look like a short mathematical result, not trailing prose."""
     s = answer.strip().strip("。；;.,\"'“”’ ")
@@ -509,13 +565,16 @@ class ReasoningAgent:
                 trace.append(_tr("skipped", candidate_id, reason=error)); continue
             answer = extract_final_answer(response)
             if problem_type in _NON_NUMERIC_TASK_TYPES:
-                # Proof / derivation / explanation deliver the full response as
-                # the answer; only reject format-instruction echoes carrying a
-                # placeholder answer token.
+                # 13.2 实验 C：answer-first 协议下，判分用「最终答案」后的答案段，
+                # 而非完整响应；final_response 仍保留完整解答（见 _format_task_final_response）。
+                # 仅拒绝携带占位符答案标记的格式回显。
                 if _has_placeholder_answer(response):
                     trace.append(_tr("rejected", candidate_id, reason="placeholder_answer"))
                     continue
-                answer = response.strip()
+                answer = extract_answer_segment(response)
+                if not answer:
+                    # 无真正的答案段 → 保留完整响应（不丢弃证明/解释题），judge 判 unknown。
+                    answer = response.strip()
             elif not answer:
                 trace.append(_tr("rejected", candidate_id, reason="answer_not_extractable",
                                  truncation_signals=_truncation_signals(response, answer)))

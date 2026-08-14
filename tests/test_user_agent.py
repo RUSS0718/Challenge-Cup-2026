@@ -12,7 +12,7 @@ from user_agent import (
     DIRECT_REASONER_PROMPT, ALTERNATIVE_REASONER_PROMPT,
     STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
     answer_equivalence, classify_problem_type, extract_final_answer,
-    normalize_answer,
+    extract_answer_segment, normalize_answer,
 )
 
 
@@ -354,7 +354,16 @@ class TaskAwarePromptTest(unittest.TestCase):
         self.assertIn("证明", PROOF_PROMPT)
 
     def test_explanation_prompt_asks_for_conclusion(self):
-        self.assertIn("核心结论", EXPLANATION_PROMPT)
+        self.assertIn("核心回答", EXPLANATION_PROMPT)
+
+    def test_non_numeric_prompts_answer_first(self):
+        """答案前置协议：最终答案 标记必须在 推导/证明/解释 正文标题之前。"""
+        for prompt, body_word in ((DERIVATION_PROMPT, "推导"), (PROOF_PROMPT, "证明"), (EXPLANATION_PROMPT, "解释")):
+            ans_pos = prompt.find("最终答案")
+            body_pos = prompt.find(body_word + "：")
+            self.assertGreater(ans_pos, -1, prompt)
+            self.assertGreater(body_pos, -1, prompt)
+            self.assertLess(ans_pos, body_pos, prompt)
 
     def test_task_policy_prompt_returns_type_specific_prompt(self):
         client = FakeClient(["最终答案：42", "VERDICT: A"])
@@ -952,6 +961,61 @@ class P0StopBleedingTest(unittest.TestCase):
                     if e.get("step") == "generate_candidate" and e.get("status") == "rejected"]
         self.assertTrue(rejected)
         self.assertIn("no_extractable_answer", rejected[0].get("truncation_signals", []))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 13.2 实验 C：非数值题型答案段抽取（answer-first 协议）边界单测
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AnswerSegmentExtractionTest(unittest.TestCase):
+
+    def test_single_line_numeric(self):
+        self.assertEqual("31", extract_answer_segment("最终答案：31\n\n推导：\n完整推导"))
+
+    def test_single_line_expression(self):
+        self.assertEqual("x^2-1", extract_answer_segment("最终答案：x^2-1\n\n推导：\n..."))
+
+    def test_multi_line_conclusion(self):
+        self.assertEqual("第一行\n第二行",
+                         extract_answer_segment("最终答案：第一行\n第二行\n\n解释：\n..."))
+
+    def test_followed_by_proof_body(self):
+        self.assertEqual("命题成立；行列式为 -1",
+                         extract_answer_segment("最终答案：命题成立；行列式为 -1\n\n证明：\n完整证明"))
+
+    def test_no_marker_returns_empty(self):
+        self.assertEqual("", extract_answer_segment("这是一段没有答案标记的文本"))
+
+    def test_truncated_after_marker(self):
+        self.assertEqual("3", extract_answer_segment("最终答案：3"))
+
+    def test_repeated_marker_takes_first_non_echo(self):
+        self.assertEqual("31", extract_answer_segment("最终答案：31\n推导：...\n最终答案：31"))
+
+    def test_inequality_preserved(self):
+        self.assertEqual("x > 3", extract_answer_segment("最终答案：x > 3\n\n推导：..."))
+
+    def test_set_preserved(self):
+        self.assertEqual("{1, 2, 3}", extract_answer_segment("最终答案：{1, 2, 3}\n\n推导：..."))
+
+    def test_tuple_preserved(self):
+        self.assertEqual("(1, 2, 3)", extract_answer_segment("最终答案：(1, 2, 3)\n\n推导：..."))
+
+    def test_natural_language_conclusion(self):
+        self.assertEqual("无法证明", extract_answer_segment("最终答案：无法证明\n\n解释：..."))
+
+    def test_condition_insufficient_conclusion(self):
+        self.assertEqual("条件不足", extract_answer_segment("最终答案：条件不足\n\n证明：\n..."))
+
+    def test_skip_thinking_echo_placeholder(self):
+        resp = (
+            'Thinking Process: 1. Analyze the request... "Final Answer: <only write final expression>"\n'
+            '最终答案：31\n\n推导：\n完整推导'
+        )
+        self.assertEqual("31", extract_answer_segment(resp))
+
+    def test_placeholder_echo_only_returns_empty(self):
+        self.assertEqual("", extract_answer_segment("最终答案：<只写最终表达式>"))
 
 
 if __name__ == "__main__":
