@@ -363,6 +363,83 @@ def reconstruct_final_response(response: str, problem_type: str) -> str:
     return f"最终答案：{answer_seg}\n\n{header}：\n{body}"
 
 
+# ── 13.2 实验 F：行级结构语法收紧（三状态解析 PREAMBLE→ANSWER→BODY）─────────
+# 实验 E 证明 Prompt 压制语已到天花板。F 从解析层收紧：答案标记/正文标题必须
+# 是独立结构行（行首，允许有限 Markdown 包装），嵌在 thinking 句子、约束说明、
+# 引号、列表里的「最终答案」一律不识别；占位符（<…>/[Core Answer]/[Option
+# Letter]/…）一律拒绝。不做全局数值规范化，不按 thinking/analysis 词删正文句。
+_ANSWER_MARKER_LINE_RE = re.compile(
+    r"^(?:\*\*|\*)?\s*(?:最终答案|final\s+answer|答案)\s*[:：]\s*(.*?)\s*(?:\*\*|\*)?$",
+    re.IGNORECASE,
+)
+_BODY_HEADER_LINE_RE = re.compile(
+    r"^(?:\*\*|\*)?\s*(?:推导|证明|解释|Derivation|Proof|Explanation)"
+    r"(?:\s*(?:块|Block))?\s*[:：]\s*(.*?)\s*(?:\*\*|\*)?$",
+    re.IGNORECASE,
+)
+_PLACEHOLDER_RE = re.compile(r"^(?:<[^>]*>|\[[^\]]*\]|\.{3,}|…{1,})$")
+
+
+def _is_placeholder_segment(seg: str) -> bool:
+    """F：占位符答案段（尖括号/方括号占位符、纯省略号、prompt 复述词）。"""
+    s = seg.strip()
+    if not s:
+        return True
+    if _PLACEHOLDER_RE.match(s):
+        return True
+    if _ANSWER_ECHO_RE.search(s):
+        return True
+    return False
+
+
+def parse_structure_f(response: str, problem_type: str) -> dict:
+    """F 三状态行解析，返回 {status, answer, body}。
+
+    status: "structured"（答案+正文齐全）/ "no_answer_block"（无独立答案标记行）
+            / "no_body"（有答案但无独立正文标题行）。
+    仅接受「独立结构行」：答案标记/正文标题必须是行首（允许 **…** 粗体包装）。
+    不识别特定题号、学科或具体答案。
+    """
+    if not isinstance(response, str) or not response.strip():
+        return {"status": "no_answer_block", "answer": "", "body": ""}
+
+    lines = response.splitlines()
+    answer = ""
+    answer_idx = -1
+    for i, line in enumerate(lines):
+        m = _ANSWER_MARKER_LINE_RE.match(line)
+        if m and not _is_placeholder_segment(m.group(1)):
+            answer = m.group(1).strip()
+            answer_idx = i
+            break
+    if answer_idx < 0:
+        return {"status": "no_answer_block", "answer": "", "body": ""}
+
+    for j in range(answer_idx + 1, len(lines)):
+        m = _BODY_HEADER_LINE_RE.match(lines[j])
+        if m:
+            head_rest = m.group(1).strip()
+            tail = lines[j + 1:]
+            body_lines = ([head_rest] if head_rest else []) + tail
+            body = "\n".join(body_lines).strip()
+            if body:
+                return {"status": "structured", "answer": answer, "body": body}
+            return {"status": "no_body", "answer": answer, "body": ""}
+    return {"status": "no_body", "answer": answer, "body": ""}
+
+
+def reconstruct_final_response_f(response: str, problem_type: str) -> str:
+    """F 版 final_response 重建：仅在结构可靠时裁剪 thinking 前缀。
+
+    无独立答案块或正文标题时返回原始响应（不具备重建条件，不激进裁剪）。
+    """
+    parsed = parse_structure_f(response, problem_type)
+    if parsed["status"] != "structured":
+        return response or ""
+    header = _BODY_HEADER_NAME.get(problem_type, "证明")
+    return f"最终答案：{parsed['answer']}\n\n{header}：\n{parsed['body']}"
+
+
 def _is_answer_like(answer: str) -> bool:
     """A marker value must look like a short mathematical result, not trailing prose."""
     s = answer.strip().strip("。；;.,\"'“”’ ")

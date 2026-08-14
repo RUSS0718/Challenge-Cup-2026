@@ -13,6 +13,7 @@ from user_agent import (
     STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
     answer_equivalence, classify_problem_type, extract_final_answer,
     extract_answer_segment, normalize_answer, reconstruct_final_response,
+    parse_structure_f, reconstruct_final_response_f, _is_placeholder_segment,
 )
 
 
@@ -1115,6 +1116,92 @@ class ReconstructFinalResponseTest(unittest.TestCase):
         self.assertIn("最终答案：31", out)
         self.assertIn("证明：", out)
         self.assertIn("Complete proof", out)
+
+
+class ParseStructureFTest(unittest.TestCase):
+    """实验 F：行级结构语法收紧（三状态解析）的通用单测，不绑定冻结集题号。"""
+
+    def test_standalone_answer_line_is_parsed(self):
+        parsed = parse_structure_f("最终答案：3\n\n证明：\n1+1=2", TASK_TYPE_PROOF)
+        self.assertEqual("structured", parsed["status"])
+        self.assertEqual("3", parsed["answer"])
+        self.assertIn("1+1=2", parsed["body"])
+
+    def test_bold_markdown_wrapper_is_accepted(self):
+        parsed = parse_structure_f("**最终答案：3**\n\n**证明：**\n1+1=2", TASK_TYPE_PROOF)
+        self.assertEqual("structured", parsed["status"])
+        self.assertEqual("3", parsed["answer"])
+        self.assertIn("1+1=2", parsed["body"])
+
+    def test_marker_embedded_in_sentence_is_rejected(self):
+        resp = 'The prompt asks for "最终答案：" first, then the proof.\n\n证明：\n...'
+        self.assertEqual("no_answer_block", parse_structure_f(resp, TASK_TYPE_PROOF)["status"])
+
+    def test_marker_in_constraint_explanation_is_rejected(self):
+        resp = 'Constraint 2: The output must start with "最终答案："\n\n证明：\n...'
+        self.assertEqual("no_answer_block", parse_structure_f(resp, TASK_TYPE_PROOF)["status"])
+
+    def test_marker_in_markdown_list_is_rejected(self):
+        resp = '- 最终答案：3\n\n证明：\n...'
+        self.assertEqual("no_answer_block", parse_structure_f(resp, TASK_TYPE_PROOF)["status"])
+
+    def test_placeholder_brackets_are_rejected(self):
+        self.assertEqual("no_answer_block",
+                         parse_structure_f("最终答案：[Core Answer]\n\n证明：\n...", TASK_TYPE_PROOF)["status"])
+        self.assertEqual("no_answer_block",
+                         parse_structure_f("最终答案：[Option Letter]\n\n证明：\n...", TASK_TYPE_PROOF)["status"])
+
+    def test_placeholder_angle_brackets_are_rejected(self):
+        self.assertEqual("no_answer_block",
+                         parse_structure_f("最终答案：<只写最终表达式>\n\n证明：\n...", TASK_TYPE_PROOF)["status"])
+
+    def test_ellipsis_placeholder_is_rejected(self):
+        self.assertEqual("no_answer_block",
+                         parse_structure_f("最终答案：...\n\n证明：\n...", TASK_TYPE_PROOF)["status"])
+
+    def test_english_body_header_is_recognized(self):
+        parsed = parse_structure_f("最终答案：31\n\nProof:\nComplete proof.", TASK_TYPE_PROOF)
+        self.assertEqual("structured", parsed["status"])
+        self.assertIn("Complete proof", parsed["body"])
+
+    def test_block_suffix_header_is_recognized(self):
+        parsed = parse_structure_f("最终答案：31\n\nProof Block:\nComplete proof.", TASK_TYPE_PROOF)
+        self.assertEqual("structured", parsed["status"])
+
+    def test_drafting_proof_phrase_is_not_header(self):
+        # "Drafting Proof" 无冒号，是 thinking 短语，不应识别为正文标题
+        parsed = parse_structure_f("Drafting Proof\n\n最终答案：3\n\n证明：\n...", TASK_TYPE_PROOF)
+        self.assertEqual("structured", parsed["status"])
+        self.assertEqual("3", parsed["answer"])
+
+    def test_body_keeps_thinking_words_not_deleted(self):
+        resp = '最终答案：成立\n\n证明：\nBy analysis of the definition, ...'
+        out = reconstruct_final_response_f(resp, TASK_TYPE_PROOF)
+        self.assertIn("analysis", out)
+        self.assertIn("最终答案：成立", out)
+
+    def test_no_reliable_structure_returns_original(self):
+        resp = 'No answer block, no body header, just thinking.'
+        self.assertEqual(resp, reconstruct_final_response_f(resp, TASK_TYPE_PROOF))
+
+    def test_answer_then_no_body_returns_no_body(self):
+        parsed = parse_structure_f("最终答案：3\n\n没有正文标题", TASK_TYPE_PROOF)
+        self.assertEqual("no_body", parsed["status"])
+
+    def test_reconstruct_f_drops_preamble_thinking(self):
+        resp = 'Thinking Process: analyze...\n\n最终答案：3\n\n证明：\n1+1=2'
+        out = reconstruct_final_response_f(resp, TASK_TYPE_PROOF)
+        self.assertNotIn("Thinking Process", out)
+        self.assertIn("最终答案：3", out)
+        self.assertIn("1+1=2", out)
+
+    def test_is_placeholder_segment(self):
+        self.assertTrue(_is_placeholder_segment("[Core Answer]"))
+        self.assertTrue(_is_placeholder_segment("[Option Letter]"))
+        self.assertTrue(_is_placeholder_segment("<只写>"))
+        self.assertTrue(_is_placeholder_segment("..."))
+        self.assertFalse(_is_placeholder_segment("3"))
+        self.assertFalse(_is_placeholder_segment("命题成立"))
 
 
 if __name__ == "__main__":

@@ -114,6 +114,9 @@ def solve_one(agent: ReasoningAgent, client: InternChatClient, item: dict) -> di
         "marker_segment": next((extract_answer_segment(r) for r in raws if extract_answer_segment(r)), ""),
         # 实验 D 验收：final_response 本身的 thinking 污染（官方主评分字段）。
         "final_response_thinking": _detect_thinking(result.get("final_response", "") or ""),
+        # 实验 F 离线对照：完整响应 + 题型，供解析器离线复现（不进入 report 汇总）。
+        "problem_type": ptype,
+        "raw_responses": raws,
     }
 
 
@@ -231,6 +234,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=0.6,
                         help="policy_temperature for the main/retry calls (single-variable sweep).")
     parser.add_argument("--output-file", help="JSON path for reports (rewritten after each tier).")
+    parser.add_argument("--save-raw-dir", default=None,
+                        help="If set, dump each question's full raw responses to this dir "
+                             "(git-ignored) for offline F0 parser comparison.")
     return parser.parse_args()
 
 
@@ -247,8 +253,30 @@ def main() -> None:
         if args.output_file:
             # ponytail: rewrite the whole file each tier so a crash keeps prior tiers.
             Path(args.output_file).write_text(json.dumps(reports, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if args.save_raw_dir:
+            _dump_raw(args.save_raw_dir, report)
     if args.output_file:
         print(f"[done] reports -> {args.output_file}")
+
+
+def _dump_raw(save_raw_dir: str, report: dict) -> None:
+    """Write per-question full raw responses to a git-ignored dir for offline F0."""
+    out_dir = Path(save_raw_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"raw_token{report['token']}_temp{report.get('temperature', 0.6)}.jsonl"
+    with out_path.open("w", encoding="utf-8") as fh:
+        for r in report["records"]:
+            fh.write(json.dumps({
+                "idx": r["idx"],
+                "problem_type": r.get("problem_type"),
+                "raw_responses": r.get("raw_responses", []),
+                "expected": r.get("expected"),
+                "c2d_extracted": r.get("extracted_answer"),
+                "c2d_marker_segment": r.get("marker_segment"),
+                "final_response_thinking": r.get("final_response_thinking"),
+                "verdict": r.get("verdict"),
+            }, ensure_ascii=False) + "\n")
+    print(f"[raw-dump] {len(report['records'])} questions -> {out_path}")
 
 
 if __name__ == "__main__":

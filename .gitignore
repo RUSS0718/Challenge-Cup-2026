@@ -19,6 +19,8 @@ outputs/
 
 # 13.2 本地评测原始数据（仅保留汇总报告，避免仓库体积膨胀）
 docs/13_2/*.json
+# 实验 F 离线解析对照的完整响应 dump（Git 忽略）
+docs/13_2/raw_dump/
 
 # OS
 .DS_Store
