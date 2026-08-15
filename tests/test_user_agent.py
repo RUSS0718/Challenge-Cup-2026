@@ -93,7 +93,7 @@ class AnswerHandlingTest(unittest.TestCase):
 
 class ReasoningAgentTest(unittest.TestCase):
     def test_default_generation_budget_is_bounded_for_local_api_latency(self):
-        self.assertEqual(3072, AgentConfig(enable_step_verification=False).max_tokens)
+        self.assertEqual(4096, AgentConfig(enable_step_verification=False).max_tokens)
         self.assertTrue(AgentConfig(enable_step_verification=False).enable_l0_extended_tokens)
 
     def test_extracts_answer_and_keeps_trace_compact(self):
@@ -915,7 +915,7 @@ class P0StopBleedingTest(unittest.TestCase):
         self.assertEqual(1, config.policy_sample_times)
         self.assertEqual(0, config.verifier_voting_times)
         self.assertEqual(2, config.max_model_calls)
-        self.assertEqual(3072, config.max_tokens)
+        self.assertEqual(4096, config.max_tokens)
         self.assertFalse(config.enable_heterogeneous_reasoners)
         self.assertFalse(config.enable_step_verification)
         self.assertFalse(config.enable_step_revision)

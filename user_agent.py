@@ -158,17 +158,26 @@ class AgentConfig:
     # Official runs showed 1024-token truncation fanning one question into ~7
     # model calls (~98.7% finish_reason=length) with near-zero accuracy.
     # Single main call + at most one conditional retry; no per-candidate audit
-    # and no verify-only P3.  3072 tokens is the P0.1 ladder result: the lowest
-    # cap that clears Gate 2 (finish_reason=length <= 20%, marker coverage >=
-    # 95%) with reproducible accuracy (81.2% / 80.4% across two runs).
+    # and no verify-only P3.
+    #
+    # Token cap: 4096 (promoted from 3072 on 2026-08-15).  The official hidden
+    # set run of the 3072 config (commit 174bbbb) scored 4.46% with a 91.7%
+    # truncation rate (155/169 requests hit finish_reason=length), proving 3072
+    # is still far too short on the hidden set even though it passed Gate 2 on
+    # the local 112-question set (81.2% / 80.4%, length 10-18%).  Paired
+    # single-variable 3072-vs-4096 A/B on the complex freeze set showed 4096
+    # cuts length (35-42% -> 12-23%) and thinking leakage (33% -> 8-21%) with
+    # no reproducible accuracy regression and at most +20.4% per-question token
+    # cost.  The official 91.7% truncation is stronger evidence than the local
+    # 5% pollution gate, so 4096 is adopted as the default.
     policy_sample_times: int = 1
     verifier_voting_times: int = 0
     max_model_calls: int = 2
     policy_temperature: float = 0.6
     policy_prompt: str = POLICY_PROMPT
     verifier_temperature: float = 0.0
-    max_tokens: int = 3072
-    l0_max_tokens: int = 3072
+    max_tokens: int = 4096
+    l0_max_tokens: int = 4096
     verifier_max_tokens: int = 256
     enable_sympy_evidence: bool = False
     enable_dynamic_budget: bool = False
