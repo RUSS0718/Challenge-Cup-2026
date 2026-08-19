@@ -351,6 +351,11 @@ class TaskAwarePromptTest(unittest.TestCase):
     def test_choice_prompt_asks_for_letter(self):
         self.assertIn("选项字母", CHOICE_PROMPT)
 
+    def test_numeric_prompts_are_single_line_answer_only(self):
+        for prompt in (CALCULATION_PROMPT, CHOICE_PROMPT, FILL_BLANK_PROMPT):
+            self.assertIn("只输出一行", prompt)
+            self.assertIn("最终答案", prompt)
+
     def test_proof_prompt_asks_for_proof(self):
         self.assertIn("证明", PROOF_PROMPT)
 
