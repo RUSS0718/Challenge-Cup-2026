@@ -11,6 +11,7 @@ __pycache__/
 
 # WorkBuddy
 .workbuddy/
+.worktrees/
 
 # Build outputs
 sample_outputs/
