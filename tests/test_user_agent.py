@@ -13,6 +13,7 @@ from user_agent import (
     DIRECT_REASONER_PROMPT, ALTERNATIVE_REASONER_PROMPT,
     STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
     answer_equivalence, classify_problem_type, extract_final_answer,
+    has_conflicting_explicit_answers,
     extract_answer_segment, normalize_answer, reconstruct_final_response,
     parse_structure_f, reconstruct_final_response_f, _is_placeholder_segment,
 )
@@ -910,6 +911,25 @@ class StepVerificationTest(unittest.TestCase):
 # ═══════════════════════════════════════════════════════════════════════════
 
 class P0StopBleedingTest(unittest.TestCase):
+
+    def test_conflict_requires_two_inequivalent_explicit_answers(self):
+        self.assertTrue(has_conflicting_explicit_answers("最终答案：2\n最终答案：3"))
+        self.assertFalse(has_conflicting_explicit_answers("最终答案：1/2\n答案：0.5"))
+        self.assertFalse(has_conflicting_explicit_answers("最终答案：2"))
+
+    def test_conflict_retry_uses_second_call_but_clear_answer_does_not(self):
+        conflict = FakeClient(["最终答案：2\n最终答案：3", "最终答案：3"])
+        result = ReasoningAgent(
+            conflict, AgentConfig(enable_explicit_answer_conflict_retry=True),
+        ).solve("计算 3+4", {})
+        self.assertEqual(2, len(conflict.calls))
+        self.assertEqual("3", result["extracted_answer"])
+
+        clear = FakeClient(["最终答案：3"])
+        ReasoningAgent(
+            clear, AgentConfig(enable_explicit_answer_conflict_retry=True),
+        ).solve("计算 3+4", {})
+        self.assertEqual(1, len(clear.calls))
 
     @patch("user_agent.time.sleep")
     def test_failure_backoff_waits_only_after_model_error(self, sleep):

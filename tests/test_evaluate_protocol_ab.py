@@ -22,7 +22,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry"],
             list(VARIANTS),
         )
 

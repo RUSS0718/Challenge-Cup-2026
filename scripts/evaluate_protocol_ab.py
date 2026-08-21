@@ -47,6 +47,7 @@ class Variant:
     strict_salvage: bool = False
     token_retry: bool = False
     failure_backoff: bool = False
+    answer_conflict_retry: bool = False
 
 
 VARIANTS = {
@@ -56,6 +57,7 @@ VARIANTS = {
     "A+B": Variant("A+B", numeric_prompt=True, strict_salvage=True),
     "A+B+6144": Variant("A+B+6144", numeric_prompt=True, strict_salvage=True, token_retry=True),
     "failure_backoff": Variant("failure_backoff", failure_backoff=True),
+    "answer_conflict_retry": Variant("answer_conflict_retry", answer_conflict_retry=True),
 }
 
 
@@ -72,6 +74,7 @@ def make_config(variant: Variant) -> AgentConfig:
         enable_conditional_token_retry=variant.token_retry,
         conditional_retry_max_tokens=6144,
         enable_failure_retry_backoff=variant.failure_backoff,
+        enable_explicit_answer_conflict_retry=variant.answer_conflict_retry,
     )
 
 
@@ -180,6 +183,7 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
         "strict_salvage": variant.strict_salvage,
         "conditional_token_retry": variant.token_retry,
         "failure_retry_backoff": variant.failure_backoff,
+        "explicit_answer_conflict_retry": variant.answer_conflict_retry,
     }
     return report
 

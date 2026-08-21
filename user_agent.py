@@ -223,6 +223,7 @@ class AgentConfig:
     conditional_retry_max_tokens: int = 6144
     enable_failure_retry_backoff: bool = False
     failure_retry_backoff_seconds: float = 1.0
+    enable_explicit_answer_conflict_retry: bool = False
 
 
 _ANSWER_MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]\s*([^\n\r]+)", re.IGNORECASE)
@@ -715,6 +716,16 @@ def answer_equivalence(left: str, right: str) -> str:
         return "NOT_EQUIVALENT"
     return "UNKNOWN"
 
+
+def has_conflicting_explicit_answers(response: str) -> bool:
+    """True only for two explicit, provably different terminal answers."""
+    answers = [answer.strip() for answer in _ANSWER_MARKER_RE.findall(response) if answer.strip()]
+    return any(
+        answer_equivalence(left, right) == "NOT_EQUIVALENT"
+        for index, left in enumerate(answers)
+        for right in answers[index + 1:]
+    )
+
 class ReasoningAgent:
     def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, **_: Any) -> None:
         self.client, self.config = client, config or AgentConfig()
@@ -761,8 +772,11 @@ class ReasoningAgent:
         # A truncated / malformed main call yields no clear answer; allow exactly
         # one recovery generation.  Audit and P3 are off by default, so a bad
         # response can no longer fan out into many extra model calls.
-        if not self._has_clear_answer(candidates):
-            trace.append({"step": "conditional_retry", "reason": "no_clear_answer",
+        explicit_answer_conflict = any(candidate.get("explicit_answer_conflict") for candidate in candidates)
+        if (not self._has_clear_answer(candidates)
+                or (self.config.enable_explicit_answer_conflict_retry and explicit_answer_conflict)):
+            retry_reason = "explicit_answer_conflict" if explicit_answer_conflict else "no_clear_answer"
+            trace.append({"step": "conditional_retry", "reason": retry_reason,
                           "model_calls": budget["used"]})
             if (self.config.enable_failure_retry_backoff
                     and "model_error" in budget["diagnostic_reasons"]):
@@ -877,7 +891,7 @@ class ReasoningAgent:
                                  truncation_signals=_truncation_signals(response, answer),
                                  diagnostic_reason=diagnostic_reason))
                 continue
-            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"structured":structured,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
+            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"structured":structured,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type,"explicit_answer_conflict":has_conflicting_explicit_answers(response)})
             if parse_status is not None:
                 trace.append(_tr("ok", candidate_id, parse_status=parse_status))
             else:
@@ -1288,4 +1302,3 @@ class ReasoningAgent:
             trace.append({"step":"revise","status":"skipped","reason":error})
             return None
         return response.strip() or None
-
