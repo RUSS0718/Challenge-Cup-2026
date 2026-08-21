@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.evaluate_protocol_ab_gate import check_gate
+from scripts.evaluate_protocol_ab_gate import _parse_baseline_rounds, check_gate
 
 
 def _report(variant, round_no, accuracy, invalid, incorrect=20, length=0.1, calls=1.0, max_calls=1, nonempty=1.0, correct=None):
@@ -55,6 +55,37 @@ class ProtocolAbGateTest(unittest.TestCase):
         self.assertIn("freeze.jsonl:A:round1:average_calls_le_1.5", result["failures"])
         self.assertIn("freeze.jsonl:A:round1:max_calls_le_2", result["failures"])
         self.assertIn("freeze.jsonl:A:round1:nonempty_100pct", result["failures"])
+
+    def test_custom_baseline_round_pairing_compares_against_given_rounds(self):
+        reports = [
+            _report("baseline86", 3, 0.70, 10, incorrect=0, correct=70),
+            _report("baseline86", 4, 0.72, 10, incorrect=0, correct=72),
+            _report("temperature04", 1, 0.69, 10, incorrect=0, correct=69),
+            _report("temperature04", 2, 0.71, 11, incorrect=0, correct=71),
+        ]
+        result = check_gate(reports, baseline_pairing={1: 3, 2: 4})
+        self.assertFalse(result["passed"])
+        self.assertIn("freeze.jsonl:temperature04:round1:accuracy_not_below_baseline", result["failures"])
+        self.assertIn("freeze.jsonl:temperature04:mean_correct_gain_lt_2", result["failures"])
+        self.assertFalse(any("missing_pair" in failure for failure in result["failures"]))
+
+    def test_custom_pairing_passes_when_candidate_beats_paired_baseline(self):
+        reports = [
+            _report("baseline86", 5, 0.70, 10, incorrect=20, length=0.2),
+            _report("baseline86", 6, 0.72, 10, incorrect=20, length=0.2),
+            _report("A+B+6144", 1, 0.71, 9, incorrect=20, length=0.1),
+            _report("A+B+6144", 2, 0.73, 10, incorrect=20, length=0.2),
+        ]
+        result = check_gate(reports, baseline_pairing={1: 5, 2: 6})
+        self.assertTrue(result["passed"])
+
+    def test_parse_baseline_rounds_maps_variant_rounds_in_order(self):
+        self.assertEqual({1: 3, 2: 4}, _parse_baseline_rounds("3,4"))
+        self.assertIsNone(_parse_baseline_rounds(None))
+        with self.assertRaises(SystemExit):
+            _parse_baseline_rounds("3")
+        with self.assertRaises(SystemExit):
+            _parse_baseline_rounds("x,y")
 
 
 if __name__ == "__main__":

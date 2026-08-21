@@ -8,7 +8,22 @@ from pathlib import Path
 from typing import Any
 
 
-def check_gate(reports: list[dict[str, Any]]) -> dict[str, Any]:
+def _parse_baseline_rounds(spec: str | None) -> dict[int, int] | None:
+    """Map protocol variant rounds (1, 2) to explicitly chosen baseline rounds."""
+    if spec is None:
+        return None
+    parts = [part.strip() for part in spec.split(",") if part.strip()]
+    try:
+        values = [int(part) for part in parts]
+    except ValueError:
+        raise SystemExit("--baseline-rounds expects comma-separated integers, e.g. 3,4")
+    if len(values) != 2:
+        raise SystemExit("--baseline-rounds needs exactly two rounds, e.g. 3,4")
+    return {variant_round: baseline_round for variant_round, baseline_round in zip((1, 2), values)}
+
+
+def check_gate(reports: list[dict[str, Any]], baseline_pairing: dict[int, int] | None = None) -> dict[str, Any]:
+    pairing = baseline_pairing or {1: 1, 2: 2}
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for report in reports:
         grouped[(str(report.get("input_file", "")), str(report.get("variant", "")))].append(report)
@@ -27,8 +42,8 @@ def check_gate(reports: list[dict[str, Any]]) -> dict[str, Any]:
             if len(rounds) < 2:
                 failures.append(f"{dataset}:{variant}:missing_two_rounds")
                 continue
-            for round_no in (1, 2):
-                baseline = baseline_rounds.get(round_no)
+            for round_no in sorted(pairing):
+                baseline = baseline_rounds.get(pairing[round_no])
                 candidate = rounds.get(round_no)
                 if baseline is None or candidate is None:
                     failures.append(f"{dataset}:{variant}:round{round_no}:missing_pair")
@@ -60,9 +75,9 @@ def check_gate(reports: list[dict[str, Any]]) -> dict[str, Any]:
                     "checks": checks,
                 })
             paired = [
-                (baseline_rounds[round_no], rounds[round_no])
-                for round_no in (1, 2)
-                if round_no in baseline_rounds and round_no in rounds
+                (baseline_rounds[pairing[round_no]], rounds[round_no])
+                for round_no in sorted(pairing)
+                if pairing[round_no] in baseline_rounds and round_no in rounds
             ]
             if variant in {"answer_conflict_retry", "temperature04", "temperature08"} and len(paired) == 2:
                 mean_correct_gain = sum(
@@ -84,9 +99,14 @@ def check_gate(reports: list[dict[str, Any]]) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check two-round protocol A/B promotion gates.")
     parser.add_argument("report", type=Path)
+    parser.add_argument("--baseline-rounds",
+                        help="Comma-separated baseline rounds paired with variant rounds 1,2, e.g. 3,4.")
     args = parser.parse_args()
     payload = json.loads(args.report.read_text(encoding="utf-8"))
-    result = check_gate(payload if isinstance(payload, list) else payload.get("reports", []))
+    result = check_gate(
+        payload if isinstance(payload, list) else payload.get("reports", []),
+        baseline_pairing=_parse_baseline_rounds(args.baseline_rounds),
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     raise SystemExit(0 if result["passed"] else 1)
 
