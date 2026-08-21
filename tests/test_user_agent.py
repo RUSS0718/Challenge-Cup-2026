@@ -1,6 +1,7 @@
 import json
 import time as _time_mod
 import unittest
+from unittest.mock import patch
 
 from user_agent import (
     ANSWER_FIRST_POLICY_PROMPT, ANSWER_ONLY_POLICY_PROMPT, POLICY_PROMPT,
@@ -909,6 +910,23 @@ class StepVerificationTest(unittest.TestCase):
 # ═══════════════════════════════════════════════════════════════════════════
 
 class P0StopBleedingTest(unittest.TestCase):
+
+    @patch("user_agent.time.sleep")
+    def test_failure_backoff_waits_only_after_model_error(self, sleep):
+        client = FakeClient([RuntimeError("transient"), "最终答案：7"])
+        result = ReasoningAgent(
+            client, AgentConfig(enable_failure_retry_backoff=True),
+        ).solve("计算 3+4", {})
+        sleep.assert_called_once_with(1.0)
+        self.assertEqual("7", result["extracted_answer"])
+
+    @patch("user_agent.time.sleep")
+    def test_failure_backoff_does_not_wait_for_marker_only_recovery(self, sleep):
+        client = FakeClient(["没有答案标记", "最终答案：7"])
+        ReasoningAgent(
+            client, AgentConfig(enable_failure_retry_backoff=True),
+        ).solve("计算 3+4", {})
+        sleep.assert_not_called()
 
     def test_default_config_is_stop_bleeding(self):
         config = AgentConfig()

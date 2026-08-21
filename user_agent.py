@@ -221,6 +221,8 @@ class AgentConfig:
     enable_strict_numeric_salvage: bool = False
     enable_conditional_token_retry: bool = False
     conditional_retry_max_tokens: int = 6144
+    enable_failure_retry_backoff: bool = False
+    failure_retry_backoff_seconds: float = 1.0
 
 
 _ANSWER_MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]\s*([^\n\r]+)", re.IGNORECASE)
@@ -762,6 +764,11 @@ class ReasoningAgent:
         if not self._has_clear_answer(candidates):
             trace.append({"step": "conditional_retry", "reason": "no_clear_answer",
                           "model_calls": budget["used"]})
+            if (self.config.enable_failure_retry_backoff
+                    and "model_error" in budget["diagnostic_reasons"]):
+                time.sleep(self.config.failure_retry_backoff_seconds)
+                trace.append({"step": "conditional_retry_backoff",
+                              "seconds": self.config.failure_retry_backoff_seconds})
             task_prompt = self._task_policy_prompt(problem_type)
             self._generate_candidates(problem, 1, candidates, trace, budget,
                                       self._retry_max_tokens(level),
@@ -1281,5 +1288,4 @@ class ReasoningAgent:
             trace.append({"step":"revise","status":"skipped","reason":error})
             return None
         return response.strip() or None
-
 

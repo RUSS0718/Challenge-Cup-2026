@@ -20,8 +20,11 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(1, args.rounds)
         self.assertEqual(2, args.round_start)
         self.assertTrue(args.append_output)
-    def test_declares_exact_five_isolated_variants(self):
-        self.assertEqual(["baseline86", "A", "B", "A+B", "A+B+6144"], list(VARIANTS))
+    def test_declares_isolated_variants(self):
+        self.assertEqual(
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff"],
+            list(VARIANTS),
+        )
 
     def test_variant_flags_are_single_variable(self):
         baseline = make_config(VARIANTS["baseline86"])
@@ -73,4 +76,3 @@ class ProtocolAbTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

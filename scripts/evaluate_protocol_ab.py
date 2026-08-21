@@ -46,6 +46,7 @@ class Variant:
     numeric_prompt: bool = False
     strict_salvage: bool = False
     token_retry: bool = False
+    failure_backoff: bool = False
 
 
 VARIANTS = {
@@ -54,6 +55,7 @@ VARIANTS = {
     "B": Variant("B", strict_salvage=True),
     "A+B": Variant("A+B", numeric_prompt=True, strict_salvage=True),
     "A+B+6144": Variant("A+B+6144", numeric_prompt=True, strict_salvage=True, token_retry=True),
+    "failure_backoff": Variant("failure_backoff", failure_backoff=True),
 }
 
 
@@ -69,6 +71,7 @@ def make_config(variant: Variant) -> AgentConfig:
         enable_strict_numeric_salvage=variant.strict_salvage,
         enable_conditional_token_retry=variant.token_retry,
         conditional_retry_max_tokens=6144,
+        enable_failure_retry_backoff=variant.failure_backoff,
     )
 
 
@@ -176,6 +179,7 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
         "numeric_prompt": variant.numeric_prompt,
         "strict_salvage": variant.strict_salvage,
         "conditional_token_retry": variant.token_retry,
+        "failure_retry_backoff": variant.failure_backoff,
     }
     return report
 
@@ -246,4 +250,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
