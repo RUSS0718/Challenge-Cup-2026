@@ -1003,6 +1003,73 @@ class P0StopBleedingTest(unittest.TestCase):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Adaptive consistency voting: independent resampling + equivalence-group
+# consensus, early exit on agreement. Default off; L0 stays single-call.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AdaptiveConsistencyVotingTest(unittest.TestCase):
+    PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
+
+    def _config(self, **overrides):
+        fields = dict(
+            enable_adaptive_voting=True,
+            vote_k_max=3,
+            vote_agree_threshold=2,
+            max_model_calls=3,
+        )
+        fields.update(overrides)
+        return AgentConfig(**fields)
+
+    def test_default_config_keeps_voting_off(self):
+        config = AgentConfig()
+        self.assertFalse(config.enable_adaptive_voting)
+        client = FakeClient(["最终答案：7"])
+        agent = ReasoningAgent(client, AgentConfig(max_model_calls=3))
+        result = agent.solve(self.PROBLEM, {})
+        self.assertEqual(1, len(client.calls))
+        self.assertFalse(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
+
+    def test_consensus_stops_before_k_max(self):
+        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：9"])
+        result = ReasoningAgent(client, self._config()).solve(self.PROBLEM, {})
+        self.assertEqual(2, len(client.calls))
+        self.assertEqual("7", result["extracted_answer"])
+        votes = [e for e in result["trace"] if e.get("step") == "adaptive_vote"]
+        self.assertEqual(1, len(votes))
+        self.assertEqual("consensus_reached", votes[0]["status"])
+
+    def test_disagreement_uses_third_sample_and_majority_wins(self):
+        client = FakeClient(["最终答案：7", "最终答案：9", "最终答案：7"])
+        result = ReasoningAgent(client, self._config()).solve(self.PROBLEM, {})
+        self.assertEqual(3, len(client.calls))
+        self.assertEqual("7", result["extracted_answer"])
+        votes = [e for e in result["trace"] if e.get("step") == "adaptive_vote"]
+        self.assertEqual("consensus_reached", votes[0]["status"])
+        self.assertEqual(3, votes[0]["samples"])
+        self.assertEqual(2, votes[0]["top_group_size"])
+
+    def test_unparseable_samples_do_not_count_as_consensus(self):
+        client = FakeClient(["没有答案标记", "最终答案：7", "最终答案：7"])
+        result = ReasoningAgent(client, self._config()).solve(self.PROBLEM, {})
+        self.assertEqual(3, len(client.calls))
+        self.assertEqual("7", result["extracted_answer"])
+
+    def test_call_budget_caps_voting(self):
+        client = FakeClient(["最终答案：7", "最终答案：9"])
+        result = ReasoningAgent(
+            client, self._config(vote_k_max=3, max_model_calls=2),
+        ).solve(self.PROBLEM, {})
+        self.assertEqual(2, len(client.calls))
+        votes = [e for e in result["trace"] if e.get("step") == "adaptive_vote"]
+        self.assertEqual("budget_exhausted", votes[0]["status"])
+
+    def test_l0_arithmetic_skips_voting(self):
+        client = FakeClient(["最终答案：7", "最终答案：7"])
+        ReasoningAgent(client, self._config()).solve("计算 3+4", {})
+        self.assertEqual(1, len(client.calls))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # 13.2 实验 C：非数值题型答案段抽取（answer-first 协议）边界单测
 # ═══════════════════════════════════════════════════════════════════════════
 
