@@ -180,7 +180,7 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
     return report
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run isolated output-protocol A/B experiments.")
     parser.add_argument("--input-files", nargs="+", default=[
         "sample_data/public_regression_112.jsonl",
@@ -188,9 +188,13 @@ def parse_args() -> argparse.Namespace:
         "sample_data/complex_capability_freeze_48.jsonl",
     ])
     parser.add_argument("--variants", default=",".join(VARIANTS), help="Comma-separated variant names.")
+    parser.add_argument("--variant", action="append", choices=sorted(VARIANTS),
+                        help="Run one named variant; may be repeated.")
     parser.add_argument("--rounds", type=int, default=2)
     parser.add_argument("--round-start", type=int, default=1,
                         help="First round number to record; supports resumable single-round runs.")
+    parser.add_argument("--round", action="append", type=int,
+                        help="Run one numbered round; may be repeated.")
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--timeout-seconds", type=int, default=60)
     parser.add_argument("--retry-count", type=int, default=1)
@@ -198,12 +202,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-file")
     parser.add_argument("--append-output", action="store_true",
                         help="Append to an existing JSON report instead of replacing it.")
-    return parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.variant:
+        args.variants = args.variant
+    if args.round:
+        args.rounds = args.round
+    if not 1 <= args.workers <= 3:
+        parser.error("--workers must be between 1 and 3")
+    return args
+
+
+def write_reports(path: Path, reports: list[dict]) -> None:
+    """Atomically persist completed aggregate rounds without raw model content."""
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(reports, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def main() -> None:
     args = parse_args()
-    names = [name.strip() for name in args.variants.split(",") if name.strip()]
+    names = args.variants if isinstance(args.variants, list) else [name.strip() for name in args.variants.split(",") if name.strip()]
     unknown = [name for name in names if name not in VARIANTS]
     if unknown:
         raise SystemExit(f"unknown variants: {', '.join(unknown)}")
@@ -215,17 +233,17 @@ def main() -> None:
         reports = loaded
     for input_file in args.input_files:
         items = load_items(Path(input_file))
-        for round_no in range(args.round_start, args.round_start + args.rounds):
+        round_numbers = args.rounds if isinstance(args.rounds, list) else range(args.round_start, args.round_start + args.rounds)
+        for round_no in round_numbers:
             for name in names:
                 report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature)
                 report.update({"round": round_no, "input_file": input_file, "temperature": args.temperature})
                 reports.append(report)
                 print(json.dumps({k: report[k] for k in ("input_file", "round", "variant", "correct", "incorrect", "invalid", "accuracy", "main_length_rate", "retry_count", "average_model_calls")}, ensure_ascii=False))
                 if args.output_file:
-                    Path(args.output_file).write_text(json.dumps(reports, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                    write_reports(Path(args.output_file), reports)
 
 
 if __name__ == "__main__":
     main()
-
 

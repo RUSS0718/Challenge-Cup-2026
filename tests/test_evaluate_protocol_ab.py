@@ -6,6 +6,14 @@ from scripts.evaluate_protocol_ab import VARIANTS, make_config, parse_args, summ
 
 
 class ProtocolAbTest(unittest.TestCase):
+    def test_parser_accepts_single_variant_round_and_append(self):
+        args = parse_args([
+            "--variant", "baseline86", "--round", "3", "--append-output",
+        ])
+        self.assertEqual(["baseline86"], args.variants)
+        self.assertEqual([3], args.rounds)
+        self.assertTrue(args.append_output)
+
     def test_resume_arguments_support_one_new_round(self):
         with patch.object(sys, "argv", ["evaluate_protocol_ab.py", "--rounds", "1", "--round-start", "2", "--append-output", "--output-file", "report.json"]):
             args = parse_args()
@@ -65,5 +73,4 @@ class ProtocolAbTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
 
