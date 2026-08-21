@@ -59,6 +59,25 @@ def check_gate(reports: list[dict[str, Any]]) -> dict[str, Any]:
                     "candidate_main_length_rate": candidate.get("main_length_rate"),
                     "checks": checks,
                 })
+            paired = [
+                (baseline_rounds[round_no], rounds[round_no])
+                for round_no in (1, 2)
+                if round_no in baseline_rounds and round_no in rounds
+            ]
+            if variant in {"answer_conflict_retry", "temperature04", "temperature08"} and len(paired) == 2:
+                mean_correct_gain = sum(
+                    candidate.get("correct", 0) - baseline.get("correct", 0)
+                    for baseline, candidate in paired
+                ) / len(paired)
+                if mean_correct_gain < 2:
+                    failures.append(f"{dataset}:{variant}:mean_correct_gain_lt_2")
+            if variant == "failure_backoff" and len(paired) == 2:
+                mean_invalid_reduction = sum(
+                    baseline.get("invalid", 0) - candidate.get("invalid", 0)
+                    for baseline, candidate in paired
+                ) / len(paired)
+                if mean_invalid_reduction < 2:
+                    failures.append(f"{dataset}:{variant}:mean_invalid_reduction_lt_2")
     return {"passed": not failures, "failures": failures, "comparisons": comparisons}
 
 
@@ -74,5 +93,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 

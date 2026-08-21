@@ -22,7 +22,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08"],
             list(VARIANTS),
         )
 
@@ -46,6 +46,16 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(ab_retry.enable_strict_numeric_salvage)
         self.assertTrue(ab_retry.enable_conditional_token_retry)
         self.assertEqual(6144, ab_retry.conditional_retry_max_tokens)
+
+    def test_temperature_variants_change_only_policy_temperature(self):
+        baseline = make_config(VARIANTS["baseline86"])
+        cool = make_config(VARIANTS["temperature04"])
+        warm = make_config(VARIANTS["temperature08"])
+        self.assertEqual(0.6, baseline.policy_temperature)
+        self.assertEqual(0.4, cool.policy_temperature)
+        self.assertEqual(0.8, warm.policy_temperature)
+        self.assertEqual(baseline.max_tokens, cool.max_tokens)
+        self.assertEqual(baseline.max_model_calls, warm.max_model_calls)
 
     def test_summary_reports_invalid_calls_and_safe_diagnostics(self):
         report = summarize_records([

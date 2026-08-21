@@ -48,6 +48,7 @@ class Variant:
     token_retry: bool = False
     failure_backoff: bool = False
     answer_conflict_retry: bool = False
+    temperature: float | None = None
 
 
 VARIANTS = {
@@ -58,10 +59,12 @@ VARIANTS = {
     "A+B+6144": Variant("A+B+6144", numeric_prompt=True, strict_salvage=True, token_retry=True),
     "failure_backoff": Variant("failure_backoff", failure_backoff=True),
     "answer_conflict_retry": Variant("answer_conflict_retry", answer_conflict_retry=True),
+    "temperature04": Variant("temperature04", temperature=0.4),
+    "temperature08": Variant("temperature08", temperature=0.8),
 }
 
 
-def make_config(variant: Variant) -> AgentConfig:
+def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
     """Build an isolated config; the promoted default is not mutated."""
     return AgentConfig(
         max_tokens=4096,
@@ -75,6 +78,7 @@ def make_config(variant: Variant) -> AgentConfig:
         conditional_retry_max_tokens=6144,
         enable_failure_retry_backoff=variant.failure_backoff,
         enable_explicit_answer_conflict_retry=variant.answer_conflict_retry,
+        policy_temperature=variant.temperature if variant.temperature is not None else temperature,
     )
 
 
@@ -84,7 +88,7 @@ def _get_agent(variant: Variant, timeout: int, retry: int, temperature: float):
         client = InternChatClient(timeout=timeout, retry=retry)
         _local.key = key
         _local.client = client
-        _local.agent = ReasoningAgent(client=client, config=make_config(variant))
+        _local.agent = ReasoningAgent(client=client, config=make_config(variant, temperature))
     return _local.client, _local.agent
 
 
@@ -184,6 +188,7 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
         "conditional_token_retry": variant.token_retry,
         "failure_retry_backoff": variant.failure_backoff,
         "explicit_answer_conflict_retry": variant.answer_conflict_retry,
+        "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
     }
     return report
 
