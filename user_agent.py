@@ -1,4 +1,4 @@
-﻿"""Budgeted mathematical reasoning agent with deterministic answer handling."""
+"""Budgeted mathematical reasoning agent with deterministic answer handling."""
 from __future__ import annotations
 import re
 import time
@@ -33,6 +33,13 @@ CHOICE_PROMPT = """你是数学求解器。这是一道选择题。分析每个�
 FILL_BLANK_PROMPT = """你是数学求解器。这是一道填空题。直接计算并填入结果。最后一行必须使用"最终答案："写出填入值。"""
 
 CALCULATION_PROMPT = POLICY_PROMPT  # 复用已验证的 answer-first 提示词
+
+# Experimental prompt for the numerical A/B arm.  It is opt-in so the
+# promoted F+4096 default remains unchanged while the prompt effect is measured
+# independently from parsing and token-budget changes.
+NUMERIC_ANSWER_FIRST_PROMPT = """你是数学求解器。只解决题目本身，不输出 Thinking Process、计划、标题、格式说明或长篇推导。
+第一行必须且只能写：最终答案：<答案>
+第二行最多写一行极短校验；没有必要时不要写第二行。不要在答案之后继续推导。"""
 
 DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
 
@@ -201,14 +208,35 @@ class AgentConfig:
     # P3 needs extra call budget beyond generation + audit.  When P3 is
     # re-enabled later, this boost reserves room for verify + revise + re-verify.
     p3_call_boost: int = 3
+    # Offline method-card RAG experiment. Disabled by default; the official
+    # path must remain independent of local assets until an A/B gate passes.
+    enable_method_rag: bool = False
+    method_rag_top_k: int = 2
+    method_rag_max_context_chars: int = 4000
+    enable_deterministic_solver: bool = False
+    # Experimental A/B switches.  All remain opt-in; the current F+4096 path
+    # is the default baseline until a freeze-set gate promotes a candidate.
+    enable_numeric_answer_first_prompt: bool = False
+    enable_numeric_answer_only_prompt: bool = False
+    enable_strict_numeric_salvage: bool = False
+    enable_conditional_token_retry: bool = False
+    conditional_retry_max_tokens: int = 6144
 
 
 _ANSWER_MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]\s*([^\n\r]+)", re.IGNORECASE)
+_ANSWER_MARKER_LINE_STRICT_RE = re.compile(
+    r"^\s*(?:最终答案|final\s+answer|答案)\s*[:：]\s*(.*?)\s*$",
+    re.IGNORECASE,
+)
 _CHOICE_LINE_RE = re.compile(r"^(?:选项\s*)?([A-Da-d])(?:[.。)）]?)\s*$")
 # A standalone answer line must be pure math (no CJK prose / sentence punctuation).
 _MATH_ONLY_LINE_RE = re.compile(r"^[\sA-Za-z0-9+\-*/=<>≤≥.,(){}[\]^_'\\|±×÷]+$")
 # Natural-language connectives that mark a truncated / prose fragment.
 _CONNECTIVE_RE = re.compile(r"(因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导)")
+_STRICT_THINKING_RE = re.compile(
+    r"\b(?:thinking(?:\s+process)?|analysis|reasoning|draft)\b|思考过程|思维链|内部推理",
+    re.IGNORECASE,
+)
 
 
 def extract_final_answer(response: str) -> str:
@@ -238,6 +266,71 @@ def extract_final_answer(response: str) -> str:
         if standalone is not None:
             return standalone
     return ""
+
+
+def extract_numeric_answer(response: str) -> str:
+    """Extract a conservative answer for numeric/choice/fill-blank tasks.
+
+    This salvage arm only accepts an independent answer-marker line, a closed
+    ``\\boxed{...}``, a standalone option letter, or a short pure-math line.
+    It deliberately does not accept an arbitrary last line or prose sentence.
+    """
+    if not isinstance(response, str) or not response.strip():
+        return ""
+    lines = [line.strip() for line in response.splitlines() if line.strip()]
+    for line in reversed(lines):
+        marker = _ANSWER_MARKER_LINE_STRICT_RE.match(line)
+        if not marker:
+            continue
+        answer = marker.group(1).strip()
+        if r"\boxed{" in answer:
+            boxed_answer = _extract_standalone_boxed_answer(answer)
+            if boxed_answer and _is_strict_numeric_value(boxed_answer):
+                return boxed_answer
+            continue
+        if answer and _is_strict_numeric_value(answer):
+            return answer
+    for line_index in range(len(lines) - 1, -1, -1):
+        line = lines[line_index]
+        answer = _extract_standalone_boxed_answer(line)
+        if answer and _STRICT_THINKING_RE.search("\n".join(lines[:line_index])):
+            continue
+        if answer and _is_strict_numeric_value(answer):
+            return answer
+    last_line = lines[-1] if lines else ""
+    choice = _CHOICE_LINE_RE.match(last_line)
+    if choice:
+        return choice.group(1).upper()
+    if r"\boxed{" in last_line:
+        return ""
+    standalone = _is_standalone_answer_line(last_line)
+    if standalone is not None:
+        return standalone
+    return ""
+
+
+def _extract_standalone_boxed_answer(line: str) -> str:
+    """Extract one boxed value only when the whole line is a boxed answer."""
+    text = line.strip()
+    answers = _extract_boxed_answers(text)
+    if len(answers) != 1 or text.count(r"\boxed{") != 1:
+        return ""
+    start = text.find(r"\boxed{")
+    end = text.rfind("}")
+    prefix = text[:start].strip().strip("$*")
+    suffix = text[end + 1:].strip().strip("$*")
+    if prefix or suffix:
+        return ""
+    return answers[0].strip()
+
+
+def _is_strict_numeric_value(answer: str) -> bool:
+    """Accept only a choice token or an independent pure-math answer."""
+    if not answer or is_placeholder_answer(answer):
+        return False
+    if _CHOICE_LINE_RE.fullmatch(answer.strip()):
+        return True
+    return _is_standalone_answer_line(answer) is not None
 
 
 # ── 13.2 实验 C/D：非数值题型答案段抽取（answer-first 协议）──────────────────
@@ -482,6 +575,9 @@ def _has_placeholder_answer(response: str) -> bool:
     for marker in _ANSWER_MARKER_RE.findall(response or ""):
         if is_placeholder_answer(marker):
             return True
+    for boxed in _extract_boxed_answers(response or ""):
+        if is_placeholder_answer(boxed):
+            return True
     return False
 
 
@@ -618,9 +714,10 @@ def answer_equivalence(left: str, right: str) -> str:
     return "UNKNOWN"
 
 class ReasoningAgent:
-    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, **_: Any) -> None:
+    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, **_: Any) -> None:
         self.client, self.config = client, config or AgentConfig()
         self.sympy_adapter = sympy_adapter
+        self.method_rag_retriever = method_rag_retriever
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -633,11 +730,22 @@ class ReasoningAgent:
         generation_calls, level = self._generation_plan(problem)
         # P0: per-solve budget dict carries time for call isolation (no shared instance field).
         budget: dict[str, Any] = {"used": 0, "limit": self._model_call_limit(level),
+                                   "diagnostic_reasons": [],
                                    "solve_start": time.monotonic() if self.config.enable_time_convergence else None}
         # P3: boost call budget so verification + revision have room beyond gen+audit.
         if self.config.enable_step_verification:
             budget["limit"] += self.config.p3_call_boost
         trace.append({"step":"route_budget","level":level,"generation_calls":generation_calls,"max_model_calls":budget["limit"],"problem_type":problem_type})
+        if self.config.enable_method_rag:
+            cards = self._retrieve_method_cards(problem)
+            trace.append({"step":"method_rag","status":"used" if cards else "empty","top_k":self.config.method_rag_top_k,"card_ids":[str(card.get("id", "")) for card in cards]})
+        if self.config.enable_deterministic_solver:
+            deterministic_result = self._try_deterministic_solver(problem)
+            trace.append({"step": "deterministic_solver", "status": deterministic_result.get("status", "unsupported"), "reason": deterministic_result.get("reason")})
+            if deterministic_result.get("status") == "supported":
+                answer = str(deterministic_result.get("answer", ""))
+                trace.append({"step": "finalize", "status": "deterministic_selected", "model_calls": 0, "problem_type": problem_type})
+                return {"final_response": answer, "extracted_answer": answer, "trace": trace}
 
         # ── Candidate generation ──
         # P2: heterogeneous reasoners — replace same-prompt sampling with complementary strategies.
@@ -656,7 +764,7 @@ class ReasoningAgent:
                           "model_calls": budget["used"]})
             task_prompt = self._task_policy_prompt(problem_type)
             self._generate_candidates(problem, 1, candidates, trace, budget,
-                                      self._policy_max_tokens(level),
+                                      self._retry_max_tokens(level),
                                       task_prompt=task_prompt, problem_type=problem_type)
 
         if self._should_escalate_l2(level, candidates):
@@ -680,7 +788,11 @@ class ReasoningAgent:
 
         # ── Finalize ──
         if not candidates:
+            if any(entry.get("status") == "rejected" for entry in trace if entry.get("step") == "generate_candidate"):
+                self._record_diagnostic(budget, "all_candidates_rejected")
+            self._record_diagnostic(budget, "fallback")
             trace.append({"step":"finalize","status":"fallback","reason":"no_valid_candidate","model_calls":budget["used"],"problem_type":problem_type})
+            trace[-1]["diagnostic_reasons"] = list(budget["diagnostic_reasons"])
             return {"final_response":"未能生成有效数学答案。","trace":trace, "extracted_answer": ""}
         best = self._select_candidate(candidates)
 
@@ -692,7 +804,7 @@ class ReasoningAgent:
         final_answer = self._format_task_final_response(best, problem_type)
         # Evaluator-facing compact answer (independent of final_response formatting)
         extracted_answer = best.get("normalized_answer") or best.get("answer", "")
-        trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"],"problem_type":problem_type})
+        trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"],"problem_type":problem_type,"diagnostic_reasons":list(budget["diagnostic_reasons"])})
         return {"final_response":final_answer,"trace":trace, "extracted_answer": extracted_answer}
 
     # ── Candidate generation ─────────────────────────────────────────────
@@ -706,6 +818,8 @@ class ReasoningAgent:
         reasoner: str | None = None,  # P2: "direct" | "alternative" | None
     ) -> None:
         prompt = task_prompt or self.config.policy_prompt
+        if self.config.enable_method_rag:
+            prompt = prompt + self._method_context(problem)
         candidate_start = max((item["candidate_id"] for item in candidates), default=-1) + 1
 
         def _tr(status: str, cid: int, **extras: Any) -> dict[str, Any]:
@@ -724,8 +838,12 @@ class ReasoningAgent:
             candidate_id += candidate_start
             response, error = self._request(prompt, f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}", self.config.policy_temperature, max_tokens, budget)
             if response is None:
-                trace.append(_tr("skipped", candidate_id, reason=error)); continue
-            answer = extract_final_answer(response)
+                self._record_diagnostic(budget, "model_error")
+                trace.append(_tr("skipped", candidate_id, reason=error, diagnostic_reason="model_error")); continue
+            if self.config.enable_strict_numeric_salvage and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
+                answer = extract_numeric_answer(response)
+            else:
+                answer = extract_final_answer(response)
             structured = True  # 数值题型：answer 非空即清晰答案
             parse_status: str | None = None  # 仅非数值题型记录（实验 F trace 契约）
             if problem_type in _NON_NUMERIC_TASK_TYPES:
@@ -746,8 +864,11 @@ class ReasoningAgent:
                     answer = response.strip()
                     structured = False
             elif not answer:
+                diagnostic_reason = "placeholder" if _has_placeholder_answer(response) else "no_marker"
+                self._record_diagnostic(budget, diagnostic_reason)
                 trace.append(_tr("rejected", candidate_id, reason="answer_not_extractable",
-                                 truncation_signals=_truncation_signals(response, answer)))
+                                 truncation_signals=_truncation_signals(response, answer),
+                                 diagnostic_reason=diagnostic_reason))
                 continue
             candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"structured":structured,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
             if parse_status is not None:
@@ -840,7 +961,46 @@ class ReasoningAgent:
         """Return the generation prompt for a given problem type."""
         if not self.config.enable_task_aware_prompt:
             return self.config.policy_prompt
+        if self.config.enable_numeric_answer_only_prompt and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
+            return ANSWER_ONLY_POLICY_PROMPT
+        if self.config.enable_numeric_answer_first_prompt and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
+            return NUMERIC_ANSWER_FIRST_PROMPT
         return TASK_PROMPTS.get(problem_type, self.config.policy_prompt)
+
+    def _retrieve_method_cards(self, problem: str) -> list[dict[str, Any]]:
+        if not self.config.enable_method_rag or self.method_rag_retriever is None:
+            return []
+        try:
+            cards = self.method_rag_retriever.search(problem, top_k=max(0, int(self.config.method_rag_top_k)))
+        except Exception:
+            return []
+        return [card for card in cards if isinstance(card, dict)]
+
+    @staticmethod
+    def _try_deterministic_solver(problem: str) -> dict[str, Any]:
+        try:
+            from deterministic_math import solve_deterministic
+            result = solve_deterministic(problem)
+            return result if isinstance(result, dict) else {"status": "unsupported", "reason": "invalid_solver_result"}
+        except Exception as exc:
+            return {"status": "unsupported", "reason": f"solver_error:{type(exc).__name__}"}
+
+    def _method_context(self, problem: str) -> str:
+        cards = self._retrieve_method_cards(problem)
+        if not cards:
+            return ""
+        snippets = []
+        for card in cards:
+            snippets.append(
+                "方法：{title}\n适用信号：{signals}\n必要条件：{conditions}\n标准变换：{method}\n常见误用：{pitfalls}".format(
+                    title=card.get("title", ""), signals=card.get("signals", ""),
+                    conditions=card.get("conditions", ""), method=card.get("method", ""),
+                    pitfalls=card.get("pitfalls", ""),
+                )
+            )
+        context = "\n\n参考方法卡（仅作方法提示；必须自行核对条件，不得把卡片示例当作本题答案）：\n" + "\n\n".join(snippets)
+        limit = max(0, int(self.config.method_rag_max_context_chars))
+        return context[:limit] if limit else ""
 
     def _format_task_final_response(self, best: dict[str, Any], problem_type: str) -> str:
         """Format final_response according to problem type conventions.
@@ -870,6 +1030,17 @@ class ReasoningAgent:
         if level == "L0" and self.config.enable_l0_extended_tokens:
             return self.config.l0_max_tokens
         return self.config.max_tokens
+
+    def _retry_max_tokens(self, level: str) -> int:
+        if self.config.enable_conditional_token_retry:
+            return max(self._policy_max_tokens(level), int(self.config.conditional_retry_max_tokens))
+        return self._policy_max_tokens(level)
+
+    @staticmethod
+    def _record_diagnostic(budget: dict[str, Any], reason: str) -> None:
+        reasons = budget.setdefault("diagnostic_reasons", [])
+        if reason not in reasons:
+            reasons.append(reason)
     def _should_escalate_l2(self, level: str, candidates: list[dict[str, Any]]) -> bool:
         return self.config.enable_l2_routing and level != "L0" and len(self._answer_groups(candidates)) > 1
     def _repair_refuted_candidate(self, problem: str, candidates: list[dict[str, Any]], trace: list[dict[str, Any]], budget: dict[str, int]) -> None:
@@ -1110,3 +1281,5 @@ class ReasoningAgent:
             trace.append({"step":"revise","status":"skipped","reason":error})
             return None
         return response.strip() or None
+
+
