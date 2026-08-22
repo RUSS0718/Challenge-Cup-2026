@@ -141,6 +141,7 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
         "final_response_nonempty": isinstance(result.get("final_response"), str) and bool(result["final_response"].strip()),
         "finalization_status": final.get("status"),
         "extracted_present": bool(extracted.strip()),
+        "extracted_answer": extracted,
         "verdict": verdict,
         "model_calls": final.get("model_calls", 0),
         "main_completion_tokens": tokens[0] if tokens else 0,
@@ -194,7 +195,8 @@ def summarize_records(records: list[dict]) -> dict:
     }
 
 
-def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, workers: int, temperature: float) -> dict:
+def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, workers: int, temperature: float,
+                save_answers_to: str | None = None, round_no: int | None = None, input_file: str | None = None) -> dict:
     def work(item: dict) -> dict:
         return solve_one(variant, item, timeout, retry, temperature)
 
@@ -202,8 +204,39 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
         records = list(executor.map(work, items))
     report = summarize_records(records)
     report["variant"] = variant.name
+    if save_answers_to and round_no is not None and input_file:
+        append_answers(Path(save_answers_to), answer_rows(variant.name, round_no, input_file, records))
     report["budget_config"] = budget_summary(variant, temperature)
     return report
+
+
+def answer_rows(variant_name: str, round_no: int, input_file: str, records: list[dict]) -> list[dict]:
+    """Compact per-item rows for offline paired re-judging (no raw model text)."""
+    return [
+        {
+            "input_file": input_file,
+            "round": round_no,
+            "variant": variant_name,
+            "idx": record.get("idx"),
+            "extracted_answer": record.get("extracted_answer", ""),
+            "verdict": record.get("verdict", "unknown"),
+        }
+        for record in records
+    ]
+
+
+def append_answers(path, rows: list[dict]) -> None:
+    """Append JSONL rows atomically: rewrite existing+new through a temp file."""
+    from json import dumps, loads
+
+    path = Path(path)
+    existing: list[str] = []
+    if path.exists():
+        existing = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    new_lines = [dumps(row, ensure_ascii=False) for row in rows]
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text("\n".join(existing + new_lines) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -226,6 +259,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--retry-count", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=0.6)
     parser.add_argument("--output-file")
+    parser.add_argument("--save-answers-to",
+                        help="Persist compact per-item answers (idx/extracted_answer/verdict) as JSONL.")
     parser.add_argument("--append-output", action="store_true",
                         help="Append to an existing JSON report instead of replacing it.")
     args = parser.parse_args(argv)
@@ -262,7 +297,8 @@ def main() -> None:
         round_numbers = args.rounds if isinstance(args.rounds, list) else range(args.round_start, args.round_start + args.rounds)
         for round_no in round_numbers:
             for name in names:
-                report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature)
+                report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature,
+                                     save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file)
                 report.update({"round": round_no, "input_file": input_file, "temperature": args.temperature})
                 reports.append(report)
                 print(json.dumps({k: report[k] for k in ("input_file", "round", "variant", "correct", "incorrect", "invalid", "accuracy", "main_length_rate", "retry_count", "average_model_calls")}, ensure_ascii=False))

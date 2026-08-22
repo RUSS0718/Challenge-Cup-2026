@@ -1,8 +1,18 @@
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from scripts.evaluate_protocol_ab import VARIANTS, budget_summary, make_config, parse_args, summarize_records
+from scripts.evaluate_protocol_ab import (
+    VARIANTS,
+    answer_rows,
+    append_answers,
+    budget_summary,
+    make_config,
+    parse_args,
+    summarize_records,
+)
 
 
 class ProtocolAbTest(unittest.TestCase):
@@ -72,6 +82,33 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertFalse(baseline["adaptive_voting"])
         self.assertEqual(3, vote["max_model_calls"])
         self.assertTrue(vote["adaptive_voting"])
+
+    def test_answer_rows_carry_identity_and_verdict(self):
+        records = [
+            {"idx": 7, "extracted_answer": "1/2", "verdict": "correct"},
+            {"idx": 9, "extracted_answer": "", "verdict": "unknown"},
+        ]
+        rows = answer_rows("adaptive_vote", 2, "sample_data/p.jsonl", records)
+        self.assertEqual(
+            {"input_file": "sample_data/p.jsonl", "round": 2, "variant": "adaptive_vote",
+             "idx": 7, "extracted_answer": "1/2", "verdict": "correct"},
+            rows[0],
+        )
+        self.assertEqual("", rows[1]["extracted_answer"])
+
+    def test_append_answers_is_atomic_and_appends(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "answers.jsonl"
+            append_answers(path, [{"idx": 1}])
+            append_answers(path, [{"idx": 2}])
+            lines = path.read_text(encoding="utf-8").strip().splitlines()
+            self.assertEqual(2, len(lines))
+            self.assertNotIn(".tmp", str(path))
+
+    def test_parser_accepts_save_answers_to(self):
+        args = parse_args(["--save-answers-to", "docs/ab_answers.jsonl"])
+        self.assertEqual("docs/ab_answers.jsonl", args.save_answers_to)
+        self.assertIsNone(parse_args([]).save_answers_to)
 
     def test_summary_reports_invalid_calls_and_safe_diagnostics(self):
         report = summarize_records([
