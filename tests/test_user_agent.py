@@ -1,9 +1,11 @@
 import json
 import time as _time_mod
 import unittest
+from unittest.mock import patch
 
 from user_agent import (
     ANSWER_FIRST_POLICY_PROMPT, ANSWER_ONLY_POLICY_PROMPT, POLICY_PROMPT,
+    SUBMISSION_CONFIG,
     AgentConfig, ReasoningAgent,
     TASK_TYPE_CALCULATION, TASK_TYPE_CHOICE, TASK_TYPE_DERIVATION,
     TASK_TYPE_EXPLANATION, TASK_TYPE_FILL_BLANK, TASK_TYPE_PROOF,
@@ -13,6 +15,7 @@ from user_agent import (
     STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
     answer_equivalence, classify_problem_type, extract_final_answer,
     extract_numeric_answer,
+    has_conflicting_explicit_answers,
     extract_answer_segment, normalize_answer, reconstruct_final_response,
     parse_structure_f, reconstruct_final_response_f, _is_placeholder_segment,
 )
@@ -969,6 +972,42 @@ class StepVerificationTest(unittest.TestCase):
 
 class P0StopBleedingTest(unittest.TestCase):
 
+    def test_conflict_requires_two_inequivalent_explicit_answers(self):
+        self.assertTrue(has_conflicting_explicit_answers("最终答案：2\n最终答案：3"))
+        self.assertFalse(has_conflicting_explicit_answers("最终答案：1/2\n答案：0.5"))
+        self.assertFalse(has_conflicting_explicit_answers("最终答案：2"))
+
+    def test_conflict_retry_uses_second_call_but_clear_answer_does_not(self):
+        conflict = FakeClient(["最终答案：2\n最终答案：3", "最终答案：3"])
+        result = ReasoningAgent(
+            conflict, AgentConfig(enable_explicit_answer_conflict_retry=True),
+        ).solve("计算 3+4", {})
+        self.assertEqual(2, len(conflict.calls))
+        self.assertEqual("3", result["extracted_answer"])
+
+        clear = FakeClient(["最终答案：3"])
+        ReasoningAgent(
+            clear, AgentConfig(enable_explicit_answer_conflict_retry=True),
+        ).solve("计算 3+4", {})
+        self.assertEqual(1, len(clear.calls))
+
+    @patch("user_agent.time.sleep")
+    def test_failure_backoff_waits_only_after_model_error(self, sleep):
+        client = FakeClient([RuntimeError("transient"), "最终答案：7"])
+        result = ReasoningAgent(
+            client, AgentConfig(enable_failure_retry_backoff=True),
+        ).solve("计算 3+4", {})
+        sleep.assert_called_once_with(1.0)
+        self.assertEqual("7", result["extracted_answer"])
+
+    @patch("user_agent.time.sleep")
+    def test_failure_backoff_does_not_wait_for_marker_only_recovery(self, sleep):
+        client = FakeClient(["没有答案标记", "最终答案：7"])
+        ReasoningAgent(
+            client, AgentConfig(enable_failure_retry_backoff=True),
+        ).solve("计算 3+4", {})
+        sleep.assert_not_called()
+
     def test_default_config_is_stop_bleeding(self):
         config = AgentConfig()
         self.assertEqual(1, config.policy_sample_times)
@@ -1051,6 +1090,101 @@ class P0StopBleedingTest(unittest.TestCase):
         self.assertIn("all_candidates_rejected", finalize["diagnostic_reasons"])
         self.assertIn("fallback", finalize["diagnostic_reasons"])
         self.assertNotIn("根据题意", str(finalize))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Submission profile: official runner constructs ReasoningAgent(client) with
+# no config, which must resolve to the promoted k5-consensus submission.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SubmissionProfileTest(unittest.TestCase):
+    PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
+
+    def test_submission_config_enables_k5_consensus(self):
+        self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
+        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
+        self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
+        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
+
+    def test_bare_agent_config_stays_legacy_stop_bleeding(self):
+        config = AgentConfig()
+        self.assertFalse(config.enable_adaptive_voting)
+        self.assertEqual(2, config.max_model_calls)
+
+    def test_agent_without_config_uses_submission_profile_and_early_exits(self):
+        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：7"])
+        agent = ReasoningAgent(client)
+        result = agent.solve(self.PROBLEM, {})
+        self.assertEqual("7", result["extracted_answer"])
+        self.assertEqual(3, len(client.calls))
+        self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Adaptive consistency voting: independent resampling + equivalence-group
+# consensus, early exit on agreement. Default off; L0 stays single-call.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AdaptiveConsistencyVotingTest(unittest.TestCase):
+    PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
+
+    def _config(self, **overrides):
+        fields = dict(
+            enable_adaptive_voting=True,
+            vote_k_max=3,
+            vote_agree_threshold=2,
+            max_model_calls=3,
+        )
+        fields.update(overrides)
+        return AgentConfig(**fields)
+
+    def test_default_config_keeps_voting_off(self):
+        config = AgentConfig()
+        self.assertFalse(config.enable_adaptive_voting)
+        client = FakeClient(["最终答案：7"])
+        agent = ReasoningAgent(client, AgentConfig(max_model_calls=3))
+        result = agent.solve(self.PROBLEM, {})
+        self.assertEqual(1, len(client.calls))
+        self.assertFalse(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
+
+    def test_consensus_stops_before_k_max(self):
+        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：9"])
+        result = ReasoningAgent(client, self._config()).solve(self.PROBLEM, {})
+        self.assertEqual(2, len(client.calls))
+        self.assertEqual("7", result["extracted_answer"])
+        votes = [e for e in result["trace"] if e.get("step") == "adaptive_vote"]
+        self.assertEqual(1, len(votes))
+        self.assertEqual("consensus_reached", votes[0]["status"])
+
+    def test_disagreement_uses_third_sample_and_majority_wins(self):
+        client = FakeClient(["最终答案：7", "最终答案：9", "最终答案：7"])
+        result = ReasoningAgent(client, self._config()).solve(self.PROBLEM, {})
+        self.assertEqual(3, len(client.calls))
+        self.assertEqual("7", result["extracted_answer"])
+        votes = [e for e in result["trace"] if e.get("step") == "adaptive_vote"]
+        self.assertEqual("consensus_reached", votes[0]["status"])
+        self.assertEqual(3, votes[0]["samples"])
+        self.assertEqual(2, votes[0]["top_group_size"])
+
+    def test_unparseable_samples_do_not_count_as_consensus(self):
+        client = FakeClient(["没有答案标记", "最终答案：7", "最终答案：7"])
+        result = ReasoningAgent(client, self._config()).solve(self.PROBLEM, {})
+        self.assertEqual(3, len(client.calls))
+        self.assertEqual("7", result["extracted_answer"])
+
+    def test_call_budget_caps_voting(self):
+        client = FakeClient(["最终答案：7", "最终答案：9"])
+        result = ReasoningAgent(
+            client, self._config(vote_k_max=3, max_model_calls=2),
+        ).solve(self.PROBLEM, {})
+        self.assertEqual(2, len(client.calls))
+        votes = [e for e in result["trace"] if e.get("step") == "adaptive_vote"]
+        self.assertEqual("budget_exhausted", votes[0]["status"])
+
+    def test_l0_arithmetic_skips_voting(self):
+        client = FakeClient(["最终答案：7", "最终答案：7"])
+        ReasoningAgent(client, self._config()).solve("计算 3+4", {})
+        self.assertEqual(1, len(client.calls))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

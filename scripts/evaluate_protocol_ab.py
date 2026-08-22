@@ -46,6 +46,12 @@ class Variant:
     numeric_prompt: bool = False
     strict_salvage: bool = False
     token_retry: bool = False
+    failure_backoff: bool = False
+    answer_conflict_retry: bool = False
+    temperature: float | None = None
+    adaptive_voting: bool = False
+    vote_k_max: int = 3
+    vote_agree_threshold: int = 2
 
 
 VARIANTS = {
@@ -54,14 +60,22 @@ VARIANTS = {
     "B": Variant("B", strict_salvage=True),
     "A+B": Variant("A+B", numeric_prompt=True, strict_salvage=True),
     "A+B+6144": Variant("A+B+6144", numeric_prompt=True, strict_salvage=True, token_retry=True),
+    "failure_backoff": Variant("failure_backoff", failure_backoff=True),
+    "answer_conflict_retry": Variant("answer_conflict_retry", answer_conflict_retry=True),
+    "temperature04": Variant("temperature04", temperature=0.4),
+    "temperature08": Variant("temperature08", temperature=0.8),
+    "adaptive_vote": Variant("adaptive_vote", adaptive_voting=True),
+    "adaptive_vote08": Variant("adaptive_vote08", adaptive_voting=True, temperature=0.8),
+    "adaptive_vote_k5": Variant("adaptive_vote_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3),
 }
 
 
-def make_config(variant: Variant) -> AgentConfig:
+def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
     """Build an isolated config; the promoted default is not mutated."""
     return AgentConfig(
         max_tokens=4096,
         l0_max_tokens=4096,
+        max_model_calls=variant.vote_k_max if variant.adaptive_voting else 2,
         policy_prompt=ANSWER_ONLY_POLICY_PROMPT,
         enable_task_aware_prompt=True,
         enable_numeric_answer_only_prompt=not variant.numeric_prompt,
@@ -69,7 +83,31 @@ def make_config(variant: Variant) -> AgentConfig:
         enable_strict_numeric_salvage=variant.strict_salvage,
         enable_conditional_token_retry=variant.token_retry,
         conditional_retry_max_tokens=6144,
+        enable_failure_retry_backoff=variant.failure_backoff,
+        enable_explicit_answer_conflict_retry=variant.answer_conflict_retry,
+        enable_adaptive_voting=variant.adaptive_voting,
+        vote_k_max=variant.vote_k_max if variant.adaptive_voting else 3,
+        vote_agree_threshold=variant.vote_agree_threshold if variant.adaptive_voting else 2,
+        policy_temperature=variant.temperature if variant.temperature is not None else temperature,
     )
+
+
+def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
+    """Effective budget facts for the report; mirrors make_config exactly."""
+    return {
+        "max_tokens": 4096,
+        "l0_max_tokens": 4096,
+        "retry_max_tokens": 6144 if variant.token_retry else 4096,
+        "max_model_calls": variant.vote_k_max if variant.adaptive_voting else 2,
+        "numeric_prompt": variant.numeric_prompt,
+        "strict_salvage": variant.strict_salvage,
+        "conditional_token_retry": variant.token_retry,
+        "failure_retry_backoff": variant.failure_backoff,
+        "explicit_answer_conflict_retry": variant.answer_conflict_retry,
+        "adaptive_voting": variant.adaptive_voting,
+        "vote_k_max": variant.vote_k_max if variant.adaptive_voting else 0,
+        "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
+    }
 
 
 def _get_agent(variant: Variant, timeout: int, retry: int, temperature: float):
@@ -78,7 +116,7 @@ def _get_agent(variant: Variant, timeout: int, retry: int, temperature: float):
         client = InternChatClient(timeout=timeout, retry=retry)
         _local.key = key
         _local.client = client
-        _local.agent = ReasoningAgent(client=client, config=make_config(variant))
+        _local.agent = ReasoningAgent(client=client, config=make_config(variant, temperature))
     return _local.client, _local.agent
 
 
@@ -107,6 +145,7 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
         "final_response_nonempty": isinstance(result.get("final_response"), str) and bool(result["final_response"].strip()),
         "finalization_status": final.get("status"),
         "extracted_present": bool(extracted.strip()),
+        "extracted_answer": extracted,
         "verdict": verdict,
         "model_calls": final.get("model_calls", 0),
         "main_completion_tokens": tokens[0] if tokens else 0,
@@ -160,7 +199,8 @@ def summarize_records(records: list[dict]) -> dict:
     }
 
 
-def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, workers: int, temperature: float) -> dict:
+def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, workers: int, temperature: float,
+                save_answers_to: str | None = None, round_no: int | None = None, input_file: str | None = None) -> dict:
     def work(item: dict) -> dict:
         return solve_one(variant, item, timeout, retry, temperature)
 
@@ -168,19 +208,87 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
         records = list(executor.map(work, items))
     report = summarize_records(records)
     report["variant"] = variant.name
-    report["budget_config"] = {
-        "max_tokens": 4096,
-        "l0_max_tokens": 4096,
-        "retry_max_tokens": 6144 if variant.token_retry else 4096,
-        "max_model_calls": 2,
-        "numeric_prompt": variant.numeric_prompt,
-        "strict_salvage": variant.strict_salvage,
-        "conditional_token_retry": variant.token_retry,
-    }
+    if save_answers_to and round_no is not None and input_file:
+        append_answers(Path(save_answers_to), answer_rows(variant.name, round_no, input_file, records))
+    report["budget_config"] = budget_summary(variant, temperature)
     return report
 
 
-def parse_args() -> argparse.Namespace:
+def answer_rows(variant_name: str, round_no: int, input_file: str, records: list[dict]) -> list[dict]:
+    """Compact per-item rows for offline paired re-judging (no raw model text)."""
+    return [
+        {
+            "input_file": input_file,
+            "round": round_no,
+            "variant": variant_name,
+            "idx": record.get("idx"),
+            "extracted_answer": record.get("extracted_answer", ""),
+            "verdict": record.get("verdict", "unknown"),
+        }
+        for record in records
+    ]
+
+
+def append_answers(path, rows: list[dict]) -> None:
+    """Append JSONL rows atomically: rewrite existing+new through a temp file."""
+    from json import dumps, loads
+
+    path = Path(path)
+    existing: list[str] = []
+    if path.exists():
+        existing = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    new_lines = [dumps(row, ensure_ascii=False) for row in rows]
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text("\n".join(existing + new_lines) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def _interleave_order(index: int, variants: list[Variant]) -> list[Variant]:
+    """Rotate which arm goes first per item so no arm owns an order bias."""
+    offset = index % len(variants)
+    return variants[offset:] + variants[:offset]
+
+
+def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, retry: int,
+                    workers: int, temperature: float,
+                    save_answers_to: str | None = None, round_no: int | None = None,
+                    input_file: str | None = None, solve_fn=None) -> list[dict]:
+    """Solve every arm back-to-back for each item (same-window pairing).
+
+    Per-item temporal adjacency plus rotating first-arm order removes the
+    window drift that invalidated cross-window comparisons on 2026-08-22.
+    """
+    if len(variants) < 2:
+        raise SystemExit("--interleave-items needs at least two variants")
+    if solve_fn is None:
+        def solve_fn(variant: Variant, item: dict) -> dict:
+            return solve_one(variant, item, timeout, retry, temperature)
+
+    records_by_variant: dict[str, list[dict]] = {variant.name: [] for variant in variants}
+
+    def work(packed):
+        index, item = packed
+        return [(v.name, solve_fn(v, item)) for v in _interleave_order(index, variants)]
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        for solved in executor.map(work, enumerate(items)):
+            for name, record in solved:
+                records_by_variant[name].append(record)
+
+    reports = []
+    for variant in variants:
+        records = records_by_variant[variant.name]
+        report = summarize_records(records)
+        report["variant"] = variant.name
+        report["budget_config"] = budget_summary(variant, temperature)
+        report["interleaved"] = True
+        if save_answers_to and round_no is not None and input_file:
+            append_answers(Path(save_answers_to), answer_rows(variant.name, round_no, input_file, records))
+        reports.append(report)
+    return reports
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run isolated output-protocol A/B experiments.")
     parser.add_argument("--input-files", nargs="+", default=[
         "sample_data/public_regression_112.jsonl",
@@ -188,22 +296,44 @@ def parse_args() -> argparse.Namespace:
         "sample_data/complex_capability_freeze_48.jsonl",
     ])
     parser.add_argument("--variants", default=",".join(VARIANTS), help="Comma-separated variant names.")
+    parser.add_argument("--variant", action="append", choices=sorted(VARIANTS),
+                        help="Run one named variant; may be repeated.")
     parser.add_argument("--rounds", type=int, default=2)
     parser.add_argument("--round-start", type=int, default=1,
                         help="First round number to record; supports resumable single-round runs.")
+    parser.add_argument("--round", action="append", type=int,
+                        help="Run one numbered round; may be repeated.")
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--timeout-seconds", type=int, default=60)
     parser.add_argument("--retry-count", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=0.6)
     parser.add_argument("--output-file")
+    parser.add_argument("--save-answers-to",
+                        help="Persist compact per-item answers (idx/extracted_answer/verdict) as JSONL.")
+    parser.add_argument("--interleave-items", action="store_true",
+                        help="With exactly two --variant arms, solve both arms per item for same-window pairing.")
     parser.add_argument("--append-output", action="store_true",
                         help="Append to an existing JSON report instead of replacing it.")
-    return parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.variant:
+        args.variants = args.variant
+    if args.round:
+        args.rounds = args.round
+    if not 1 <= args.workers <= 3:
+        parser.error("--workers must be between 1 and 3")
+    return args
+
+
+def write_reports(path: Path, reports: list[dict]) -> None:
+    """Atomically persist completed aggregate rounds without raw model content."""
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(reports, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def main() -> None:
     args = parse_args()
-    names = [name.strip() for name in args.variants.split(",") if name.strip()]
+    names = args.variants if isinstance(args.variants, list) else [name.strip() for name in args.variants.split(",") if name.strip()]
     unknown = [name for name in names if name not in VARIANTS]
     if unknown:
         raise SystemExit(f"unknown variants: {', '.join(unknown)}")
@@ -215,14 +345,26 @@ def main() -> None:
         reports = loaded
     for input_file in args.input_files:
         items = load_items(Path(input_file))
-        for round_no in range(args.round_start, args.round_start + args.rounds):
-            for name in names:
-                report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature)
+        round_numbers = args.rounds if isinstance(args.rounds, list) else range(args.round_start, args.round_start + args.rounds)
+        for round_no in round_numbers:
+            if args.interleave_items:
+                round_reports = run_interleaved(
+                    [VARIANTS[name] for name in names], items,
+                    args.timeout_seconds, args.retry_count, args.workers, args.temperature,
+                    save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file,
+                )
+            else:
+                round_reports = []
+                for name in names:
+                    report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature,
+                                         save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file)
+                    round_reports.append(report)
+            for report in round_reports:
                 report.update({"round": round_no, "input_file": input_file, "temperature": args.temperature})
                 reports.append(report)
                 print(json.dumps({k: report[k] for k in ("input_file", "round", "variant", "correct", "incorrect", "invalid", "accuracy", "main_length_rate", "retry_count", "average_model_calls")}, ensure_ascii=False))
-                if args.output_file:
-                    Path(args.output_file).write_text(json.dumps(reports, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            if args.output_file:
+                write_reports(Path(args.output_file), reports)
 
 
 if __name__ == "__main__":

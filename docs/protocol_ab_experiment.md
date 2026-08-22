@@ -34,3 +34,5 @@ D:\Anaconda\envs\CA-py310\python.exe scripts\evaluate_protocol_ab_gate.py `
 ```
 
 候选必须在三个数据集、两轮中同时满足：准确率不低于同轮 `baseline86`、Invalid 和 Incorrect 均不增加、主调用截断率不增加、`final_response` 非空率 100%、平均调用不超过 1.5、最大调用不超过 2。未通过时保持当前默认路径，不提交 canary。
+
+

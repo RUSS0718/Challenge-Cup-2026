@@ -167,3 +167,4 @@ def _optional_bool_env(name: str) -> bool | None:
     if normalized in {"0", "false", "no", "off"}:
         return False
     return None
+

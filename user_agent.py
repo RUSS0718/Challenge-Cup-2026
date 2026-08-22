@@ -1,4 +1,4 @@
-﻿"""Budgeted mathematical reasoning agent with deterministic answer handling."""
+"""Budgeted mathematical reasoning agent with deterministic answer handling."""
 from __future__ import annotations
 import re
 import time
@@ -221,6 +221,35 @@ class AgentConfig:
     enable_strict_numeric_salvage: bool = False
     enable_conditional_token_retry: bool = False
     conditional_retry_max_tokens: int = 6144
+    enable_failure_retry_backoff: bool = False
+    failure_retry_backoff_seconds: float = 1.0
+    enable_explicit_answer_conflict_retry: bool = False
+    # Adaptive consistency voting: independent full resamples of the same
+    # problem; consensus is decided by conservative equivalence groups with
+    # early exit once the top group reaches vote_agree_threshold clear answers.
+    # Default off. When enabled (non-L0) it replaces the single conditional
+    # retry slot and still respects max_model_calls and per-question time.
+    enable_adaptive_voting: bool = False
+    vote_k_max: int = 3
+    vote_agree_threshold: int = 2
+
+
+# ── Submission profile ────────────────────────────────────────────────────
+# The official runner constructs ``ReasoningAgent(client=official_client)``
+# without a config, which resolves here. Promoted on 2026-08-22 as a
+# bounded-risk submission strategy after the k5 A/B on the complex freeze
+# set: direction consistently positive (+5/192 item-rounds in each of two
+# independent experiments, combined exact p≈0.135) though below the
+# pre-registered significance bar; per-problem latency ~75–125s fits the
+# official 20-minute limit with wide margin; wall-clock guards stay armed.
+# All experimental switches remain off. Explicitly passing an AgentConfig
+# (local experiments) bypasses this profile entirely.
+SUBMISSION_CONFIG = AgentConfig(
+    enable_adaptive_voting=True,
+    vote_k_max=5,
+    vote_agree_threshold=3,
+    max_model_calls=5,
+)
 
 
 _ANSWER_MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]\s*([^\n\r]+)", re.IGNORECASE)
@@ -713,9 +742,22 @@ def answer_equivalence(left: str, right: str) -> str:
         return "NOT_EQUIVALENT"
     return "UNKNOWN"
 
+
+def has_conflicting_explicit_answers(response: str) -> bool:
+    """True only for two explicit, provably different terminal answers."""
+    answers = [answer.strip() for answer in _ANSWER_MARKER_RE.findall(response) if answer.strip()]
+    return any(
+        answer_equivalence(left, right) == "NOT_EQUIVALENT"
+        for index, left in enumerate(answers)
+        for right in answers[index + 1:]
+    )
+
 class ReasoningAgent:
     def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, **_: Any) -> None:
-        self.client, self.config = client, config or AgentConfig()
+        self.client = client
+        # Official platform path (config=None) uses the promoted submission
+        # profile; explicitly passed configs (local experiments) win as-is.
+        self.config = config or SUBMISSION_CONFIG
         self.sympy_adapter = sympy_adapter
         self.method_rag_retriever = method_rag_retriever
 
@@ -759,13 +801,26 @@ class ReasoningAgent:
         # A truncated / malformed main call yields no clear answer; allow exactly
         # one recovery generation.  Audit and P3 are off by default, so a bad
         # response can no longer fan out into many extra model calls.
-        if not self._has_clear_answer(candidates):
-            trace.append({"step": "conditional_retry", "reason": "no_clear_answer",
-                          "model_calls": budget["used"]})
-            task_prompt = self._task_policy_prompt(problem_type)
-            self._generate_candidates(problem, 1, candidates, trace, budget,
-                                      self._retry_max_tokens(level),
-                                      task_prompt=task_prompt, problem_type=problem_type)
+        if self.config.enable_adaptive_voting and level != "L0":
+            self._adaptive_vote(problem, level, candidates, trace, budget,
+                                task_prompt=self._task_policy_prompt(problem_type),
+                                problem_type=problem_type)
+        else:
+            explicit_answer_conflict = any(candidate.get("explicit_answer_conflict") for candidate in candidates)
+            if (not self._has_clear_answer(candidates)
+                    or (self.config.enable_explicit_answer_conflict_retry and explicit_answer_conflict)):
+                retry_reason = "explicit_answer_conflict" if explicit_answer_conflict else "no_clear_answer"
+                trace.append({"step": "conditional_retry", "reason": retry_reason,
+                              "model_calls": budget["used"]})
+                if (self.config.enable_failure_retry_backoff
+                        and "model_error" in budget["diagnostic_reasons"]):
+                    time.sleep(self.config.failure_retry_backoff_seconds)
+                    trace.append({"step": "conditional_retry_backoff",
+                                  "seconds": self.config.failure_retry_backoff_seconds})
+                task_prompt = self._task_policy_prompt(problem_type)
+                self._generate_candidates(problem, 1, candidates, trace, budget,
+                                          self._retry_max_tokens(level),
+                                          task_prompt=task_prompt, problem_type=problem_type)
 
         if self._should_escalate_l2(level, candidates):
             trace.append({"step":"route_budget","level":"L2","generation_calls":1,"max_model_calls":budget["limit"],"reason":"answer_conflict"})
@@ -870,7 +925,7 @@ class ReasoningAgent:
                                  truncation_signals=_truncation_signals(response, answer),
                                  diagnostic_reason=diagnostic_reason))
                 continue
-            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"structured":structured,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type})
+            candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"structured":structured,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type,"explicit_answer_conflict":has_conflicting_explicit_answers(response)})
             if parse_status is not None:
                 trace.append(_tr("ok", candidate_id, parse_status=parse_status))
             else:
@@ -1103,20 +1158,71 @@ class ReasoningAgent:
         match = re.fullmatch(r"\s*(?:计算|求值|calculate|evaluate)?\s*([0-9+\-*/().\s]+)\s*[?？]?\s*", problem, re.IGNORECASE)
         return match.group(1).strip() if match else None
     @staticmethod
-    def _has_clear_answer(candidates: list[dict[str, Any]]) -> bool:
+    def _is_clear_candidate(candidate: dict[str, Any]) -> bool:
+        if candidate.get("problem_type") in _NON_NUMERIC_TASK_TYPES:
+            return bool(candidate.get("structured"))
+        return bool(candidate.get("answer"))
+
+    @classmethod
+    def _clear_candidates(cls, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [candidate for candidate in candidates if cls._is_clear_candidate(candidate)]
+
+    @classmethod
+    def _has_clear_answer(cls, candidates: list[dict[str, Any]]) -> bool:
         """True when at least one candidate carries a clear answer.
 
         Non-numeric types (proof/derivation/explanation) require a real
         structured answer block (``structured=True``); a fallback full-response
         candidate does NOT count as clear, so a conditional retry can fire.
         """
-        for candidate in candidates:
-            if candidate.get("problem_type") in _NON_NUMERIC_TASK_TYPES:
-                if candidate.get("structured"):
-                    return True
-            elif bool(candidate.get("answer")):
-                return True
-        return False
+        return any(cls._is_clear_candidate(candidate) for candidate in candidates)
+
+    @classmethod
+    def _top_clear_group_size(cls, candidates: list[dict[str, Any]]) -> int:
+        """Size of the largest equivalence group among clear answers (0 if none)."""
+        clear = cls._clear_candidates(candidates)
+        if not clear:
+            return 0
+        return max(len(group) for group in cls._answer_groups(clear).values())
+
+    def _adaptive_vote(
+        self, problem: str, level: str,
+        candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
+        budget: dict[str, Any], task_prompt: str | None = None,
+        problem_type: str = TASK_TYPE_CALCULATION,
+    ) -> None:
+        """Independent resampling with equivalence-group consensus.
+
+        Stops early when the top group of provably equivalent clear answers
+        reaches ``vote_agree_threshold``; otherwise samples until ``vote_k_max``
+        candidates exist, the call budget runs out, or the wall-clock guard
+        trips. Selection itself stays in ``_select_candidate``, which already
+        ranks by consensus group size.
+        """
+        max_tokens = self._policy_max_tokens(level)
+        while True:
+            top_group_size = self._top_clear_group_size(candidates)
+            if top_group_size >= self.config.vote_agree_threshold:
+                status = "consensus_reached"
+                break
+            if len(candidates) >= self.config.vote_k_max:
+                status = "k_max_reached"
+                break
+            if budget["used"] >= budget["limit"]:
+                status = "budget_exhausted"
+                break
+            if self._time_hard_exceeded(budget.get("solve_start")):
+                status = "solve_time_budget_exhausted"
+                break
+            self._generate_candidates(problem, 1, candidates, trace, budget,
+                                      max_tokens, task_prompt=task_prompt,
+                                      problem_type=problem_type)
+        trace.append({"step": "adaptive_vote", "status": status,
+                      "samples": len(candidates),
+                      "top_group_size": self._top_clear_group_size(candidates),
+                      "agree_threshold": self.config.vote_agree_threshold,
+                      "k_max": self.config.vote_k_max,
+                      "model_calls": budget["used"]})
 
     @staticmethod
     def _answer_groups(candidates: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
