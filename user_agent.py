@@ -234,6 +234,24 @@ class AgentConfig:
     vote_agree_threshold: int = 2
 
 
+# ── Submission profile ────────────────────────────────────────────────────
+# The official runner constructs ``ReasoningAgent(client=official_client)``
+# without a config, which resolves here. Promoted on 2026-08-22 as a
+# bounded-risk submission strategy after the k5 A/B on the complex freeze
+# set: direction consistently positive (+5/192 item-rounds in each of two
+# independent experiments, combined exact p≈0.135) though below the
+# pre-registered significance bar; per-problem latency ~75–125s fits the
+# official 20-minute limit with wide margin; wall-clock guards stay armed.
+# All experimental switches remain off. Explicitly passing an AgentConfig
+# (local experiments) bypasses this profile entirely.
+SUBMISSION_CONFIG = AgentConfig(
+    enable_adaptive_voting=True,
+    vote_k_max=5,
+    vote_agree_threshold=3,
+    max_model_calls=5,
+)
+
+
 _ANSWER_MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]\s*([^\n\r]+)", re.IGNORECASE)
 _ANSWER_MARKER_LINE_STRICT_RE = re.compile(
     r"^\s*(?:最终答案|final\s+answer|答案)\s*[:：]\s*(.*?)\s*$",
@@ -736,7 +754,10 @@ def has_conflicting_explicit_answers(response: str) -> bool:
 
 class ReasoningAgent:
     def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, **_: Any) -> None:
-        self.client, self.config = client, config or AgentConfig()
+        self.client = client
+        # Official platform path (config=None) uses the promoted submission
+        # profile; explicitly passed configs (local experiments) win as-is.
+        self.config = config or SUBMISSION_CONFIG
         self.sympy_adapter = sympy_adapter
         self.method_rag_retriever = method_rag_retriever
 

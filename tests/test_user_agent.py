@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from user_agent import (
     ANSWER_FIRST_POLICY_PROMPT, ANSWER_ONLY_POLICY_PROMPT, POLICY_PROMPT,
+    SUBMISSION_CONFIG,
     AgentConfig, ReasoningAgent,
     TASK_TYPE_CALCULATION, TASK_TYPE_CHOICE, TASK_TYPE_DERIVATION,
     TASK_TYPE_EXPLANATION, TASK_TYPE_FILL_BLANK, TASK_TYPE_PROOF,
@@ -1000,6 +1001,34 @@ class P0StopBleedingTest(unittest.TestCase):
                     if e.get("step") == "generate_candidate" and e.get("status") == "rejected"]
         self.assertTrue(rejected)
         self.assertIn("no_extractable_answer", rejected[0].get("truncation_signals", []))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Submission profile: official runner constructs ReasoningAgent(client) with
+# no config, which must resolve to the promoted k5-consensus submission.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SubmissionProfileTest(unittest.TestCase):
+    PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
+
+    def test_submission_config_enables_k5_consensus(self):
+        self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
+        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
+        self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
+        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
+
+    def test_bare_agent_config_stays_legacy_stop_bleeding(self):
+        config = AgentConfig()
+        self.assertFalse(config.enable_adaptive_voting)
+        self.assertEqual(2, config.max_model_calls)
+
+    def test_agent_without_config_uses_submission_profile_and_early_exits(self):
+        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：7"])
+        agent = ReasoningAgent(client)
+        result = agent.solve(self.PROBLEM, {})
+        self.assertEqual("7", result["extracted_answer"])
+        self.assertEqual(3, len(client.calls))
+        self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
