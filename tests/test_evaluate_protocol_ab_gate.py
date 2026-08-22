@@ -67,6 +67,27 @@ class ProtocolAbGateTest(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertIn("freeze.jsonl:adaptive_vote:mean_correct_gain_lt_2", result["failures"])
 
+    def test_call_caps_follow_declared_budget(self):
+        baseline1 = _report("baseline86", 1, 0.70, 10, incorrect=0, correct=70)
+        baseline2 = _report("baseline86", 2, 0.72, 10, incorrect=0, correct=72)
+        vote1 = _report("adaptive_vote", 1, 0.72, 9, incorrect=0, correct=71, calls=1.8, max_calls=3)
+        vote1["budget_config"] = {"max_model_calls": 3}
+        vote2 = _report("adaptive_vote", 2, 0.73, 9, incorrect=0, correct=73, calls=2.4, max_calls=3)
+        vote2["budget_config"] = {"max_model_calls": 3}
+        result = check_gate([baseline1, baseline2, vote1, vote2])
+        self.assertFalse(any("calls_le" in failure for failure in result["failures"]))
+
+    def test_runaway_beyond_declared_budget_is_rejected(self):
+        baseline1 = _report("baseline86", 1, 0.70, 10, incorrect=0, correct=70)
+        baseline2 = _report("baseline86", 2, 0.72, 10, incorrect=0, correct=72)
+        vote1 = _report("adaptive_vote", 1, 0.71, 9, incorrect=0, correct=71, calls=2.6, max_calls=4)
+        vote1["budget_config"] = {"max_model_calls": 3}
+        vote2 = _report("adaptive_vote", 2, 0.73, 9, incorrect=0, correct=73, calls=2.4, max_calls=3)
+        vote2["budget_config"] = {"max_model_calls": 3}
+        result = check_gate([baseline1, baseline2, vote1, vote2])
+        self.assertIn("freeze.jsonl:adaptive_vote:round1:average_calls_le_2.5", result["failures"])
+        self.assertIn("freeze.jsonl:adaptive_vote:round1:max_calls_le_3", result["failures"])
+
     def test_custom_baseline_round_pairing_compares_against_given_rounds(self):
         reports = [
             _report("baseline86", 3, 0.70, 10, incorrect=0, correct=70),

@@ -48,14 +48,15 @@ def check_gate(reports: list[dict[str, Any]], baseline_pairing: dict[int, int] |
                 if baseline is None or candidate is None:
                     failures.append(f"{dataset}:{variant}:round{round_no}:missing_pair")
                     continue
+                budget_cap = int((candidate.get("budget_config") or {}).get("max_model_calls") or 2)
                 checks = {
                     "accuracy_not_below_baseline": candidate.get("accuracy", 0) >= baseline.get("accuracy", 0),
                     "invalid_not_above_baseline": candidate.get("invalid", 0) <= baseline.get("invalid", 0),
                     "incorrect_not_above_baseline": candidate.get("incorrect", 0) <= baseline.get("incorrect", 0),
                     "main_length_not_above_baseline": candidate.get("main_length_rate", 1.0) <= baseline.get("main_length_rate", 1.0),
                     "nonempty_100pct": candidate.get("final_response_nonempty_rate") == 1.0,
-                    "average_calls_le_1.5": candidate.get("average_model_calls", 999) <= 1.5,
-                    "max_calls_le_2": candidate.get("max_model_calls", 999) <= 2,
+                    "average_calls_le_%s" % (budget_cap - 0.5): candidate.get("average_model_calls", 999) <= budget_cap - 0.5,
+                    "max_calls_le_%s" % budget_cap: candidate.get("max_model_calls", 999) <= budget_cap,
                 }
                 for name, passed in checks.items():
                     if not passed:
