@@ -2,7 +2,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from scripts.evaluate_protocol_ab import VARIANTS, make_config, parse_args, summarize_records
+from scripts.evaluate_protocol_ab import VARIANTS, budget_summary, make_config, parse_args, summarize_records
 
 
 class ProtocolAbTest(unittest.TestCase):
@@ -22,7 +22,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote"],
             list(VARIANTS),
         )
 
@@ -56,6 +56,22 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(0.8, warm.policy_temperature)
         self.assertEqual(baseline.max_tokens, cool.max_tokens)
         self.assertEqual(baseline.max_model_calls, warm.max_model_calls)
+
+    def test_adaptive_vote_variant_enables_voting_with_three_calls(self):
+        config = make_config(VARIANTS["adaptive_vote"])
+        self.assertTrue(config.enable_adaptive_voting)
+        self.assertEqual(3, config.vote_k_max)
+        self.assertEqual(2, config.vote_agree_threshold)
+        self.assertEqual(3, config.max_model_calls)
+        self.assertFalse(make_config(VARIANTS["baseline86"]).enable_adaptive_voting)
+
+    def test_budget_summary_reflects_effective_call_cap(self):
+        baseline = budget_summary(VARIANTS["baseline86"])
+        vote = budget_summary(VARIANTS["adaptive_vote"])
+        self.assertEqual(2, baseline["max_model_calls"])
+        self.assertFalse(baseline["adaptive_voting"])
+        self.assertEqual(3, vote["max_model_calls"])
+        self.assertTrue(vote["adaptive_voting"])
 
     def test_summary_reports_invalid_calls_and_safe_diagnostics(self):
         report = summarize_records([

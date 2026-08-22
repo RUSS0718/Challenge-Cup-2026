@@ -79,7 +79,7 @@ def check_gate(reports: list[dict[str, Any]], baseline_pairing: dict[int, int] |
                 for round_no in sorted(pairing)
                 if pairing[round_no] in baseline_rounds and round_no in rounds
             ]
-            if variant in {"answer_conflict_retry", "temperature04", "temperature08"} and len(paired) == 2:
+            if variant in {"answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote"} and len(paired) == 2:
                 mean_correct_gain = sum(
                     candidate.get("correct", 0) - baseline.get("correct", 0)
                     for baseline, candidate in paired

@@ -49,6 +49,7 @@ class Variant:
     failure_backoff: bool = False
     answer_conflict_retry: bool = False
     temperature: float | None = None
+    adaptive_voting: bool = False
 
 
 VARIANTS = {
@@ -61,6 +62,7 @@ VARIANTS = {
     "answer_conflict_retry": Variant("answer_conflict_retry", answer_conflict_retry=True),
     "temperature04": Variant("temperature04", temperature=0.4),
     "temperature08": Variant("temperature08", temperature=0.8),
+    "adaptive_vote": Variant("adaptive_vote", adaptive_voting=True),
 }
 
 
@@ -69,6 +71,7 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
     return AgentConfig(
         max_tokens=4096,
         l0_max_tokens=4096,
+        max_model_calls=3 if variant.adaptive_voting else 2,
         policy_prompt=ANSWER_ONLY_POLICY_PROMPT,
         enable_task_aware_prompt=True,
         enable_numeric_answer_only_prompt=not variant.numeric_prompt,
@@ -78,8 +81,29 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         conditional_retry_max_tokens=6144,
         enable_failure_retry_backoff=variant.failure_backoff,
         enable_explicit_answer_conflict_retry=variant.answer_conflict_retry,
+        enable_adaptive_voting=variant.adaptive_voting,
+        vote_k_max=3,
+        vote_agree_threshold=2,
         policy_temperature=variant.temperature if variant.temperature is not None else temperature,
     )
+
+
+def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
+    """Effective budget facts for the report; mirrors make_config exactly."""
+    return {
+        "max_tokens": 4096,
+        "l0_max_tokens": 4096,
+        "retry_max_tokens": 6144 if variant.token_retry else 4096,
+        "max_model_calls": 3 if variant.adaptive_voting else 2,
+        "numeric_prompt": variant.numeric_prompt,
+        "strict_salvage": variant.strict_salvage,
+        "conditional_token_retry": variant.token_retry,
+        "failure_retry_backoff": variant.failure_backoff,
+        "explicit_answer_conflict_retry": variant.answer_conflict_retry,
+        "adaptive_voting": variant.adaptive_voting,
+        "vote_k_max": 3 if variant.adaptive_voting else 0,
+        "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
+    }
 
 
 def _get_agent(variant: Variant, timeout: int, retry: int, temperature: float):
@@ -178,18 +202,7 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
         records = list(executor.map(work, items))
     report = summarize_records(records)
     report["variant"] = variant.name
-    report["budget_config"] = {
-        "max_tokens": 4096,
-        "l0_max_tokens": 4096,
-        "retry_max_tokens": 6144 if variant.token_retry else 4096,
-        "max_model_calls": 2,
-        "numeric_prompt": variant.numeric_prompt,
-        "strict_salvage": variant.strict_salvage,
-        "conditional_token_retry": variant.token_retry,
-        "failure_retry_backoff": variant.failure_backoff,
-        "explicit_answer_conflict_retry": variant.answer_conflict_retry,
-        "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
-    }
+    report["budget_config"] = budget_summary(variant, temperature)
     return report
 
 

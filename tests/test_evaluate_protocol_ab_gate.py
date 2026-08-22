@@ -56,6 +56,17 @@ class ProtocolAbGateTest(unittest.TestCase):
         self.assertIn("freeze.jsonl:A:round1:max_calls_le_2", result["failures"])
         self.assertIn("freeze.jsonl:A:round1:nonempty_100pct", result["failures"])
 
+    def test_adaptive_vote_variant_requires_mean_gain_of_two(self):
+        reports = [
+            _report("baseline86", 1, 0.70, 10, incorrect=0, correct=70),
+            _report("baseline86", 2, 0.72, 9, incorrect=0, correct=72),
+            _report("adaptive_vote", 1, 0.71, 10, incorrect=0, correct=71),
+            _report("adaptive_vote", 2, 0.73, 9, incorrect=0, correct=73),
+        ]
+        result = check_gate(reports)
+        self.assertFalse(result["passed"])
+        self.assertIn("freeze.jsonl:adaptive_vote:mean_correct_gain_lt_2", result["failures"])
+
     def test_custom_baseline_round_pairing_compares_against_given_rounds(self):
         reports = [
             _report("baseline86", 3, 0.70, 10, incorrect=0, correct=70),
