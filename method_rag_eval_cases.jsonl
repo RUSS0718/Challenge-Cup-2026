@@ -1,0 +1,19 @@
+{"query":"素数模 指数 同余","expected_id":"number_theory_fermat"}
+{"query":"互质 模数 phi 欧拉函数","expected_id":"number_theory_euler"}
+{"query":"同余方程组 互素 模数","expected_id":"number_theory_crt"}
+{"query":"正数 固定和 乘积 最大","expected_id":"inequality_amgm"}
+{"query":"平方和 内积 分式","expected_id":"inequality_cauchy"}
+{"query":"凸函数 加权平均","expected_id":"inequality_jensen"}
+{"query":"至少一个 交集 并集 计数","expected_id":"combinatorics_inclusion"}
+{"query":"抽屉 鸽巢 必有重复","expected_id":"combinatorics_pigeonhole"}
+{"query":"递推 数列 系数 生成函数","expected_id":"combinatorics_generating"}
+{"query":"矩阵 特征值 det lambda","expected_id":"linear_eigen"}
+{"query":"秩 行列式 唯一解 方程组","expected_id":"linear_rank"}
+{"query":"正交 投影 最小二乘","expected_id":"linear_orthogonal"}
+{"query":"复合函数 导数 sin x^2","expected_id":"calculus_chain"}
+{"query":"定积分 原函数 上下限","expected_id":"calculus_integral"}
+{"query":"泰勒 麦克劳林 近似","expected_id":"calculus_taylor"}
+{"query":"条件概率 后验 先验","expected_id":"probability_bayes"}
+{"query":"独立试验 恰好k次 成功概率","expected_id":"probability_binomial"}
+{"query":"一阶微分方程 初值 分离变量","expected_id":"ode_separation"}
+{"query":"归纳 基础步 归纳假设","expected_id":"sequence_induction"}

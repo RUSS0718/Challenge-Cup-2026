@@ -1,0 +1,17 @@
+{
+  "model": "intern-s2-preview-397b",
+  "dataset": "sample_data/medium_capability_freeze_60.jsonl",
+  "baseline_rounds": [
+    {"accuracy": 0.4833333333, "average_model_calls": 1.0166666667, "p95_latency_seconds": 48.827},
+    {"accuracy": 0.5, "average_model_calls": 1.0, "p95_latency_seconds": 46.082}
+  ],
+  "deterministic_rounds": [
+    {"accuracy": 0.5, "average_model_calls": 0.8, "p95_latency_seconds": 48.087},
+    {"accuracy": 0.5166666667, "average_model_calls": 0.8, "p95_latency_seconds": 40.331}
+  ],
+  "regression_112_supported": 0,
+  "new_rescues": [6002, 6007, 6101, 6203, 6217],
+  "minimum_new_rescues": 10,
+  "gate_passed": false,
+  "decision": "KEEP_DETERMINISTIC_SOLVER_EXPERIMENTAL_ONLY"
+}

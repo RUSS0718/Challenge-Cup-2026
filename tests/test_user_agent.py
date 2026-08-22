@@ -12,6 +12,7 @@ from user_agent import (
     DIRECT_REASONER_PROMPT, ALTERNATIVE_REASONER_PROMPT,
     STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
     answer_equivalence, classify_problem_type, extract_final_answer,
+    extract_numeric_answer,
     extract_answer_segment, normalize_answer, reconstruct_final_response,
     parse_structure_f, reconstruct_final_response_f, _is_placeholder_segment,
 )
@@ -43,6 +44,18 @@ class AnswerHandlingTest(unittest.TestCase):
         self.assertEqual("2", extract_final_answer("最终答案：1\n最终答案：2"))
         self.assertEqual("", extract_final_answer("Final answer:"))
         self.assertEqual("", extract_final_answer('输出格式为“最终答案：[Answer]”。'))
+
+    def test_numeric_salvage_requires_structural_answer_or_pure_math(self):
+        self.assertEqual("7", extract_numeric_answer("先计算\n最终答案：7\n校验：7=7"))
+        self.assertEqual("B", extract_numeric_answer("分析选项\n答案：B"))
+        self.assertEqual("x=2", extract_numeric_answer("中间步骤\n\\boxed{x=2}"))
+        self.assertEqual("", extract_numeric_answer("Thinking Process: \n\\boxed{1}"))
+        self.assertEqual("2", extract_numeric_answer("Thinking Process: \\boxed{1}\n最终答案：2"))
+        self.assertEqual("1/2", extract_numeric_answer("推导\n1/2"))
+        self.assertEqual("", extract_numeric_answer("最终答案：<答案>"))
+        self.assertEqual("", extract_numeric_answer("最终答案：命题成立"))
+        self.assertEqual("", extract_numeric_answer("2\n因此还未完成"))
+        self.assertEqual("", extract_numeric_answer("根据题意，代入公式可得"))
 
     def test_extracts_equation_set_interval_vector_and_matrix_answers(self):
         self.assertEqual("x=2", extract_final_answer("最终答案：x=2"))
@@ -92,6 +105,52 @@ class AnswerHandlingTest(unittest.TestCase):
 
 
 class ReasoningAgentTest(unittest.TestCase):
+    def test_method_rag_is_disabled_by_default(self):
+        class Retriever:
+            def search(self, query, top_k):
+                raise AssertionError("disabled path must not retrieve cards")
+        client = FakeClient(["最终答案：7"])
+        result = ReasoningAgent(client, AgentConfig(enable_step_verification=False), method_rag_retriever=Retriever()).solve("计算 3+4", {})
+        self.assertEqual("7", result["final_response"])
+        self.assertFalse(any(entry.get("step") == "method_rag" for entry in result["trace"]))
+
+    def test_method_rag_experiment_adds_only_retrieved_context(self):
+        class Retriever:
+            def search(self, query, top_k):
+                self.query, self.top_k = query, top_k
+                return [{"id": "amgm", "title": "AM-GM", "signals": "正数 固定和", "conditions": "正数", "method": "ab≤((a+b)/2)^2", "pitfalls": "负数不能直接套用"}]
+        retriever = Retriever()
+        client = FakeClient(["最终答案：7"])
+        result = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_method_rag=True, method_rag_top_k=2), method_rag_retriever=retriever).solve("固定和求乘积最大", {})
+        sent = client.calls[0][0][0]["content"]
+        self.assertIn("AM-GM", sent)
+        self.assertEqual(2, retriever.top_k)
+        rag_entries = [entry for entry in result["trace"] if entry.get("step") == "method_rag"]
+        self.assertEqual(["amgm"], rag_entries[0]["card_ids"])
+
+    def test_method_rag_context_is_bounded(self):
+        class Retriever:
+            def search(self, query, top_k):
+                return [{"id": "large", "title": "T" * 1000, "signals": "S" * 1000, "conditions": "C" * 1000, "method": "M" * 1000, "pitfalls": "P" * 1000}]
+        client = FakeClient(["最终答案：7"])
+        agent = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_method_rag=True, method_rag_max_context_chars=100), method_rag_retriever=Retriever())
+        agent.solve("题", {})
+        self.assertLessEqual(len(client.calls[0][0][0]["content"]), len(CALCULATION_PROMPT) + 100)
+
+    def test_deterministic_solver_is_explicit_opt_in(self):
+        client = FakeClient(["最终答案：999"])
+        disabled = ReasoningAgent(client, AgentConfig(enable_step_verification=False)).solve("计算 6!", {})
+        self.assertEqual("999", disabled["final_response"])
+        enabled = ReasoningAgent(FakeClient([]), AgentConfig(enable_step_verification=False, enable_deterministic_solver=True)).solve("计算 6!", {})
+        self.assertEqual("720", enabled["final_response"])
+        self.assertEqual(0, enabled["trace"][-1]["model_calls"])
+
+    def test_deterministic_solver_falls_back_to_model_when_unsupported(self):
+        client = FakeClient(["最终答案：9"])
+        result = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_deterministic_solver=True)).solve("请证明一个命题", {})
+        self.assertIn("9", result["final_response"])
+        self.assertTrue(any(entry.get("step") == "deterministic_solver" and entry.get("status") == "unsupported" for entry in result["trace"]))
+
     def test_default_generation_budget_is_bounded_for_local_api_latency(self):
         self.assertEqual(4096, AgentConfig(enable_step_verification=False).max_tokens)
         self.assertTrue(AgentConfig(enable_step_verification=False).enable_l0_extended_tokens)
@@ -962,6 +1021,36 @@ class P0StopBleedingTest(unittest.TestCase):
                     if e.get("step") == "generate_candidate" and e.get("status") == "rejected"]
         self.assertTrue(rejected)
         self.assertIn("no_extractable_answer", rejected[0].get("truncation_signals", []))
+
+    def test_experimental_numeric_prompt_is_opt_in(self):
+        client = FakeClient(["最终答案：7"])
+        agent = ReasoningAgent(client, AgentConfig(enable_numeric_answer_first_prompt=True))
+        agent.solve("计算 3+4", {})
+        self.assertIn("第一行必须且只能写", client.calls[0][0][0]["content"])
+
+    def test_numeric_baseline_prompt_does_not_change_non_numeric_prompt(self):
+        agent = ReasoningAgent(FakeClient(["最终答案：命题成立\n\n证明：\n证毕"]), AgentConfig(enable_numeric_answer_only_prompt=True))
+        self.assertIn("证明：", agent._task_policy_prompt(TASK_TYPE_PROOF))
+        self.assertIn("只输出一行", agent._task_policy_prompt(TASK_TYPE_CALCULATION))
+
+    def test_conditional_token_retry_uses_6144_only_after_no_answer(self):
+        client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
+        config = AgentConfig(enable_conditional_token_retry=True)
+        result = ReasoningAgent(client, config).solve("计算 3+4", {})
+        self.assertEqual([4096, 6144], [call[2] for call in client.calls])
+        self.assertLessEqual(len(client.calls), 2)
+        self.assertEqual("7", result["final_response"])
+        finalize = result["trace"][-1]
+        self.assertIn("no_marker", finalize["diagnostic_reasons"])
+
+    def test_diagnostic_trace_is_safe_and_reports_fallback_reasons(self):
+        client = FakeClient(["最终答案：<答案>", "根据题意，代入公式可得"])
+        result = ReasoningAgent(client).solve("计算 3+4", {})
+        finalize = result["trace"][-1]
+        self.assertEqual("fallback", finalize["status"])
+        self.assertIn("all_candidates_rejected", finalize["diagnostic_reasons"])
+        self.assertIn("fallback", finalize["diagnostic_reasons"])
+        self.assertNotIn("根据题意", str(finalize))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,40 @@
+{"id":"number_theory_fermat","title":"费马小定理","signals":"素数模 指数 同余 a^p","method":"若p为素数且p不整除a，则a^(p-1)≡1 (mod p)。","conditions":"模数必须是素数且底数与模数互质。","pitfalls":"不能把合数模数直接套用；a含p因子时需另处理。","example":"计算2^10 mod 11时，将指数按10处理。"}
+{"id":"number_theory_euler","title":"欧拉定理","signals":"互质 同余 phi 欧拉函数","method":"若gcd(a,n)=1，则a^phi(n)≡1 (mod n)。","conditions":"a与n互质。","pitfalls":"非互质时不能直接使用。","example":"先算phi(n)，再约化指数。"}
+{"id":"number_theory_crt","title":"中国剩余定理","signals":"同余方程组 互素 模数 CRT","method":"两两互素模数的同余方程组在模乘积下有唯一解。","conditions":"模数两两互素，或先处理兼容性。","pitfalls":"不互素时不能直接相乘模数。","example":"分别求逆元后合并两个余数。"}
+{"id":"inequality_amgm","title":"算术—几何平均不等式","signals":"正数 固定和 乘积 最大 AM-GM","method":"正数的算术平均不小于几何平均，等号当且仅当各数相等。","conditions":"变量必须为非负实数，乘积或和的目标要匹配。","pitfalls":"负数情形不能直接套用。","example":"固定a+b时，ab≤((a+b)/2)^2。"}
+{"id":"inequality_cauchy","title":"柯西不等式","signals":"平方和 内积 分式 Cauchy","method":"(Σa_i b_i)^2≤(Σa_i^2)(Σb_i^2)。","conditions":"实数或复数向量。","pitfalls":"等号条件是向量线性相关，不是任意相等。","example":"把分式平方和转成内积后估计。"}
+{"id":"inequality_jensen","title":"Jensen不等式","signals":"凸函数 凹函数 加权平均","method":"凸函数在加权平均处不超过函数值的加权平均。","conditions":"函数在相关区间凸且权重非负、和为1。","pitfalls":"凹凸方向会反转不等号。","example":"对log、exp或平方函数检查二阶导数后使用。"}
+{"id":"combinatorics_inclusion","title":"容斥原理","signals":"至少一个 交集 并集 计数","method":"两集合并集等于各自计数之和减交集计数；多集合按交替符号展开。","conditions":"事件或集合计数可定义。","pitfalls":"漏掉高阶交集会造成偏差。","example":"统计满足至少一个限制的对象。"}
+{"id":"combinatorics_pigeonhole","title":"鸽巢原理","signals":"抽屉 鸽巢 必有 重复","method":"把多于m个对象放入m个盒子，至少一个盒子含两个对象。","conditions":"对象到盒子的映射明确。","pitfalls":"只能证明存在性，不能给出具体对象。","example":"生日问题中证明必有重复月份。"}
+{"id":"combinatorics_generating","title":"生成函数","signals":"递推 数列 系数 生成函数","method":"把数列编码为幂级数，通过代数运算或系数提取求项。","conditions":"级数形式和收敛/形式幂级数操作明确。","pitfalls":"不要混淆普通生成函数与指数生成函数。","example":"线性递推对应有理生成函数。"}
+{"id":"linear_eigen","title":"特征值与特征多项式","signals":"矩阵 特征值 det lambda","method":"λ是A的特征值当且仅当det(A−λI)=0。","conditions":"方阵，特征值在指定数域中讨论。","pitfalls":"特征多项式符号约定不同但根相同。","example":"先展开2×2行列式再解二次方程。"}
+{"id":"linear_rank","title":"秩与线性方程组","signals":"秩 行列式 唯一解 方程组","method":"系数矩阵满秩时线性方程组具有唯一解；秩判定相容性与自由变量。","conditions":"明确系数矩阵和增广矩阵。","pitfalls":"非方阵不能只看行列式。","example":"用消元比较rank(A)与rank([A|b])。"}
+{"id":"linear_orthogonal","title":"正交分解","signals":"正交 投影 最小二乘 内积","method":"向量可分解为子空间投影与正交补分量，投影误差与子空间正交。","conditions":"内积空间，通常有限维。","pitfalls":"基不正交时投影公式需使用Gram矩阵。","example":"最小二乘解使残差与列空间正交。"}
+{"id":"calculus_chain","title":"链式法则","signals":"复合函数 导数 sin x^2","method":"复合函数导数为外层导数乘以内层导数。","conditions":"各层在对应点可导。","pitfalls":"不要遗漏内层导数。","example":"d sin(x^2)/dx=2x cos(x^2)。"}
+{"id":"calculus_integral","title":"微积分基本定理","signals":"定积分 原函数 上下限","method":"连续函数的定积分等于任一原函数在上下限处的差。","conditions":"被积函数在区间上连续或可积。","pitfalls":"上下限方向反转会变号。","example":"∫_0^1 2x dx=[x^2]_0^1=1。"}
+{"id":"calculus_taylor","title":"Taylor展开","signals":"泰勒 麦克劳林 近似 余项","method":"在展开点附近用导数构造多项式近似，并由余项控制误差。","conditions":"函数在邻域内具有足够阶导数。","pitfalls":"局部展开不自动保证全局收敛。","example":"sin x的低阶展开用于小量估计。"}
+{"id":"probability_bayes","title":"贝叶斯公式","signals":"条件概率 后验 先验 Bayes","method":"P(A|B)=P(B|A)P(A)/P(B)，分母用全概率展开。","conditions":"P(B)>0，事件划分完整。","pitfalls":"混淆P(A|B)与P(B|A)。","example":"由检测结果反推真实状态概率。"}
+{"id":"probability_binomial","title":"二项分布","signals":"独立试验 恰好k次 成功概率","method":"n次独立Bernoulli试验恰有k次成功的概率为C(n,k)p^k(1-p)^(n-k)。","conditions":"每次试验独立且成功概率相同。","pitfalls":"非独立试验不能直接套用。","example":"公平硬币3次恰2次正面为3/8。"}
+{"id":"ode_separation","title":"分离变量法","signals":"一阶微分方程 初值 分离变量","method":"把含y的项与含x的项分到等式两侧后积分，再用初值确定常数。","conditions":"分母不为零且解在考察区间可微。","pitfalls":"分离时可能丢失常值解。","example":"y'=2y的非零解为Ce^{2x}，另查y=0。"}
+{"id":"sequence_induction","title":"数学归纳法","signals":"归纳 基础步 归纳假设 n","method":"验证基础情形并证明由n推出n+1，即可对所有后继整数成立。","conditions":"命题按自然数递进，归纳步骤覆盖所有n。","pitfalls":"只验证若干小n不能代替归纳步骤。","example":"证明前n项和公式。"}
+{"id":"inequality_schur","title":"Schur不等式","signals":"对称不等式 三变量 Schur","method":"对非负x,y,z，Σx(x−y)(x−z)≥0，可转化为对称多项式不等式。","conditions":"变量非负，注意次数和对称结构。","pitfalls":"负变量时不能直接使用非负版本。","example":"证明三次对称不等式时按大小排序并展开。"}
+{"id":"number_theory_lte","title":"提升指数定理LTE","signals":"p进赋值 指数差 整除 v_p","method":"在满足素数与互质条件时，将v_p(a^n−b^n)化为v_p(a−b)+v_p(n)等形式。","conditions":"先检查p、a、b的互质和奇偶条件。","pitfalls":"不同奇素数、p=2的条件不同，不能无条件套用。","example":"计算奇素数p对x^n−y^n的整除阶。"}
+{"id":"number_theory_wilson","title":"Wilson定理","signals":"阶乘 素数 模 p","method":"p为素数当且仅当(p−1)!≡−1 (mod p)。","conditions":"用于素性判定或阶乘同余，模数需为正整数。","pitfalls":"合数的逆元配对论证不成立。","example":"计算小素数阶乘模p。"}
+{"id":"number_theory_invariant","title":"不变量法","signals":"操作 游戏 状态 保持不变","method":"寻找每步操作不改变的奇偶性、模类或势函数，从而排除不可达状态。","conditions":"不变量必须对所有允许操作逐步保持。","pitfalls":"只检查初态和终态不够，需证明每步保持。","example":"棋盘翻转问题用黑白格奇偶不变量。"}
+{"id":"combinatorics_permutation","title":"排列组合基本公式","signals":"排列 组合 阶乘 选取顺序","method":"有序选取用P(n,k)=n!/(n−k)!，无序选取用C(n,k)=n!/(k!(n−k)!)。","conditions":"对象是否可重复、是否区分顺序必须明确。","pitfalls":"把排列和组合混用会产生k!因子错误。","example":"从n人选k人担任有序职位用排列。"}
+{"id":"combinatorics_pascal","title":"Pascal恒等式","signals":"二项式系数 递推 Pascal","method":"C(n,k)=C(n−1,k)+C(n−1,k−1)，按最后一个对象是否被选分类。","conditions":"0≤k≤n，边界项按1处理。","pitfalls":"递推下标越界需使用边界约定。","example":"递推计算组合数或证明二项式恒等式。"}
+{"id":"combinatorics_bijection","title":"双射计数","signals":"一一对应 计数 集合 等势","method":"构造两个集合之间的双射即可证明它们元素个数相等。","conditions":"映射必须同时证明单射和满射。","pitfalls":"只给出映射公式不证明可逆性。","example":"用补集映射证明子集数量相等。"}
+{"id":"probability_expectation","title":"期望线性性","signals":"期望 和 线性 依赖","method":"E[X+Y]=E[X]+E[Y]，不要求X、Y独立；常数可直接提出。","conditions":"相关期望存在。","pitfalls":"方差才需要额外协方差项，不能混同。","example":"把总成本拆成各项期望求和。"}
+{"id":"probability_variance","title":"方差分解","signals":"方差 协方差 独立","method":"Var(X+Y)=Var(X)+Var(Y)+2Cov(X,Y)，独立时协方差为0。","conditions":"二阶矩存在。","pitfalls":"不相关与独立一般不等价。","example":"独立随机变量和的方差直接相加。"}
+{"id":"probability_total","title":"全概率公式","signals":"事件划分 全概率 条件概率","method":"若B_i构成样本空间划分，则P(A)=ΣP(A|B_i)P(B_i)。","conditions":"B_i互斥且并为全集，概率分母有效。","pitfalls":"条件事件顺序不能写反。","example":"按人群类别分层计算总体概率。"}
+{"id":"calculus_product","title":"乘积法则","signals":"乘积 导数 product rule","method":"(fg)'=f'g+fg'。","conditions":"f、g在点上可导。","pitfalls":"不能只对一个因子求导。","example":"求x^2 sinx的导数。"}
+{"id":"calculus_log","title":"对数导数","signals":"ln 导数 乘积 幂函数","method":"对正函数取对数，将乘积和幂转为和与倍数，再求导。","conditions":"函数在区间内保持非零且符号处理清楚。","pitfalls":"绝对值与定义域不能遗漏。","example":"求x^x在x>0时的导数。"}
+{"id":"calculus_lhopital","title":"L'Hopital法则","signals":"极限 0/0 无穷/无穷 导数","method":"在满足条件时，分子分母同时求导可求未定式极限。","conditions":"邻域可导、分母导数非零且新极限存在。","pitfalls":"非未定式不能直接套用。","example":"求sinx/x在0处极限。"}
+{"id":"calculus_extreme","title":"极值判定","signals":"导数 临界点 极大 极小","method":"先找导数为零或不存在的临界点，再用符号表或二阶导数判定。","conditions":"函数在考察区间连续，端点需单独比较。","pitfalls":"驻点不一定是极值。","example":"二阶导数正说明局部极小。"}
+{"id":"ode_linear","title":"一阶线性方程","signals":"y'+p(x)y=q(x) 积分因子","method":"乘以积分因子μ=e^{∫p dx}，左侧化为(μy)'。","conditions":"p,q在区间连续。","pitfalls":"积分因子指数符号易错。","example":"用初值确定常数并检查原方程。"}
+{"id":"ode_second_order","title":"二阶常系数方程","signals":"特征方程 二阶微分方程 根","method":"设y=e^{rx}得到特征方程；实根、重根、复根对应不同通解形式。","conditions":"齐次或非齐次形式需区分。","pitfalls":"重根时漏乘x，复根时漏写正弦余弦。","example":"r^2−3r+2=0给出两个指数解。"}
+{"id":"linear_determinant","title":"行列式乘法性","signals":"det AB 行列式 乘积","method":"det(AB)=det(A)det(B)，可用于判断可逆性和简化计算。","conditions":"A、B为同阶方阵。","pitfalls":"det(A+B)通常不等于detA+detB。","example":"已知两个矩阵行列式直接得到乘积行列式。"}
+{"id":"linear_gaussian","title":"高斯消元","signals":"方程组 消元 行阶梯形","method":"用初等行变换化为行阶梯形，再回代求主元变量和自由变量。","conditions":"每步记录换行、倍乘和倍加对解集的影响。","pitfalls":"主元为0时需换行，不能直接除零。","example":"比较增广矩阵最后一行判断无解。"}
+{"id":"linear_trace","title":"迹的线性与相似不变性","signals":"矩阵 迹 trace 相似","method":"tr(A+B)=trA+trB，且tr(S^{-1}AS)=trA。","conditions":"矩阵维数匹配，S可逆。","pitfalls":"迹不等于特征值绝对值之和。","example":"由相似矩阵直接读取特征值和。"}
+{"id":"analysis_continuity","title":"连续性的ε-δ定义","signals":"连续 极限 epsilon delta","method":"f在a连续意味着对每个ε>0存在δ>0，使|x−a|<δ时|f(x)−f(a)|<ε。","conditions":"函数在点及其邻域有定义。","pitfalls":"δ可依赖ε，但不能依赖具体x。","example":"用三角不等式证明线性函数连续。"}
+{"id":"numerical_newton","title":"Newton迭代","signals":"非线性方程 数值求根 迭代","method":"x_{k+1}=x_k−f(x_k)/f'(x_k)，在合适初值和光滑条件下局部二次收敛。","conditions":"导数非零、初值靠近单根并控制停止准则。","pitfalls":"远离根可能发散或跳到另一根。","example":"用迭代求sqrt(2)并检查残差。"}

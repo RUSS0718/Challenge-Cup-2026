@@ -277,6 +277,20 @@ class JudgeCorrectTest(unittest.TestCase):
         # symbolic but not provably equal (x vs x^2 coincide only at 0/1) → unknown
         self.assertEqual("unknown", judge_correct("x", "x**2"))
 
+    def test_latex_fraction_and_sqrt_equivalence(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct(r"\frac{1}{2}", "0.5"))
+        self.assertEqual("correct", judge_correct(r"\sqrt{4}", "2"))
+
+    def test_unordered_numeric_sets_are_equivalent(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct("{1, 1/2, 2}", "{2,0.5,1}"))
+        self.assertEqual("incorrect", judge_correct("{1,2}", "{1,3}"))
+
+    def test_unsupported_latex_remains_unknown(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("unknown", judge_correct(r"\operatorname{foo}(x)", "x"))
+
     def test_choice_letters_case_insensitive(self):
         from scripts.evaluate_dev import judge_correct
         self.assertEqual("correct", judge_correct("A", "a", "choice"))
@@ -300,6 +314,7 @@ class P3EvaluatorMetricsTest(unittest.TestCase):
         self.assertIn("judge_coverage", report)
         self.assertIn("p95_model_calls", report)
         self.assertIn("p95_latency_seconds", report)
+        self.assertIn("diagnostic_reason_counts", report)
 
     def test_record_has_p3_fields(self):
         from scripts.evaluate_dev import evaluate
@@ -313,6 +328,7 @@ class P3EvaluatorMetricsTest(unittest.TestCase):
         self.assertIn("revise_accepted", record)
         self.assertIn("revise_rejected", record)
         self.assertIn("revise_rolled_back", record)
+        self.assertIn("diagnostic_reasons", record)
 
     def test_verdict_counts_sum_correctly(self):
         from scripts.evaluate_dev import evaluate

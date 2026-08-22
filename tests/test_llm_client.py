@@ -41,6 +41,47 @@ class InternChatClientTest(unittest.TestCase):
                 client.chat([], 0.0, 1)
         self.assertEqual("timeout", context.exception.category)
 
+    def test_default_model_is_explicit_397b_and_snapshot_is_safe(self):
+        with _patch_env(INTERN_API_KEY="test", remove=["INTERN_MODEL"]):
+            client = InternChatClient()
+        snapshot = client.diagnostic_snapshot()
+        self.assertEqual("intern-s2-preview-397b", snapshot["model"])
+        self.assertNotIn("test", str(snapshot))
+
+    def test_tls_error_has_distinct_sanitized_category(self):
+        with _patch_env(INTERN_API_KEY="test"):
+            client = InternChatClient(timeout=1, retry=1)
+        with patch("llm_client.requests.post", side_effect=__import__("requests").exceptions.SSLError("bad cert")):
+            with self.assertRaisesRegex(ChatClientError, "tls") as context:
+                client.chat([], 0.0, 1)
+        self.assertEqual("tls", context.exception.category)
+        self.assertEqual("SSLError", context.exception.detail)
+
+    def test_http_error_snapshot_keeps_only_status(self):
+        with _patch_env(INTERN_API_KEY="test"):
+            client = InternChatClient(timeout=1, retry=1)
+        import requests
+        response = requests.Response()
+        response.status_code = 401
+        error = requests.HTTPError(response=response)
+        with patch("llm_client.requests.post", side_effect=error):
+            with self.assertRaises(ChatClientError) as context:
+                client.chat([], 0.0, 1)
+        self.assertEqual("http_status", context.exception.category)
+        self.assertEqual("HTTPError:401", context.exception.detail)
+        self.assertEqual("HTTPError:401", client.diagnostic_snapshot()["last_failure_type"])
+
+    def test_thinking_mode_is_optional_and_added_only_when_configured(self):
+        with _patch_env(INTERN_API_KEY="test", INTERN_THINKING_MODE="false"):
+            client = InternChatClient(timeout=1, retry=1)
+        import requests
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b'{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}'
+        with patch("llm_client.requests.post", return_value=response) as post:
+            self.assertEqual("ok", client.chat([], 0.0, 1))
+        self.assertFalse(post.call_args.kwargs["data"].find(b'"thinking_mode": false') < 0)
+
 
 if __name__ == "__main__":
     unittest.main()

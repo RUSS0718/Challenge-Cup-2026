@@ -1,0 +1,41 @@
+[
+  {
+    "dataset_size": 3,
+    "verdict_counts": {
+      "unknown": 2,
+      "correct": 1
+    },
+    "correct": 1,
+    "incorrect": 0,
+    "invalid": 2,
+    "accuracy": 0.3333333333333333,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.3333333333333333,
+    "retry_count": 2,
+    "average_model_calls": 1.6666666666666667,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 108.33333333333333,
+    "p95_completion_tokens": 325,
+    "average_latency_seconds": 42.513333333333335,
+    "p95_latency_seconds": 60.296,
+    "diagnostic_reason_counts": {
+      "model_error": 2,
+      "fallback": 2
+    },
+    "variant": "baseline86",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": false,
+      "strict_salvage": false,
+      "conditional_token_retry": false
+    },
+    "round": 1,
+    "input_file": "sample_data/dev.jsonl",
+    "temperature": 0.6
+  }
+]

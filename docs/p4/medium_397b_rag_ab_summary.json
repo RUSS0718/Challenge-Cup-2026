@@ -1,0 +1,13 @@
+{
+  "model": "intern-s2-preview-397b",
+  "dataset": "sample_data/medium_capability_freeze_60.jsonl",
+  "config": {"max_tokens": 4096, "max_model_calls": 2, "timeout_seconds": 120, "top_k": 2, "context_chars": 4000},
+  "rounds": [
+    {"variant": "baseline", "round": 1, "accuracy": 0.4833333333, "unknown_rate": 0.5166666667, "average_model_calls": 1.0166666667, "p95_latency_seconds": 48.827, "timeout_count": 0, "failed_items": 0},
+    {"variant": "rag", "round": 1, "accuracy": 0.45, "unknown_rate": 0.55, "average_model_calls": 1.0166666667, "p95_latency_seconds": 104.773, "timeout_count": 0, "failed_items": 0},
+    {"variant": "baseline", "round": 2, "accuracy": 0.5, "unknown_rate": 0.5, "average_model_calls": 1.0, "p95_latency_seconds": 46.082, "timeout_count": 0, "failed_items": 0},
+    {"variant": "rag", "round": 2, "accuracy": 0.4166666667, "unknown_rate": 0.5833333333, "average_model_calls": 1.0166666667, "p95_latency_seconds": 81.473, "timeout_count": 0, "failed_items": 0}
+  ],
+  "gate": {"passed": false, "failures": ["round1:medium_gain_below_gate", "round2:medium_gain_below_gate", "round2:average_calls_increased"]},
+  "decision": "REJECT_RAG_DEFAULT_PROMOTION"
+}

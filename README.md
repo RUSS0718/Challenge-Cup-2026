@@ -107,6 +107,8 @@ stdio MCP、离线定理卡 RAG 和复杂能力冻结集仍属于后续阶段，
 | `enable_dynamic_budget` | `False` | 动态预算实验 |
 | `enable_local_repair` | `False` | 局部修复实验 |
 | `enable_uncertain_repair` | `False` | uncertain 修复实验 |
+| `enable_deterministic_solver` | `False` | 隔离的确定性数学求解器实验；unsupported 时回退模型 |
+| `enable_method_rag` | `False` | 40 张离线方法卡 RAG 实验；未通过模型 A/B 前保持关闭 |
 
 ## 赛事接口
 
@@ -156,7 +158,8 @@ python -m pip install -r requirements.txt
 
 ```powershell
 $env:INTERN_API_KEY = "your-api-key"
-# 可选：$env:INTERN_MODEL = "intern-s2-preview"
+# 可选：$env:INTERN_MODEL = "intern-s2-preview-397b"
+# 397B 长推理本地诊断可先设置：$env:INTERN_TIMEOUT_SECONDS = "120"
 ```
 
 运行 3 道快速冒烟题：
