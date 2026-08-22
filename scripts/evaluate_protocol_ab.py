@@ -239,6 +239,50 @@ def append_answers(path, rows: list[dict]) -> None:
     temporary.replace(path)
 
 
+def _interleave_order(index: int, variants: list[Variant]) -> list[Variant]:
+    """Alternate which arm goes first per item so neither owns an order bias."""
+    return variants if index % 2 == 0 else list(reversed(variants))
+
+
+def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, retry: int,
+                    workers: int, temperature: float,
+                    save_answers_to: str | None = None, round_no: int | None = None,
+                    input_file: str | None = None, solve_fn=None) -> list[dict]:
+    """Solve both arms back-to-back for every item (same-window pairing).
+
+    Per-item temporal adjacency plus alternating first-arm order removes the
+    window drift that invalidated cross-window comparisons on 2026-08-22.
+    """
+    if len(variants) != 2:
+        raise SystemExit("--interleave-items needs exactly two variants")
+    if solve_fn is None:
+        def solve_fn(variant: Variant, item: dict) -> dict:
+            return solve_one(variant, item, timeout, retry, temperature)
+
+    records_by_variant: dict[str, list[dict]] = {variant.name: [] for variant in variants}
+
+    def work(packed):
+        index, item = packed
+        return [(v.name, solve_fn(v, item)) for v in _interleave_order(index, variants)]
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        for solved in executor.map(work, enumerate(items)):
+            for name, record in solved:
+                records_by_variant[name].append(record)
+
+    reports = []
+    for variant in variants:
+        records = records_by_variant[variant.name]
+        report = summarize_records(records)
+        report["variant"] = variant.name
+        report["budget_config"] = budget_summary(variant, temperature)
+        report["interleaved"] = True
+        if save_answers_to and round_no is not None and input_file:
+            append_answers(Path(save_answers_to), answer_rows(variant.name, round_no, input_file, records))
+        reports.append(report)
+    return reports
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run isolated output-protocol A/B experiments.")
     parser.add_argument("--input-files", nargs="+", default=[
@@ -261,6 +305,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-file")
     parser.add_argument("--save-answers-to",
                         help="Persist compact per-item answers (idx/extracted_answer/verdict) as JSONL.")
+    parser.add_argument("--interleave-items", action="store_true",
+                        help="With exactly two --variant arms, solve both arms per item for same-window pairing.")
     parser.add_argument("--append-output", action="store_true",
                         help="Append to an existing JSON report instead of replacing it.")
     args = parser.parse_args(argv)
@@ -296,14 +342,24 @@ def main() -> None:
         items = load_items(Path(input_file))
         round_numbers = args.rounds if isinstance(args.rounds, list) else range(args.round_start, args.round_start + args.rounds)
         for round_no in round_numbers:
-            for name in names:
-                report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature,
-                                     save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file)
+            if args.interleave_items:
+                round_reports = run_interleaved(
+                    [VARIANTS[name] for name in names], items,
+                    args.timeout_seconds, args.retry_count, args.workers, args.temperature,
+                    save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file,
+                )
+            else:
+                round_reports = []
+                for name in names:
+                    report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature,
+                                         save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file)
+                    round_reports.append(report)
+            for report in round_reports:
                 report.update({"round": round_no, "input_file": input_file, "temperature": args.temperature})
                 reports.append(report)
                 print(json.dumps({k: report[k] for k in ("input_file", "round", "variant", "correct", "incorrect", "invalid", "accuracy", "main_length_rate", "retry_count", "average_model_calls")}, ensure_ascii=False))
-                if args.output_file:
-                    write_reports(Path(args.output_file), reports)
+            if args.output_file:
+                write_reports(Path(args.output_file), reports)
 
 
 if __name__ == "__main__":

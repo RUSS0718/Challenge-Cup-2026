@@ -11,6 +11,7 @@ from scripts.evaluate_protocol_ab import (
     budget_summary,
     make_config,
     parse_args,
+    run_interleaved,
     summarize_records,
 )
 
@@ -104,6 +105,36 @@ class ProtocolAbTest(unittest.TestCase):
             lines = path.read_text(encoding="utf-8").strip().splitlines()
             self.assertEqual(2, len(lines))
             self.assertNotIn(".tmp", str(path))
+
+    def test_interleave_alternates_variant_order_per_item(self):
+        va, vb = VARIANTS["baseline86"], VARIANTS["adaptive_vote"]
+        calls = []
+
+        def fake_solve(variant, item):
+            calls.append((item["idx"], variant.name))
+            return {
+                "idx": item["idx"], "extracted_answer": "", "verdict": "unknown",
+                "model_calls": 1, "latency_seconds": 1.0, "total_completion_tokens": 10,
+                "main_finish_reason": "stop", "main_marker": True, "retry_used": False,
+                "final_response_nonempty": True, "finalization_status": "selected",
+                "extracted_present": False, "diagnostic_reasons": [],
+            }
+
+        items = [{"idx": 0}, {"idx": 1}, {"idx": 2}]
+        reports = run_interleaved([va, vb], items, 60, 1, 3, 0.6, solve_fn=fake_solve)
+        self.assertEqual(
+            [(0, "baseline86"), (0, "adaptive_vote"),
+             (1, "adaptive_vote"), (1, "baseline86"),
+             (2, "baseline86"), (2, "adaptive_vote")],
+            calls,
+        )
+        self.assertEqual({"baseline86", "adaptive_vote"}, {r["variant"] for r in reports})
+        self.assertEqual([3, 3], sorted(r["dataset_size"] for r in reports))
+        self.assertTrue(all(r["interleaved"] for r in reports))
+
+    def test_interleave_requires_exactly_two_variants(self):
+        with self.assertRaises(SystemExit):
+            run_interleaved([VARIANTS["baseline86"]], [], 60, 1, 3, 0.6, solve_fn=lambda v, i: {})
 
     def test_parser_accepts_save_answers_to(self):
         args = parse_args(["--save-answers-to", "docs/ab_answers.jsonl"])
