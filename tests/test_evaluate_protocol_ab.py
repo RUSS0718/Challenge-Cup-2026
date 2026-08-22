@@ -33,7 +33,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08"],
             list(VARIANTS),
         )
 
@@ -132,7 +132,30 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual([3, 3], sorted(r["dataset_size"] for r in reports))
         self.assertTrue(all(r["interleaved"] for r in reports))
 
-    def test_interleave_requires_exactly_two_variants(self):
+    def test_interleave_rotates_three_arms_per_item(self):
+        va, vb, vc = (VARIANTS["baseline86"], VARIANTS["adaptive_vote"], VARIANTS["adaptive_vote08"])
+        calls = []
+
+        def fake_solve(variant, item):
+            calls.append((item["idx"], variant.name))
+            return {
+                "idx": item["idx"], "extracted_answer": "", "verdict": "unknown",
+                "model_calls": 1, "latency_seconds": 1.0, "total_completion_tokens": 10,
+                "main_finish_reason": "stop", "main_marker": True, "retry_used": False,
+                "final_response_nonempty": True, "finalization_status": "selected",
+                "extracted_present": False, "diagnostic_reasons": [],
+            }
+
+        items = [{"idx": 0}, {"idx": 1}]
+        reports = run_interleaved([va, vb, vc], items, 60, 1, 3, 0.6, solve_fn=fake_solve)
+        self.assertEqual(
+            [(0, "baseline86"), (0, "adaptive_vote"), (0, "adaptive_vote08"),
+             (1, "adaptive_vote08"), (1, "baseline86"), (1, "adaptive_vote")],
+            calls,
+        )
+        self.assertEqual([2, 2, 2], sorted(r["dataset_size"] for r in reports))
+
+    def test_interleave_requires_at_least_two_variants(self):
         with self.assertRaises(SystemExit):
             run_interleaved([VARIANTS["baseline86"]], [], 60, 1, 3, 0.6, solve_fn=lambda v, i: {})
 

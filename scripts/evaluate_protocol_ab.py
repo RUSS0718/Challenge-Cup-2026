@@ -63,6 +63,7 @@ VARIANTS = {
     "temperature04": Variant("temperature04", temperature=0.4),
     "temperature08": Variant("temperature08", temperature=0.8),
     "adaptive_vote": Variant("adaptive_vote", adaptive_voting=True),
+    "adaptive_vote08": Variant("adaptive_vote08", adaptive_voting=True, temperature=0.8),
 }
 
 
@@ -240,21 +241,22 @@ def append_answers(path, rows: list[dict]) -> None:
 
 
 def _interleave_order(index: int, variants: list[Variant]) -> list[Variant]:
-    """Alternate which arm goes first per item so neither owns an order bias."""
-    return variants if index % 2 == 0 else list(reversed(variants))
+    """Rotate which arm goes first per item so no arm owns an order bias."""
+    offset = index % len(variants)
+    return variants[offset:] + variants[:offset]
 
 
 def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, retry: int,
                     workers: int, temperature: float,
                     save_answers_to: str | None = None, round_no: int | None = None,
                     input_file: str | None = None, solve_fn=None) -> list[dict]:
-    """Solve both arms back-to-back for every item (same-window pairing).
+    """Solve every arm back-to-back for each item (same-window pairing).
 
-    Per-item temporal adjacency plus alternating first-arm order removes the
+    Per-item temporal adjacency plus rotating first-arm order removes the
     window drift that invalidated cross-window comparisons on 2026-08-22.
     """
-    if len(variants) != 2:
-        raise SystemExit("--interleave-items needs exactly two variants")
+    if len(variants) < 2:
+        raise SystemExit("--interleave-items needs at least two variants")
     if solve_fn is None:
         def solve_fn(variant: Variant, item: dict) -> dict:
             return solve_one(variant, item, timeout, retry, temperature)
