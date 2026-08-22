@@ -150,7 +150,7 @@ class ProtocolAbTest(unittest.TestCase):
         reports = run_interleaved([va, vb, vc], items, 60, 1, 3, 0.6, solve_fn=fake_solve)
         self.assertEqual(
             [(0, "baseline86"), (0, "adaptive_vote"), (0, "adaptive_vote08"),
-             (1, "adaptive_vote08"), (1, "baseline86"), (1, "adaptive_vote")],
+             (1, "adaptive_vote"), (1, "adaptive_vote08"), (1, "baseline86")],
             calls,
         )
         self.assertEqual([2, 2, 2], sorted(r["dataset_size"] for r in reports))
