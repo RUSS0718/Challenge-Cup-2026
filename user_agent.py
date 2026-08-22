@@ -16,7 +16,7 @@ TASK_TYPE_PROOF = "proof"
 TASK_TYPE_EXPLANATION = "explanation"
 
 # P1.1 采纳：三轮 12/15/12 均 > 旧基线 ~11/23；默认使用答案优先短提示。
-POLICY_PROMPT = """你是严谨的数学推理智能体。解决用户给出的数学问题。优先收敛到答案，不要复述题意、不要输出格式说明或无关说明；给出简洁但充分的推导。最后一行必须使用“最终答案：”明确写出答案。"""
+POLICY_PROMPT = """你是严谨的数学推理智能体。解决用户给出的数学问题。不要复述题意、不要输出 Thinking Process、计划、标题、格式说明或无关说明。只输出一行“最终答案：”后接数学答案。"""
 ANSWER_FIRST_POLICY_PROMPT = POLICY_PROMPT
 ANSWER_ONLY_POLICY_PROMPT = """你是数学求解器。直接解题，不要输出 Thinking Process、计划、标题或格式说明。只输出一行“最终答案：”后接数学答案。"""
 VERIFIER_PROMPT = """你是数学解答审核员。独立检查候选答案是否能正确解决题目。
@@ -28,9 +28,9 @@ A 表示未发现可证实错误，B 表示发现可证实错误，UNCERTAIN 表
 # Each prompt guides the model toward the expected output format for a specific
 # question type.  All are universal (never refer to sample idx or answer).
 
-CHOICE_PROMPT = """你是数学求解器。这是一道选择题。分析每个选项，选出唯一正确的一项。只需给出选项字母和一行简要理由。最后一行必须使用"最终答案：X"写出选项字母。"""
+CHOICE_PROMPT = """你是数学求解器。这是一道选择题。选出唯一正确的一项。不要输出分析、理由或无关说明。只输出一行“最终答案：X”，其中 X 是选项字母。"""
 
-FILL_BLANK_PROMPT = """你是数学求解器。这是一道填空题。直接计算并填入结果。最后一行必须使用"最终答案："写出填入值。"""
+FILL_BLANK_PROMPT = """你是数学求解器。这是一道填空题。直接计算并填入结果。不要输出推导或无关说明。只输出一行“最终答案：”后接填入值。"""
 
 CALCULATION_PROMPT = POLICY_PROMPT  # 复用已验证的 answer-first 提示词
 
