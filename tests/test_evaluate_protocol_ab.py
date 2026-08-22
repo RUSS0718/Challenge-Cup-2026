@@ -33,7 +33,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
             list(VARIANTS),
         )
 
@@ -163,6 +163,19 @@ class ProtocolAbTest(unittest.TestCase):
         args = parse_args(["--save-answers-to", "docs/ab_answers.jsonl"])
         self.assertEqual("docs/ab_answers.jsonl", args.save_answers_to)
         self.assertIsNone(parse_args([]).save_answers_to)
+
+    def test_adaptive_vote_k5_variant_uses_five_call_consensus(self):
+        config = make_config(VARIANTS["adaptive_vote_k5"])
+        self.assertTrue(config.enable_adaptive_voting)
+        self.assertEqual(5, config.vote_k_max)
+        self.assertEqual(3, config.vote_agree_threshold)
+        self.assertEqual(5, config.max_model_calls)
+        self.assertEqual(0.6, config.policy_temperature)
+
+    def test_budget_summary_reflects_k5_cap(self):
+        summary = budget_summary(VARIANTS["adaptive_vote_k5"])
+        self.assertEqual(5, summary["max_model_calls"])
+        self.assertEqual(5, summary["vote_k_max"])
 
     def test_summary_reports_invalid_calls_and_safe_diagnostics(self):
         report = summarize_records([
