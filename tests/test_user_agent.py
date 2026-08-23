@@ -1110,6 +1110,10 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
         self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
         self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
+        # 2026-08-23: official hidden set truncates ~88% at 4096; the API
+        # accepts 65536, so the submission ceiling must leave thinking room.
+        self.assertEqual(32768, SUBMISSION_CONFIG.max_tokens)
+        self.assertEqual(32768, SUBMISSION_CONFIG.l0_max_tokens)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()

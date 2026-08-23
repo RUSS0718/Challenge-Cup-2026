@@ -236,19 +236,22 @@ class AgentConfig:
 
 # ── Submission profile ────────────────────────────────────────────────────
 # The official runner constructs ``ReasoningAgent(client=official_client)``
-# without a config, which resolves here. Promoted on 2026-08-22 as a
-# bounded-risk submission strategy after the k5 A/B on the complex freeze
-# set: direction consistently positive (+5/192 item-rounds in each of two
-# independent experiments, combined exact p≈0.135) though below the
-# pre-registered significance bar; per-problem latency ~75–125s fits the
-# official 20-minute limit with wide margin; wall-clock guards stay armed.
-# All experimental switches remain off. Explicitly passing an AgentConfig
-# (local experiments) bypasses this profile entirely.
+# without a config, which resolves here.
+#
+# 2026-08-23 emergency revision after official eval 88.3% truncation
+# (474/537 requests length-capped, accuracy 9.82%): the hidden distribution
+# drives reasoning lengths far beyond 4096 while local sets sit at ~2-3k.
+# The API accepts up to 65536; a larger ceiling is free insurance — the model
+# only consumes what it needs. Voting stays k=5: measured ~2-3k tokens per
+# sample keeps worst-case wall-clock inside limits, and 16/18-minute guards
+# remain the hard backstop.
 SUBMISSION_CONFIG = AgentConfig(
     enable_adaptive_voting=True,
     vote_k_max=5,
     vote_agree_threshold=3,
     max_model_calls=5,
+    max_tokens=32768,
+    l0_max_tokens=32768,
 )
 
 
