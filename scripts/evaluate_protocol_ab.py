@@ -476,6 +476,8 @@ def main() -> None:
             else:
                 round_reports = []
                 for name in names:
+                    if breaker.tripped:
+                        break
                     report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature,
                                          save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file,
                                          breaker=breaker)
@@ -483,7 +485,7 @@ def main() -> None:
             for report in round_reports:
                 report.update({"round": round_no, "input_file": input_file, "temperature": args.temperature})
                 reports.append(report)
-                print(json.dumps({k: report[k] for k in ("input_file", "round", "variant", "correct", "incorrect", "invalid", "accuracy", "main_length_rate", "retry_count", "average_model_calls")}, ensure_ascii=False))
+                print(json.dumps({k: report[k] for k in ("input_file", "round", "variant", "correct", "incorrect", "invalid", "accuracy", "main_length_rate", "retry_count", "average_model_calls", "void")}, ensure_ascii=False))
             if args.output_file:
                 write_reports(Path(args.output_file), reports)
             if breaker.tripped:

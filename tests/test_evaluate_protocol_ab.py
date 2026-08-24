@@ -141,6 +141,26 @@ class ProtocolAbTest(unittest.TestCase):
             self.assertEqual(2, len(lines))
             self.assertNotIn(".tmp", str(path))
 
+    def test_append_mode_mixes_legacy_rows_with_new_diagnostic_rows(self):
+        from json import loads
+
+        with tempfile.TemporaryDirectory() as tmp:
+            answers = Path(tmp) / "answers.jsonl"
+            legacy_row = {"input_file": "x.jsonl", "round": 1, "variant": "baseline86",
+                          "idx": 1, "extracted_answer": "", "verdict": "unknown"}
+            append_answers(answers, [legacy_row])
+            report = run_variant(VARIANTS["baseline86"], [{"idx": 2}], 120, 1, 1, 0.6,
+                                 save_answers_to=str(answers), round_no=2, input_file="x.jsonl",
+                                 breaker=CircuitBreaker(8),
+                                 solve_fn=lambda item: _record(idx=item["idx"]))
+            self.assertFalse(report["void"])
+            lines = [loads(line) for line in answers.read_text(encoding="utf-8").splitlines() if line.strip()]
+        self.assertEqual(2, len(lines))
+        self.assertNotIn("diagnostic_reasons", lines[0])
+        self.assertEqual([], lines[1]["diagnostic_reasons"])
+        self.assertIn("latency_seconds", lines[1])
+        self.assertIn("main_finish_reason", lines[1])
+
     def test_interleave_alternates_variant_order_per_item(self):
         va, vb = VARIANTS["baseline86"], VARIANTS["adaptive_vote"]
         calls = []
@@ -264,8 +284,17 @@ class ProtocolAbTest(unittest.TestCase):
 
 class TimeoutGuardrailTest(unittest.TestCase):
     def test_parser_rejects_sub_minute_timeout_without_force(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(SystemExit) as ctx:
             parse_args(["--timeout-seconds", "5"])
+        self.assertEqual(2, ctx.exception.code)
+
+    def test_parser_rejection_message_explains_incident_and_escape_hatch(self):
+        with patch.object(sys, "stderr") as stderr:
+            with self.assertRaises(SystemExit):
+                parse_args(["--timeout-seconds", "5"])
+            printed = "".join(call.args[0] for call in stderr.method_calls if call.args)
+        self.assertIn("--force", printed)
+        self.assertIn("60", printed)
 
     def test_parser_force_allows_short_timeout_probe(self):
         args = parse_args(["--timeout-seconds", "5", "--force"])
@@ -405,6 +434,32 @@ class MainExitCodeTest(unittest.TestCase):
                 patch.object(protocol_ab, "load_items", lambda path: items), \
                 patch.object(protocol_ab, "solve_one", fake_solve_one):
             protocol_ab.main()
+
+    def test_main_skips_remaining_variants_after_trip(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from json import loads
+
+        items = [{"problem": "p", "answer": "42", "idx": i} for i in range(3)]
+
+        def fake_solve_one(variant, item, timeout, retry, temperature):
+            return _record(idx=item.get("idx"), verdict="unknown", diagnostic_reasons=["model_error"])
+
+        argv = ["evaluate_protocol_ab.py", "--variant", "baseline86", "--variant", "gated_retry",
+                "--input-files", "fake.jsonl", "--rounds", "1",
+                "--timeout-seconds", "120", "--max-consecutive-failures", "1"]
+        buffer = StringIO()
+        with patch.object(sys, "argv", argv), \
+                patch.object(protocol_ab, "load_items", lambda path: items), \
+                patch.object(protocol_ab, "solve_one", fake_solve_one), \
+                redirect_stdout(buffer):
+            with self.assertRaises(SystemExit) as ctx:
+                protocol_ab.main()
+        self.assertEqual(1, ctx.exception.code)
+        emitted = [loads(line) for line in buffer.getvalue().splitlines() if line.strip()]
+        summaries = [entry for entry in emitted if "variant" in entry]
+        self.assertEqual(["baseline86"], [entry["variant"] for entry in summaries])
+        self.assertTrue(all(entry["void"] for entry in summaries))
 
 
 if __name__ == "__main__":
