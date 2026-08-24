@@ -266,20 +266,38 @@ class AgentConfig:
 # The official runner constructs ``ReasoningAgent(client=official_client)``
 # without a config, which resolves here.
 #
-# 2026-08-23 emergency revision after official eval 88.3% truncation
-# (474/537 requests length-capped, accuracy 9.82%): the hidden distribution
-# drives reasoning lengths far beyond 4096 while local sets sit at ~2-3k.
-# The API accepts up to 65536; a larger ceiling is free insurance — the model
-# only consumes what it needs. Voting stays k=5: measured ~2-3k tokens per
-# sample keeps worst-case wall-clock inside limits, and 16/18-minute guards
-# remain the hard backstop.
+# 2026-08-24 canary profile: one 4096-token main call plus one
+# verification-gated recovery call. The retry is deterministic-gate controlled
+# and fail-closed; adaptive voting, P2/P3, and other experiments stay off.
 SUBMISSION_CONFIG = AgentConfig(
-    enable_adaptive_voting=True,
-    vote_k_max=5,
-    vote_agree_threshold=3,
-    max_model_calls=5,
-    max_tokens=32768,
-    l0_max_tokens=32768,
+    policy_sample_times=1,
+    policy_temperature=0.6,
+    verifier_voting_times=0,
+    enable_dynamic_budget=False,
+    enable_l0_extended_tokens=True,
+    enable_task_aware_prompt=True,
+    enable_time_convergence=True,
+    enable_adaptive_voting=False,
+    enable_verification_gated_retry=True,
+    enable_truncation_recovery_prompt=False,
+    max_model_calls=2,
+    max_tokens=4096,
+    l0_max_tokens=4096,
+    enable_heterogeneous_reasoners=False,
+    enable_step_verification=False,
+    enable_step_revision=False,
+    enable_method_rag=False,
+    enable_deterministic_solver=False,
+    enable_numeric_answer_first_prompt=False,
+    enable_numeric_answer_only_prompt=False,
+    enable_strict_numeric_salvage=False,
+    enable_conditional_token_retry=False,
+    enable_failure_retry_backoff=False,
+    enable_explicit_answer_conflict_retry=False,
+    enable_l2_routing=False,
+    enable_local_repair=False,
+    enable_uncertain_repair=False,
+    enable_sympy_evidence=False,
 )
 
 
