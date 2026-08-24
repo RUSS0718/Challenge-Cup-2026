@@ -33,7 +33,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "baseline8k_k2", "single_8k_t0", "k3_8k"],
             list(VARIANTS),
         )
 
@@ -176,6 +176,30 @@ class ProtocolAbTest(unittest.TestCase):
         summary = budget_summary(VARIANTS["adaptive_vote_k5"])
         self.assertEqual(5, summary["max_model_calls"])
         self.assertEqual(5, summary["vote_k_max"])
+
+    def test_baseline8k_k2_is_the_stable_baseline(self):
+        config = make_config(VARIANTS["baseline8k_k2"])
+        self.assertTrue(config.enable_adaptive_voting)
+        self.assertEqual(2, config.vote_k_max)
+        self.assertEqual(2, config.vote_agree_threshold)
+        self.assertEqual(2, config.max_model_calls)
+        self.assertEqual(8192, config.max_tokens)
+        self.assertEqual(0.6, config.policy_temperature)
+
+    def test_single_8k_t0_is_one_greedy_call(self):
+        config = make_config(VARIANTS["single_8k_t0"])
+        self.assertFalse(config.enable_adaptive_voting)
+        self.assertEqual(1, config.max_model_calls)
+        self.assertEqual(8192, config.max_tokens)
+        self.assertEqual(0.0, config.policy_temperature)
+
+    def test_k3_8k_is_three_sample_majority(self):
+        config = make_config(VARIANTS["k3_8k"])
+        self.assertTrue(config.enable_adaptive_voting)
+        self.assertEqual(3, config.vote_k_max)
+        self.assertEqual(2, config.vote_agree_threshold)
+        self.assertEqual(3, config.max_model_calls)
+        self.assertEqual(8192, config.max_tokens)
 
     def test_summary_reports_invalid_calls_and_safe_diagnostics(self):
         report = summarize_records([

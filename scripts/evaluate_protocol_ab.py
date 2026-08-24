@@ -21,7 +21,7 @@ import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT))
 from llm_client import InternChatClient  # noqa: E402
 from user_agent import (  # noqa: E402
     ANSWER_ONLY_POLICY_PROMPT,
+    SUBMISSION_CONFIG,
     AgentConfig,
     ReasoningAgent,
     classify_problem_type,
@@ -52,6 +53,9 @@ class Variant:
     adaptive_voting: bool = False
     vote_k_max: int = 3
     vote_agree_threshold: int = 2
+    submission_profile: bool = False
+    single_call: bool = False
+    vote_k: int | None = None
 
 
 VARIANTS = {
@@ -67,11 +71,23 @@ VARIANTS = {
     "adaptive_vote": Variant("adaptive_vote", adaptive_voting=True),
     "adaptive_vote08": Variant("adaptive_vote08", adaptive_voting=True, temperature=0.8),
     "adaptive_vote_k5": Variant("adaptive_vote_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3),
+    "baseline8k_k2": Variant("baseline8k_k2", submission_profile=True),
+    "single_8k_t0": Variant("single_8k_t0", submission_profile=True, single_call=True, temperature=0.0),
+    "k3_8k": Variant("k3_8k", submission_profile=True, vote_k=3),
 }
 
 
 def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
     """Build an isolated config; the promoted default is not mutated."""
+    if variant.submission_profile:
+        config = SUBMISSION_CONFIG
+        if variant.single_call:
+            config = replace(config, enable_adaptive_voting=False, max_model_calls=1)
+        elif variant.vote_k is not None:
+            config = replace(config, vote_k_max=variant.vote_k, max_model_calls=variant.vote_k)
+        if variant.temperature is not None:
+            config = replace(config, policy_temperature=variant.temperature)
+        return config
     return AgentConfig(
         max_tokens=4096,
         l0_max_tokens=4096,
@@ -94,6 +110,18 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
 
 def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
     """Effective budget facts for the report; mirrors make_config exactly."""
+    if variant.submission_profile:
+        config = make_config(variant, temperature)
+        return {
+            "profile": "SUBMISSION_CONFIG",
+            "max_tokens": config.max_tokens,
+            "l0_max_tokens": config.l0_max_tokens,
+            "retry_max_tokens": config.max_tokens,
+            "max_model_calls": config.max_model_calls,
+            "adaptive_voting": config.enable_adaptive_voting,
+            "vote_k_max": config.vote_k_max if config.enable_adaptive_voting else 0,
+            "policy_temperature": config.policy_temperature,
+        }
     return {
         "max_tokens": 4096,
         "l0_max_tokens": 4096,
