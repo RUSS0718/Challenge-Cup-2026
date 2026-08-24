@@ -130,3 +130,17 @@ Prompt；默认路径晋升必须在适用数据集上完成至少双轮独立 A
   且条件可形式化、可单测、不绑定题号 → 可以进入默认路径（须双轮复评与接口验收）。
 - 硬推理失败（开发集上长期错的抽象题等）优先考虑通用 Prompt、预算、抽取卫生或
   可验证工具证据；**禁止**为抬分而牺牲普适性。
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues at RUSS0718/Challenge-Cup-2026 (via `gh`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles, label strings equal to role names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` + `docs/adr/`. See `docs/agents/domain.md`.
