@@ -33,7 +33,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
             list(VARIANTS),
         )
 
@@ -57,6 +57,15 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(ab_retry.enable_strict_numeric_salvage)
         self.assertTrue(ab_retry.enable_conditional_token_retry)
         self.assertEqual(6144, ab_retry.conditional_retry_max_tokens)
+
+        gated = make_config(VARIANTS["gated_retry"])
+        self.assertTrue(gated.enable_verification_gated_retry)
+        self.assertFalse(gated.enable_truncation_recovery_prompt)
+        self.assertEqual(4096, gated.max_tokens)
+        gated_8k = make_config(VARIANTS["gated_retry_8k"])
+        self.assertTrue(gated_8k.enable_verification_gated_retry)
+        self.assertEqual(8192, gated_8k.max_tokens)
+        self.assertEqual(8192, gated_8k.l0_max_tokens)
 
     def test_temperature_variants_change_only_policy_temperature(self):
         baseline = make_config(VARIANTS["baseline86"])
@@ -83,6 +92,12 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertFalse(baseline["adaptive_voting"])
         self.assertEqual(3, vote["max_model_calls"])
         self.assertTrue(vote["adaptive_voting"])
+
+    def test_budget_summary_names_8k_exploration_arm(self):
+        summary = budget_summary(VARIANTS["gated_retry_8k"])
+        self.assertEqual(8192, summary["max_tokens"])
+        self.assertTrue(summary["verification_gated_retry"])
+        self.assertFalse(summary["truncation_recovery_prompt"])
 
     def test_answer_rows_carry_identity_and_verdict(self):
         records = [
@@ -202,6 +217,29 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(0.5, report["main_length_rate"])
         self.assertEqual({"no_marker": 1, "fallback": 1}, report["diagnostic_reason_counts"])
         self.assertNotIn("raw_responses", report)
+
+    def test_summary_reports_gate_mechanism_metrics(self):
+        base = {
+            "model_calls": 1, "latency_seconds": 1.0,
+            "total_completion_tokens": 10, "main_finish_reason": "stop",
+            "main_marker": True, "retry_used": False,
+            "final_response_nonempty": True, "finalization_status": "selected",
+            "extracted_present": True, "verdict": "correct",
+            "diagnostic_reasons": [],
+        }
+        short_circuit = dict(base, gate_short_circuit=True)
+        accepted = dict(base, retry_used=True, retry_reason="truncation",
+                        gate_short_circuit=False, gate_accepted=1)
+        rejected = dict(base, retry_used=True, retry_reason="sanity",
+                        gate_short_circuit=False, gate_rejected=1,
+                        gate_rejected_modes=["sanity"], gate_kept_originals=True)
+        report = summarize_records([short_circuit, accepted, rejected])
+        self.assertEqual({"truncation": 1, "sanity": 1}, report["retry_reason_counts"])
+        self.assertEqual(1, report["gate_short_circuit_count"])
+        self.assertEqual(1, report["gate_accepted_count"])
+        self.assertEqual(1, report["gate_rejected_count"])
+        self.assertEqual({"sanity": 1}, report["gate_rejected_mode_counts"])
+        self.assertEqual(1, report["gate_kept_originals_count"])
 
 
 if __name__ == "__main__":

@@ -105,6 +105,30 @@ STEP_REVISE_PROMPT = """你是数学修正员。原解答在指定步骤有错�
 输入包含：原题、原解答、错误定位和原因。
 输出修正后的完整解答。最后一行必须使用"最终答案："明确写出答案。"""
 
+# ── Verification-gated retry instructions ────────────────────────────────
+# These are universal counter-evidence prompts for the single recovery slot.
+GATED_TRUNCATION_INSTRUCTION = (
+    "检查提示：你上一次的回答在写出完整结论前被截断。"
+    "请改用最短完备推导重新作答：第一行立即写“最终答案：<答案>”，"
+    "随后每一步只保留一行关键中间结果，禁止长篇展开或重复计算。"
+)
+GATED_UNSTRUCTURED_INSTRUCTION = (
+    "检查提示：你上一次的回答缺少规定的“最终答案：”结论行。"
+    "请严格按格式重新作答：先写一行“最终答案：<答案>”，再给出紧凑的解答主体。"
+)
+GATED_PLACEHOLDER_INSTRUCTION = (
+    "检查提示：你上一次的回答只给出了占位符而不是真实答案。"
+    "请直接完成计算，并写出一行“最终答案：<具体的数值、表达式或选项字母>”。"
+)
+GATED_CONFLICT_INSTRUCTION = (
+    "检查提示：你上一次的回答包含两个互相矛盾的最终答案（“{first}”与“{second}”），两者不可能同时成立。"
+    "请重新核对推导，只保留一个经过验证的最终答案，写在一行“最终答案：<答案>”。"
+)
+GATED_SANITY_INSTRUCTION = (
+    "检查提示：你给出的答案 {answer} 不满足条件：{constraint}。"
+    "请对照该约束重新核查推导，修正错误后给出一行“最终答案：<满足约束的答案>”。"
+)
+
 
 # Map task type → generation prompt.
 TASK_PROMPTS: dict[str, str] = {
@@ -224,6 +248,10 @@ class AgentConfig:
     enable_failure_retry_backoff: bool = False
     failure_retry_backoff_seconds: float = 1.0
     enable_explicit_answer_conflict_retry: bool = False
+    # B1: deterministic verification gate for the single recovery call.
+    enable_verification_gated_retry: bool = False
+    # B2 remains an explicit, disabled experiment; B1 does not depend on it.
+    enable_truncation_recovery_prompt: bool = False
     # Adaptive consistency voting: independent full resamples of the same
     # problem; consensus is decided by conservative equivalence groups with
     # early exit once the top group reaches vote_agree_threshold clear answers.
@@ -755,6 +783,98 @@ def has_conflicting_explicit_answers(response: str) -> bool:
         for right in answers[index + 1:]
     )
 
+
+# ── B1: deterministic verification-gated retry checks ────────────────────
+
+
+def _conflicting_answer_pair(response: str) -> tuple[str, str] | None:
+    """Return the first pair of explicit, provably different answers."""
+    answers = [answer.strip() for answer in _ANSWER_MARKER_RE.findall(response) if answer.strip()]
+    for index, left in enumerate(answers):
+        for right in answers[index + 1:]:
+            if answer_equivalence(left, right) == "NOT_EQUIVALENT":
+                return left, right
+    return None
+
+
+def _single_scalar_value(answer: str) -> Fraction | None:
+    """Return an exact scalar value, or None for structured/non-scalar text."""
+    if not isinstance(answer, str):
+        return None
+    value = re.sub(r"\s+", "", answer)
+    value = re.sub(r"^[A-Za-z\u4e00-\u9fff]{1,6}\s*[＝=:：]", "", value)
+    percent = value.endswith(("%", "％"))
+    if percent:
+        value = value[:-1]
+    if not re.fullmatch(r"[+-]?(?:\d+(?:\.\d+)?|\d+/\d+)", value) and not re.fullmatch(r"\\[df]?rac\{[\d.]+\}\{[\d.]+\}", value):
+        return None
+    parsed = _parse_rational_token(value)
+    if parsed is None:
+        return None
+    return parsed / 100 if percent else parsed
+
+
+_GATE_INTERROGATIVE_RE = re.compile(r"求|多少|几|是否|哪")
+_GATE_PROBABILITY_RE = re.compile(r"概率|可能性")
+_GATE_EXPECTATION_RE = re.compile(r"期望|均值|方差|标准差")
+_GATE_COUNT_RE = re.compile(r"个数|数量|有多少|共有多少|多少个|几种|多少种|种数|条数|人数|件数|方案")
+_GATE_AVERAGE_RE = re.compile(r"平均|比例|百分")
+
+
+def _interrogative_sentences(problem: str) -> list[str]:
+    sentences = re.split(r"[。；;！!？?\n]+", problem or "")
+    return [sentence for sentence in sentences if _GATE_INTERROGATIVE_RE.search(sentence)]
+
+
+def _sanity_violation(problem: str, answer: str) -> str | None:
+    """Return a violated probability/count constraint when it is explicit."""
+    value = _single_scalar_value(answer)
+    if value is None:
+        return None
+    for sentence in _interrogative_sentences(problem):
+        if _GATE_PROBABILITY_RE.search(sentence) and not _GATE_EXPECTATION_RE.search(sentence):
+            if not 0 <= value <= 1:
+                return f"题面所求为概率，取值必须在区间 [0,1] 内（当前 {answer}）"
+        if _GATE_COUNT_RE.search(sentence) and not _GATE_AVERAGE_RE.search(sentence):
+            if value < 0 or value.denominator != 1:
+                return f"题面所求为计数，必须是非负整数（当前 {answer}）"
+    return None
+
+
+_GATE_MODE_PRIORITY = ("truncation", "conflict", "sanity", "unstructured", "placeholder", "no_answer")
+
+
+def run_answer_checks(
+    problem: str,
+    problem_type: str,
+    response: str,
+    answer: str,
+    structured: bool | None,
+) -> dict[str, Any]:
+    """Run B1's six deterministic checks without making a model call."""
+    numeric_type = problem_type not in _NON_NUMERIC_TASK_TYPES
+    signals = _truncation_signals(response, answer)
+    structural = [signal for signal in signals if signal != "no_extractable_answer"]
+    if structural:
+        return {"status": "fail", "mode": "truncation", "detail": {"signals": structural}}
+
+    pair = _conflicting_answer_pair(response or "")
+    if pair:
+        return {"status": "fail", "mode": "conflict", "detail": {"first": pair[0], "second": pair[1]}}
+
+    if not numeric_type:
+        if structured is False:
+            return {"status": "fail", "mode": "unstructured", "detail": None}
+        return {"status": "pass", "mode": None, "detail": None}
+
+    if not answer:
+        mode = "placeholder" if _has_placeholder_answer(response or "") else "no_answer"
+        return {"status": "fail", "mode": mode, "detail": {"signals": signals}}
+    violation = _sanity_violation(problem, answer)
+    if violation:
+        return {"status": "fail", "mode": "sanity", "detail": {"constraint": violation, "answer": answer}}
+    return {"status": "pass", "mode": None, "detail": None}
+
 class ReasoningAgent:
     def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, **_: Any) -> None:
         self.client = client
@@ -809,21 +929,8 @@ class ReasoningAgent:
                                 task_prompt=self._task_policy_prompt(problem_type),
                                 problem_type=problem_type)
         else:
-            explicit_answer_conflict = any(candidate.get("explicit_answer_conflict") for candidate in candidates)
-            if (not self._has_clear_answer(candidates)
-                    or (self.config.enable_explicit_answer_conflict_retry and explicit_answer_conflict)):
-                retry_reason = "explicit_answer_conflict" if explicit_answer_conflict else "no_clear_answer"
-                trace.append({"step": "conditional_retry", "reason": retry_reason,
-                              "model_calls": budget["used"]})
-                if (self.config.enable_failure_retry_backoff
-                        and "model_error" in budget["diagnostic_reasons"]):
-                    time.sleep(self.config.failure_retry_backoff_seconds)
-                    trace.append({"step": "conditional_retry_backoff",
-                                  "seconds": self.config.failure_retry_backoff_seconds})
-                task_prompt = self._task_policy_prompt(problem_type)
-                self._generate_candidates(problem, 1, candidates, trace, budget,
-                                          self._retry_max_tokens(level),
-                                          task_prompt=task_prompt, problem_type=problem_type)
+            self._conditional_recovery(problem, level, candidates, trace, budget,
+                                       problem_type=problem_type)
 
         if self._should_escalate_l2(level, candidates):
             trace.append({"step":"route_budget","level":"L2","generation_calls":1,"max_model_calls":budget["limit"],"reason":"answer_conflict"})
@@ -874,6 +981,7 @@ class ReasoningAgent:
         task_prompt: str | None = None,
         problem_type: str = TASK_TYPE_CALCULATION,
         reasoner: str | None = None,  # P2: "direct" | "alternative" | None
+        instruction: str | None = None,
     ) -> None:
         prompt = task_prompt or self.config.policy_prompt
         if self.config.enable_method_rag:
@@ -894,7 +1002,10 @@ class ReasoningAgent:
                 trace.append(_tr("skipped", candidate_id + candidate_start, reason="solve_time_convergence_triggered"))
                 continue
             candidate_id += candidate_start
-            response, error = self._request(prompt, f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}", self.config.policy_temperature, max_tokens, budget)
+            user_prompt = f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}"
+            if instruction:
+                user_prompt = f"{instruction}\n\n{user_prompt}"
+            response, error = self._request(prompt, user_prompt, self.config.policy_temperature, max_tokens, budget)
             if response is None:
                 self._record_diagnostic(budget, "model_error")
                 trace.append(_tr("skipped", candidate_id, reason=error, diagnostic_reason="model_error")); continue
@@ -909,6 +1020,7 @@ class ReasoningAgent:
                 # 必须是独立结构行，嵌在 thinking/约束说明/引号/列表里的伪标记不识别；
                 # 占位符（<…>/[Core Answer]/[Option Letter]/…）在解析内拒绝。
                 if _has_placeholder_answer(response):
+                    self._record_failure_notes(budget, reason="placeholder_answer")
                     trace.append(_tr("rejected", candidate_id, reason="placeholder_answer"))
                     continue
                 parsed = parse_structure_f(response, problem_type)
@@ -923,9 +1035,16 @@ class ReasoningAgent:
                     structured = False
             elif not answer:
                 diagnostic_reason = "placeholder" if _has_placeholder_answer(response) else "no_marker"
+                signals = _truncation_signals(response, answer)
+                self._record_failure_notes(
+                    budget,
+                    reason="answer_not_extractable",
+                    truncation_signals=[signal for signal in signals if signal != "no_extractable_answer"],
+                    diagnostic_reason=diagnostic_reason,
+                )
                 self._record_diagnostic(budget, diagnostic_reason)
                 trace.append(_tr("rejected", candidate_id, reason="answer_not_extractable",
-                                 truncation_signals=_truncation_signals(response, answer),
+                                 truncation_signals=signals,
                                  diagnostic_reason=diagnostic_reason))
                 continue
             candidates.append({"candidate_id":candidate_id,"answer":answer,"normalized_answer":normalize_answer(answer),"solution":response,"structured":structured,"evidence":[],"verification_status":"unverified","model_calls_used":1,"problem_type":problem_type,"explicit_answer_conflict":has_conflicting_explicit_answers(response)})
@@ -1093,6 +1212,170 @@ class ReasoningAgent:
         if self.config.enable_conditional_token_retry:
             return max(self._policy_max_tokens(level), int(self.config.conditional_retry_max_tokens))
         return self._policy_max_tokens(level)
+
+    @staticmethod
+    def _record_failure_notes(budget: dict[str, Any], **notes: Any) -> None:
+        stored = budget.setdefault("failure_notes", {})
+        stored.clear()
+        stored.update(notes)
+
+    def _gate_check(self, problem: str, problem_type: str,
+                    candidates: list[dict[str, Any]], budget: dict[str, Any]) -> dict[str, Any]:
+        """Return the highest-priority explicit B1 failure, or pass."""
+        worst: dict[str, Any] | None = None
+        for candidate in candidates:
+            verdict = run_answer_checks(
+                problem,
+                problem_type,
+                candidate.get("solution") or "",
+                candidate.get("answer", ""),
+                candidate.get("structured"),
+            )
+            if verdict["status"] == "pass":
+                return verdict
+            if worst is None or _GATE_MODE_PRIORITY.index(verdict["mode"]) < _GATE_MODE_PRIORITY.index(worst["mode"]):
+                worst = verdict
+        if worst is not None:
+            return worst
+
+        notes = budget.get("failure_notes", {}) or {}
+        signals = list(notes.get("truncation_signals") or [])
+        if signals:
+            return {"status": "fail", "mode": "truncation", "detail": {"signals": signals}}
+        if notes.get("reason") == "placeholder_answer":
+            return {"status": "fail", "mode": "placeholder", "detail": None}
+        return {"status": "fail", "mode": "no_answer", "detail": {"signals": ["no_extractable_answer"]}}
+
+    @staticmethod
+    def _retry_instruction(mode: str | None, check: dict[str, Any] | None) -> str | None:
+        if mode == "truncation":
+            return GATED_TRUNCATION_INSTRUCTION
+        if mode == "conflict" and check:
+            detail = check.get("detail") or {}
+            return GATED_CONFLICT_INSTRUCTION.format(first=detail.get("first", ""), second=detail.get("second", ""))
+        if mode == "sanity" and check:
+            detail = check.get("detail") or {}
+            return GATED_SANITY_INSTRUCTION.format(answer=detail.get("answer", ""), constraint=detail.get("constraint", ""))
+        if mode == "unstructured":
+            return GATED_UNSTRUCTURED_INSTRUCTION
+        if mode == "placeholder":
+            return GATED_PLACEHOLDER_INSTRUCTION
+        return None
+
+    def _conditional_recovery(
+        self, problem: str, level: str,
+        candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
+        budget: dict[str, Any], problem_type: str,
+    ) -> None:
+        """Use legacy recovery when off; use B1 gate and fail-closed retry when on."""
+        task_prompt = self._task_policy_prompt(problem_type)
+        gated = self.config.enable_verification_gated_retry
+        check = self._gate_check(problem, problem_type, candidates, budget) if gated else None
+        if gated:
+            trace.append({
+                "step": "verification_check",
+                "status": check["status"],
+                "mode": check["mode"],
+                "candidate_count": len(candidates),
+            })
+            trigger = check["status"] == "fail"
+            mode = check["mode"]
+        else:
+            explicit_answer_conflict = any(candidate.get("explicit_answer_conflict") for candidate in candidates)
+            conflict_retry = self.config.enable_explicit_answer_conflict_retry and explicit_answer_conflict
+            trigger = (not self._has_clear_answer(candidates)) or conflict_retry
+            mode = "explicit_answer_conflict" if conflict_retry else "no_clear_answer"
+
+        instruction = None
+        if not trigger:
+            return
+        if gated:
+            instruction = self._retry_instruction(mode, check)
+        elif (
+            mode == "no_clear_answer"
+            and self.config.enable_truncation_recovery_prompt
+            and budget.get("failure_notes", {}).get("truncation_signals")
+        ):
+            mode = "truncation"
+            instruction = GATED_TRUNCATION_INSTRUCTION
+
+        trace.append({"step": "conditional_retry", "reason": mode, "model_calls": budget["used"]})
+        if self.config.enable_failure_retry_backoff and "model_error" in budget["diagnostic_reasons"]:
+            time.sleep(self.config.failure_retry_backoff_seconds)
+            trace.append({"step": "conditional_retry_backoff", "seconds": self.config.failure_retry_backoff_seconds})
+
+        retry_trace_start = len(trace)
+        retry_bucket: list[dict[str, Any]] = []
+        self._generate_candidates(
+            problem,
+            1,
+            retry_bucket,
+            trace,
+            budget,
+            self._retry_max_tokens(level),
+            task_prompt=task_prompt,
+            problem_type=problem_type,
+            instruction=instruction,
+        )
+        if not gated:
+            candidates.extend(retry_bucket)
+            return
+
+        accepted: list[dict[str, Any]] = []
+        rejected: list[dict[str, Any]] = []
+        if not retry_bucket:
+            rejected_generation = next(
+                (
+                    entry for entry in trace[retry_trace_start:]
+                    if entry.get("step") == "generate_candidate" and entry.get("status") == "rejected"
+                ),
+                None,
+            )
+            if rejected_generation:
+                signals = rejected_generation.get("truncation_signals") or []
+                rejection_mode = (
+                    "placeholder"
+                    if rejected_generation.get("reason") == "placeholder_answer"
+                    or rejected_generation.get("diagnostic_reason") == "placeholder"
+                    else "truncation"
+                    if any(signal != "no_extractable_answer" for signal in signals)
+                    else "no_answer"
+                )
+                rejected.append({"candidate_id": rejected_generation.get("candidate_id", 0)})
+                trace.append({
+                    "step": "gated_retry_rejected",
+                    "candidate_id": rejected_generation.get("candidate_id", 0),
+                    "mode": rejection_mode,
+                })
+        for candidate in retry_bucket:
+            verdict = run_answer_checks(
+                problem,
+                problem_type,
+                candidate.get("solution") or "",
+                candidate.get("answer", ""),
+                candidate.get("structured"),
+            )
+            if verdict["status"] == "pass":
+                accepted.append(candidate)
+            else:
+                rejected.append(candidate)
+                trace.append({
+                    "step": "gated_retry_rejected",
+                    "candidate_id": candidate["candidate_id"],
+                    "mode": verdict["mode"],
+                })
+
+        selection: dict[str, Any] = {
+            "step": "verification_gate_selection",
+            "accepted": len(accepted),
+            "rejected_retry_ids": [item["candidate_id"] for item in rejected],
+        }
+        if accepted:
+            selection["removed_original_ids"] = [item["candidate_id"] for item in candidates]
+            candidates[:] = accepted
+        else:
+            selection["kept_originals"] = True
+        trace.append(selection)
 
     @staticmethod
     def _record_diagnostic(budget: dict[str, Any], reason: str) -> None:
