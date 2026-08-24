@@ -238,20 +238,21 @@ class AgentConfig:
 # The official runner constructs ``ReasoningAgent(client=official_client)``
 # without a config, which resolves here.
 #
-# 2026-08-23 emergency revision after official eval 88.3% truncation
-# (474/537 requests length-capped, accuracy 9.82%): the hidden distribution
-# drives reasoning lengths far beyond 4096 while local sets sit at ~2-3k.
-# The API accepts up to 65536; a larger ceiling is free insurance — the model
-# only consumes what it needs. Voting stays k=5: measured ~2-3k tokens per
-# sample keeps worst-case wall-clock inside limits, and 16/18-minute guards
-# remain the hard backstop.
+# 2026-08-24 stable baseline: 8192 ceiling + 2-sample consensus.
+# Official R3 (32k/k5) made single calls run 9+ minutes: 54/112 problems hit
+# the 20-minute runner limit (error), stage stretched to 9h23m, accuracy
+# 8.04%. At ~45-60 tok/s an 8192 cap bounds a call at ~2.5-3 min and two
+# calls at ~6 min, safely inside limits, while still covering the ~2-3k
+# median thinking length. Truncation at 8k remains possible on the hardest
+# items; the structural fix for those is the PoT/TIR short-output path
+# (docs/superpowers/specs/2026-08-22-pot-tir-design.md), not a bigger ceiling.
 SUBMISSION_CONFIG = AgentConfig(
     enable_adaptive_voting=True,
-    vote_k_max=5,
-    vote_agree_threshold=3,
-    max_model_calls=5,
-    max_tokens=32768,
-    l0_max_tokens=32768,
+    vote_k_max=2,
+    vote_agree_threshold=2,
+    max_model_calls=2,
+    max_tokens=8192,
+    l0_max_tokens=8192,
 )
 
 

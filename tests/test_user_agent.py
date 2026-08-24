@@ -1105,15 +1105,16 @@ class P0StopBleedingTest(unittest.TestCase):
 class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
-    def test_submission_config_enables_k5_consensus(self):
+    def test_submission_config_is_stable_baseline(self):
+        # 2026-08-24 stable baseline: 8k ceiling + 2-sample consensus.
+        # R3 (32k/k5) blew the 20-minute per-problem limit (54 runner errors,
+        # 9h23m stage); 8192 caps a call at ~2.5-3 min and two calls at ~6 min.
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
-        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
-        self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
-        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
-        # 2026-08-23: official hidden set truncates ~88% at 4096; the API
-        # accepts 65536, so the submission ceiling must leave thinking room.
-        self.assertEqual(32768, SUBMISSION_CONFIG.max_tokens)
-        self.assertEqual(32768, SUBMISSION_CONFIG.l0_max_tokens)
+        self.assertEqual(2, SUBMISSION_CONFIG.vote_k_max)
+        self.assertEqual(2, SUBMISSION_CONFIG.vote_agree_threshold)
+        self.assertEqual(2, SUBMISSION_CONFIG.max_model_calls)
+        self.assertEqual(8192, SUBMISSION_CONFIG.max_tokens)
+        self.assertEqual(8192, SUBMISSION_CONFIG.l0_max_tokens)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()
@@ -1125,7 +1126,7 @@ class SubmissionProfileTest(unittest.TestCase):
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
-        self.assertEqual(3, len(client.calls))
+        self.assertEqual(2, len(client.calls))
         self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
 
 
