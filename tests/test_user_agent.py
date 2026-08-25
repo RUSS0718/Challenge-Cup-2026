@@ -13,7 +13,7 @@ from user_agent import (
     EXPLANATION_PROMPT, FILL_BLANK_PROMPT, PROOF_PROMPT, TASK_PROMPTS,
     DIRECT_REASONER_PROMPT, ALTERNATIVE_REASONER_PROMPT,
     STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
-    answer_equivalence, classify_problem_type, extract_final_answer,
+    answer_equivalence, classify_problem_type, extract_answer_first, extract_final_answer,
     extract_numeric_answer,
     has_conflicting_explicit_answers,
     extract_answer_segment, normalize_answer, reconstruct_final_response,
@@ -41,6 +41,14 @@ class AnswerHandlingTest(unittest.TestCase):
         self.assertEqual("8", extract_final_answer("Final answer: 8"))
         self.assertEqual("C", extract_final_answer("推导\n选项 C"))
         self.assertEqual("42", extract_final_answer("计算如下\n42"))
+
+    def test_answer_first_marker_survives_a_truncated_tail(self):
+        truncated = "最终答案：42\n校验过程开始：代入公式后可得"
+        self.assertEqual("42", extract_answer_first(truncated))
+
+    def test_answer_first_prefers_the_first_marker_line(self):
+        response = "最终答案：42\n校验：最终答案：99"
+        self.assertEqual("42", extract_answer_first(response))
 
     def test_empty_and_multiple_answers_are_deterministic(self):
         self.assertEqual("", extract_final_answer(" \n "))

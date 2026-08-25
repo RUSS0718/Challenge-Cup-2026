@@ -34,7 +34,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "legacy_4k_k5", "baseline8k_k2", "single_8k_t0", "k3_8k"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "legacy_4k_k5", "legacy_4k_k5_exit2", "legacy_4k_k5_length_pressure", "legacy_4k_k5_substitution", "legacy_4k_k5_answer_first", "baseline8k_k2", "single_8k_t0", "k3_8k"],
             list(VARIANTS),
         )
 
@@ -188,6 +188,49 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(4096, config.max_tokens)
         self.assertIs(POLICY_PROMPT, config.policy_prompt)
         self.assertEqual(0.6, config.policy_temperature)
+
+    def test_legacy_4k_k5_exit2_changes_only_agreement_threshold(self):
+        baseline = make_config(VARIANTS["legacy_4k_k5"])
+        challenger = make_config(VARIANTS["legacy_4k_k5_exit2"])
+        self.assertEqual(2, challenger.vote_agree_threshold)
+        self.assertEqual(baseline.vote_k_max, challenger.vote_k_max)
+        self.assertEqual(baseline.max_model_calls, challenger.max_model_calls)
+        self.assertEqual(baseline.max_tokens, challenger.max_tokens)
+        self.assertIs(baseline.policy_prompt, challenger.policy_prompt)
+        self.assertEqual(baseline.policy_temperature, challenger.policy_temperature)
+
+    def test_legacy_challengers_pin_their_own_4k_k5_fields(self):
+        baseline = make_config(VARIANTS["legacy_4k_k5"])
+        pressure = make_config(VARIANTS["legacy_4k_k5_length_pressure"])
+        substitution = make_config(VARIANTS["legacy_4k_k5_substitution"])
+        answer_first = make_config(VARIANTS["legacy_4k_k5_answer_first"])
+
+        for config in (pressure, substitution, answer_first):
+            self.assertEqual(4096, config.max_tokens)
+            self.assertEqual(4096, config.l0_max_tokens)
+            self.assertTrue(config.enable_adaptive_voting)
+            self.assertEqual(5, config.vote_k_max)
+            self.assertEqual(3, config.vote_agree_threshold)
+            self.assertIs(POLICY_PROMPT, config.policy_prompt)
+            self.assertEqual(0.6, config.policy_temperature)
+        self.assertEqual(5, pressure.max_model_calls)
+        self.assertEqual(10, substitution.max_model_calls)
+        self.assertTrue(substitution.enable_substitution_check)
+        self.assertFalse(pressure.enable_substitution_check)
+        self.assertFalse(substitution.enable_numeric_answer_first_prompt)
+        self.assertTrue(answer_first.enable_numeric_answer_first_prompt)
+        self.assertFalse(answer_first.enable_numeric_answer_only_prompt)
+
+    def test_legacy_challenger_budget_summary_is_explicit(self):
+        pressure = budget_summary(VARIANTS["legacy_4k_k5_length_pressure"])
+        substitution = budget_summary(VARIANTS["legacy_4k_k5_substitution"])
+        answer_first = budget_summary(VARIANTS["legacy_4k_k5_answer_first"])
+
+        self.assertEqual(4096, pressure["max_tokens"])
+        self.assertEqual(5, pressure["max_model_calls"])
+        self.assertEqual(10, substitution["max_model_calls"])
+        self.assertTrue(substitution["substitution_check"])
+        self.assertTrue(answer_first["numeric_prompt"])
 
     def test_baseline8k_k2_pins_8k_consensus(self):
         config = make_config(VARIANTS["baseline8k_k2"])

@@ -23,6 +23,10 @@ VERIFIER_PROMPT = """你是数学解答审核员。独立检查候选答案是�
 若发现错误，指出第一个可证实的错误位置；不要复述完整解答。
 最后一行必须且只能为：VERDICT: A、VERDICT: B 或 VERDICT: UNCERTAIN。
 A 表示未发现可证实错误，B 表示发现可证实错误，UNCERTAIN 表示无法判断。"""
+SUBSTITUTION_CHECK_PROMPT = """你是数学约束验证器。针对题目和给定候选答案，生成一个极短的 Python 检验程序。
+程序运行时已经提供变量 candidate，它表示候选答案；不要给 candidate 赋值，也不要把候选答案写进程序字面量。
+程序只能使用白名单数学表达式，并且必须通过 print(...) 输出一个布尔值：约束成立输出 True，否则输出 False。
+只输出程序本身，可使用代码围栏但不要添加解释、导入、文件或网络操作。"""
 
 # ── Task-aware prompts ─────────────────────────────────────────────────────
 # Each prompt guides the model toward the expected output format for a specific
@@ -37,9 +41,9 @@ CALCULATION_PROMPT = POLICY_PROMPT  # 复用已验证的 answer-first 提示词
 # Experimental prompt for the numerical A/B arm.  It is opt-in so the
 # promoted F+4096 default remains unchanged while the prompt effect is measured
 # independently from parsing and token-budget changes.
-NUMERIC_ANSWER_FIRST_PROMPT = """你是数学求解器。只解决题目本身，不输出 Thinking Process、计划、标题、格式说明或长篇推导。
+NUMERIC_ANSWER_FIRST_PROMPT = """你是数学求解器。只解决题目本身，不输出标题或格式说明。
 第一行必须且只能写：最终答案：<答案>
-第二行最多写一行极短校验；没有必要时不要写第二行。不要在答案之后继续推导。"""
+从第二行起可以给出必要的简短推理或校验；不要在第一行之前输出任何内容，也不要重复最终答案。"""
 
 DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
 
@@ -187,6 +191,8 @@ class AgentConfig:
     l0_max_tokens: int = 4096
     verifier_max_tokens: int = 256
     enable_sympy_evidence: bool = False
+    enable_substitution_check: bool = False
+    substitution_max_tokens: int = 512
     enable_dynamic_budget: bool = False
     enable_l0_extended_tokens: bool = True
     enable_l2_routing: bool = False
@@ -295,6 +301,20 @@ def extract_final_answer(response: str) -> str:
         if standalone is not None:
             return standalone
     return ""
+
+
+def extract_answer_first(response: str) -> str:
+    """Prefer the first standalone answer marker used by the answer-first arm."""
+    if not isinstance(response, str) or not response.strip():
+        return ""
+    for line in response.splitlines():
+        match = _ANSWER_MARKER_LINE_STRICT_RE.match(line)
+        if not match:
+            continue
+        answer = match.group(1).strip()
+        if answer and not is_placeholder_answer(answer) and _is_answer_like(answer):
+            return answer
+    return extract_final_answer(response)
 
 
 def extract_numeric_answer(response: str) -> str:
@@ -827,6 +847,7 @@ class ReasoningAgent:
             task_prompt = self._task_policy_prompt(problem_type)
             self._generate_candidates(problem, 1, candidates, trace, budget, self._policy_max_tokens("L2"), task_prompt=task_prompt, problem_type=problem_type)
 
+        self._attach_substitution_evidence(problem, problem_type, candidates, trace, budget)
         self._attach_controlled_tool_evidence(problem, candidates, trace)
         for group_id, group in self._answer_groups(candidates).items():
             for _ in range(self.config.verifier_voting_times):
@@ -895,7 +916,11 @@ class ReasoningAgent:
             if response is None:
                 self._record_diagnostic(budget, "model_error")
                 trace.append(_tr("skipped", candidate_id, reason=error, diagnostic_reason="model_error")); continue
-            if self.config.enable_strict_numeric_salvage and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
+            if (self.config.enable_numeric_answer_first_prompt
+                    and not self.config.enable_strict_numeric_salvage
+                    and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION)):
+                answer = extract_answer_first(response)
+            elif self.config.enable_strict_numeric_salvage and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
                 answer = extract_numeric_answer(response)
             else:
                 answer = extract_final_answer(response)
@@ -1153,6 +1178,50 @@ class ReasoningAgent:
             candidate["evidence"].append(evidence)
             trace.append({"step":"controlled_tool","status":evidence["execution_status"],"claim_status":evidence["claim_status"],"candidate_id":candidate["candidate_id"]})
 
+    def _attach_substitution_evidence(
+        self,
+        problem: str,
+        problem_type: str,
+        candidates: list[dict[str, Any]],
+        trace: list[dict[str, Any]],
+        budget: dict[str, Any],
+    ) -> None:
+        if not self.config.enable_substitution_check or not candidates:
+            return
+        if problem_type not in (TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
+            trace.append({"step": "substitution_check", "status": "skipped", "reason": "unsupported_problem"})
+            return
+        from substitution_check import check_substitution, extract_constraint_program
+
+        for candidate in candidates:
+            response, error = self._request(
+                SUBSTITUTION_CHECK_PROMPT,
+                f"题目：\n{problem}\n\n候选答案：\n{candidate['answer']}",
+                0.0,
+                self.config.substitution_max_tokens,
+                budget,
+            )
+            if response is None:
+                evidence = {
+                    "source": "substitution_check",
+                    "execution_status": "ERROR",
+                    "claim_status": "UNKNOWN",
+                    "evidence": error or "model_call_failed",
+                    "deterministic": True,
+                    "error": error or "model_call_failed",
+                }
+            else:
+                evidence = check_substitution(
+                    extract_constraint_program(response), candidate["answer"]
+                )
+            candidate["evidence"].append(evidence)
+            trace.append({
+                "step": "substitution_check",
+                "status": evidence["execution_status"],
+                "claim_status": evidence["claim_status"],
+                "candidate_id": candidate["candidate_id"],
+            })
+
     @staticmethod
     def _extract_simple_arithmetic_expression(problem: str) -> str | None:
         match = re.fullmatch(r"\s*(?:计算|求值|calculate|evaluate)?\s*([0-9+\-*/().\s]+)\s*[?？]?\s*", problem, re.IGNORECASE)
@@ -1245,10 +1314,22 @@ class ReasoningAgent:
             tool_claims = [
                 evidence.get("claim_status")
                 for evidence in candidate["evidence"]
-                if evidence.get("source") == "controlled_tool"
+                if evidence.get("source") in {"controlled_tool", "substitution_check"}
             ]
             candidate["tool_rank"] = 1 if "SUPPORTED" in tool_claims else -1 if "REFUTED" in tool_claims else 0
-            candidate["selection_basis"] = "controlled_tool_evidence" if candidate["tool_rank"] else "answer_consensus"
+            if candidate["tool_rank"]:
+                sources = {
+                    evidence.get("source")
+                    for evidence in candidate["evidence"]
+                    if evidence.get("source") in {"controlled_tool", "substitution_check"}
+                }
+                candidate["selection_basis"] = (
+                    "substitution_check_evidence"
+                    if "substitution_check" in sources and "controlled_tool" not in sources
+                    else "controlled_tool_evidence"
+                )
+            else:
+                candidate["selection_basis"] = "answer_consensus"
         has_unrefuted_candidate = any(candidate["tool_rank"] >= 0 for candidate in candidates)
         return max(candidates,key=lambda item:((item["tool_rank"] >= 0) if has_unrefuted_candidate else True, item["tool_rank"], item.get("structured", True), item["consensus"], sum(evidence.get("verdict")=="pass" for evidence in item["evidence"]), -item["candidate_id"]))
 

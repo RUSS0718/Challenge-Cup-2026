@@ -56,6 +56,7 @@ class Variant:
     max_tokens_override: int | None = None
     max_calls_override: int | None = None
     use_policy_prompt: bool = False
+    substitution_check: bool = False
 
 
 VARIANTS = {
@@ -72,7 +73,31 @@ VARIANTS = {
     "adaptive_vote08": Variant("adaptive_vote08", adaptive_voting=True, temperature=0.8),
     "adaptive_vote_k5": Variant("adaptive_vote_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3),
     # Official R2 snapshot (accuracy 9.82%): the pinned baseline definition.
-    "legacy_4k_k5": Variant("legacy_4k_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3, use_policy_prompt=True),
+    "legacy_4k_k5": Variant(
+        "legacy_4k_k5", adaptive_voting=True, vote_k_max=5,
+        vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
+    "legacy_4k_k5_exit2": Variant(
+        "legacy_4k_k5_exit2", adaptive_voting=True, vote_k_max=5,
+        vote_agree_threshold=2, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
+    "legacy_4k_k5_length_pressure": Variant(
+        "legacy_4k_k5_length_pressure", adaptive_voting=True, vote_k_max=5,
+        vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
+    "legacy_4k_k5_substitution": Variant(
+        "legacy_4k_k5_substitution", adaptive_voting=True, vote_k_max=5,
+        vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=10, use_policy_prompt=True, substitution_check=True,
+    ),
+    "legacy_4k_k5_answer_first": Variant(
+        "legacy_4k_k5_answer_first", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
     # 8k challengers (2026-08-24 exploration family).
     "baseline8k_k2": Variant("baseline8k_k2", adaptive_voting=True, vote_k_max=2, vote_agree_threshold=2, max_tokens_override=8192, use_policy_prompt=True),
     "single_8k_t0": Variant("single_8k_t0", max_tokens_override=8192, max_calls_override=1, use_policy_prompt=True, temperature=0.0),
@@ -96,6 +121,7 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_failure_retry_backoff=variant.failure_backoff,
         enable_explicit_answer_conflict_retry=variant.answer_conflict_retry,
         enable_adaptive_voting=variant.adaptive_voting,
+        enable_substitution_check=variant.substitution_check,
         vote_k_max=variant.vote_k_max if variant.adaptive_voting else 3,
         vote_agree_threshold=variant.vote_agree_threshold if variant.adaptive_voting else 2,
         policy_temperature=variant.temperature if variant.temperature is not None else temperature,
@@ -117,6 +143,7 @@ def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
         "adaptive_voting": variant.adaptive_voting,
         "vote_k_max": variant.vote_k_max if variant.adaptive_voting else 0,
         "use_policy_prompt": variant.use_policy_prompt,
+        "substitution_check": variant.substitution_check,
         "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
     }
 
