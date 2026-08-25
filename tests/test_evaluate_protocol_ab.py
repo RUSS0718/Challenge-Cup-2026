@@ -130,10 +130,13 @@ class ProtocolAbTest(unittest.TestCase):
 
         client = FakeClient([
             "最终答案：7",
+            "最终答案：7",
+            "最终答案：7",
+            "最终答案：7",
             "print(candidate**2 == candidate + 2)",
-            "最终答案：7",
-            "最终答案：7",
-            "最终答案：7",
+            "print(candidate**2 == candidate + 2)",
+            "print(candidate**2 == candidate + 2)",
+            "print(candidate**2 == candidate + 2)",
         ])
         variant = VARIANTS["legacy_4k_k5_substitution"]
         agent = ReasoningAgent(client=client, config=make_config(variant))
