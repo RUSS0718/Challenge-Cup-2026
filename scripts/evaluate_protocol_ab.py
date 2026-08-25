@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,7 +40,75 @@ from user_agent import (  # noqa: E402
 from scripts.evaluate_dev import judge_correct, load_items  # noqa: E402
 
 MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]", re.IGNORECASE)
+DEFAULT_MAX_CONSECUTIVE_FAILURES = 8
 _local = threading.local()
+
+
+class CircuitBreaker:
+    """Abort a batch after a streak of failed solves.
+
+    Slow service windows (2026-08-23 throttle incident, the 5-second-timeout
+    public112 burn) invalidate every record they touch; tripping early keeps
+    the loss to a handful of items instead of a full overnight batch.
+    """
+
+    def __init__(self, max_consecutive_failures: int = DEFAULT_MAX_CONSECUTIVE_FAILURES):
+        self.threshold = max_consecutive_failures
+        self.streak = 0
+        self.max_streak = 0
+        self.tripped = False
+
+    def record(self, failed: bool) -> bool:
+        """Feed one solve outcome; returns whether the breaker has tripped."""
+        if not self.tripped:
+            if failed:
+                self.streak += 1
+                self.max_streak = max(self.max_streak, self.streak)
+                if self.streak >= self.threshold:
+                    self.tripped = True
+            else:
+                self.streak = 0
+        return self.tripped
+
+
+def _record_failed(record: dict) -> bool:
+    return "model_error" in (record.get("diagnostic_reasons") or [])
+
+
+def _batch_failed(result) -> bool:
+    if isinstance(result, dict):
+        records = [result]
+    else:
+        records = [pair[1] if isinstance(pair, tuple) else pair for pair in result]
+    return any(_record_failed(record) for record in records)
+
+
+def _solve_jobs_bounded(jobs: list, workers: int, breaker: CircuitBreaker) -> list:
+    """Run zero-argument jobs with at most ``workers`` in flight.
+
+    Stops scheduling new jobs once ``breaker`` trips but still collects
+    in-flight results, so completed work survives an abort.
+    """
+    results: list = []
+    pending: set = set()
+    next_index = 0
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        while (next_index < len(jobs) or pending) and not (breaker.tripped and not pending):
+            while next_index < len(jobs) and len(pending) < workers and not breaker.tripped:
+                pending.add(executor.submit(jobs[next_index]))
+                next_index += 1
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                result = future.result()
+                results.append(result)
+                breaker.record(_batch_failed(result))
+    return results
+
+
+def _attach_void_state(report: dict, breaker: CircuitBreaker) -> None:
+    report["void"] = breaker.tripped
+    report["void_reason"] = "consecutive_model_errors" if breaker.tripped else None
+    report["consecutive_failures_max"] = breaker.max_streak
 
 
 @dataclass(frozen=True)
@@ -241,14 +309,15 @@ def summarize_records(records: list[dict]) -> dict:
 
 
 def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, workers: int, temperature: float,
-                save_answers_to: str | None = None, round_no: int | None = None, input_file: str | None = None) -> dict:
-    def work(item: dict) -> dict:
-        return solve_one(variant, item, timeout, retry, temperature)
-
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        records = list(executor.map(work, items))
+                save_answers_to: str | None = None, round_no: int | None = None, input_file: str | None = None,
+                breaker: CircuitBreaker | None = None, solve_fn=None) -> dict:
+    solve = solve_fn or (lambda item: solve_one(variant, item, timeout, retry, temperature))
+    local_breaker = breaker or CircuitBreaker()
+    jobs = [(lambda item=item: solve(item)) for item in items]
+    records = _solve_jobs_bounded(jobs, workers, local_breaker)
     report = summarize_records(records)
     report["variant"] = variant.name
+    _attach_void_state(report, local_breaker)
     if save_answers_to and round_no is not None and input_file:
         append_answers(Path(save_answers_to), answer_rows(variant.name, round_no, input_file, records))
     report["budget_config"] = budget_summary(variant, temperature)
@@ -265,6 +334,9 @@ def answer_rows(variant_name: str, round_no: int, input_file: str, records: list
             "idx": record.get("idx"),
             "extracted_answer": record.get("extracted_answer", ""),
             "verdict": record.get("verdict", "unknown"),
+            "diagnostic_reasons": record.get("diagnostic_reasons", []),
+            "latency_seconds": record.get("latency_seconds"),
+            "main_finish_reason": record.get("main_finish_reason"),
         }
         for record in records
     ]
@@ -293,7 +365,8 @@ def _interleave_order(index: int, variants: list[Variant]) -> list[Variant]:
 def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, retry: int,
                     workers: int, temperature: float,
                     save_answers_to: str | None = None, round_no: int | None = None,
-                    input_file: str | None = None, solve_fn=None) -> list[dict]:
+                    input_file: str | None = None, breaker: CircuitBreaker | None = None,
+                    solve_fn=None) -> list[dict]:
     """Solve every arm back-to-back for each item (same-window pairing).
 
     Per-item temporal adjacency plus rotating first-arm order removes the
@@ -305,16 +378,17 @@ def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, re
         def solve_fn(variant: Variant, item: dict) -> dict:
             return solve_one(variant, item, timeout, retry, temperature)
 
+    local_breaker = breaker or CircuitBreaker()
     records_by_variant: dict[str, list[dict]] = {variant.name: [] for variant in variants}
 
     def work(packed):
         index, item = packed
         return [(v.name, solve_fn(v, item)) for v in _interleave_order(index, variants)]
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        for solved in executor.map(work, enumerate(items)):
-            for name, record in solved:
-                records_by_variant[name].append(record)
+    jobs = [(lambda packed=packed: work(packed)) for packed in enumerate(items)]
+    for solved in _solve_jobs_bounded(jobs, workers, local_breaker):
+        for name, record in solved:
+            records_by_variant[name].append(record)
 
     reports = []
     for variant in variants:
@@ -323,6 +397,7 @@ def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, re
         report["variant"] = variant.name
         report["budget_config"] = budget_summary(variant, temperature)
         report["interleaved"] = True
+        _attach_void_state(report, local_breaker)
         if save_answers_to and round_no is not None and input_file:
             append_answers(Path(save_answers_to), answer_rows(variant.name, round_no, input_file, records))
         reports.append(report)
@@ -348,6 +423,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--timeout-seconds", type=int, default=60)
     parser.add_argument("--retry-count", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=0.6)
+    parser.add_argument("--force", action="store_true",
+                        help="Allow sub-60s request timeouts for deliberate short-timeout probes.")
+    parser.add_argument("--max-consecutive-failures", type=int, default=DEFAULT_MAX_CONSECUTIVE_FAILURES,
+                        help="Abort the batch after this many consecutive model_error solves.")
     parser.add_argument("--output-file")
     parser.add_argument("--save-answers-to",
                         help="Persist compact per-item answers (idx/extracted_answer/verdict) as JSONL.")
@@ -362,6 +441,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         args.rounds = args.round
     if not 1 <= args.workers <= 3:
         parser.error("--workers must be between 1 and 3")
+    if args.timeout_seconds < 60 and not args.force:
+        parser.error(
+            "--timeout-seconds below 60 burned whole batches in past slow-window incidents "
+            "(105/112 public112 items invalid at 5s); use >=60 or pass --force deliberately."
+        )
+    if args.max_consecutive_failures < 1:
+        parser.error("--max-consecutive-failures must be at least 1")
     return args
 
 
@@ -378,6 +464,7 @@ def main() -> None:
     unknown = [name for name in names if name not in VARIANTS]
     if unknown:
         raise SystemExit(f"unknown variants: {', '.join(unknown)}")
+    breaker = CircuitBreaker(args.max_consecutive_failures)
     reports = []
     if args.append_output and args.output_file and Path(args.output_file).exists():
         loaded = json.loads(Path(args.output_file).read_text(encoding="utf-8"))
@@ -385,6 +472,8 @@ def main() -> None:
             raise SystemExit("--append-output requires a JSON list report")
         reports = loaded
     for input_file in args.input_files:
+        if breaker.tripped:
+            break
         items = load_items(Path(input_file))
         round_numbers = args.rounds if isinstance(args.rounds, list) else range(args.round_start, args.round_start + args.rounds)
         for round_no in round_numbers:
@@ -393,19 +482,32 @@ def main() -> None:
                     [VARIANTS[name] for name in names], items,
                     args.timeout_seconds, args.retry_count, args.workers, args.temperature,
                     save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file,
+                    breaker=breaker,
                 )
             else:
                 round_reports = []
                 for name in names:
+                    if breaker.tripped:
+                        break
                     report = run_variant(VARIANTS[name], items, args.timeout_seconds, args.retry_count, args.workers, args.temperature,
-                                         save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file)
+                                         save_answers_to=args.save_answers_to, round_no=round_no, input_file=input_file,
+                                         breaker=breaker)
                     round_reports.append(report)
             for report in round_reports:
                 report.update({"round": round_no, "input_file": input_file, "temperature": args.temperature})
                 reports.append(report)
-                print(json.dumps({k: report[k] for k in ("input_file", "round", "variant", "correct", "incorrect", "invalid", "accuracy", "main_length_rate", "retry_count", "average_model_calls")}, ensure_ascii=False))
+                print(json.dumps({k: report[k] for k in ("input_file", "round", "variant", "correct", "incorrect", "invalid", "accuracy", "main_length_rate", "retry_count", "average_model_calls", "void")}, ensure_ascii=False))
             if args.output_file:
                 write_reports(Path(args.output_file), reports)
+            if breaker.tripped:
+                break
+    if breaker.tripped:
+        print(json.dumps({
+            "aborted": "consecutive_model_errors",
+            "consecutive_failures_max": breaker.max_streak,
+            "hint": "service window looks unhealthy; re-run this batch later or lower --max-consecutive-failures",
+        }, ensure_ascii=False))
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@
   （e8bc30b 合并投票线 + 6958485 推送远端）。当前官方提交路径 =
   `SUBMISSION_CONFIG`（user_agent.py）：F+4096 主调用 + k=5 自适应共识投票，
   L0 算术单调用，其余实验开关全关。
-- 动机：k3/k5 两轮交错 A/B（docs/adaptive_vote_*_ab_2026-08-22.md）证明错误主体是
+- 动机：k3/k5 两轮交错 A/B（docs/experiments/adaptive_vote_*_ab_2026-08-22.md）证明错误主体是
   「一致性能力缺口」——多次采样都错，多数投票无杠杆。PoT/TIR 把算术/代数计算卸载到
   确定性执行器，直接攻击该类错误。
 - 文献依据：PAL/PoT、ToRA、OpenMathInstruct-2（计算密集集上程序化求解稳定优于纯 CoT）。

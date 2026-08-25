@@ -1,0 +1,105 @@
+[
+  {
+    "dataset_size": 48,
+    "verdict_counts": {
+      "unknown": 47,
+      "correct": 1
+    },
+    "correct": 1,
+    "incorrect": 0,
+    "invalid": 43,
+    "accuracy": 0.020833333333333332,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.10416666666666667,
+    "retry_count": 0,
+    "retry_reason_counts": {},
+    "gate_short_circuit_count": 0,
+    "gate_accepted_count": 0,
+    "gate_kept_originals_count": 0,
+    "average_model_calls": 4.979166666666667,
+    "p95_model_calls": 5,
+    "max_model_calls": 5,
+    "average_completion_tokens": 242.64583333333334,
+    "p95_completion_tokens": 1904,
+    "average_latency_seconds": 9.444875,
+    "p95_latency_seconds": 69.72,
+    "diagnostic_reason_counts": {
+      "model_error": 48,
+      "fallback": 43
+    },
+    "variant": "submission_k5",
+    "budget_config": {
+      "max_tokens": 32768,
+      "l0_max_tokens": 32768,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 5,
+      "numeric_prompt": false,
+      "strict_salvage": false,
+      "conditional_token_retry": false,
+      "failure_retry_backoff": false,
+      "explicit_answer_conflict_retry": false,
+      "truncation_recovery_prompt": false,
+      "verification_gated_retry": false,
+      "adaptive_voting": true,
+      "vote_k_max": 5,
+      "policy_temperature": 0.6
+    },
+    "interleaved": true,
+    "round": 1,
+    "input_file": "sample_data/complex_capability_freeze_48.jsonl",
+    "temperature": 0.6
+  },
+  {
+    "dataset_size": 48,
+    "verdict_counts": {
+      "unknown": 48
+    },
+    "correct": 0,
+    "incorrect": 0,
+    "invalid": 44,
+    "accuracy": 0.0,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.08333333333333333,
+    "retry_count": 47,
+    "retry_reason_counts": {
+      "no_answer": 47
+    },
+    "gate_short_circuit_count": 1,
+    "gate_accepted_count": 3,
+    "gate_kept_originals_count": 44,
+    "average_model_calls": 1.9791666666666667,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 159.79166666666666,
+    "p95_completion_tokens": 1640,
+    "average_latency_seconds": 5.934604166666667,
+    "p95_latency_seconds": 57.82,
+    "diagnostic_reason_counts": {
+      "model_error": 47,
+      "fallback": 44
+    },
+    "variant": "gated_retry",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": false,
+      "strict_salvage": false,
+      "conditional_token_retry": false,
+      "failure_retry_backoff": false,
+      "explicit_answer_conflict_retry": false,
+      "truncation_recovery_prompt": false,
+      "verification_gated_retry": true,
+      "adaptive_voting": false,
+      "vote_k_max": 0,
+      "policy_temperature": 0.6
+    },
+    "interleaved": true,
+    "round": 1,
+    "input_file": "sample_data/complex_capability_freeze_48.jsonl",
+    "temperature": 0.6
+  }
+]
