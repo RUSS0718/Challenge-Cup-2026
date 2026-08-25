@@ -14,7 +14,7 @@ from scripts.evaluate_protocol_ab import (
     run_interleaved,
     summarize_records,
 )
-from user_agent import POLICY_PROMPT
+from user_agent import POLICY_PROMPT, ReasoningAgent
 
 
 class ProtocolAbTest(unittest.TestCase):
