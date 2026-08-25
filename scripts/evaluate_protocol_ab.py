@@ -253,7 +253,11 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
 
 
 def answer_rows(variant_name: str, round_no: int, input_file: str, records: list[dict]) -> list[dict]:
-    """Compact per-item rows for offline paired re-judging (no raw model text)."""
+    """Compact per-item rows for offline paired re-judging (no raw model text).
+
+    Token telemetry (total_completion_tokens / main_finish_reason) travels with
+    each row so the length-pressure set can be built from real measurements.
+    """
     return [
         {
             "input_file": input_file,
@@ -262,6 +266,8 @@ def answer_rows(variant_name: str, round_no: int, input_file: str, records: list
             "idx": record.get("idx"),
             "extracted_answer": record.get("extracted_answer", ""),
             "verdict": record.get("verdict", "unknown"),
+            "total_completion_tokens": record.get("total_completion_tokens"),
+            "main_finish_reason": record.get("main_finish_reason"),
         }
         for record in records
     ]

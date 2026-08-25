@@ -87,16 +87,26 @@ class ProtocolAbTest(unittest.TestCase):
 
     def test_answer_rows_carry_identity_and_verdict(self):
         records = [
-            {"idx": 7, "extracted_answer": "1/2", "verdict": "correct"},
-            {"idx": 9, "extracted_answer": "", "verdict": "unknown"},
+            {"idx": 7, "extracted_answer": "1/2", "verdict": "correct",
+             "total_completion_tokens": 3900, "main_finish_reason": "length"},
+            {"idx": 9, "extracted_answer": "", "verdict": "unknown",
+             "total_completion_tokens": 800, "main_finish_reason": "stop"},
         ]
         rows = answer_rows("adaptive_vote", 2, "sample_data/p.jsonl", records)
         self.assertEqual(
             {"input_file": "sample_data/p.jsonl", "round": 2, "variant": "adaptive_vote",
-             "idx": 7, "extracted_answer": "1/2", "verdict": "correct"},
+             "idx": 7, "extracted_answer": "1/2", "verdict": "correct",
+             "total_completion_tokens": 3900, "main_finish_reason": "length"},
             rows[0],
         )
         self.assertEqual("", rows[1]["extracted_answer"])
+        self.assertEqual(800, rows[1]["total_completion_tokens"])
+        self.assertEqual("stop", rows[1]["main_finish_reason"])
+
+    def test_answer_rows_tolerate_missing_telemetry(self):
+        rows = answer_rows("baseline86", 1, "p.jsonl", [{"idx": 1, "verdict": "correct"}])
+        self.assertIsNone(rows[0]["total_completion_tokens"])
+        self.assertIsNone(rows[0]["main_finish_reason"])
 
     def test_append_answers_is_atomic_and_appends(self):
         with tempfile.TemporaryDirectory() as tmp:
