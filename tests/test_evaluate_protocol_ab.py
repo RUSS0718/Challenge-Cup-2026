@@ -108,6 +108,56 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertIsNone(rows[0]["total_completion_tokens"])
         self.assertIsNone(rows[0]["main_finish_reason"])
 
+    def test_solve_one_records_substitution_statuses(self):
+        from scripts.evaluate_protocol_ab import solve_one
+        from unittest.mock import patch
+
+        class FakeClient:
+            def __init__(self, responses):
+                self.responses = iter(responses)
+                self.finish_reasons = []
+                self.completion_tokens = []
+                self.raw_contents = []
+                self.latencies = []
+
+            def chat(self, messages, temperature, max_tokens):
+                self.finish_reasons.append("stop")
+                self.completion_tokens.append(100)
+                response = next(self.responses)
+                self.raw_contents.append(response)
+                self.latencies.append(0.1)
+                return response
+
+        client = FakeClient([
+            "最终答案：7",
+            "print(candidate**2 == candidate + 2)",
+            "最终答案：7",
+            "最终答案：7",
+            "最终答案：7",
+        ])
+        variant = VARIANTS["legacy_4k_k5_substitution"]
+        agent = ReasoningAgent(client=client, config=make_config(variant))
+        item = {"idx": 1, "problem": "已知 x 满足 x**2 = x + 2，求 x", "answer": "2"}
+        with patch("scripts.evaluate_protocol_ab._get_agent", return_value=(client, agent)):
+            record = solve_one(variant, item, 60, 1, 0.6)
+        self.assertTrue(record["substitution_statuses"])
+        self.assertIn("SUCCESS", record["substitution_statuses"])
+
+    def test_summary_counts_substitution_statuses(self):
+        report = summarize_records([
+            {"model_calls": 1, "latency_seconds": 1.0, "total_completion_tokens": 100,
+             "main_finish_reason": "stop", "main_marker": True, "retry_used": False,
+             "final_response_nonempty": True, "finalization_status": "selected",
+             "extracted_present": True, "verdict": "correct", "diagnostic_reasons": [],
+             "substitution_statuses": ["SUCCESS"]},
+            {"model_calls": 1, "latency_seconds": 1.0, "total_completion_tokens": 100,
+             "main_finish_reason": "stop", "main_marker": True, "retry_used": False,
+             "final_response_nonempty": True, "finalization_status": "selected",
+             "extracted_present": True, "verdict": "correct", "diagnostic_reasons": [],
+             "substitution_statuses": ["ERROR"]},
+        ])
+        self.assertEqual({"SUCCESS": 1, "ERROR": 1}, report["substitution_status_counts"])
+
     def test_append_answers_is_atomic_and_appends(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "answers.jsonl"

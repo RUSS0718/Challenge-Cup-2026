@@ -193,6 +193,10 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
         "main_latency_seconds": round(latencies[0], 3) if latencies else None,
         "retry_latency_seconds": round(latencies[1], 3) if len(latencies) > 1 else None,
         "diagnostic_reasons": list(final.get("diagnostic_reasons") or []),
+        "substitution_statuses": [
+            entry.get("status") for entry in trace
+            if entry.get("step") == "substitution_check" and entry.get("status")
+        ],
     }
 
 
@@ -200,6 +204,9 @@ def summarize_records(records: list[dict]) -> dict:
     total = len(records)
     verdicts = Counter(record.get("verdict", "unknown") for record in records)
     diagnostics = Counter(reason for record in records for reason in record.get("diagnostic_reasons", []))
+    substitution_statuses = Counter(
+        status for record in records for status in record.get("substitution_statuses", [])
+    )
     calls = [record["model_calls"] for record in records]
     latencies = sorted(record["latency_seconds"] for record in records)
     tokens = [record["total_completion_tokens"] for record in records]
@@ -234,6 +241,7 @@ def summarize_records(records: list[dict]) -> dict:
         "average_latency_seconds": sum(r["latency_seconds"] for r in records) / total if total else 0.0,
         "p95_latency_seconds": p95(latencies),
         "diagnostic_reason_counts": dict(diagnostics),
+        "substitution_status_counts": dict(substitution_statuses),
     }
 
 
