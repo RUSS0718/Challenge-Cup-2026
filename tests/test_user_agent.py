@@ -1099,33 +1099,35 @@ class P0StopBleedingTest(unittest.TestCase):
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Submission profile: official runner constructs ReasoningAgent(client) with
-# no config, which must resolve to the promoted k5-consensus submission.
+# no config, which must resolve to the B1+4k canary submission.
 # ═══════════════════════════════════════════════════════════════════════════
 
 class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
-    def test_submission_config_is_legacy_4k_k5_baseline(self):
-        # 2026-08-24 ruling: legacy 4k+k5 stays the baseline definition
-        # (official R2: correct 11 / invalid 17 / 9.82%) until a challenger
-        # passes the pre-registered gate. 8k configs live as variants only.
+    def test_submission_config_is_k3_8k_window_probe(self):
+        # 2026-08-24 window deployment: one-new-method-per-window strategy.
+        # k3_8k = 8192 ceiling + 3-sample majority; same-window local evidence
+        # net 0 vs legacy 4k+k5 (p=1.0) with ~40% fewer calls. Gated retry off.
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
-        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
-        self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
-        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
-        self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
+        self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
+        self.assertEqual(3, SUBMISSION_CONFIG.vote_k_max)
+        self.assertEqual(2, SUBMISSION_CONFIG.vote_agree_threshold)
+        self.assertEqual(3, SUBMISSION_CONFIG.max_model_calls)
+        self.assertEqual(8192, SUBMISSION_CONFIG.max_tokens)
+        self.assertEqual(8192, SUBMISSION_CONFIG.l0_max_tokens)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()
         self.assertFalse(config.enable_adaptive_voting)
         self.assertEqual(2, config.max_model_calls)
 
-    def test_agent_without_config_uses_submission_profile_and_early_exits(self):
+    def test_agent_without_config_uses_submission_profile(self):
         client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：7"])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
-        self.assertEqual(3, len(client.calls))
+        self.assertEqual(2, len(client.calls))
         self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
 
 

@@ -1,12 +1,14 @@
 """Independent A/B runner for the output-protocol experiments.
 
-The five variants deliberately change one concern at a time:
+The variants deliberately change one concern at a time:
 
 * ``baseline86``: frozen 86b66d2-style answer-only prompt, 4096 tokens.
 * ``A``: numeric answer-first prompt, no parser or token change.
 * ``B``: strict numeric salvage, no prompt or token change.
 * ``A+B``: prompt plus salvage, still one 4096-token retry policy.
 * ``A+B+6144``: A+B and a single 6144-token retry only after no answer.
+* ``gated_retry``: B1 verification-gated retry at 4096 tokens.
+* ``gated_retry_8k``: the explicitly named B1+8k exploration arm.
 
 Reports contain aggregate metrics and safe per-item diagnostics only.  Raw model
 responses are inspected in memory for marker/truncation rates and discarded.
@@ -49,6 +51,8 @@ class Variant:
     token_retry: bool = False
     failure_backoff: bool = False
     answer_conflict_retry: bool = False
+    gated_retry: bool = False
+    max_tokens_override: int | None = None
     temperature: float | None = None
     adaptive_voting: bool = False
     vote_k_max: int = 3
@@ -66,6 +70,8 @@ VARIANTS = {
     "A+B+6144": Variant("A+B+6144", numeric_prompt=True, strict_salvage=True, token_retry=True),
     "failure_backoff": Variant("failure_backoff", failure_backoff=True),
     "answer_conflict_retry": Variant("answer_conflict_retry", answer_conflict_retry=True),
+    "gated_retry": Variant("gated_retry", gated_retry=True),
+    "gated_retry_8k": Variant("gated_retry_8k", gated_retry=True, max_tokens_override=8192),
     "temperature04": Variant("temperature04", temperature=0.4),
     "temperature08": Variant("temperature08", temperature=0.8),
     "adaptive_vote": Variant("adaptive_vote", adaptive_voting=True),
@@ -82,9 +88,11 @@ VARIANTS = {
 
 def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
     """Build an isolated config; the promoted default is not mutated."""
+    ceiling = variant.max_tokens_override or 4096
     return AgentConfig(
-        max_tokens=variant.max_tokens_override or 4096,
-        l0_max_tokens=variant.max_tokens_override or 4096,
+        policy_sample_times=1,
+        max_tokens=ceiling,
+        l0_max_tokens=ceiling,
         max_model_calls=variant.max_calls_override or (variant.vote_k_max if variant.adaptive_voting else 2),
         policy_prompt=POLICY_PROMPT if variant.use_policy_prompt else ANSWER_ONLY_POLICY_PROMPT,
         enable_task_aware_prompt=True,
@@ -95,6 +103,8 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         conditional_retry_max_tokens=6144,
         enable_failure_retry_backoff=variant.failure_backoff,
         enable_explicit_answer_conflict_retry=variant.answer_conflict_retry,
+        enable_verification_gated_retry=variant.gated_retry,
+        enable_truncation_recovery_prompt=False,
         enable_adaptive_voting=variant.adaptive_voting,
         vote_k_max=variant.vote_k_max if variant.adaptive_voting else 3,
         vote_agree_threshold=variant.vote_agree_threshold if variant.adaptive_voting else 2,
@@ -114,6 +124,8 @@ def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
         "conditional_token_retry": variant.token_retry,
         "failure_retry_backoff": variant.failure_backoff,
         "explicit_answer_conflict_retry": variant.answer_conflict_retry,
+        "verification_gated_retry": variant.gated_retry,
+        "truncation_recovery_prompt": False,
         "adaptive_voting": variant.adaptive_voting,
         "vote_k_max": variant.vote_k_max if variant.adaptive_voting else 0,
         "use_policy_prompt": variant.use_policy_prompt,
@@ -146,6 +158,10 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
     ptype = classify_problem_type(item["problem"])
     verdict = judge_correct(extracted, str(item["answer"]), ptype)
     main_raw = client.raw_contents[before] if len(client.raw_contents) > before else ""
+    verification_check = next((entry for entry in trace if entry.get("step") == "verification_check"), None)
+    retry_event = next((entry for entry in trace if entry.get("step") == "conditional_retry"), None)
+    gate_selection = next((entry for entry in trace if entry.get("step") == "verification_gate_selection"), None)
+    gate_rejected = [entry for entry in trace if entry.get("step") == "gated_retry_rejected"]
     return {
         "idx": item.get("idx"),
         "problem_type": ptype,
@@ -153,6 +169,12 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
         "retry_finish_reason": finish[1] if len(finish) > 1 else None,
         "main_marker": bool(MARKER_RE.search(main_raw)),
         "retry_used": any(entry.get("step") == "conditional_retry" for entry in trace),
+        "retry_reason": retry_event.get("reason") if retry_event else None,
+        "gate_short_circuit": bool(verification_check) and verification_check.get("status") == "pass",
+        "gate_accepted": int(gate_selection.get("accepted", 0)) if gate_selection else 0,
+        "gate_rejected": len(gate_rejected),
+        "gate_rejected_modes": [entry.get("mode") for entry in gate_rejected if entry.get("mode")],
+        "gate_kept_originals": bool(gate_selection.get("kept_originals")) if gate_selection else False,
         "final_response_nonempty": isinstance(result.get("final_response"), str) and bool(result["final_response"].strip()),
         "finalization_status": final.get("status"),
         "extracted_present": bool(extracted.strip()),
@@ -199,6 +221,14 @@ def summarize_records(records: list[dict]) -> dict:
         "main_length_rate": sum(reason == "length" for reason in main_finish) / len(main_finish) if main_finish else 0.0,
         "main_marker_rate": sum(r["main_marker"] for r in records) / total if total else 0.0,
         "retry_count": sum(r["retry_used"] for r in records),
+        "retry_reason_counts": dict(Counter(r.get("retry_reason") for r in records if r.get("retry_reason"))),
+        "gate_short_circuit_count": sum(bool(r.get("gate_short_circuit")) for r in records),
+        "gate_accepted_count": sum(int(r.get("gate_accepted") or 0) for r in records),
+        "gate_rejected_count": sum(int(r.get("gate_rejected") or 0) for r in records),
+        "gate_rejected_mode_counts": dict(Counter(
+            mode for record in records for mode in record.get("gate_rejected_modes", [])
+        )),
+        "gate_kept_originals_count": sum(bool(r.get("gate_kept_originals")) for r in records),
         "average_model_calls": sum(calls) / total if total else 0.0,
         "p95_model_calls": p95(calls),
         "max_model_calls": max(calls, default=0),
