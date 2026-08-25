@@ -238,21 +238,17 @@ class AgentConfig:
 # The official runner constructs ``ReasoningAgent(client=official_client)``
 # without a config, which resolves here.
 #
-# 2026-08-24 stable baseline: 8192 ceiling + 2-sample consensus.
-# Official R3 (32k/k5) made single calls run 9+ minutes: 54/112 problems hit
-# the 20-minute runner limit (error), stage stretched to 9h23m, accuracy
-# 8.04%. At ~45-60 tok/s an 8192 cap bounds a call at ~2.5-3 min and two
-# calls at ~6 min, safely inside limits, while still covering the ~2-3k
-# median thinking length. Truncation at 8k remains possible on the hardest
-# items; the structural fix for those is the PoT/TIR short-output path
-# (docs/superpowers/specs/2026-08-22-pot-tir-design.md), not a bigger ceiling.
+# 2026-08-24 ruling: legacy 4k+k5 stays the baseline definition (official R2:
+# correct 11 / invalid 17 / accuracy 9.82%) until a challenger passes the
+# pre-registered gate. The 32k/k5 emergency config was reverted after R3
+# showed per-call latency exploding into the 20-minute runner limit
+# (54/112 errors, 9h23m stage, accuracy 8.04%). The 8k family lives as
+# experiment variants in scripts/evaluate_protocol_ab.py, not here.
 SUBMISSION_CONFIG = AgentConfig(
     enable_adaptive_voting=True,
-    vote_k_max=2,
-    vote_agree_threshold=2,
-    max_model_calls=2,
-    max_tokens=8192,
-    l0_max_tokens=8192,
+    vote_k_max=5,
+    vote_agree_threshold=3,
+    max_model_calls=5,
 )
 
 

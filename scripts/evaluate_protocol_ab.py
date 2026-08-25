@@ -21,7 +21,7 @@ import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT))
 from llm_client import InternChatClient  # noqa: E402
 from user_agent import (  # noqa: E402
     ANSWER_ONLY_POLICY_PROMPT,
-    SUBMISSION_CONFIG,
+    POLICY_PROMPT,
     AgentConfig,
     ReasoningAgent,
     classify_problem_type,
@@ -53,9 +53,9 @@ class Variant:
     adaptive_voting: bool = False
     vote_k_max: int = 3
     vote_agree_threshold: int = 2
-    submission_profile: bool = False
-    single_call: bool = False
-    vote_k: int | None = None
+    max_tokens_override: int | None = None
+    max_calls_override: int | None = None
+    use_policy_prompt: bool = False
 
 
 VARIANTS = {
@@ -71,28 +71,22 @@ VARIANTS = {
     "adaptive_vote": Variant("adaptive_vote", adaptive_voting=True),
     "adaptive_vote08": Variant("adaptive_vote08", adaptive_voting=True, temperature=0.8),
     "adaptive_vote_k5": Variant("adaptive_vote_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3),
-    "baseline8k_k2": Variant("baseline8k_k2", submission_profile=True),
-    "single_8k_t0": Variant("single_8k_t0", submission_profile=True, single_call=True, temperature=0.0),
-    "k3_8k": Variant("k3_8k", submission_profile=True, vote_k=3),
+    # Official R2 snapshot (accuracy 9.82%): the pinned baseline definition.
+    "legacy_4k_k5": Variant("legacy_4k_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3, use_policy_prompt=True),
+    # 8k challengers (2026-08-24 exploration family).
+    "baseline8k_k2": Variant("baseline8k_k2", adaptive_voting=True, vote_k_max=2, vote_agree_threshold=2, max_tokens_override=8192, use_policy_prompt=True),
+    "single_8k_t0": Variant("single_8k_t0", max_tokens_override=8192, max_calls_override=1, use_policy_prompt=True, temperature=0.0),
+    "k3_8k": Variant("k3_8k", adaptive_voting=True, vote_k_max=3, vote_agree_threshold=2, max_tokens_override=8192, use_policy_prompt=True),
 }
 
 
 def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
     """Build an isolated config; the promoted default is not mutated."""
-    if variant.submission_profile:
-        config = SUBMISSION_CONFIG
-        if variant.single_call:
-            config = replace(config, enable_adaptive_voting=False, max_model_calls=1)
-        elif variant.vote_k is not None:
-            config = replace(config, vote_k_max=variant.vote_k, max_model_calls=variant.vote_k)
-        if variant.temperature is not None:
-            config = replace(config, policy_temperature=variant.temperature)
-        return config
     return AgentConfig(
-        max_tokens=4096,
-        l0_max_tokens=4096,
-        max_model_calls=variant.vote_k_max if variant.adaptive_voting else 2,
-        policy_prompt=ANSWER_ONLY_POLICY_PROMPT,
+        max_tokens=variant.max_tokens_override or 4096,
+        l0_max_tokens=variant.max_tokens_override or 4096,
+        max_model_calls=variant.max_calls_override or (variant.vote_k_max if variant.adaptive_voting else 2),
+        policy_prompt=POLICY_PROMPT if variant.use_policy_prompt else ANSWER_ONLY_POLICY_PROMPT,
         enable_task_aware_prompt=True,
         enable_numeric_answer_only_prompt=not variant.numeric_prompt,
         enable_numeric_answer_first_prompt=variant.numeric_prompt,
@@ -110,23 +104,11 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
 
 def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
     """Effective budget facts for the report; mirrors make_config exactly."""
-    if variant.submission_profile:
-        config = make_config(variant, temperature)
-        return {
-            "profile": "SUBMISSION_CONFIG",
-            "max_tokens": config.max_tokens,
-            "l0_max_tokens": config.l0_max_tokens,
-            "retry_max_tokens": config.max_tokens,
-            "max_model_calls": config.max_model_calls,
-            "adaptive_voting": config.enable_adaptive_voting,
-            "vote_k_max": config.vote_k_max if config.enable_adaptive_voting else 0,
-            "policy_temperature": config.policy_temperature,
-        }
     return {
-        "max_tokens": 4096,
-        "l0_max_tokens": 4096,
-        "retry_max_tokens": 6144 if variant.token_retry else 4096,
-        "max_model_calls": variant.vote_k_max if variant.adaptive_voting else 2,
+        "max_tokens": variant.max_tokens_override or 4096,
+        "l0_max_tokens": variant.max_tokens_override or 4096,
+        "retry_max_tokens": 6144 if variant.token_retry else (variant.max_tokens_override or 4096),
+        "max_model_calls": variant.max_calls_override or (variant.vote_k_max if variant.adaptive_voting else 2),
         "numeric_prompt": variant.numeric_prompt,
         "strict_salvage": variant.strict_salvage,
         "conditional_token_retry": variant.token_retry,
@@ -134,6 +116,7 @@ def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
         "explicit_answer_conflict_retry": variant.answer_conflict_retry,
         "adaptive_voting": variant.adaptive_voting,
         "vote_k_max": variant.vote_k_max if variant.adaptive_voting else 0,
+        "use_policy_prompt": variant.use_policy_prompt,
         "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
     }
 
