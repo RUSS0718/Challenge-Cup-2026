@@ -57,9 +57,9 @@
 
 | 方向 | 状态 | 备注 |
 | --- | --- | --- |
-| **PoT/TIR-first** | OPEN（最终机会协议进行中） | 阶段一离线验收未完成；规格见 `docs/superpowers/specs/2026-08-24-tir-final-chance-protocol.md` |
-| 答案先行 + 投票（组合形态） | OPEN | 单调用形态已否决，但"截断免疫+投票"组合未测 |
-| 候选答案回代验证（substitution check） | OPEN | 与"直接求解"不同：验证比求解容易得多，sympy 骨架已有 |
-| 模式多样性投票（1×CoT + 1×PoT） | OPEN | 依赖 TIR 通过协议 |
-| k5 早退阈值 3→2（纯效率调参） | OPEN | 零准确率风险，纯省时 |
-| 长度校准压力集建设 | OPEN | 用 completion 长度分布做隐藏分布代理 |
+| **PoT/TIR-first** | ARCHIVED（最终机会协议阶段二 0/36 程序有效率） | 规格见 `docs/superpowers/specs/2026-08-24-tir-final-chance-protocol.md` |
+| 答案先行 + 投票（组合形态） | **PASSED**（净 +9/96，p=0.0039，c=0；已批准晋升，k3_8k 窗口后部署） | 8/21 单调用崩溃结论被组合形态推翻——配对证据见 docs/challenger_answer_first_2026-08-24.md |
+| 候选答案回代验证（substitution check） | ARCHIVED（约束程序有效率 0/36，fail-closed 零误支持验证通过） | 与 TIR 同源教训：白名单 vs 模型生成程序的根本性失配 |
+| 模式多样性投票（1×CoT + 1×PoT） | OPEN | 依赖 TIR 通过协议——TIR 已归档，本项随之冻结 |
+| k5 早退阈值 3→2（纯效率调参） | ARCHIVED（净 −1，p=1.0） | 共识强度损失略大于效率收益 |
+| 长度校准压力集建设 | **DONE**（24 题已入库并基线化：legacy k5 16.7%） | docs/length_pressure_set_2026-08-24.jsonl；后续实验必带压力维度 |

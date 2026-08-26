@@ -17,7 +17,7 @@ from scripts.evaluate_protocol_ab import (
     run_variant,
     summarize_records,
 )
-from user_agent import POLICY_PROMPT
+from user_agent import POLICY_PROMPT, ReasoningAgent
 
 
 def _record(idx=0, verdict="correct", diagnostic_reasons=None, latency=1.0, finish="stop"):
@@ -47,7 +47,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "legacy_4k_k5", "baseline8k_k2", "single_8k_t0", "k3_8k"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "legacy_4k_k5", "legacy_4k_k5_exit2", "legacy_4k_k5_length_pressure", "legacy_4k_k5_substitution", "legacy_4k_k5_answer_first", "baseline8k_k2", "single_8k_t0", "k3_8k"],
             list(VARIANTS),
         )
 
@@ -116,22 +116,83 @@ class ProtocolAbTest(unittest.TestCase):
     def test_answer_rows_carry_identity_and_verdict(self):
         records = [
             {"idx": 7, "extracted_answer": "1/2", "verdict": "correct",
-             "diagnostic_reasons": [], "latency_seconds": 2.5, "main_finish_reason": "stop"},
+             "diagnostic_reasons": [], "latency_seconds": 2.5, "main_finish_reason": "stop",
+             "total_completion_tokens": 3900},
             {"idx": 9, "extracted_answer": "", "verdict": "unknown",
              "diagnostic_reasons": ["model_error", "fallback"], "latency_seconds": 120.0,
-             "main_finish_reason": None},
+             "main_finish_reason": None, "total_completion_tokens": 800},
         ]
         rows = answer_rows("adaptive_vote", 2, "sample_data/p.jsonl", records)
         self.assertEqual(
             {"input_file": "sample_data/p.jsonl", "round": 2, "variant": "adaptive_vote",
              "idx": 7, "extracted_answer": "1/2", "verdict": "correct",
-             "diagnostic_reasons": [], "latency_seconds": 2.5, "main_finish_reason": "stop"},
+             "diagnostic_reasons": [], "latency_seconds": 2.5, "main_finish_reason": "stop",
+             "total_completion_tokens": 3900},
             rows[0],
         )
         self.assertEqual("", rows[1]["extracted_answer"])
         self.assertEqual(["model_error", "fallback"], rows[1]["diagnostic_reasons"])
         self.assertEqual(120.0, rows[1]["latency_seconds"])
         self.assertIsNone(rows[1]["main_finish_reason"])
+        self.assertEqual(800, rows[1]["total_completion_tokens"])
+
+    def test_answer_rows_tolerate_missing_telemetry(self):
+        rows = answer_rows("baseline86", 1, "p.jsonl", [{"idx": 1, "verdict": "correct"}])
+        self.assertIsNone(rows[0]["total_completion_tokens"])
+        self.assertIsNone(rows[0]["main_finish_reason"])
+
+    def test_solve_one_records_substitution_statuses(self):
+        from scripts.evaluate_protocol_ab import solve_one
+        from unittest.mock import patch
+
+        class FakeClient:
+            def __init__(self, responses):
+                self.responses = iter(responses)
+                self.finish_reasons = []
+                self.completion_tokens = []
+                self.raw_contents = []
+                self.latencies = []
+
+            def chat(self, messages, temperature, max_tokens):
+                self.finish_reasons.append("stop")
+                self.completion_tokens.append(100)
+                response = next(self.responses)
+                self.raw_contents.append(response)
+                self.latencies.append(0.1)
+                return response
+
+        client = FakeClient([
+            "最终答案：7",
+            "最终答案：7",
+            "最终答案：7",
+            "最终答案：7",
+            "print(candidate**2 == candidate + 2)",
+            "print(candidate**2 == candidate + 2)",
+            "print(candidate**2 == candidate + 2)",
+            "print(candidate**2 == candidate + 2)",
+        ])
+        variant = VARIANTS["legacy_4k_k5_substitution"]
+        agent = ReasoningAgent(client=client, config=make_config(variant))
+        item = {"idx": 1, "problem": "已知 x 满足 x**2 = x + 2，求 x", "answer": "2"}
+        with patch("scripts.evaluate_protocol_ab._get_agent", return_value=(client, agent)):
+            record = solve_one(variant, item, 60, 1, 0.6)
+        self.assertTrue(record["substitution_statuses"])
+        self.assertIn("SUCCESS", record["substitution_statuses"])
+
+    def test_summary_counts_substitution_statuses(self):
+        report = summarize_records([
+            {"model_calls": 1, "latency_seconds": 1.0, "total_completion_tokens": 100,
+             "main_finish_reason": "stop", "main_marker": True, "retry_used": False,
+             "final_response_nonempty": True, "finalization_status": "selected",
+             "extracted_present": True, "verdict": "correct", "diagnostic_reasons": [],
+             "substitution_statuses": ["SUCCESS"]},
+            {"model_calls": 1, "latency_seconds": 1.0, "total_completion_tokens": 100,
+             "main_finish_reason": "stop", "main_marker": True, "retry_used": False,
+             "final_response_nonempty": True, "finalization_status": "selected",
+             "extracted_present": True, "verdict": "correct", "diagnostic_reasons": [],
+             "substitution_statuses": ["ERROR"]},
+        ])
+        self.assertEqual({"SUCCESS": 1, "ERROR": 1}, report["substitution_status_counts"])
 
     def test_append_answers_is_atomic_and_appends(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -243,6 +304,49 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(4096, config.max_tokens)
         self.assertIs(POLICY_PROMPT, config.policy_prompt)
         self.assertEqual(0.6, config.policy_temperature)
+
+    def test_legacy_4k_k5_exit2_changes_only_agreement_threshold(self):
+        baseline = make_config(VARIANTS["legacy_4k_k5"])
+        challenger = make_config(VARIANTS["legacy_4k_k5_exit2"])
+        self.assertEqual(2, challenger.vote_agree_threshold)
+        self.assertEqual(baseline.vote_k_max, challenger.vote_k_max)
+        self.assertEqual(baseline.max_model_calls, challenger.max_model_calls)
+        self.assertEqual(baseline.max_tokens, challenger.max_tokens)
+        self.assertIs(baseline.policy_prompt, challenger.policy_prompt)
+        self.assertEqual(baseline.policy_temperature, challenger.policy_temperature)
+
+    def test_legacy_challengers_pin_their_own_4k_k5_fields(self):
+        baseline = make_config(VARIANTS["legacy_4k_k5"])
+        pressure = make_config(VARIANTS["legacy_4k_k5_length_pressure"])
+        substitution = make_config(VARIANTS["legacy_4k_k5_substitution"])
+        answer_first = make_config(VARIANTS["legacy_4k_k5_answer_first"])
+
+        for config in (pressure, substitution, answer_first):
+            self.assertEqual(4096, config.max_tokens)
+            self.assertEqual(4096, config.l0_max_tokens)
+            self.assertTrue(config.enable_adaptive_voting)
+            self.assertEqual(5, config.vote_k_max)
+            self.assertEqual(3, config.vote_agree_threshold)
+            self.assertIs(POLICY_PROMPT, config.policy_prompt)
+            self.assertEqual(0.6, config.policy_temperature)
+        self.assertEqual(5, pressure.max_model_calls)
+        self.assertEqual(10, substitution.max_model_calls)
+        self.assertTrue(substitution.enable_substitution_check)
+        self.assertFalse(pressure.enable_substitution_check)
+        self.assertFalse(substitution.enable_numeric_answer_first_prompt)
+        self.assertTrue(answer_first.enable_numeric_answer_first_prompt)
+        self.assertFalse(answer_first.enable_numeric_answer_only_prompt)
+
+    def test_legacy_challenger_budget_summary_is_explicit(self):
+        pressure = budget_summary(VARIANTS["legacy_4k_k5_length_pressure"])
+        substitution = budget_summary(VARIANTS["legacy_4k_k5_substitution"])
+        answer_first = budget_summary(VARIANTS["legacy_4k_k5_answer_first"])
+
+        self.assertEqual(4096, pressure["max_tokens"])
+        self.assertEqual(5, pressure["max_model_calls"])
+        self.assertEqual(10, substitution["max_model_calls"])
+        self.assertTrue(substitution["substitution_check"])
+        self.assertTrue(answer_first["numeric_prompt"])
 
     def test_baseline8k_k2_pins_8k_consensus(self):
         config = make_config(VARIANTS["baseline8k_k2"])

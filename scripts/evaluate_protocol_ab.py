@@ -128,6 +128,7 @@ class Variant:
     max_tokens_override: int | None = None
     max_calls_override: int | None = None
     use_policy_prompt: bool = False
+    substitution_check: bool = False
 
 
 VARIANTS = {
@@ -146,7 +147,31 @@ VARIANTS = {
     "adaptive_vote08": Variant("adaptive_vote08", adaptive_voting=True, temperature=0.8),
     "adaptive_vote_k5": Variant("adaptive_vote_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3),
     # Official R2 snapshot (accuracy 9.82%): the pinned baseline definition.
-    "legacy_4k_k5": Variant("legacy_4k_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3, use_policy_prompt=True),
+    "legacy_4k_k5": Variant(
+        "legacy_4k_k5", adaptive_voting=True, vote_k_max=5,
+        vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
+    "legacy_4k_k5_exit2": Variant(
+        "legacy_4k_k5_exit2", adaptive_voting=True, vote_k_max=5,
+        vote_agree_threshold=2, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
+    "legacy_4k_k5_length_pressure": Variant(
+        "legacy_4k_k5_length_pressure", adaptive_voting=True, vote_k_max=5,
+        vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
+    "legacy_4k_k5_substitution": Variant(
+        "legacy_4k_k5_substitution", adaptive_voting=True, vote_k_max=5,
+        vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=10, use_policy_prompt=True, substitution_check=True,
+    ),
+    "legacy_4k_k5_answer_first": Variant(
+        "legacy_4k_k5_answer_first", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
     # 8k challengers (2026-08-24 exploration family).
     "baseline8k_k2": Variant("baseline8k_k2", adaptive_voting=True, vote_k_max=2, vote_agree_threshold=2, max_tokens_override=8192, use_policy_prompt=True),
     "single_8k_t0": Variant("single_8k_t0", max_tokens_override=8192, max_calls_override=1, use_policy_prompt=True, temperature=0.0),
@@ -174,6 +199,7 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_verification_gated_retry=variant.gated_retry,
         enable_truncation_recovery_prompt=False,
         enable_adaptive_voting=variant.adaptive_voting,
+        enable_substitution_check=variant.substitution_check,
         vote_k_max=variant.vote_k_max if variant.adaptive_voting else 3,
         vote_agree_threshold=variant.vote_agree_threshold if variant.adaptive_voting else 2,
         policy_temperature=variant.temperature if variant.temperature is not None else temperature,
@@ -197,6 +223,7 @@ def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
         "adaptive_voting": variant.adaptive_voting,
         "vote_k_max": variant.vote_k_max if variant.adaptive_voting else 0,
         "use_policy_prompt": variant.use_policy_prompt,
+        "substitution_check": variant.substitution_check,
         "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
     }
 
@@ -256,6 +283,10 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
         "main_latency_seconds": round(latencies[0], 3) if latencies else None,
         "retry_latency_seconds": round(latencies[1], 3) if len(latencies) > 1 else None,
         "diagnostic_reasons": list(final.get("diagnostic_reasons") or []),
+        "substitution_statuses": [
+            entry.get("status") for entry in trace
+            if entry.get("step") == "substitution_check" and entry.get("status")
+        ],
     }
 
 
@@ -263,6 +294,9 @@ def summarize_records(records: list[dict]) -> dict:
     total = len(records)
     verdicts = Counter(record.get("verdict", "unknown") for record in records)
     diagnostics = Counter(reason for record in records for reason in record.get("diagnostic_reasons", []))
+    substitution_statuses = Counter(
+        status for record in records for status in record.get("substitution_statuses", [])
+    )
     calls = [record["model_calls"] for record in records]
     latencies = sorted(record["latency_seconds"] for record in records)
     tokens = [record["total_completion_tokens"] for record in records]
@@ -305,6 +339,7 @@ def summarize_records(records: list[dict]) -> dict:
         "average_latency_seconds": sum(r["latency_seconds"] for r in records) / total if total else 0.0,
         "p95_latency_seconds": p95(latencies),
         "diagnostic_reason_counts": dict(diagnostics),
+        "substitution_status_counts": dict(substitution_statuses),
     }
 
 
@@ -325,7 +360,11 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
 
 
 def answer_rows(variant_name: str, round_no: int, input_file: str, records: list[dict]) -> list[dict]:
-    """Compact per-item rows for offline paired re-judging (no raw model text)."""
+    """Compact per-item rows for offline paired re-judging (no raw model text).
+
+    Token telemetry (total_completion_tokens / main_finish_reason) travels with
+    each row so the length-pressure set can be built from real measurements.
+    """
     return [
         {
             "input_file": input_file,
@@ -336,6 +375,7 @@ def answer_rows(variant_name: str, round_no: int, input_file: str, records: list
             "verdict": record.get("verdict", "unknown"),
             "diagnostic_reasons": record.get("diagnostic_reasons", []),
             "latency_seconds": record.get("latency_seconds"),
+            "total_completion_tokens": record.get("total_completion_tokens"),
             "main_finish_reason": record.get("main_finish_reason"),
         }
         for record in records

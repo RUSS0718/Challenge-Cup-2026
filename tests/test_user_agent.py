@@ -13,7 +13,7 @@ from user_agent import (
     EXPLANATION_PROMPT, FILL_BLANK_PROMPT, PROOF_PROMPT, TASK_PROMPTS,
     DIRECT_REASONER_PROMPT, ALTERNATIVE_REASONER_PROMPT,
     STEP_VERIFY_PROMPT, SOLUTION_VERIFY_PROMPT, STEP_REVISE_PROMPT,
-    answer_equivalence, classify_problem_type, extract_final_answer,
+    answer_equivalence, classify_problem_type, extract_answer_first, extract_final_answer,
     extract_numeric_answer,
     has_conflicting_explicit_answers,
     extract_answer_segment, normalize_answer, reconstruct_final_response,
@@ -41,6 +41,14 @@ class AnswerHandlingTest(unittest.TestCase):
         self.assertEqual("8", extract_final_answer("Final answer: 8"))
         self.assertEqual("C", extract_final_answer("推导\n选项 C"))
         self.assertEqual("42", extract_final_answer("计算如下\n42"))
+
+    def test_answer_first_marker_survives_a_truncated_tail(self):
+        truncated = "最终答案：42\n校验过程开始：代入公式后可得"
+        self.assertEqual("42", extract_answer_first(truncated))
+
+    def test_answer_first_prefers_the_first_marker_line(self):
+        response = "最终答案：42\n校验：最终答案：99"
+        self.assertEqual("42", extract_answer_first(response))
 
     def test_empty_and_multiple_answers_are_deterministic(self):
         self.assertEqual("", extract_final_answer(" \n "))
@@ -1105,17 +1113,17 @@ class P0StopBleedingTest(unittest.TestCase):
 class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
-    def test_submission_config_is_k3_8k_window_probe(self):
-        # 2026-08-24 window deployment: one-new-method-per-window strategy.
-        # k3_8k = 8192 ceiling + 3-sample majority; same-window local evidence
-        # net 0 vs legacy 4k+k5 (p=1.0) with ~40% fewer calls. Gated retry off.
+    def test_submission_config_is_answer_first_promotion(self):
+        # 2026-08-26 promotion: the exact gate-passed configuration
+        # (legacy 4k+k5 snapshot + numeric answer-first prompt).
+        # Gate evidence: net +9/96 item-rounds, McNemar p=0.0039, c=0.
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
-        self.assertEqual(3, SUBMISSION_CONFIG.vote_k_max)
-        self.assertEqual(2, SUBMISSION_CONFIG.vote_agree_threshold)
-        self.assertEqual(3, SUBMISSION_CONFIG.max_model_calls)
-        self.assertEqual(8192, SUBMISSION_CONFIG.max_tokens)
-        self.assertEqual(8192, SUBMISSION_CONFIG.l0_max_tokens)
+        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
+        self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
+        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
+        self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
+        self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()
@@ -1123,11 +1131,11 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(2, config.max_model_calls)
 
     def test_agent_without_config_uses_submission_profile(self):
-        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：7"])
+        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：7", "最终答案：7"])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
-        self.assertEqual(2, len(client.calls))
+        self.assertEqual(3, len(client.calls))
         self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
 
 

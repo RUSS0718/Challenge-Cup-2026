@@ -147,12 +147,14 @@ class GatedRetryFlowTest(unittest.TestCase):
 
 
 class SubmissionConfigTest(unittest.TestCase):
-    def test_official_profile_is_k3_8k_window_probe(self):
+    def test_official_profile_is_answer_first_promotion(self):
+        # 2026-08-26 promotion: gate-passed answer_first configuration
+        # (legacy 4k+k5 snapshot + numeric answer-first prompt).
         self.assertEqual(1, SUBMISSION_CONFIG.policy_sample_times)
         self.assertEqual(0.6, SUBMISSION_CONFIG.policy_temperature)
-        self.assertEqual(3, SUBMISSION_CONFIG.max_model_calls)
-        self.assertEqual(8192, SUBMISSION_CONFIG.max_tokens)
-        self.assertEqual(8192, SUBMISSION_CONFIG.l0_max_tokens)
+        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
+        self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
+        self.assertEqual(4096, SUBMISSION_CONFIG.l0_max_tokens)
         self.assertEqual(0, SUBMISSION_CONFIG.verifier_voting_times)
         self.assertFalse(SUBMISSION_CONFIG.enable_dynamic_budget)
         self.assertTrue(SUBMISSION_CONFIG.enable_l0_extended_tokens)
@@ -160,8 +162,9 @@ class SubmissionConfigTest(unittest.TestCase):
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertFalse(SUBMISSION_CONFIG.enable_truncation_recovery_prompt)
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
-        self.assertEqual(3, SUBMISSION_CONFIG.vote_k_max)
-        self.assertEqual(2, SUBMISSION_CONFIG.vote_agree_threshold)
+        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
+        self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
+        self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
         self.assertFalse(SUBMISSION_CONFIG.enable_heterogeneous_reasoners)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_revision)
