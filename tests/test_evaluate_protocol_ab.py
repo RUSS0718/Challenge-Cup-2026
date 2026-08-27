@@ -47,7 +47,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["current", "current_refine", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
+            ["current", "current_refine", "current_salvage", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
             list(VARIANTS),
         )
 
@@ -144,6 +144,20 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(
             5, budget_summary(VARIANTS["exact_g_refine"])["effective_max_model_calls"]
         )
+
+    def test_current_salvage_is_single_variable_over_current(self):
+        base = make_config(VARIANTS["current"])
+        salvage = make_config(VARIANTS["current_salvage"])
+        self.assertTrue(salvage.enable_failure_salvage)
+        # The only allowed delta over C0 is the failure-path salvage flag.
+        for field in (
+            "enable_numeric_answer_first_prompt", "enable_numeric_answer_only_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "l0_max_tokens",
+            "enable_step_verification", "enable_strict_numeric_salvage",
+            "policy_prompt", "enable_verification_gated_retry",
+        ):
+            self.assertEqual(getattr(base, field), getattr(salvage, field), field)
 
     def test_temperature_variants_change_only_policy_temperature(self):
         baseline = make_config(VARIANTS["baseline86"])

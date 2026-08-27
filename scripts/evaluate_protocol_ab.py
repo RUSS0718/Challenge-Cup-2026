@@ -130,6 +130,7 @@ class Variant:
     vote_agree_threshold: int = 2
     use_policy_prompt: bool = False
     refine: bool = False
+    failure_salvage: bool = False
 
 
 VARIANTS = {
@@ -143,6 +144,12 @@ VARIANTS = {
         "current_refine", numeric_prompt=True, adaptive_voting=True,
         vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
         use_policy_prompt=True, refine=True,
+    ),
+    # P1 invalid-reduction arm: C0 with failure-path salvage as the only delta.
+    "current_salvage": Variant(
+        "current_salvage", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, failure_salvage=True,
     ),
     "current_strict": Variant(
         "current_strict", numeric_prompt=True, strict_salvage=True,
@@ -217,6 +224,7 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_step_verification=variant.refine,
         enable_step_revision=variant.refine,
         p3_call_boost=3 if variant.refine else 0,
+        enable_failure_salvage=variant.failure_salvage,
         policy_temperature=variant.temperature if variant.temperature is not None else temperature,
     )
 
