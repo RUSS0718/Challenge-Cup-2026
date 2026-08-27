@@ -47,7 +47,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["current", "current_refine", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
+            ["current", "current_refine", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
             list(VARIANTS),
         )
 
@@ -107,6 +107,43 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(gated_8k.enable_verification_gated_retry)
         self.assertEqual(8192, gated_8k.max_tokens)
         self.assertEqual(8192, gated_8k.l0_max_tokens)
+
+    def test_exact_g_keeps_c0_prompts_and_replaces_k5_with_gated_retry(self):
+        exact_g = make_config(VARIANTS["exact_g"])
+        # Same prompt family and token ceiling as C0 ("current").
+        self.assertEqual(4096, exact_g.max_tokens)
+        self.assertEqual(4096, exact_g.l0_max_tokens)
+        self.assertTrue(exact_g.enable_numeric_answer_first_prompt)
+        self.assertFalse(exact_g.enable_numeric_answer_only_prompt)
+        self.assertEqual(POLICY_PROMPT, exact_g.policy_prompt)
+        # k5 voting replaced by verification-gated retry.
+        self.assertFalse(exact_g.enable_adaptive_voting)
+        self.assertTrue(exact_g.enable_verification_gated_retry)
+        self.assertEqual(2, exact_g.max_model_calls)
+        self.assertFalse(exact_g.enable_step_verification)
+        self.assertEqual(
+            2, budget_summary(VARIANTS["exact_g"])["effective_max_model_calls"]
+        )
+
+    def test_gr_layers_refine_on_top_of_exact_g(self):
+        gr = make_config(VARIANTS["exact_g_refine"])
+        self.assertTrue(gr.enable_numeric_answer_first_prompt)
+        self.assertTrue(gr.enable_verification_gated_retry)
+        self.assertFalse(gr.enable_adaptive_voting)
+        self.assertEqual(POLICY_PROMPT, gr.policy_prompt)
+        self.assertTrue(gr.enable_step_verification)
+        self.assertTrue(gr.enable_step_revision)
+        # Refine ceiling works like C0 refine: base cap in AgentConfig plus a
+        # runtime p3_call_boost; the report's effective value mirrors both.
+        self.assertEqual(2, gr.max_model_calls)
+        self.assertEqual(
+            budget_summary(VARIANTS["exact_g"])["effective_max_model_calls"]
+            + gr.p3_call_boost,
+            budget_summary(VARIANTS["exact_g_refine"])["effective_max_model_calls"],
+        )
+        self.assertEqual(
+            5, budget_summary(VARIANTS["exact_g_refine"])["effective_max_model_calls"]
+        )
 
     def test_temperature_variants_change_only_policy_temperature(self):
         baseline = make_config(VARIANTS["baseline86"])

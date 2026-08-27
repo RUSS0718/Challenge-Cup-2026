@@ -163,6 +163,16 @@ VARIANTS = {
     "answer_conflict_retry": Variant("answer_conflict_retry", answer_conflict_retry=True),
     "gated_retry": Variant("gated_retry", gated_retry=True),
     "gated_retry_8k": Variant("gated_retry_8k", gated_retry=True, max_tokens_override=8192),
+    # Exact G from the cost-frontier proposal: C0's answer-first/policy prompt
+    # family with k5 voting replaced by verification-gated retry (fail-closed,
+    # at most one recovery call). GR layers refine on top for the four-arm screen.
+    "exact_g": Variant(
+        "exact_g", numeric_prompt=True, gated_retry=True, use_policy_prompt=True,
+    ),
+    "exact_g_refine": Variant(
+        "exact_g_refine", numeric_prompt=True, gated_retry=True,
+        use_policy_prompt=True, refine=True,
+    ),
     "temperature04": Variant("temperature04", temperature=0.4),
     "temperature08": Variant("temperature08", temperature=0.8),
     "adaptive_vote": Variant("adaptive_vote", adaptive_voting=True),
