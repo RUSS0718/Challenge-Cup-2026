@@ -63,7 +63,7 @@
 | P3/refine 历史证据恢复 | 144 对配对 b=12/c=4，p=0.0768；未达显著晋升口径 | `ARCHIVED`：协议修复不等于分数收益；重启需新假设与同窗预注册 |
 | exact_g / GR 成本前沿 | 首筛失败；唯一复测触发对称 10% VOID。两窗描述性准确率无差异，调用约 C0 的 25%，墙钟约 1/3 | `ARCHIVED`，该设计线终止；不得继续复测或直接解锁 GR |
 | P1 `current_salvage` | 2026-08-27 complex48 两轮中三份 arm-report 超过 10% model_error，public112 未产出；salvage 实际触发 0/96 | `OPEN / NO_VALID_CONCLUSION`：本次窗口 `ARCHIVED_VOID`；见 [`p1_salvage_result_2026-08-27.md`](experiments/p1_salvage_result_2026-08-27.md)，不得自动补跑或晋升 |
-| P3′ `hetero_k5` | C0 k5 内部拆分为 1 Alternative + 4 Direct；首次启动前 dev3 健康探针 3/3 均含 model_error | `OPEN / NOT_RUN`：当前窗口 `UNHEALTHY`，见 [`hetero_k5_health_probe_result_2026-08-27.md`](experiments/hetero_k5_health_probe_result_2026-08-27.md)；健康窗口后才执行既有预注册 |
+| P3′ `hetero_k5` | C0 k5 上限内最多 1 Alternative + 4 Direct；首次健康探针 3/3 model_error，未完成 A/B | `DEPLOYED_UNVALIDATED_CANARY`：用户明确批准绕过本地门，runtime `18f4f5a`；见 [`hetero_k5_direct_release_2026-08-27.md`](experiments/hetero_k5_direct_release_2026-08-27.md)，回滚 `242c480` |
 
 `exact_g` 的低成本属于可供未来新设计引用的机制观察，不构成旧 G/GR 重新运行的授权。若未来
 把“低调用门控”与一个已独立过门的能力方法融合，必须作为新候选重新预注册，并保留 C0 和
@@ -100,8 +100,8 @@
 ## 六、当前允许队列
 
 1. P1 首次回归已按 VOID 归档；方法仍为 `OPEN`，任何健康复测都须新预注册且次数有限。
-2. 当前 hetero 启动探针已判 `UNHEALTHY`；下一明确时间窗重新留一份单次健康探针记录，
-   只有 3/3 无 model_error 才串行运行 `hetero_k5` 单轮筛窗。
+2. hetero 已由用户直接发布为未验证 canary；官方结果前不追加第二个运行时变量，不把发布动作
+   反写为本地 PASS。若补本地 A/B，仍须新健康窗口且不得与官方评测并行。
 3. 联网调研只进入候选池；按
    [`math_agent_capability_methods_2026-08-27.md`](research/math_agent_capability_methods_2026-08-27.md)
    的排序逐个做代码缝隙与预算审计，再写单方法预注册。

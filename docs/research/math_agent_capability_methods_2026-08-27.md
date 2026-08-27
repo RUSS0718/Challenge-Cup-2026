@@ -9,9 +9,9 @@
 
 接下来的顺序不应是继续堆 token、投票或 rollout，而应是：
 
-1. P1 `current_salvage` 首次回归已因端点健康门触发 VOID；随后 hetero 启动前 dev3 探针
-   3/3 均含 model_error，当前窗口停止。待新健康窗口再执行 `hetero_k5` 小筛，P1 若复测
-   必须另立有限预注册；
+1. P1 `current_salvage` 首次回归因端点健康门触发 VOID；hetero 启动前 dev3 探针也为
+   3/3 model_error。此后用户明确批准跳过本地 A/B,直接发布 hetero_k5 未验证 canary;
+   官方结果前不得把发布动作表述为能力通过；
 2. 若仍需新能力候选，优先测试 **Chain-of-Draft（CoD）** 和 **Re2**，因为它们不增加
    调用数，并直接针对官方 C0 的高截断与长输出风险；
 3. 再依次测试 Generative Self-Aggregation（GSA）、PS+、Key-Condition Verification、
@@ -89,7 +89,7 @@ token/延迟下降，才能以“成本组件”身份独立过门。
 | 排名 | 候选 | 当前状态 | 预期杠杆 | 最坏调用 | 优先级理由 |
 | ---: | --- | --- | --- | ---: | --- |
 | 1 | P1 `current_salvage` | `OPEN / NO_VALID_CONCLUSION`；首次窗口 VOID | invalid→可判答案 | 不增加 | 首次证据已归档，不是能力失败，也不具备晋升资格 |
-| 2 | `hetero_k5` | `OPEN / NOT_RUN`；当前健康探针失败 | 同预算解法多样性 | 5 | 唯一现成且未有效同窗否决的能力杠杆，等健康窗口 |
+| 2 | `hetero_k5` | `DEPLOYED_UNVALIDATED_CANARY`；A/B 未完成 | 同预算解法多样性 | 5 | 用户批准直接发布；等待官方结果，不宣称提分 |
 | 3 | Chain-of-Draft | 研究候选 | 缩短推理，降低截断/延迟 | 5 | 不加调用，直接命中 C0 的 88.7% 截断风险 |
 | 4 | Re2（重读题目） | 研究候选 | 改善题意理解 | 5 | 只改输入提示，工程量和归因风险最低 |
 | 5 | GSA | 研究候选 | 三候选信息的生成式聚合 | 4 | 固定 3+1 调用，区别于多数投票且适配公开 client |
@@ -114,9 +114,10 @@ token/延迟下降，才能以“成本组件”身份独立过门。
 - **单变量**：只切换 `enable_heterogeneous_reasoners`；不改温度、token、投票阈值、输出协议。
 - **现有门**：严格执行 [`hetero_k5` 预注册](../experiments/hetero_k5_screen_preregistration_2026-08-27.md)：
   正确率净失≤2、平均 calls≤C0×1.10 且 P95 不高于 C0、卫生不劣于 C0。
-- **当前启动状态**：首次 dev3 健康探针 3/3 均出现 model_error，按
+- **当前发布状态**：首次 dev3 健康探针 3/3 均出现 model_error，按
   [`hetero_k5_health_probe_result_2026-08-27.md`](../experiments/hetero_k5_health_probe_result_2026-08-27.md)
-  判为 `UNHEALTHY`；没有运行 complex48，也没有能力结论。
+  判为 `UNHEALTHY`；没有运行 complex48，也没有能力结论。随后用户批准以 `18f4f5a`
+  直接发布；该动作是风险接受,不是门槛通过。
 - **解释边界**：DIVERSE 论文表明“多样化提示 + 验证”可提高多类推理任务表现，但论文使用的
   verifier 与本仓库不同；这里只支持测试“真正的策略多样性”，不支持重开普通 k5 自洽采样。
 
@@ -304,7 +305,7 @@ token/延迟下降，才能以“成本组件”身份独立过门。
 
 ```text
 P1 首次窗口 VOID 归档
-  -> 等健康窗口后 hetero_k5 小筛
+  -> hetero_k5 用户批准直接发布(未验证;等待官方结果)
   -> CoD
   -> Re2
   -> GSA
