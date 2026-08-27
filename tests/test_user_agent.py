@@ -1505,5 +1505,74 @@ class F2IntegrationTest(unittest.TestCase):
         self.assertEqual("no_answer_block", gen[0]["parse_status"])
 
 
+class FailurePathSalvageTest(unittest.TestCase):
+    """P1 invalid 缩减包:全部候选被拒时,从被拒响应里抢救答案式 token。
+
+    口径:官方判分中 invalid 与 incorrect 同为 0 分;把"必然 0 分"的道歉
+    兜底替换为尽力抢救的答案,只可能不劣于现状。成功路径一律不变。
+    """
+
+    def _agent(self, responses):
+        return ReasoningAgent(FakeClient(responses),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_task_aware_prompt=True,
+                        enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False,
+                        enable_step_verification=False,
+                        enable_failure_salvage=True))
+
+    def test_salvages_last_numeric_token_when_no_candidate_survives(self):
+        resp = "设未知数并列方程,移项合并同类项后两边开方,\n解得该边的长度为 12"
+        result = self._agent([resp]).solve("计算该边长度。", {})
+        self.assertEqual("最终答案：12", result["final_response"])
+        self.assertEqual("12", result["extracted_answer"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertEqual("salvaged", fin["status"])
+
+    def test_boxed_response_is_already_a_valid_success_path(self):
+        # \boxed{...} is extractable by the normal path; salvage must not fire.
+        boxed = r"推导过程略,最终结果 \boxed{\frac{3}{4}},以上为完整思路。"
+        result = self._agent([boxed]).solve("计算概率值。", {})
+        self.assertEqual("3/4", result["final_response"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertEqual("selected", fin["status"])
+
+    def test_salvage_prefers_answer_marker_over_bare_number(self):
+        text = "该概率约为 0.75,即最终答案为 3/4。以上计算可能有舍入误差。"
+        result = self._agent([text]).solve("计算某事件的概率值。", {})
+        self.assertEqual("最终答案：3/4", result["final_response"])
+
+    def test_placeholder_only_responses_keep_apology_fallback(self):
+        result = self._agent(["<答案>"]).solve("计算 1+1。", {})
+        self.assertEqual("未能生成有效数学答案。", result["final_response"])
+        self.assertEqual("", result["extracted_answer"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertEqual("fallback", fin["status"])
+
+    def test_non_numeric_problem_types_are_not_number_salvaged(self):
+        resp = "由对称性与单调性逐步论证,可得该不等式在整个定义域上成立(证毕)。"
+        result = self._agent([resp]).solve("证明：对一切实数 x 有 x^2+1>=2|x|。", {})
+        # Legacy F behaviour: no numeric salvage, no structured rewrite —
+        # final_response is the untouched response, never a bare number.
+        self.assertEqual(resp, result["final_response"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertNotEqual("salvaged", fin["status"])
+
+    def test_success_path_is_never_touched_by_salvage(self):
+        result = self._agent(["推导。\n最终答案：7"]).solve("计算 3+4。", {})
+        self.assertIn("7", result["final_response"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertNotEqual("salvaged", fin["status"])
+
+    def test_flag_off_preserves_legacy_behaviour(self):
+        agent = ReasoningAgent(
+            FakeClient(["仅有无标记的过程叙述,末尾提到数字 42"]),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_l0_extended_tokens=False,
+                        enable_step_verification=False))
+        result = agent.solve("计算某个量。", {})
+        self.assertEqual("未能生成有效数学答案。", result["final_response"])
+
+
 if __name__ == "__main__":
     unittest.main()

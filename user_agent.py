@@ -250,6 +250,11 @@ class AgentConfig:
     enable_explicit_answer_conflict_retry: bool = False
     # B1: deterministic verification gate for the single recovery call.
     enable_verification_gated_retry: bool = False
+    # P1 invalid reduction: when every candidate is rejected and the solve
+    # would return the apology fallback, best-effort salvage an answer-like
+    # token from the rejected responses (numeric-family problems only).
+    # Failure-path only: the success path never runs this.
+    enable_failure_salvage: bool = False
     # B2 remains an explicit, disabled experiment; B1 does not depend on it.
     enable_truncation_recovery_prompt: bool = False
     # Adaptive consistency voting: independent full resamples of the same
@@ -668,6 +673,53 @@ def is_placeholder_answer(answer: str) -> bool:
     }
 
 
+# ── P1: failure-path salvage (invalid → judgeable best-effort answer) ────
+_SALVAGE_BOXED_RE = re.compile(r"\\boxed\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}")
+_SALVAGE_MARKER_RE = re.compile(r"(?:最终答案|答案|Final answer|Answer)\s*[:：为]?\s*(.+)")
+_SALVAGE_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?(?:/\d+)?")
+_SALVAGE_MAX_CHARS = 100
+
+
+def _salvage_answer(texts: list[str], problem_type: str) -> str:
+    """Best-effort answer from rejected responses, or "".
+
+    Priority per response: \\boxed content > explicit answer marker > the
+    last bare numeric/ratio token. Placeholder-like extractions are refused.
+    Numeric-family problems only: proof/derivation/explanation dumps of a
+    stray number would be meaningless.
+    """
+    if problem_type not in (TASK_TYPE_CALCULATION, TASK_TYPE_FILL_BLANK, TASK_TYPE_CHOICE):
+        return ""
+    for text in reversed(texts):
+        raw = text or ""
+        if not raw.strip():
+            continue
+        for pattern in (_SALVAGE_BOXED_RE, _SALVAGE_MARKER_RE, _SALVAGE_NUMBER_RE):
+            matches = list(pattern.finditer(raw))
+            for match in reversed(matches):
+                candidate = (match.group(1) if match.lastindex else match.group(0)).strip()
+                if pattern is _SALVAGE_MARKER_RE:
+                    # marker capture runs to end of text; keep only the first
+                    # segment up to a sentence break.
+                    candidate = re.split(r"[。\n;,;]", candidate)[0].strip()
+                candidate = candidate.strip("。；;,， ]）)")
+                if not candidate or len(candidate) > _SALVAGE_MAX_CHARS:
+                    continue
+                if is_placeholder_answer(candidate) or _is_placeholder_segment(candidate):
+                    continue
+                if not re.search(r"[\w\\]", candidate):
+                    # must contain at least one letter/digit/backslash:
+                    # pure punctuation tokens (e.g. ">") are not answers.
+                    continue
+                if pattern is _SALVAGE_NUMBER_RE and not re.fullmatch(
+                        r"-?\d+(?:\.\d+)?(?:/\d+)?", candidate):
+                    # bare-number tier only accepts whole numeric tokens;
+                    # marker/boxed tiers accept what they matched.
+                    continue
+                return candidate
+    return ""
+
+
 def _truncation_signals(response: str, answer: str) -> list[str]:
     """Proxy signals for finish_reason=length truncation (client returns str only).
 
@@ -974,10 +1026,41 @@ class ReasoningAgent:
             if any(entry.get("status") == "rejected" for entry in trace if entry.get("step") == "generate_candidate"):
                 self._record_diagnostic(budget, "all_candidates_rejected")
             self._record_diagnostic(budget, "fallback")
+            # P1 invalid reduction: salvage a best-effort judgeable answer
+            # from rejected responses instead of the guaranteed-zero apology.
+            salvaged = ""
+            if self.config.enable_failure_salvage:
+                salvaged = _salvage_answer(budget.get("rejected_responses", []), problem_type)
+                if salvaged:
+                    trace.append({"step": "finalize", "status": "salvaged",
+                                  "reason": "no_valid_candidate",
+                                  "model_calls": budget["used"], "problem_type": problem_type})
+                    trace[-1]["diagnostic_reasons"] = list(budget["diagnostic_reasons"])
+                    return {"final_response": f"最终答案：{salvaged}",
+                            "extracted_answer": salvaged, "trace": trace}
             trace.append({"step":"finalize","status":"fallback","reason":"no_valid_candidate","model_calls":budget["used"],"problem_type":problem_type})
             trace[-1]["diagnostic_reasons"] = list(budget["diagnostic_reasons"])
             return {"final_response":"未能生成有效数学答案。","trace":trace, "extracted_answer": ""}
         best = self._select_candidate(candidates)
+
+        # P1 invalid reduction: a structured=False candidate carries the raw
+        # response as its "answer" (F no-answer-block path). Dumping it into
+        # final_response is a guaranteed invalid; salvage instead.
+        if (
+            self.config.enable_failure_salvage
+            and not best.get("structured")
+            and problem_type in (TASK_TYPE_CALCULATION, TASK_TYPE_FILL_BLANK, TASK_TYPE_CHOICE)
+        ):
+            salvaged = _salvage_answer(
+                [best.get("solution", "")] + budget.get("rejected_responses", []),
+                problem_type,
+            )
+            if salvaged:
+                best["answer"] = salvaged
+                best["normalized_answer"] = normalize_answer(salvaged)
+                trace.append({"step": "finalize", "status": "salvaged",
+                              "reason": "unstructured_best",
+                              "model_calls": budget["used"], "problem_type": problem_type})
 
         # ── P3: step verification + targeted revision ──
         if self.config.enable_step_verification and best.get("solution"):
@@ -1027,6 +1110,8 @@ class ReasoningAgent:
             if response is None:
                 self._record_diagnostic(budget, "model_error")
                 trace.append(_tr("skipped", candidate_id, reason=error, diagnostic_reason="model_error")); continue
+            if self.config.enable_failure_salvage:
+                budget.setdefault("rejected_responses", []).append(response)
             if self.config.enable_strict_numeric_salvage and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
                 answer = extract_numeric_answer(response)
             else:
