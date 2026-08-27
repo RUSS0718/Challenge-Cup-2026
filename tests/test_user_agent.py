@@ -877,6 +877,37 @@ class StepVerificationTest(unittest.TestCase):
         # original answer preserved (3), not the bad revision (0)
         self.assertIn("3", result.get("extracted_answer", ""))
 
+    def test_reverify_without_valid_pass_rolls_back_revision(self):
+        """Malformed, failed, or budget-skipped reverify must not keep a revision."""
+        cases = [
+            ("not a verifier protocol", 6, 3, "inconclusive"),
+            (RuntimeError("reverify failed"), 6, 3, "skipped"),
+            (None, 4, 0, "skipped"),
+        ]
+        for reverify_response, max_model_calls, p3_call_boost, expected_status in cases:
+            with self.subTest(expected_status=expected_status):
+                responses = [
+                    "最终答案：3",                     # candidate
+                    "VERDICT: A",                       # audit
+                    "ERROR:calc:1+1=2 not 3\nERRORS",   # verify
+                    "最终答案：2",                       # revision
+                ]
+                if reverify_response is not None:
+                    responses.append(reverify_response)
+                client = FakeClient(responses)
+                agent = ReasoningAgent(client,
+                    AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                                max_model_calls=max_model_calls,
+                                enable_l0_extended_tokens=False,
+                                enable_step_verification=True,
+                                enable_step_revision=True,
+                                p3_call_boost=p3_call_boost))
+                result = agent.solve("计算 1+1", {})
+                rv = [e for e in result["trace"] if e.get("step") == "reverify"]
+                self.assertTrue(rv)
+                self.assertEqual(expected_status, rv[-1]["status"])
+                self.assertIn("3", result.get("extracted_answer", ""))
+
     def test_error_and_gap_parsing(self):
         """Mixed ERROR: and GAPS in single response parse correctly."""
         client = FakeClient([

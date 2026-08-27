@@ -17,6 +17,7 @@ from scripts.evaluate_protocol_ab import (
     run_variant,
     summarize_records,
 )
+from user_agent import POLICY_PROMPT
 
 
 def _record(idx=0, verdict="correct", diagnostic_reasons=None, latency=1.0, finish="stop"):
@@ -46,9 +47,36 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
+            ["current", "current_refine", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
             list(VARIANTS),
         )
+
+    def test_current_family_reproduces_answer_first_k5_and_bounded_refine(self):
+        current = make_config(VARIANTS["current"])
+        refine = make_config(VARIANTS["current_refine"])
+        strict = make_config(VARIANTS["current_strict"])
+        both = make_config(VARIANTS["current_refine_strict"])
+
+        for config in (current, refine, strict, both):
+            self.assertEqual(4096, config.max_tokens)
+            self.assertEqual(4096, config.l0_max_tokens)
+            self.assertEqual(5, config.max_model_calls)
+            self.assertTrue(config.enable_adaptive_voting)
+            self.assertEqual(5, config.vote_k_max)
+            self.assertEqual(3, config.vote_agree_threshold)
+            self.assertTrue(config.enable_numeric_answer_first_prompt)
+            self.assertFalse(config.enable_numeric_answer_only_prompt)
+            self.assertFalse(config.enable_conditional_token_retry)
+            self.assertFalse(config.enable_verification_gated_retry)
+        self.assertEqual(POLICY_PROMPT, current.policy_prompt)
+        self.assertFalse(current.enable_step_verification)
+        self.assertFalse(current.enable_strict_numeric_salvage)
+        self.assertTrue(refine.enable_step_verification)
+        self.assertTrue(refine.enable_step_revision)
+        self.assertTrue(strict.enable_strict_numeric_salvage)
+        self.assertTrue(both.enable_step_verification)
+        self.assertTrue(both.enable_strict_numeric_salvage)
+        self.assertEqual(8, budget_summary(VARIANTS["current_refine"])["effective_max_model_calls"])
 
     def test_variant_flags_are_single_variable(self):
         baseline = make_config(VARIANTS["baseline86"])
@@ -131,6 +159,26 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(["model_error", "fallback"], rows[1]["diagnostic_reasons"])
         self.assertEqual(120.0, rows[1]["latency_seconds"])
         self.assertIsNone(rows[1]["main_finish_reason"])
+
+    def test_answer_rows_expose_safe_status_fields_without_raw_output(self):
+        rows = answer_rows("current_refine", 1, "sample_data/p.jsonl", [{
+            "idx": 3, "extracted_answer": "", "verdict": "unknown",
+            "diagnostic_reasons": ["model_error"], "latency_seconds": 1.0,
+            "main_finish_reason": None, "final_response_nonempty": False,
+            "result_status": "error", "model_calls": 2, "model_call_limit": 8,
+            "p3_verify_status": "skipped", "p3_revise_status": "not_run",
+            "p3_reverify_status": "disabled",
+        }])
+        self.assertEqual({
+            "final_response_nonempty": False, "result_status": "error",
+            "model_calls": 2, "model_call_limit": 8,
+            "p3_verify_status": "skipped", "p3_revise_status": "not_run",
+            "p3_reverify_status": "disabled",
+        }, {key: rows[0][key] for key in (
+            "final_response_nonempty", "result_status", "model_calls", "model_call_limit",
+            "p3_verify_status", "p3_revise_status", "p3_reverify_status",
+        )})
+        self.assertNotIn("raw_response", rows[0])
 
     def test_append_answers_is_atomic_and_appends(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -357,6 +405,7 @@ class RunVariantBreakerTest(unittest.TestCase):
         self.assertTrue(report["void"])
         self.assertEqual("consecutive_model_errors", report["void_reason"])
         self.assertEqual(3, report["consecutive_failures_max"])
+        self.assertEqual([0, 1, 2], [row["idx"] for row in report["items"]])
         self.assertEqual(3, len(rows))
 
     def test_success_resets_streak_so_batch_completes(self):
