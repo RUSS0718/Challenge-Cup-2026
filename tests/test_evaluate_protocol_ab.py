@@ -47,7 +47,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["current", "current_refine", "current_salvage", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
+            ["current", "current_refine", "current_salvage", "hetero_k5", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
             list(VARIANTS),
         )
 
@@ -158,6 +158,25 @@ class ProtocolAbTest(unittest.TestCase):
             "policy_prompt", "enable_verification_gated_retry",
         ):
             self.assertEqual(getattr(base, field), getattr(salvage, field), field)
+
+    def test_hetero_k5_is_single_variable_over_current(self):
+        base = make_config(VARIANTS["current"])
+        hetero = make_config(VARIANTS["hetero_k5"])
+        # Only delta over C0: heterogeneous reasoner split inside the same
+        # k5 vote budget (1 alternative + 4 direct at runtime).
+        self.assertTrue(hetero.enable_heterogeneous_reasoners)
+        for field in (
+            "enable_numeric_answer_first_prompt", "enable_numeric_answer_only_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "l0_max_tokens",
+            "enable_step_verification", "policy_prompt",
+            "enable_verification_gated_retry", "p3_call_boost",
+        ):
+            self.assertEqual(getattr(base, field), getattr(hetero, field), field)
+        self.assertEqual(
+            budget_summary(VARIANTS["current"])["effective_max_model_calls"],
+            budget_summary(VARIANTS["hetero_k5"])["effective_max_model_calls"],
+        )
 
     def test_temperature_variants_change_only_policy_temperature(self):
         baseline = make_config(VARIANTS["baseline86"])

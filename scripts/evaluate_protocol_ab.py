@@ -131,6 +131,7 @@ class Variant:
     use_policy_prompt: bool = False
     refine: bool = False
     failure_salvage: bool = False
+    heterogeneous: bool = False
 
 
 VARIANTS = {
@@ -150,6 +151,13 @@ VARIANTS = {
         "current_salvage", numeric_prompt=True, adaptive_voting=True,
         vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
         use_policy_prompt=True, failure_salvage=True,
+    ),
+    # Capability arm: C0 with heterogeneous reasoners as the only delta —
+    # the k5 budget splits into 1 alternative-strategy + 4 direct calls.
+    "hetero_k5": Variant(
+        "hetero_k5", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True,
     ),
     "current_strict": Variant(
         "current_strict", numeric_prompt=True, strict_salvage=True,
@@ -202,7 +210,6 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_dynamic_budget=False,
         enable_l0_extended_tokens=True,
         enable_time_convergence=True,
-        enable_heterogeneous_reasoners=False,
         enable_l2_routing=False,
         enable_local_repair=False,
         enable_uncertain_repair=False,
@@ -225,6 +232,7 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_step_revision=variant.refine,
         p3_call_boost=3 if variant.refine else 0,
         enable_failure_salvage=variant.failure_salvage,
+        enable_heterogeneous_reasoners=variant.heterogeneous,
         policy_temperature=variant.temperature if variant.temperature is not None else temperature,
     )
 
