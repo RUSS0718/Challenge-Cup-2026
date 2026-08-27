@@ -272,11 +272,10 @@ class AgentConfig:
 # The official runner constructs ``ReasoningAgent(client=official_client)``
 # without a config, which resolves here.
 #
-# 2026-08-24 window deployment: k3_8k new-method probe (8192 ceiling + 3-sample
-# majority). Same-window local evidence: net 0 vs legacy 4k+k5 (p=1.0) with
-# ~40% fewer calls; chosen as this window's new-method probe per the
-# one-new-method-per-window strategy. Verification-gated retry stays
-# available but off. Revert anchor: legacy 4k+k5 = official R2 (9.82%).
+# 2026-08-27 user-approved experimental canary: C0 answer-first adaptive k5
+# with one AlternativeReasoner call inside the non-L0 vote budget; remaining
+# samples use DirectReasoner. This bypasses the unfinished local A/B gate.
+# Rollback anchor: 242c480 (C0 runtime, official Run #4 = 9/112).
 SUBMISSION_CONFIG = AgentConfig(
     policy_sample_times=1,
     policy_temperature=0.6,
@@ -293,7 +292,7 @@ SUBMISSION_CONFIG = AgentConfig(
     max_model_calls=5,
     max_tokens=4096,
     l0_max_tokens=4096,
-    enable_heterogeneous_reasoners=False,
+    enable_heterogeneous_reasoners=True,
     enable_step_verification=False,
     enable_step_revision=False,
     enable_method_rag=False,
@@ -1591,9 +1590,24 @@ class ReasoningAgent:
             if self._time_hard_exceeded(budget.get("solve_start")):
                 status = "solve_time_budget_exhausted"
                 break
+
+            vote_prompt = task_prompt
+            reasoner = None
+            if self.config.enable_heterogeneous_reasoners:
+                constraint = task_prompt or self._task_policy_prompt(problem_type)
+                task_extra = "" if constraint in (POLICY_PROMPT, CALCULATION_PROMPT) else "\n" + constraint
+                alternative_used = any(
+                    entry.get("step") == "generate_candidate"
+                    and entry.get("reasoner") == "alternative"
+                    for entry in trace
+                )
+                reasoner = "direct" if alternative_used else "alternative"
+                vote_prompt = (
+                    DIRECT_REASONER_PROMPT if reasoner == "direct" else ALTERNATIVE_REASONER_PROMPT
+                ) + task_extra
             self._generate_candidates(problem, 1, candidates, trace, budget,
-                                      max_tokens, task_prompt=task_prompt,
-                                      problem_type=problem_type)
+                                      max_tokens, task_prompt=vote_prompt,
+                                      problem_type=problem_type, reasoner=reasoner)
         trace.append({"step": "adaptive_vote", "status": status,
                       "samples": len(candidates),
                       "top_group_size": self._top_clear_group_size(candidates),

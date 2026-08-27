@@ -47,7 +47,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "legacy_4k_k5", "legacy_4k_k5_exit2", "legacy_4k_k5_length_pressure", "legacy_4k_k5_substitution", "legacy_4k_k5_answer_first", "baseline8k_k2", "single_8k_t0", "k3_8k"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "current", "hetero_k5", "legacy_4k_k5", "legacy_4k_k5_exit2", "legacy_4k_k5_length_pressure", "legacy_4k_k5_substitution", "legacy_4k_k5_answer_first", "baseline8k_k2", "single_8k_t0", "k3_8k"],
             list(VARIANTS),
         )
 
@@ -304,6 +304,24 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(4096, config.max_tokens)
         self.assertIs(POLICY_PROMPT, config.policy_prompt)
         self.assertEqual(0.6, config.policy_temperature)
+
+    def test_hetero_k5_is_single_variable_over_current(self):
+        base = make_config(VARIANTS["current"])
+        hetero = make_config(VARIANTS["hetero_k5"])
+
+        self.assertFalse(base.enable_heterogeneous_reasoners)
+        self.assertTrue(hetero.enable_heterogeneous_reasoners)
+        for field in (
+            "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting",
+            "vote_k_max",
+            "vote_agree_threshold",
+            "max_model_calls",
+            "max_tokens",
+            "l0_max_tokens",
+            "policy_prompt",
+        ):
+            self.assertEqual(getattr(base, field), getattr(hetero, field), field)
 
     def test_legacy_4k_k5_exit2_changes_only_agreement_threshold(self):
         baseline = make_config(VARIANTS["legacy_4k_k5"])

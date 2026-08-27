@@ -712,6 +712,32 @@ class HeterogeneousReasonerTest(unittest.TestCase):
         self.assertEqual(2, len(gen_ok))
         self.assertEqual({"direct", "alternative"}, {e.get("reasoner") for e in gen_ok})
 
+    def test_adaptive_k5_uses_one_alternative_and_four_direct_at_cap(self):
+        client = FakeClient([f"最终答案：{value}" for value in range(1, 6)])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1,
+            verifier_voting_times=0,
+            max_model_calls=5,
+            enable_l0_extended_tokens=False,
+            enable_adaptive_voting=True,
+            vote_k_max=5,
+            vote_agree_threshold=3,
+            enable_heterogeneous_reasoners=True,
+            enable_step_verification=False,
+        ))
+
+        result = agent.solve("已知 f(x)=x^2，求 f(3) 并化简结果", {})
+
+        reasoners = [
+            entry.get("reasoner")
+            for entry in result["trace"]
+            if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
+        ]
+        self.assertEqual(5, len(reasoners))
+        self.assertEqual(4, reasoners.count("direct"))
+        self.assertEqual(1, reasoners.count("alternative"))
+        self.assertIn(ALTERNATIVE_REASONER_PROMPT, client.calls[1][0][0]["content"])
+
     def test_l0_arithmetic_stays_single_direct_when_heterogeneous(self):
         """L0 arithmetic items: 1 generation with direct reasoner, even with P2 on."""
         # "计算 3+4" triggers L0 (simple arithmetic expression)
@@ -1107,7 +1133,7 @@ class P0StopBleedingTest(unittest.TestCase):
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Submission profile: official runner constructs ReasoningAgent(client) with
-# no config, which must resolve to the B1+4k canary submission.
+# no config, which must resolve to the current submission profile.
 # ═══════════════════════════════════════════════════════════════════════════
 
 class SubmissionProfileTest(unittest.TestCase):
@@ -1137,6 +1163,12 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual("7", result["extracted_answer"])
         self.assertEqual(3, len(client.calls))
         self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
+        reasoners = [
+            entry.get("reasoner")
+            for entry in result["trace"]
+            if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
+        ]
+        self.assertEqual(["direct", "alternative", "direct"], reasoners)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

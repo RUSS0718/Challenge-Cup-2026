@@ -165,7 +165,7 @@ class SubmissionConfigTest(unittest.TestCase):
         self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
         self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
-        self.assertFalse(SUBMISSION_CONFIG.enable_heterogeneous_reasoners)
+        self.assertTrue(SUBMISSION_CONFIG.enable_heterogeneous_reasoners)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_revision)
         self.assertFalse(SUBMISSION_CONFIG.enable_conditional_token_retry)
