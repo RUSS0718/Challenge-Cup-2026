@@ -1,0 +1,31 @@
+{
+  "stage": "g_screen_complex48",
+  "screen": true,
+  "exploratory": true,
+  "formal_gate": false,
+  "official_score": false,
+  "preregistration": "docs/experiments/g_screen_preregistration_2026-08-27.md",
+  "generated_by": "ZCode(grill-with-docs)",
+  "started_at": "2026-08-27T13:11:00+08:00",
+  "ended_at": "2026-08-27T13:55:50+08:00",
+  "commit": "3d07de5",
+  "ref": "codex/b1-4k-canary",
+  "protocol_snapshot_commit": "2b4ba30",
+  "input_file": "sample_data/complex_capability_freeze_48.jsonl",
+  "variants": ["current", "exact_g"],
+  "command": "D:/Anaconda/envs/CA-py310/python.exe scripts/evaluate_protocol_ab.py --input-files sample_data/complex_capability_freeze_48.jsonl --variants current,exact_g --rounds 1 --workers 3 --timeout-seconds 90 --retry-count 1 --interleave-items --output-file tmp/g_screen_2026-08-27/g_screen_complex48.json",
+  "smoke": {
+    "file": "tmp/g_screen_2026-08-27/smoke_dev.json",
+    "input": "sample_data/dev.jsonl",
+    "result": {"current": {"correct": 2, "of": 3, "avg_calls": 4.33}, "exact_g": {"correct": 2, "of": 3, "avg_calls": 1.33}}
+  },
+  "files": [
+    "tmp/g_screen_2026-08-27/g_screen_complex48.json"
+  ],
+  "void": false,
+  "verdict_summary": {
+    "hygiene_gate": "FAIL (exact_g error=3 > 0)",
+    "accuracy_gate": "PASS (net -2 <= -2 boundary; paired b=1 c=3, two-sided p=0.625)",
+    "cost_gate": "PASS (ratio 0.258 <= 0.5; p95_calls 2 <= 3)"
+  }
+}

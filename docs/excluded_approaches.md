@@ -1,65 +1,110 @@
-# 已排除方案归档（截至 2026-08-24）
+# 已排除方案与实验处置注册表（截至 2026-08-27）
 
-> 目的：任何新会话/成员在提议新实验前先查此表，避免重复试错。
-> 判定分四级：**REJECTED**（证据否定）/ **ARCHIVED**（不显著，留档）/ **SUPERSEDED**（被后续方案覆盖）/ **OPEN**（未关闭）。
-> 官方评测为最终裁决；本地数据仅用于预筛。同窗口交错为必要证据标准（跨窗比较无效，见 §跨窗教训）。
+> 目的：任何新会话、成员或联网调研在提出实验前先查此表，避免重复试错。
+> 官方评测是最终裁决；本地数据只用于预筛。同窗口交错是能力比较的必要条件。
+> 本文件从官方基线 `b8b78aa` 曾包含的归档恢复，并补入 2026-08-27 的最新处置。
 
-## 一、官方评测否决（配置级）
+## 状态与重启规则
 
-| 方案 | 官方结果 | 对照（4k+k5=9.82%） | 判定 |
-| --- | --- | --- | --- |
-| 4k + k1（legacy 单调用） | 4.46% | −5.4pt | REJECTED |
-| 32k + k5（应急提预算） | 8.04% | −1.8pt；54/112 runner error、9h23m | REJECTED（单调用时长爆炸撞 20 分钟/题上限） |
-| **B1 + 4k**（验证门控重试单调用） | 8.04%（correct 9 / invalid 37） | −1.8pt | REJECTED |
-
-## 二、本地 A/B 否决（机制级，同窗口交错 + McNemar）
-
-| 方案 | 本地证据 | 判定 |
+| 状态 | 含义 | 是否允许重新实验 |
 | --- | --- | --- |
-| 失败退避（model_error 后等 1s） | Invalid 无降幅，出现首个 Incorrect；理论天花板 ≈ model_error 率 × 条件增益 | REJECTED |
-| 终答冲突复算（单输出内双答案触发） | 触发频率过低（retry_count 与基线无差异），无法移动均值 | REJECTED（触发器思路并入验证门控重试留档） |
-| 主调用温度 0.4 / 0.8（对照 0.6） | 均值 ±1 内，无增益 | REJECTED |
-| **8k + k2**（baseline8k_k2） | 同窗 vs 4k+k5：净 −2，p=0.75 | REJECTED |
-| **8k + k3**（k3_8k） | 同窗 vs 4k+k5：净 0，p=1.0 | REJECTED |
-| **8k + k1 + temp0**（single_8k_t0） | 同窗 vs 8k+k2：−3（p=0.25） | REJECTED |
-| k3 投票（4k，对照 4k 基线） | 净 +5/192，p=0.405 | ARCHIVED（不显著） |
-| k5 投票（4k，对照 4k 基线） | 净 +5/192，p=0.267 | ARCHIVED（不显著；曾短暂上线后随 R3 失败回退） |
-| k5 投票（32k） | 见官方 R3 | REJECTED |
-| single_8k_t0 之外的 8k+k1 变体 | 被 8k+k2 同窗覆盖 | SUPERSEDED |
+| `REJECTED` | 机制或配置已有直接负证据 | 不允许原样复跑；只有关键机制、适用条件或证据前提发生可审计变化时，另立新方案 |
+| `ARCHIVED` | 未检出显著收益、证据不足或窗口作废，但基础设施可能保留 | 不允许以相同协议反复抽样；若重启必须写明新假设与新预注册 |
+| `SUPERSEDED` | 被后续方案覆盖 | 不再作为独立候选 |
+| `BASELINE` | 当前对照或已部署配置，不代表已经证明能力提升 | 只作为比较锚，不重复宣传旧收益 |
+| `OPEN` | 已有明确下一步且尚未裁决 | 按现有预注册继续，不得临场改口径 |
 
-## 三、历史本地否决（2026-08-22 前，公共集证据）
+融合纪律：`REJECTED` 组件不得通过“方法融合”绕过否决；只有单方法在适用数据上独立过门，
+才允许进入融合实验。融合必须保留调用/token 上限，并以新的单变量增量预注册，不能一次混入
+多个未验证组件。
 
-| 方案 | 证据 | 判定 |
+## 一、官方评测处置（配置级）
+
+权威数字见 [`docs/experiments/官方评测记录.md`](experiments/官方评测记录.md)。
+
+| 方案 | 官方结果 | 处置 |
 | --- | --- | --- |
-| 数值题答案前置协议（单调用） | 8/21 protocol A/B（4096/temp0.6/公共集零截断）：**A 臂 74–77% → 37–44% 崩溃（−37pt），invalid 4→60/54 爆炸 15 倍**；A+B 同崩。与截断无关——prompt 本身与模型长思考模式冲突 | REJECTED（精确数字 2026-08-24 补录，源 docs/experiments/ 经 e4b40c0 归档） |
-| 答案先行 + 投票（组合形态） | 同族 prompt（NUMERIC_ANSWER_FIRST_PROMPT）；基于 −37pt 先验预期 S2 同窗验证失败，部署已排除；S2 结果仅归档确认 | REJECTED（先验）/ S2 归档中 |
-| 严格 salvage（boxed/末行兜底） | 公共集退化 | REJECTED |
-| 6144 条件 token 重试 | 不稳定 | REJECTED |
-| 长题 token 路由（证明/推导 6144） | 复杂冻结集 25/48 < 基线 26/48 | REJECTED |
-| RAG / 方法卡（40 张离线卡） | 双轮正确率下降、延迟上升 | REJECTED |
-| P2 异构推理（Direct+Alternative） | 未过门 | ARCHIVED（基础设施保留） |
-| P3 逐步审核与修正 | 未过门，fail-open 边界 | ARCHIVED（基础设施保留） |
-| 确定性求解器（直接解题） | 232 题仅 4 题安全命中 | ARCHIVED（opt-in；"回代验证"新形态见未决清单） |
-| SymPy 受控证据（算术等价） | 无默认收益证据 | ARCHIVED（opt-in） |
-| salvage 离线分析 | 无可靠恢复空间 | REJECTED |
+| 4k + k1（legacy 单调用） | 4.46%，相对历史 4k+k5 低约 5.4pt | `REJECTED` |
+| 32k + k5 | 9/112，invalid 60；54/112 runner error；约 9h23m | `REJECTED`：同分但成本、时限与可靠性明显更差 |
+| B1 + 4k（验证门控重试） | 9/112，invalid 37；约 1h16m | `SUPERSEDED`：由当前 C0 取代；没有正确数增益 |
+| answer-first + k5 + 4k（`b8b78aa`，C0） | 9/112，invalid 20，截断率 88.7%，约 5h12m | `BASELINE`：降低 invalid，但没有证明核心正确率提升 |
 
-## 四、流程级排除（方法论）
+结论：提高 token 上限、在 k1/k5/B1 间机械切换都没有突破隐藏集正确数平台。C0 保留为官方
+对照，不应把 invalid 下降等价成分数收益。
 
-| 做法 | 教训 |
+## 二、本地 A/B 已否决或归档（机制级）
+
+| 方案 | 本地证据 | 处置 |
+| --- | --- | --- |
+| 失败退避（model_error 后等 1s） | invalid 无降幅，并出现首个 incorrect | `REJECTED` |
+| 终答冲突复算 | 触发频率过低，retry_count 与基线无差异 | `REJECTED`；触发思想已被验证门控覆盖 |
+| 主调用温度 0.4 / 0.8（对照 0.6） | 均值在 ±1 内，无稳定增益 | `REJECTED` |
+| 8k + k2 | 同窗 vs 4k+k5：净 -2，p=0.75 | `REJECTED` |
+| 8k + k3 | 同窗 vs 4k+k5：净 0，p=1.0 | `REJECTED` |
+| 8k + k1 + temp0 | 同窗 vs 8k+k2：净 -3，p=0.25 | `REJECTED` |
+| k3 投票（4k） | 净 +5/192，p=0.405 | `ARCHIVED`：不显著 |
+| k5 投票（4k） | 净 +5/192，p=0.267 | `ARCHIVED`：不显著；当前只作为 C0 组成部分 |
+| k5 早退阈值 3→2 | 净 -1，p=1.0 | `ARCHIVED` |
+| 长题 token 路由（证明/推导 6144） | complex48 为 25/48，低于基线 26/48 | `REJECTED` |
+| 6144 条件 token 重试 | 结果不稳定 | `REJECTED` |
+| 严格 salvage（boxed/末行兜底） | 公共集退化 | `REJECTED`；不得与当前“仅失败路径抢救”混同 |
+| 数值题答案前置（单调用） | 2026-08-21 公共集由 74–77% 降至 37–44%，invalid 激增 | `REJECTED`：只否决单调用形态 |
+| answer-first + 投票 | 本地曾过门，官方 C0 invalid 下降但 correct 仍为 9 | `BASELINE`：不再作为新提分点 |
+| PoT/TIR-first | 最终机会协议阶段二 0/36 程序有效率 | `ARCHIVED` |
+| 候选答案回代验证（模型生成约束程序） | 约束程序有效率 0/36；fail-closed 零误支持 | `ARCHIVED` |
+| 确定性求解器（直接解题） | 232 题仅 4 题安全命中 | `ARCHIVED`：保持 opt-in |
+| SymPy 受控证据 | 无默认收益证据 | `ARCHIVED`：保持 opt-in |
+
+## 三、2026-08-27 当前战役
+
+| 方向 | 证据/状态 | 处置与不得重复项 |
+| --- | --- | --- |
+| 方法卡 RAG | 双轮正确率下降且延迟上升 | `REJECTED`：永久排除；不得作为融合组件复活 |
+| P3/refine 历史证据恢复 | 144 对配对 b=12/c=4，p=0.0768；未达显著晋升口径 | `ARCHIVED`：协议修复不等于分数收益；重启需新假设与同窗预注册 |
+| exact_g / GR 成本前沿 | 首筛失败；唯一复测触发对称 10% VOID。两窗描述性准确率无差异，调用约 C0 的 25%，墙钟约 1/3 | `ARCHIVED`，该设计线终止；不得继续复测或直接解锁 GR |
+| P1 `current_salvage` | 2026-08-27 complex48 两轮中三份 arm-report 超过 10% model_error，public112 未产出；salvage 实际触发 0/96 | `OPEN / NO_VALID_CONCLUSION`：本次窗口 `ARCHIVED_VOID`；见 [`p1_salvage_result_2026-08-27.md`](experiments/p1_salvage_result_2026-08-27.md)，不得自动补跑或晋升 |
+| P3′ `hetero_k5` | C0 k5 内部拆分为 1 Alternative + 4 Direct；首次启动前 dev3 健康探针 3/3 均含 model_error | `OPEN / NOT_RUN`：当前窗口 `UNHEALTHY`，见 [`hetero_k5_health_probe_result_2026-08-27.md`](experiments/hetero_k5_health_probe_result_2026-08-27.md)；健康窗口后才执行既有预注册 |
+
+`exact_g` 的低成本属于可供未来新设计引用的机制观察，不构成旧 G/GR 重新运行的授权。若未来
+把“低调用门控”与一个已独立过门的能力方法融合，必须作为新候选重新预注册，并保留 C0 和
+能力单方法两个对照以分离成本效应与能力效应。
+
+## 四、流程级排除（长期有效）
+
+| 做法 | 处置与教训 |
 | --- | --- |
-| 跨时间窗口比较实验结果 | 窗口漂移制造假增益/假回退（8k 假优势事件）——同窗口交错为必要条件 |
-| 用本地公共集校准隐藏集行为 | 公共集截断率 ~0 vs 隐藏集 56–88%，长度分布完全脱钩 |
-| 未过预注册门直接改 SUBMISSION_CONFIG | 32k 应急事件教训——一切晋升走门+评审 |
-| PowerShell 字符串手术编辑 UTF-8 源码 | GBK 读取损坏中文正则——一律用 Edit 工具或 python 改文件 |
-| dedup/归档保留"首次出现" | 曾丢失干净重跑数据——保留最后一次出现 |
+| 跨时间窗口比较实验结果 | `REJECTED`：窗口漂移会制造假增益/假回退；必须同窗口交错 |
+| 用 public112 校准隐藏题型 | `REJECTED`：112 题当前全被识别为 calculation，不能覆盖证明、解释和长题 |
+| `--total-timeout-seconds 0` 当模型验收 | `REJECTED`：这是零模型调用的结构检查 |
+| 未过预注册门直接改 `SUBMISSION_CONFIG` | `REJECTED`：一切晋升必须经过预注册、报告和用户确认 |
+| VOID 后挑选好看指标继续晋升 | `REJECTED`：VOID 先于所有能力/成本门，不得事后豁免 |
+| 同时运行两个共享端点实验窗 | `REJECTED`：会互相污染延迟与错误率，实验必须串行 |
+| 为公开题 idx/题面/答案写特判 | `REJECTED`：违反赛事普适性与隐藏集约束 |
+| 未独立过门就融合多个候选 | `REJECTED`：无法归因，也会扩大官方变更风险 |
 
-## 五、未决清单（未被排除，证据不足待测）
+## 五、GitHub Issue 状态防漂移
 
-| 方向 | 状态 | 备注 |
+截至 2026-08-27，以下 Issue 仍显示 OPEN，但其标签/正文早于当前仓库证据。后续 agent 不得
+只看 `ready-for-agent` 标签就重新执行，必须以本表和链接报告为准：
+
+| Issue | 当前事实 | 本地处置 |
 | --- | --- | --- |
-| **PoT/TIR-first** | ARCHIVED（最终机会协议阶段二 0/36 程序有效率） | 规格见 `docs/superpowers/specs/2026-08-24-tir-final-chance-protocol.md` |
-| 答案先行 + 投票（组合形态） | **PASSED**（净 +9/96，p=0.0039，c=0；已批准晋升，k3_8k 窗口后部署） | 8/21 单调用崩溃结论被组合形态推翻——配对证据见 docs/challenger_answer_first_2026-08-24.md |
-| 候选答案回代验证（substitution check） | ARCHIVED（约束程序有效率 0/36，fail-closed 零误支持验证通过） | 与 TIR 同源教训：白名单 vs 模型生成程序的根本性失配 |
-| 模式多样性投票（1×CoT + 1×PoT） | OPEN | 依赖 TIR 通过协议——TIR 已归档，本项随之冻结 |
-| k5 早退阈值 3→2（纯效率调参） | ARCHIVED（净 −1，p=1.0） | 共识强度损失略大于效率收益 |
-| 长度校准压力集建设 | **DONE**（24 题已入库并基线化：legacy k5 16.7%） | docs/length_pressure_set_2026-08-24.jsonl；后续实验必带压力维度 |
+| [#5 B1 晋升评审](https://github.com/RUSS0718/Challenge-Cup-2026/issues/5) | B1 已进入官方 Run #3，correct 仍为 9，随后被 C0 取代 | stale-open；按 `SUPERSEDED` 处理 |
+| [#11 PoT rescue](https://github.com/RUSS0718/Challenge-Cup-2026/issues/11) | 解锁条件未满足；PoT/TIR 最终机会实验程序有效率 0/36 | stale-open；保持 `ARCHIVED`，不执行 |
+| [#12 TIR 最终处置](https://github.com/RUSS0718/Challenge-Cup-2026/issues/12) | 所需最终处置已经落入归档，且 #11 未解锁 | stale-open；不得再次领取 |
+| [#13 runner 护栏](https://github.com/RUSS0718/Challenge-Cup-2026/issues/13) | 短超时保护、熔断、诊断字段已有实现与测试记录 | stale-open；视为已完成，不重复实现 |
+| [#14 弱点修复包](https://github.com/RUSS0718/Challenge-Cup-2026/issues/14) | 子方法已有逐项结果；答案先行+k5 已成为 C0，其余见本表处置 | stale-open；不得整包重跑 |
+
+关闭或改标签属于外部协作动作，需团队确认；在此之前，本节承担防重复执行的护栏。
+
+## 六、当前允许队列
+
+1. P1 首次回归已按 VOID 归档；方法仍为 `OPEN`，任何健康复测都须新预注册且次数有限。
+2. 当前 hetero 启动探针已判 `UNHEALTHY`；下一明确时间窗重新留一份单次健康探针记录，
+   只有 3/3 无 model_error 才串行运行 `hetero_k5` 单轮筛窗。
+3. 联网调研只进入候选池；按
+   [`math_agent_capability_methods_2026-08-27.md`](research/math_agent_capability_methods_2026-08-27.md)
+   的排序逐个做代码缝隙与预算审计，再写单方法预注册。
+4. 只有独立通过的单方法才可进入融合；优先考虑“能力方法 + 已证明的成本控制”，不融合两个
+   尚未验证的能力方法。
+5. 官方候选始终从 `b8b78aa` 对照面构造聚焦单变量 diff；本地 main/实验分支不得直接推送。
