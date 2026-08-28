@@ -1,0 +1,420 @@
+2026-08-27T22:04:16.739490837Z === Step 1: Check and prepare the environment ===
+2026-08-27T22:04:18.719109955Z Name: lagent
+2026-08-27T22:04:18.719326799Z Version: 0.5.0rc3
+2026-08-27T22:04:18.719568345Z Summary: A lightweight framework for building LLM-based agents
+2026-08-27T22:04:18.719808660Z Home-page: https://github.com/InternLM/lagent
+2026-08-27T22:04:18.720054676Z Author: 
+2026-08-27T22:04:18.720273601Z Author-email: 
+2026-08-27T22:04:18.720489515Z License: Apache 2.0
+2026-08-27T22:04:18.720742511Z Location: /usr/local/lib/python3.11/site-packages
+2026-08-27T22:04:18.720949526Z Editable project location: /tmp/lagent
+2026-08-27T22:04:18.721169701Z Requires: aiohttp, anthropic, arxiv, asyncache, asyncer, distro, filelock, func_timeout, griffe, json5, jsonschema, jupyter, jupyter_client, jupyter_core, openai, pydantic, ray, requests, tenacity, termcolor, tiktoken, timeout-decorator, typing-extensions
+2026-08-27T22:04:18.721357685Z Required-by: 
+2026-08-27T22:04:18.817498291Z === upgreade pip start === 
+2026-08-27T22:04:19.394380261Z Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+2026-08-27T22:04:19.395611498Z Requirement already satisfied: pip in /usr/local/lib/python3.11/site-packages (24.0)
+2026-08-27T22:04:19.908168102Z Collecting pip
+2026-08-27T22:04:19.963834165Z   Downloading https://pypi.tuna.tsinghua.edu.cn/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl (1.8 MB)
+2026-08-27T22:04:20.170460778Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 8.9 MB/s eta 0:00:00
+2026-08-27T22:04:21.571670042Z Installing collected packages: pip
+2026-08-27T22:04:21.572141562Z   Attempting uninstall: pip
+2026-08-27T22:04:21.577856130Z     Found existing installation: pip 24.0
+2026-08-27T22:04:21.651866072Z     Uninstalling pip-24.0:
+2026-08-27T22:04:21.938023881Z       Successfully uninstalled pip-24.0
+2026-08-27T22:04:23.300515050Z Successfully installed pip-26.2.1
+2026-08-27T22:04:23.301312788Z WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+2026-08-27T22:04:23.755952028Z === upgreade pip end === 
+2026-08-27T22:04:24.184582478Z Name: lagent
+2026-08-27T22:04:24.184815843Z Version: 0.5.0rc3
+2026-08-27T22:04:24.185038788Z Summary: A lightweight framework for building LLM-based agents
+2026-08-27T22:04:24.185263043Z Home-page: https://github.com/InternLM/lagent
+2026-08-27T22:04:24.185463798Z Author: 
+2026-08-27T22:04:24.185661522Z Author-email: 
+2026-08-27T22:04:24.185860627Z License: Apache 2.0
+2026-08-27T22:04:24.186097512Z Location: /usr/local/lib/python3.11/site-packages
+2026-08-27T22:04:24.186292306Z Editable project location: /tmp/lagent
+2026-08-27T22:04:24.186504691Z Requires: aiohttp, anthropic, arxiv, asyncache, asyncer, distro, filelock, func_timeout, griffe, json5, jsonschema, jupyter, jupyter_client, jupyter_core, openai, pydantic, ray, requests, tenacity, termcolor, tiktoken, timeout-decorator, typing-extensions
+2026-08-27T22:04:24.186675815Z Required-by: 
+2026-08-27T22:04:24.256576576Z === gcc:gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+2026-08-27T22:04:24.256602186Z Copyright (C) 2021 Free Software Foundation, Inc.
+2026-08-27T22:04:24.256606726Z This is free software; see the source for copying conditions.  There is NO
+2026-08-27T22:04:24.256610966Z warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. ==
+2026-08-27T22:04:24.260129525Z ===z3 :Z3 version 4.8.12 - 64 bit ==
+2026-08-27T22:04:24.718795095Z === Step 2: Clone repository ===
+2026-08-27T22:04:24.720563145Z Cloning into 'challenger_agent_judge'...
+2026-08-27T22:04:26.275472830Z === JUDGE_PATH set to: /opt/atomgit/challenger_agent_judge ===
+2026-08-27T22:04:26.508952753Z === Step 6: Clone user project repository ===
+2026-08-27T22:04:26.509980006Z JUDGE_PARENT_DIR：/opt/atomgit
+2026-08-27T22:04:26.510709912Z PROJECT_DIR：/opt/atomgit
+2026-08-27T22:04:26.512280867Z Cloning into 'Challenge-Cup-2026'...
+2026-08-27T22:04:28.733578590Z Commit ID: 25f99b5e3207fb51b4c17219886b9f6b1e065366
+2026-08-27T22:04:28.977179069Z USER_AGENT script path: /opt/atomgit/Challenge-Cup-2026/user_agent.py
+2026-08-27T22:04:29.205463306Z === user project pip start === 
+2026-08-27T22:04:29.680845649Z Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+2026-08-27T22:04:29.681506694Z Requirement already satisfied: requests>=2.31.0 in /usr/local/lib/python3.11/site-packages (from -r requirements.txt (line 1)) (2.33.1)
+2026-08-27T22:04:29.882332138Z Collecting sympy<1.15,>=1.13 (from -r requirements.txt (line 2))
+2026-08-27T22:04:29.932806005Z   Downloading sympy-1.14.0-py3-none-any.whl (6.3 MB)
+2026-08-27T22:04:30.216662442Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.3/6.3 MB 32.1 MB/s  0:00:00
+2026-08-27T22:04:30.301418714Z Collecting mpmath<1.4,>=1.1.0 (from sympy<1.15,>=1.13->-r requirements.txt (line 2))
+2026-08-27T22:04:30.341066379Z   Downloading mpmath-1.3.0-py3-none-any.whl (536 kB)
+2026-08-27T22:04:30.349741483Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 536.2/536.2 kB 59.4 MB/s  0:00:00
+2026-08-27T22:04:30.356598756Z Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (3.4.9)
+2026-08-27T22:04:30.357323502Z Requirement already satisfied: idna<4,>=2.5 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (3.18)
+2026-08-27T22:04:30.358009108Z Requirement already satisfied: urllib3<3,>=1.26 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (2.7.0)
+2026-08-27T22:04:30.358614521Z Requirement already satisfied: certifi>=2023.5.7 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (2026.7.22)
+2026-08-27T22:04:30.610363032Z Installing collected packages: mpmath, sympy
+2026-08-27T22:04:39.798787875Z 
+2026-08-27T22:04:39.809574076Z Successfully installed mpmath-1.3.0 sympy-1.14.0
+2026-08-27T22:04:39.810270531Z WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+2026-08-27T22:04:39.966597442Z === user project pip end === 
+2026-08-27T22:04:39.966638473Z === judge project pip start === 
+2026-08-27T22:04:40.418307017Z Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+2026-08-27T22:04:40.419063094Z Requirement already satisfied: requests>=2.31.0 in /usr/local/lib/python3.11/site-packages (from -r requirements.txt (line 1)) (2.33.1)
+2026-08-27T22:04:40.419658027Z Requirement already satisfied: aiohttp>=3.9.0 in /usr/local/lib/python3.11/site-packages (from -r requirements.txt (line 2)) (3.14.3)
+2026-08-27T22:04:40.420294731Z Requirement already satisfied: python-dotenv>=1.0.0 in /usr/local/lib/python3.11/site-packages (from -r requirements.txt (line 3)) (1.2.2)
+2026-08-27T22:04:40.421639191Z Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (3.4.9)
+2026-08-27T22:04:40.422329886Z Requirement already satisfied: idna<4,>=2.5 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (3.18)
+2026-08-27T22:04:40.422984341Z Requirement already satisfied: urllib3<3,>=1.26 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (2.7.0)
+2026-08-27T22:04:40.423624465Z Requirement already satisfied: certifi>=2023.5.7 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (2026.7.22)
+2026-08-27T22:04:40.429714041Z Requirement already satisfied: aiohappyeyeballs>=2.5.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (2.7.1)
+2026-08-27T22:04:40.430272494Z Requirement already satisfied: aiosignal>=1.4.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (1.4.0)
+2026-08-27T22:04:40.430945879Z Requirement already satisfied: attrs>=17.3.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (26.1.0)
+2026-08-27T22:04:40.431497551Z Requirement already satisfied: frozenlist>=1.1.1 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (1.8.0)
+2026-08-27T22:04:40.432124035Z Requirement already satisfied: multidict<7.0,>=4.5 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (6.7.1)
+2026-08-27T22:04:40.432657267Z Requirement already satisfied: propcache>=0.2.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (0.5.2)
+2026-08-27T22:04:40.433441445Z Requirement already satisfied: typing_extensions>=4.4 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (4.16.0)
+2026-08-27T22:04:40.434034258Z Requirement already satisfied: yarl<2.0,>=1.17.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (1.24.5)
+2026-08-27T22:04:40.668233607Z WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+2026-08-27T22:04:40.775056972Z === judge project pip end === 
+2026-08-27T22:04:41.009892685Z JUDGE script path: /opt/atomgit/challenger_agent_judge/run_judge.sh
+2026-08-27T22:04:41.250590858Z delete demo path: /opt/atomgit/challenger_agent_judge/run/demo  start
+2026-08-27T22:04:41.251621921Z delete demo path: /opt/atomgit/challenger_agent_judge/run/demo  end
+2026-08-27T22:04:41.251652782Z judge evaluation start
+2026-08-27T22:04:41.452399024Z [evaluation] agent stage started
+2026-08-28T02:28:33.936945504Z [evaluation] agent stage completed
+2026-08-28T02:28:45.501362818Z {
+2026-08-28T02:28:45.501409659Z   "status": "completed",
+2026-08-28T02:28:45.501416879Z   "total": 112,
+2026-08-28T02:28:45.501422119Z   "accuracy": 0.10714285714285714
+2026-08-28T02:28:45.501427119Z }
+2026-08-28T02:28:45.890652498Z judge evaluation finish
+2026-08-28T02:28:46.124287482Z find evaluation report folder path: /opt/atomgit/challenger_agent_judge/run
+2026-08-28T02:28:47.011668118Z === accuracy value is： 0.10714285714285714
+2026-08-28T02:28:47.012630049Z === accuracy converted to a percentage score: 10.7143
+2026-08-28T02:28:47.232733045Z === summary ： {
+2026-08-28T02:28:47.232753885Z   "total": 112,
+2026-08-28T02:28:47.232758805Z   "graded": 112,
+2026-08-28T02:28:47.232763035Z   "correct": 12,
+2026-08-28T02:28:47.232766965Z   "incorrect": 83,
+2026-08-28T02:28:47.232770895Z   "invalid": 17,
+2026-08-28T02:28:47.232774695Z   "accuracy": 0.10714285714285714,
+2026-08-28T02:28:47.232778586Z   "valid_accuracy": 0.12631578947368421,
+2026-08-28T02:28:47.232782576Z   "skipped": 0,
+2026-08-28T02:28:47.232810856Z   "failed": [],
+2026-08-28T02:28:47.232815186Z   "degraded": false,
+2026-08-28T02:28:47.232818986Z   "infra_error_count": 0,
+2026-08-28T02:28:47.232822777Z   "infra_errors": [],
+2026-08-28T02:28:47.232826417Z   "runner_status": "completed",
+2026-08-28T02:28:47.232830207Z   "runner_exit_code": 0,
+2026-08-28T02:28:47.232833967Z   "deadline_seconds": 0,
+2026-08-28T02:28:47.232837587Z   "synthesized_count": 0,
+2026-08-28T02:28:47.232841327Z   "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f"
+2026-08-28T02:28:47.232845257Z }
+2026-08-28T02:28:47.232848847Z === run_summary的值为： {
+2026-08-28T02:28:47.232853037Z   "schema_version": 1,
+2026-08-28T02:28:47.232856687Z   "total": 112,
+2026-08-28T02:28:47.232860197Z   "expected_indices": [
+2026-08-28T02:28:47.232863787Z     "0",
+2026-08-28T02:28:47.232867467Z     "1",
+2026-08-28T02:28:47.232870958Z     "2",
+2026-08-28T02:28:47.232874488Z     "3",
+2026-08-28T02:28:47.232877948Z     "4",
+2026-08-28T02:28:47.232881458Z     "5",
+2026-08-28T02:28:47.232884938Z     "6",
+2026-08-28T02:28:47.232888428Z     "7",
+2026-08-28T02:28:47.232891888Z     "8",
+2026-08-28T02:28:47.232895428Z     "9",
+2026-08-28T02:28:47.232898898Z     "10",
+2026-08-28T02:28:47.232902428Z     "11",
+2026-08-28T02:28:47.232905888Z     "12",
+2026-08-28T02:28:47.232909708Z     "13",
+2026-08-28T02:28:47.232913179Z     "14",
+2026-08-28T02:28:47.232916649Z     "15",
+2026-08-28T02:28:47.232920089Z     "16",
+2026-08-28T02:28:47.232923629Z     "17",
+2026-08-28T02:28:47.232927109Z     "18",
+2026-08-28T02:28:47.232930529Z     "19",
+2026-08-28T02:28:47.232933989Z     "20",
+2026-08-28T02:28:47.232937599Z     "21",
+2026-08-28T02:28:47.232941109Z     "22",
+2026-08-28T02:28:47.232944629Z     "23",
+2026-08-28T02:28:47.232948139Z     "24",
+2026-08-28T02:28:47.232951699Z     "25",
+2026-08-28T02:28:47.232955219Z     "26",
+2026-08-28T02:28:47.232958740Z     "27",
+2026-08-28T02:28:47.232962390Z     "28",
+2026-08-28T02:28:47.232966000Z     "29",
+2026-08-28T02:28:47.232969560Z     "30",
+2026-08-28T02:28:47.232973090Z     "31",
+2026-08-28T02:28:47.232976590Z     "32",
+2026-08-28T02:28:47.232980160Z     "33",
+2026-08-28T02:28:47.232987480Z     "34",
+2026-08-28T02:28:47.232991660Z     "35",
+2026-08-28T02:28:47.232995560Z     "36",
+2026-08-28T02:28:47.232999200Z     "37",
+2026-08-28T02:28:47.233002810Z     "38",
+2026-08-28T02:28:47.233006391Z     "39",
+2026-08-28T02:28:47.233009951Z     "40",
+2026-08-28T02:28:47.233013471Z     "41",
+2026-08-28T02:28:47.233017251Z     "42",
+2026-08-28T02:28:47.233021051Z     "43",
+2026-08-28T02:28:47.233024561Z     "44",
+2026-08-28T02:28:47.233028131Z     "45",
+2026-08-28T02:28:47.233031991Z     "46",
+2026-08-28T02:28:47.233035521Z     "47",
+2026-08-28T02:28:47.233038991Z     "48",
+2026-08-28T02:28:47.233042791Z     "49",
+2026-08-28T02:28:47.233046231Z     "50",
+2026-08-28T02:28:47.233049662Z     "51",
+2026-08-28T02:28:47.233053102Z     "52",
+2026-08-28T02:28:47.233056612Z     "53",
+2026-08-28T02:28:47.233060052Z     "54",
+2026-08-28T02:28:47.233063492Z     "55",
+2026-08-28T02:28:47.233066932Z     "56",
+2026-08-28T02:28:47.233070432Z     "57",
+2026-08-28T02:28:47.233073892Z     "58",
+2026-08-28T02:28:47.233077582Z     "59",
+2026-08-28T02:28:47.233081122Z     "60",
+2026-08-28T02:28:47.233084622Z     "61",
+2026-08-28T02:28:47.233088142Z     "62",
+2026-08-28T02:28:47.233091702Z     "63",
+2026-08-28T02:28:47.233095183Z     "64",
+2026-08-28T02:28:47.233098743Z     "65",
+2026-08-28T02:28:47.233102233Z     "66",
+2026-08-28T02:28:47.233105783Z     "67",
+2026-08-28T02:28:47.233109243Z     "68",
+2026-08-28T02:28:47.233112893Z     "69",
+2026-08-28T02:28:47.233116373Z     "70",
+2026-08-28T02:28:47.233119833Z     "71",
+2026-08-28T02:28:47.233123303Z     "72",
+2026-08-28T02:28:47.233126863Z     "73",
+2026-08-28T02:28:47.233130383Z     "74",
+2026-08-28T02:28:47.233133863Z     "75",
+2026-08-28T02:28:47.233137343Z     "76",
+2026-08-28T02:28:47.233140884Z     "77",
+2026-08-28T02:28:47.233144364Z     "78",
+2026-08-28T02:28:47.233147854Z     "79",
+2026-08-28T02:28:47.233151644Z     "80",
+2026-08-28T02:28:47.233155154Z     "81",
+2026-08-28T02:28:47.233158604Z     "82",
+2026-08-28T02:28:47.233162054Z     "83",
+2026-08-28T02:28:47.233169234Z     "84",
+2026-08-28T02:28:47.233173114Z     "85",
+2026-08-28T02:28:47.233176644Z     "86",
+2026-08-28T02:28:47.233180164Z     "87",
+2026-08-28T02:28:47.233183654Z     "88",
+2026-08-28T02:28:47.233187145Z     "89",
+2026-08-28T02:28:47.233190675Z     "90",
+2026-08-28T02:28:47.233194175Z     "91",
+2026-08-28T02:28:47.233197645Z     "92",
+2026-08-28T02:28:47.233201125Z     "93",
+2026-08-28T02:28:47.233204555Z     "94",
+2026-08-28T02:28:47.233208335Z     "95",
+2026-08-28T02:28:47.233212065Z     "96",
+2026-08-28T02:28:47.233215925Z     "97",
+2026-08-28T02:28:47.233219705Z     "98",
+2026-08-28T02:28:47.233223165Z     "99",
+2026-08-28T02:28:47.233226995Z     "100",
+2026-08-28T02:28:47.233230545Z     "101",
+2026-08-28T02:28:47.233234286Z     "102",
+2026-08-28T02:28:47.233237826Z     "103",
+2026-08-28T02:28:47.233241586Z     "104",
+2026-08-28T02:28:47.233245146Z     "105",
+2026-08-28T02:28:47.233248636Z     "106",
+2026-08-28T02:28:47.233252106Z     "107",
+2026-08-28T02:28:47.233255566Z     "108",
+2026-08-28T02:28:47.233259096Z     "109",
+2026-08-28T02:28:47.233262536Z     "110",
+2026-08-28T02:28:47.233265976Z     "111"
+2026-08-28T02:28:47.233269486Z   ],
+2026-08-28T02:28:47.233273076Z   "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f",
+2026-08-28T02:28:47.233276967Z   "record_count": 112,
+2026-08-28T02:28:47.233280857Z   "success": 112,
+2026-08-28T02:28:47.233284427Z   "error": 0,
+2026-08-28T02:28:47.233288397Z   "skipped": 0,
+2026-08-28T02:28:47.233291957Z   "synthesized_count": 0,
+2026-08-28T02:28:47.233295517Z   "runner_status": "completed",
+2026-08-28T02:28:47.233299197Z   "runner_exit_code": 0,
+2026-08-28T02:28:47.233302787Z   "deadline_seconds": 0,
+2026-08-28T02:28:47.233306347Z   "manifest_complete": true,
+2026-08-28T02:28:47.233309907Z   "client_usage": {
+2026-08-28T02:28:47.233313487Z     "request_count": 547,
+2026-08-28T02:28:47.233317727Z     "attempt_count": 547,
+2026-08-28T02:28:47.233321527Z     "retry_count": 0,
+2026-08-28T02:28:47.233325188Z     "truncated_count": 481,
+2026-08-28T02:28:47.233328808Z     "prompt_tokens": 167724,
+2026-08-28T02:28:47.233333098Z     "completion_tokens": 2097605,
+2026-08-28T02:28:47.233340238Z     "total_tokens": 2265329
+2026-08-28T02:28:47.233344178Z   },
+2026-08-28T02:28:47.233348008Z   "client_usage_complete": true
+2026-08-28T02:28:47.233352058Z }
+2026-08-28T02:28:47.277789296Z output_json:{
+2026-08-28T02:28:47.277822187Z   "summary": {
+2026-08-28T02:28:47.277827427Z     "total": 112,
+2026-08-28T02:28:47.277831957Z     "graded": 112,
+2026-08-28T02:28:47.277836117Z     "correct": 12,
+2026-08-28T02:28:47.277840238Z     "incorrect": 83,
+2026-08-28T02:28:47.277844418Z     "invalid": 17,
+2026-08-28T02:28:47.277848718Z     "accuracy": 0.10714285714285714,
+2026-08-28T02:28:47.277852778Z     "valid_accuracy": 0.12631578947368421,
+2026-08-28T02:28:47.277856768Z     "skipped": 0,
+2026-08-28T02:28:47.277860738Z     "failed": [],
+2026-08-28T02:28:47.277864948Z     "degraded": false,
+2026-08-28T02:28:47.277868928Z     "infra_error_count": 0,
+2026-08-28T02:28:47.277872818Z     "infra_errors": [],
+2026-08-28T02:28:47.277876738Z     "runner_status": "completed",
+2026-08-28T02:28:47.277880938Z     "runner_exit_code": 0,
+2026-08-28T02:28:47.277884679Z     "deadline_seconds": 0,
+2026-08-28T02:28:47.277888639Z     "synthesized_count": 0,
+2026-08-28T02:28:47.277892559Z     "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f"
+2026-08-28T02:28:47.277897149Z   },
+2026-08-28T02:28:47.277900869Z   "run_summary": {
+2026-08-28T02:28:47.277904779Z     "schema_version": 1,
+2026-08-28T02:28:47.277908689Z     "total": 112,
+2026-08-28T02:28:47.277912609Z     "expected_indices": [
+2026-08-28T02:28:47.277916539Z       "0",
+2026-08-28T02:28:47.277920489Z       "1",
+2026-08-28T02:28:47.277924199Z       "2",
+2026-08-28T02:28:47.277928250Z       "3",
+2026-08-28T02:28:47.277932100Z       "4",
+2026-08-28T02:28:47.277935860Z       "5",
+2026-08-28T02:28:47.277940090Z       "6",
+2026-08-28T02:28:47.277944040Z       "7",
+2026-08-28T02:28:47.277947720Z       "8",
+2026-08-28T02:28:47.277951480Z       "9",
+2026-08-28T02:28:47.277955070Z       "10",
+2026-08-28T02:28:47.277958930Z       "11",
+2026-08-28T02:28:47.277962710Z       "12",
+2026-08-28T02:28:47.277966460Z       "13",
+2026-08-28T02:28:47.277970340Z       "14",
+2026-08-28T02:28:47.277974281Z       "15",
+2026-08-28T02:28:47.277978001Z       "16",
+2026-08-28T02:28:47.277996911Z       "17",
+2026-08-28T02:28:47.278001261Z       "18",
+2026-08-28T02:28:47.278005211Z       "19",
+2026-08-28T02:28:47.278008771Z       "20",
+2026-08-28T02:28:47.278012431Z       "21",
+2026-08-28T02:28:47.278016181Z       "22",
+2026-08-28T02:28:47.278019942Z       "23",
+2026-08-28T02:28:47.278023632Z       "24",
+2026-08-28T02:28:47.278027072Z       "25",
+2026-08-28T02:28:47.278030642Z       "26",
+2026-08-28T02:28:47.278034492Z       "27",
+2026-08-28T02:28:47.278038062Z       "28",
+2026-08-28T02:28:47.278041672Z       "29",
+2026-08-28T02:28:47.278045232Z       "30",
+2026-08-28T02:28:47.278049002Z       "31",
+2026-08-28T02:28:47.278052662Z       "32",
+2026-08-28T02:28:47.278056312Z       "33",
+2026-08-28T02:28:47.278059972Z       "34",
+2026-08-28T02:28:47.278064113Z       "35",
+2026-08-28T02:28:47.278067853Z       "36",
+2026-08-28T02:28:47.278071653Z       "37",
+2026-08-28T02:28:47.278075363Z       "38",
+2026-08-28T02:28:47.278079203Z       "39",
+2026-08-28T02:28:47.278082883Z       "40",
+2026-08-28T02:28:47.278086443Z       "41",
+2026-08-28T02:28:47.278090043Z       "42",
+2026-08-28T02:28:47.278093833Z       "43",
+2026-08-28T02:28:47.278097403Z       "44",
+2026-08-28T02:28:47.278101003Z       "45",
+2026-08-28T02:28:47.278104613Z       "46",
+2026-08-28T02:28:47.278108353Z       "47",
+2026-08-28T02:28:47.278112024Z       "48",
+2026-08-28T02:28:47.278115724Z       "49",
+2026-08-28T02:28:47.278119304Z       "50",
+2026-08-28T02:28:47.278123074Z       "51",
+2026-08-28T02:28:47.278126714Z       "52",
+2026-08-28T02:28:47.278130374Z       "53",
+2026-08-28T02:28:47.278133934Z       "54",
+2026-08-28T02:28:47.278137734Z       "55",
+2026-08-28T02:28:47.278141514Z       "56",
+2026-08-28T02:28:47.278145094Z       "57",
+2026-08-28T02:28:47.278148734Z       "58",
+2026-08-28T02:28:47.278152554Z       "59",
+2026-08-28T02:28:47.278155975Z       "60",
+2026-08-28T02:28:47.278159645Z       "61",
+2026-08-28T02:28:47.278163325Z       "62",
+2026-08-28T02:28:47.278167145Z       "63",
+2026-08-28T02:28:47.278170795Z       "64",
+2026-08-28T02:28:47.278178545Z       "65",
+2026-08-28T02:28:47.278182625Z       "66",
+2026-08-28T02:28:47.278186535Z       "67",
+2026-08-28T02:28:47.278190195Z       "68",
+2026-08-28T02:28:47.278193995Z       "69",
+2026-08-28T02:28:47.278197635Z       "70",
+2026-08-28T02:28:47.278206716Z       "71",
+2026-08-28T02:28:47.278210386Z       "72",
+2026-08-28T02:28:47.278214256Z       "73",
+2026-08-28T02:28:47.278218136Z       "74",
+2026-08-28T02:28:47.278221986Z       "75",
+2026-08-28T02:28:47.278225756Z       "76",
+2026-08-28T02:28:47.278229366Z       "77",
+2026-08-28T02:28:47.278233146Z       "78",
+2026-08-28T02:28:47.278236696Z       "79",
+2026-08-28T02:28:47.278240456Z       "80",
+2026-08-28T02:28:47.278244476Z       "81",
+2026-08-28T02:28:47.278248107Z       "82",
+2026-08-28T02:28:47.278251977Z       "83",
+2026-08-28T02:28:47.278255677Z       "84",
+2026-08-28T02:28:47.278259327Z       "85",
+2026-08-28T02:28:47.278262927Z       "86",
+2026-08-28T02:28:47.278266627Z       "87",
+2026-08-28T02:28:47.278270297Z       "88",
+2026-08-28T02:28:47.278273977Z       "89",
+2026-08-28T02:28:47.278277627Z       "90",
+2026-08-28T02:28:47.278281287Z       "91",
+2026-08-28T02:28:47.278285017Z       "92",
+2026-08-28T02:28:47.278288787Z       "93",
+2026-08-28T02:28:47.278292538Z       "94",
+2026-08-28T02:28:47.278296338Z       "95",
+2026-08-28T02:28:47.278299878Z       "96",
+2026-08-28T02:28:47.278303888Z       "97",
+2026-08-28T02:28:47.278307718Z       "98",
+2026-08-28T02:28:47.278311508Z       "99",
+2026-08-28T02:28:47.278315148Z       "100",
+2026-08-28T02:28:47.278319088Z       "101",
+2026-08-28T02:28:47.278322668Z       "102",
+2026-08-28T02:28:47.278326428Z       "103",
+2026-08-28T02:28:47.278330038Z       "104",
+2026-08-28T02:28:47.278333618Z       "105",
+2026-08-28T02:28:47.278337269Z       "106",
+2026-08-28T02:28:47.278341049Z       "107",
+2026-08-28T02:28:47.278344769Z       "108",
+2026-08-28T02:28:47.278348349Z       "109",
+2026-08-28T02:28:47.278351979Z       "110",
+2026-08-28T02:28:47.278355809Z       "111"
+2026-08-28T02:28:47.278359809Z     ],
+2026-08-28T02:28:47.278364539Z     "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f",
+2026-08-28T02:28:47.278372629Z     "record_count": 112,
+2026-08-28T02:28:47.278377059Z     "success": 112,
+2026-08-28T02:28:47.278382120Z     "error": 0,
+2026-08-28T02:28:47.278386200Z     "skipped": 0,
+2026-08-28T02:28:47.278390010Z     "synthesized_count": 0,
+2026-08-28T02:28:47.278393920Z     "runner_status": "completed",
+2026-08-28T02:28:47.278398040Z     "runner_exit_code": 0,
+2026-08-28T02:28:47.278401850Z     "deadline_seconds": 0,
+2026-08-28T02:28:47.278405750Z     "manifest_complete": true,
+2026-08-28T02:28:47.278409580Z     "client_usage": {
+2026-08-28T02:28:47.278413500Z       "request_count": 547,
+2026-08-28T02:28:47.278417230Z       "attempt_count": 547,
+2026-08-28T02:28:47.278421190Z       "retry_count": 0,
+2026-08-28T02:28:47.278424960Z       "truncated_count": 481,
+2026-08-28T02:28:47.278428851Z       "prompt_tokens": 167724,
+2026-08-28T02:28:47.278432851Z       "completion_tokens": 2097605,
+2026-08-28T02:28:47.278436791Z       "total_tokens": 2265329
+2026-08-28T02:28:47.278440501Z     },
+2026-08-28T02:28:47.278444281Z     "client_usage_complete": true
+2026-08-28T02:28:47.278447811Z   }
+2026-08-28T02:28:47.278451421Z }
+2026-08-28T02:28:47.555105932Z === model evaluation completed successfully ===

@@ -1,0 +1,48 @@
+{
+  "stage": "hetero_k5_preflight_health_probe",
+  "operational_probe": true,
+  "capability_evidence": false,
+  "official_score": false,
+  "protocol": "docs/experiments/hetero_k5_health_probe_2026-08-27.md",
+  "started_at": null,
+  "started_at_note": "exact launch timestamp was not captured; no value is inferred",
+  "ended_at": "2026-08-27T19:16:37+08:00",
+  "commit": "cedad82",
+  "ref": "codex/b1-4k-canary",
+  "input_file": "sample_data/dev.jsonl",
+  "variant": "current",
+  "command": "D:/Anaconda/envs/CA-py310/python.exe scripts/evaluate_protocol_ab.py --input-files sample_data/dev.jsonl --variants current --rounds 1 --workers 3 --timeout-seconds 90 --retry-count 1 --output-file tmp/hetero_k5_2026-08-27/health_dev.json",
+  "parameters": {
+    "rounds": 1,
+    "workers": 3,
+    "timeout_seconds": 90,
+    "retry_count": 1,
+    "temperature": 0.6
+  },
+  "files": [
+    "docs/experiments/hetero_k5_health_dev_2026-08-27.json"
+  ],
+  "sha256": {
+    "result": "C040488DFE131B1170F100FB7A067D58D8D8D5B1141D3F4FCBCCD028F61A585E",
+    "input": "B7CE841AFEDA28E9BC9B026574678E1201EAAF12F7DE08F7FCEC48A3B176A281",
+    "protocol": "FCFE09B76D1064CF4DCC606B6F22AB518FC1AFB1F7411DEBA51FEBF4DDA2C5C3",
+    "runner": "37AFFA63477E662AD1FA257F786BED572F0AEBFC35F1BB8C190140D8ECFEC931",
+    "user_agent": "377BC7F93033D8CC69CCDBF79C56C9A2C086245E2E33917CE591EA27215507A0"
+  },
+  "result": {
+    "dataset_size": 3,
+    "records_with_model_error": 3,
+    "model_error_rate": 1.0,
+    "correct_descriptive_only": 2,
+    "invalid": 0,
+    "average_model_calls": 4.333333333333333,
+    "p95_model_calls": 5,
+    "average_latency_seconds": 255.58,
+    "p95_latency_seconds": 368.311,
+    "runner_void": false,
+    "max_consecutive_model_errors": 3
+  },
+  "verdict": "UNHEALTHY",
+  "hetero_screen_started": false,
+  "disposition": "current window stopped; hetero_k5 remains OPEN / NOT_RUN"
+}
