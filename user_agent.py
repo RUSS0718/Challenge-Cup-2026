@@ -251,6 +251,10 @@ class AgentConfig:
     enable_strict_numeric_salvage: bool = False
     enable_conditional_token_retry: bool = False
     conditional_retry_max_tokens: int = 6144
+    # Re2 (re-reading): input-side only — the problem statement is shown a
+    # second time in the user prompt before answering. No extra calls,
+    # no output-constraint changes.
+    enable_re2_reread: bool = False
     enable_failure_retry_backoff: bool = False
     failure_retry_backoff_seconds: float = 1.0
     enable_explicit_answer_conflict_retry: bool = False
@@ -293,6 +297,7 @@ SUBMISSION_CONFIG = AgentConfig(
     max_tokens=4096,
     l0_max_tokens=4096,
     enable_heterogeneous_reasoners=True,
+    enable_re2_reread=True,
     enable_step_verification=False,
     enable_step_revision=False,
     enable_method_rag=False,
@@ -1045,6 +1050,8 @@ class ReasoningAgent:
                 continue
             candidate_id += candidate_start
             user_prompt = f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}"
+            if self.config.enable_re2_reread:
+                user_prompt = f"{user_prompt}\n\n请再次仔细阅读题目：\n{problem}"
             if instruction:
                 user_prompt = f"{instruction}\n\n{user_prompt}"
             response, error = self._request(prompt, user_prompt, self.config.policy_temperature, max_tokens, budget)

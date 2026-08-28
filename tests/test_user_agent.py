@@ -1521,3 +1521,29 @@ class F2IntegrationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Re2RereadTest(unittest.TestCase):
+    """Re2(重读题目):仅输入侧把题干再次呈现,不改调用数与输出约束。"""
+
+    PROBLEM = "已知 f(x)=x+2，求 f(3) 的值。"
+
+    def _config(self, re2):
+        return AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                           max_model_calls=1, enable_l0_extended_tokens=False,
+                           enable_adaptive_voting=False,
+                           enable_heterogeneous_reasoners=False,
+                           enable_step_verification=False,
+                           enable_re2_reread=re2)
+
+    def test_re2_enabled_repeats_problem_in_user_prompt(self):
+        client = FakeClient(["推导。\n最终答案：5"])
+        ReasoningAgent(client, self._config(True)).solve(self.PROBLEM, {})
+        user_content = client.calls[0][0][-1]["content"]
+        self.assertEqual(2, user_content.count(self.PROBLEM))
+
+    def test_re2_disabled_keeps_single_problem_occurrence(self):
+        client = FakeClient(["推导。\n最终答案：5"])
+        ReasoningAgent(client, self._config(False)).solve(self.PROBLEM, {})
+        user_content = client.calls[0][0][-1]["content"]
+        self.assertEqual(1, user_content.count(self.PROBLEM))
