@@ -671,6 +671,35 @@ class TaskAwareSolveIntegrationTest(unittest.TestCase):
 # ── P2: heterogeneous reasoner tests ────────────────────────────────────
 
 class HeterogeneousReasonerTest(unittest.TestCase):
+    def test_adaptive_k5_uses_one_alternative_and_four_direct_at_cap(self):
+        # Port of runtime 18f4f5a: the vote loop must actually invoke the
+        # AlternativeReasoner — the pre-fix variant was runtime-inert
+        # (config registered, but every resample reused the direct prompt).
+        client = FakeClient([f"最终答案：{value}" for value in range(1, 6)])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1,
+            verifier_voting_times=0,
+            max_model_calls=5,
+            enable_l0_extended_tokens=False,
+            enable_adaptive_voting=True,
+            vote_k_max=5,
+            vote_agree_threshold=3,
+            enable_heterogeneous_reasoners=True,
+            enable_step_verification=False,
+        ))
+
+        result = agent.solve("已知 f(x)=x^2，求 f(3) 并化简结果", {})
+
+        reasoners = [
+            entry.get("reasoner")
+            for entry in result["trace"]
+            if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
+        ]
+        self.assertEqual(5, len(reasoners))
+        self.assertEqual(4, reasoners.count("direct"))
+        self.assertEqual(1, reasoners.count("alternative"))
+        self.assertIn(ALTERNATIVE_REASONER_PROMPT, client.calls[1][0][0]["content"])
+
     """P2: verify that enable_heterogeneous_reasoners dispatches correctly."""
 
     def test_disabled_uses_default_single_prompt(self):
@@ -1503,6 +1532,77 @@ class F2IntegrationTest(unittest.TestCase):
         self.assertEqual("7", result["extracted_answer"])
         gen = [e for e in result["trace"] if e.get("step") == "generate_candidate"]
         self.assertEqual("no_answer_block", gen[0]["parse_status"])
+
+
+class Re2RereadTest(unittest.TestCase):
+    """Re2(重读题目):仅输入侧把题干再次呈现,不改调用数与输出约束。"""
+
+    PROBLEM = "已知 f(x)=x+2，求 f(3) 的值。"
+
+    def _agent(self, re2: bool):
+        return ReasoningAgent(FakeClient(["推导。\n最终答案：5"]),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_l0_extended_tokens=False,
+                        enable_adaptive_voting=False,
+                        enable_heterogeneous_reasoners=False,
+                        enable_step_verification=False,
+                        enable_re2_reread=re2))
+
+    def test_re2_enabled_repeats_problem_in_user_prompt(self):
+        client = FakeClient(["推导。\n最终答案：5"])
+        ReasoningAgent(client, self._agent(True).config).solve(self.PROBLEM, {})
+        user_content = client.calls[0][0][-1]["content"]
+        self.assertEqual(2, user_content.count(self.PROBLEM))
+
+    def test_re2_disabled_keeps_single_problem_occurrence(self):
+        client = FakeClient(["推导。\n最终答案：5"])
+        ReasoningAgent(client, self._agent(False).config).solve(self.PROBLEM, {})
+        user_content = client.calls[0][0][-1]["content"]
+        self.assertEqual(1, user_content.count(self.PROBLEM))
+
+
+class CodNumericPromptTest(unittest.TestCase):
+    """CoD-style adaptation:numeric 族 answer-first 换极简草稿变体;非数值逐字不变。"""
+
+    def test_numeric_calculation_uses_cod_variant_prompt_when_enabled(self):
+        from user_agent import NUMERIC_COD_ANSWER_FIRST_PROMPT
+        client = FakeClient(["最终答案：5\n草稿:x=3+2"])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=1,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_numeric_answer_first_prompt=True,
+            enable_numeric_chain_of_draft=True))
+        agent.solve("计算 3+2。", {})
+        system_content = client.calls[0][0][0]["content"]
+        self.assertIn("每个草稿步骤最多5个词", system_content)
+
+    def test_non_numeric_proof_prompt_is_untouched_by_cod(self):
+        client = FakeClient(["最终答案：略\n证明:略"])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=1,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_task_aware_prompt=True,
+            enable_numeric_answer_first_prompt=True,
+            enable_numeric_chain_of_draft=True))
+        agent.solve("证明：对一切实数 x 有 x^2+1>=2|x|。", {})
+        system_content = client.calls[0][0][0]["content"]
+        self.assertNotIn("每个草稿步骤最多5个词", system_content)
+
+    def test_cod_disabled_keeps_base_answer_first_prompt(self):
+        from user_agent import NUMERIC_ANSWER_FIRST_PROMPT
+        client = FakeClient(["最终答案：5"])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=1,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_numeric_answer_first_prompt=True,
+            enable_numeric_chain_of_draft=False))
+        agent.solve("计算 3+2。", {})
+        system_content = client.calls[0][0][0]["content"]
+        self.assertNotIn("每个草稿步骤最多5个词", system_content)
+        self.assertIn(NUMERIC_ANSWER_FIRST_PROMPT, system_content)
 
 
 class FailurePathSalvageTest(unittest.TestCase):

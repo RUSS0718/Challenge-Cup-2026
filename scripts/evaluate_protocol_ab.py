@@ -132,6 +132,8 @@ class Variant:
     refine: bool = False
     failure_salvage: bool = False
     heterogeneous: bool = False
+    re2: bool = False
+    cod_numeric: bool = False
 
 
 VARIANTS = {
@@ -154,10 +156,38 @@ VARIANTS = {
     ),
     # Capability arm: C0 with heterogeneous reasoners as the only delta —
     # the k5 budget splits into 1 alternative-strategy + 4 direct calls.
+    # DEPLOYED as canary 25f99b5 (official Run #5 = 12/112); it is now the
+    # reference baseline for all screens, exposed again as baseline_hetero.
     "hetero_k5": Variant(
         "hetero_k5", numeric_prompt=True, adaptive_voting=True,
         vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
         use_policy_prompt=True, heterogeneous=True,
+    ),
+    "baseline_hetero": Variant(
+        "baseline_hetero", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True,
+    ),
+    # Shot-1 candidate: deployed hetero baseline + refine (verify/revise).
+    "hetero_refine": Variant(
+        "hetero_refine", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True, refine=True,
+    ),
+    # Shot-2 candidate: deployed hetero baseline + Re2 re-read (input side).
+    "re2_k5": Variant(
+        "re2_k5", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True, re2=True,
+    ),
+    # Cost candidate (piggyback release per 7-shot plan): hetero baseline +
+    # CoD minimal-draft numeric prompt. Four gates in
+    # cod_numeric_screen_draft_2026-08-27.md; passing grants cost-component
+    # status only, never a score claim.
+    "cod_hetero": Variant(
+        "cod_hetero", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True, cod_numeric=True,
     ),
     "current_strict": Variant(
         "current_strict", numeric_prompt=True, strict_salvage=True,
@@ -232,6 +262,8 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_step_revision=variant.refine,
         p3_call_boost=3 if variant.refine else 0,
         enable_failure_salvage=variant.failure_salvage,
+        enable_re2_reread=variant.re2,
+        enable_numeric_chain_of_draft=variant.cod_numeric,
         enable_heterogeneous_reasoners=variant.heterogeneous,
         policy_temperature=variant.temperature if variant.temperature is not None else temperature,
     )
@@ -261,6 +293,8 @@ def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
         "enable_step_verification": variant.refine,
         "enable_step_revision": variant.refine,
         "p3_call_boost": p3_call_boost,
+        "re2_reread": variant.re2,
+        "numeric_chain_of_draft": variant.cod_numeric,
         "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
     }
 

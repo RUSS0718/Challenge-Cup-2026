@@ -47,7 +47,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["current", "current_refine", "current_salvage", "hetero_k5", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
+            ["current", "current_refine", "current_salvage", "hetero_k5", "baseline_hetero", "hetero_refine", "re2_k5", "cod_hetero", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
             list(VARIANTS),
         )
 
@@ -177,6 +177,63 @@ class ProtocolAbTest(unittest.TestCase):
             budget_summary(VARIANTS["current"])["effective_max_model_calls"],
             budget_summary(VARIANTS["hetero_k5"])["effective_max_model_calls"],
         )
+
+    def test_baseline_hetero_is_reference_arm_after_baseline_drift(self):
+        # hetero_k5 graduated to the deployed canary (25f99b5, Run #5 = 12/112);
+        # every future screen compares against the hetero baseline, not C0.
+        self.assertEqual(
+            make_config(VARIANTS["hetero_k5"]).__dict__,
+            make_config(VARIANTS["baseline_hetero"]).__dict__,
+        )
+        self.assertEqual(
+            5, budget_summary(VARIANTS["baseline_hetero"])["effective_max_model_calls"]
+        )
+
+    def test_hetero_refine_is_single_variable_over_baseline_hetero(self):
+        base = make_config(VARIANTS["baseline_hetero"])
+        cand = make_config(VARIANTS["hetero_refine"])
+        self.assertTrue(cand.enable_step_verification)
+        self.assertTrue(cand.enable_step_revision)
+        for field in (
+            "enable_heterogeneous_reasoners", "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "policy_prompt",
+            "enable_failure_salvage", "enable_re2_reread",
+        ):
+            self.assertEqual(getattr(base, field), getattr(cand, field), field)
+        self.assertEqual(8, budget_summary(VARIANTS["hetero_refine"])["effective_max_model_calls"])
+
+    def test_re2_k5_is_single_variable_over_baseline_hetero(self):
+        base = make_config(VARIANTS["baseline_hetero"])
+        cand = make_config(VARIANTS["re2_k5"])
+        self.assertTrue(cand.enable_re2_reread)
+        for field in (
+            "enable_heterogeneous_reasoners", "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "policy_prompt",
+            "enable_step_verification", "p3_call_boost",
+        ):
+            self.assertEqual(getattr(base, field), getattr(cand, field), field)
+        self.assertTrue(budget_summary(VARIANTS["re2_k5"])["re2_reread"])
+
+    def test_cod_hetero_is_single_variable_over_baseline_hetero(self):
+        base = make_config(VARIANTS["baseline_hetero"])
+        cand = make_config(VARIANTS["cod_hetero"])
+        self.assertTrue(cand.enable_numeric_chain_of_draft)
+        # Non-numeric prompts must be byte-identical to the baseline (CoD is
+        # numeric-family only); the answer-first base prompt is untouched.
+        self.assertEqual(
+            make_config(VARIANTS["baseline_hetero"]).policy_prompt,
+            cand.policy_prompt,
+        )
+        for field in (
+            "enable_heterogeneous_reasoners", "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "enable_step_verification",
+            "enable_re2_reread", "p3_call_boost",
+        ):
+            self.assertEqual(getattr(base, field), getattr(cand, field), field)
+        self.assertTrue(budget_summary(VARIANTS["cod_hetero"])["numeric_chain_of_draft"])
 
     def test_temperature_variants_change_only_policy_temperature(self):
         baseline = make_config(VARIANTS["baseline86"])

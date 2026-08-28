@@ -41,6 +41,12 @@ NUMERIC_ANSWER_FIRST_PROMPT = """你是数学求解器。只解决题目本身�
 第一行必须且只能写：最终答案：<答案>
 第二行最多写一行极短校验；没有必要时不要写第二行。不要在答案之后继续推导。"""
 
+# CoD-style adaptation (candidate line, default off; see
+# cod_numeric_screen_draft_2026-08-27.md): numeric-family only, keeps the
+# answer-first contract, compresses the reasoning draft after line 1.
+NUMERIC_COD_ANSWER_FIRST_PROMPT = NUMERIC_ANSWER_FIRST_PROMPT + """
+从第二行起仅写最小必要草稿；每个草稿步骤最多5个词。优先使用算式和符号，省略解释性完整句。"""
+
 DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
 
 最终答案：<只写最终表达式、数值或结论>
@@ -255,6 +261,13 @@ class AgentConfig:
     # token from the rejected responses (numeric-family problems only).
     # Failure-path only: the success path never runs this.
     enable_failure_salvage: bool = False
+    # Re2 (re-reading): input-side only — the problem statement is shown a
+    # second time in the user prompt before answering. No extra calls,
+    # no output-constraint changes.
+    enable_re2_reread: bool = False
+    # CoD-style adaptation: numeric-family answer-first prompt switches to a
+    # minimal-draft variant (each draft step ≤5 words). Default off.
+    enable_numeric_chain_of_draft: bool = False
     # B2 remains an explicit, disabled experiment; B1 does not depend on it.
     enable_truncation_recovery_prompt: bool = False
     # Adaptive consistency voting: independent full resamples of the same
@@ -1104,6 +1117,8 @@ class ReasoningAgent:
                 continue
             candidate_id += candidate_start
             user_prompt = f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}"
+            if self.config.enable_re2_reread:
+                user_prompt = f"{user_prompt}\n\n请再次仔细阅读题目：\n{problem}"
             if instruction:
                 user_prompt = f"{instruction}\n\n{user_prompt}"
             response, error = self._request(prompt, user_prompt, self.config.policy_temperature, max_tokens, budget)
@@ -1244,6 +1259,8 @@ class ReasoningAgent:
         if self.config.enable_numeric_answer_only_prompt and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
             return ANSWER_ONLY_POLICY_PROMPT
         if self.config.enable_numeric_answer_first_prompt and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
+            if self.config.enable_numeric_chain_of_draft:
+                return NUMERIC_COD_ANSWER_FIRST_PROMPT
             return NUMERIC_ANSWER_FIRST_PROMPT
         return TASK_PROMPTS.get(problem_type, self.config.policy_prompt)
 
@@ -1603,9 +1620,27 @@ class ReasoningAgent:
             if self._time_hard_exceeded(budget.get("solve_start")):
                 status = "solve_time_budget_exhausted"
                 break
+
+            # Hetero k5 (port of runtime 18f4f5a): the first resample in the
+            # vote loop uses AlternativeReasoner, later ones DirectReasoner;
+            # early-consensus sequence is therefore Direct → Alternative → Direct.
+            vote_prompt = task_prompt
+            reasoner = None
+            if self.config.enable_heterogeneous_reasoners:
+                constraint = task_prompt or self._task_policy_prompt(problem_type)
+                task_extra = "" if constraint in (POLICY_PROMPT, CALCULATION_PROMPT) else "\n" + constraint
+                alternative_used = any(
+                    entry.get("step") == "generate_candidate"
+                    and entry.get("reasoner") == "alternative"
+                    for entry in trace
+                )
+                reasoner = "direct" if alternative_used else "alternative"
+                vote_prompt = (
+                    DIRECT_REASONER_PROMPT if reasoner == "direct" else ALTERNATIVE_REASONER_PROMPT
+                ) + task_extra
             self._generate_candidates(problem, 1, candidates, trace, budget,
-                                      max_tokens, task_prompt=task_prompt,
-                                      problem_type=problem_type)
+                                      max_tokens, task_prompt=vote_prompt,
+                                      problem_type=problem_type, reasoner=reasoner)
         trace.append({"step": "adaptive_vote", "status": status,
                       "samples": len(candidates),
                       "top_group_size": self._top_clear_group_size(candidates),
