@@ -1,0 +1,5 @@
+08-29_00:15:32 phase1 done, starting phase2
+08-29_02:49:20 re2_w2 done
+08-29_10:52:47 refine_w2 done
+08-29_10:52:47 skip public112 (past 04:00 gate)
+08-29_10:52:47 night chain complete
