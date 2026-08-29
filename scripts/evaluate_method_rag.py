@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from method_rag import MethodCardRetriever
+from experiments.legacy.method_rag import MethodCardRetriever
 
 
 def evaluate(retriever: MethodCardRetriever, cases: list[dict[str, Any]], top_k: int) -> dict[str, Any]:
@@ -30,7 +30,10 @@ def evaluate(retriever: MethodCardRetriever, cases: list[dict[str, Any]], top_k:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("cases", type=Path)
-    parser.add_argument("--cards", type=Path, default=Path("method_cards.jsonl"))
+    parser.add_argument(
+        "--cards", type=Path,
+        default=Path("experiments/legacy/method_rag/method_cards.jsonl"),
+    )
     parser.add_argument("--top-k", type=int, default=2)
     args = parser.parse_args()
     with args.cases.open("r", encoding="utf-8") as handle:

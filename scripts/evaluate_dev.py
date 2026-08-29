@@ -547,7 +547,11 @@ def parse_args() -> argparse.Namespace:
     # ── Answer saving ──
     parser.add_argument("--save-answers-to", help="Save compact {idx, extracted_answer, verdict} JSONL for offline re-judging.")
     parser.add_argument("--enable-method-rag", action="store_true", help="Experimental offline method-card retrieval; default off.")
-    parser.add_argument("--method-cards", default="method_cards.jsonl", help="Path to committed method cards for the RAG experiment.")
+    parser.add_argument(
+        "--method-cards",
+        default="experiments/legacy/method_rag/method_cards.jsonl",
+        help="Path to the archived method-card RAG experiment data.",
+    )
     parser.add_argument("--method-rag-top-k", type=int, default=2)
     parser.add_argument("--method-rag-max-context-chars", type=int, default=4000)
     parser.add_argument("--enable-deterministic-solver", action="store_true")
@@ -595,7 +599,7 @@ def main() -> None:
         )
         method_rag_retriever = None
         if args.enable_method_rag:
-            from method_rag import MethodCardRetriever
+            from experiments.legacy.method_rag import MethodCardRetriever
             method_rag_retriever = MethodCardRetriever(Path(args.method_cards))
         agent = ReasoningAgent(client=InternChatClient(timeout=args.timeout_seconds, retry=args.retry_count), config=config, method_rag_retriever=method_rag_retriever)
         total_timeout = args.total_timeout_seconds

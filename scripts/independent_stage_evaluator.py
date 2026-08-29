@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from method_rag import MethodCardRetriever
+from experiments.legacy.method_rag import MethodCardRetriever
 from scripts.evaluate_deterministic_gate import gate as deterministic_gate
 from scripts.evaluate_method_rag import evaluate as evaluate_retrieval
 from scripts.validate_medium_freeze_set import validate as validate_freeze
@@ -40,8 +40,9 @@ def evaluate_stage(
     if not det["passed"]:
         failures.extend(f"deterministic:{error}" for error in det["failures"])
 
-    retriever = MethodCardRetriever(ROOT / "method_cards.jsonl")
-    cases = [json.loads(line) for line in (ROOT / "method_rag_eval_cases.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    data_root = ROOT / "experiments" / "legacy" / "method_rag"
+    retriever = MethodCardRetriever(data_root / "method_cards.jsonl")
+    cases = [json.loads(line) for line in (data_root / "method_rag_eval_cases.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     retrieval = evaluate_retrieval(retriever, cases, top_k=2)
     if len(retriever.cards) != 40:
         failures.append(f"rag:card_count:{len(retriever.cards)}")

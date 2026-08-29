@@ -1,12 +1,15 @@
 import unittest
 from pathlib import Path
 
-from method_rag import MethodCardRetriever
+from experiments.legacy.method_rag import MethodCardRetriever
 
 
 class MethodCardRetrieverTest(unittest.TestCase):
     def setUp(self):
-        self.retriever = MethodCardRetriever(Path(__file__).resolve().parents[1] / "method_cards.jsonl")
+        root = Path(__file__).resolve().parents[1]
+        self.retriever = MethodCardRetriever(
+            root / "experiments" / "legacy" / "method_rag" / "method_cards.jsonl"
+        )
 
     def test_retrieves_relevant_number_theory_card(self):
         cards = self.retriever.search("素数模 指数 同余", top_k=2)
