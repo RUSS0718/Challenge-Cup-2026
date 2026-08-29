@@ -1,4 +1,4 @@
-# 已排除方案与实验处置注册表（截至 2026-08-27）
+# 已排除方案与实验处置注册表（截至 2026-08-29）
 
 > 目的：任何新会话、成员或联网调研在提出实验前先查此表，避免重复试错。
 > 官方评测是最终裁决；本地数据只用于预筛。同窗口交错是能力比较的必要条件。
@@ -28,6 +28,9 @@
 | 32k + k5 | 9/112，invalid 60；54/112 runner error；约 9h23m | `REJECTED`：同分但成本、时限与可靠性明显更差 |
 | B1 + 4k（验证门控重试） | 9/112，invalid 37；约 1h16m | `SUPERSEDED`：由当前 C0 取代；没有正确数增益 |
 | answer-first + k5 + 4k（`b8b78aa`，C0） | 9/112，invalid 20，截断率 88.7%，约 5h12m | `BASELINE`：降低 invalid，但没有证明核心正确率提升 |
+| hetero_k5（`25f99b5`） | 12/112，invalid 17，0 runner error；约4h24m | `BASELINE`：当前最好健康官方锚；跨窗结果不是因果证明 |
+| hetero + Re2（`7479d47`） | 11/112，invalid 27，10 runner error；约7h24m | `REJECTED`：正确率、错误和6h时限三条件均触发回滚 |
+| hetero + refine + ARH（runtime `9311d8c`） | 官方结果待回收 | `DEPLOYED_UNVALIDATED_CANARY`：发布 tip `46c08dd`，回滚锚 `95d5700` |
 
 结论：提高 token 上限、在 k1/k5/B1 间机械切换都没有突破隐藏集正确数平台。C0 保留为官方
 对照，不应把 invalid 下降等价成分数收益。
@@ -55,15 +58,17 @@
 | 确定性求解器（直接解题） | 232 题仅 4 题安全命中 | `ARCHIVED`：保持 opt-in |
 | SymPy 受控证据 | 无默认收益证据 | `ARCHIVED`：保持 opt-in |
 
-## 三、2026-08-27 当前战役
+## 三、2026-08-29 当前战役
 
 | 方向 | 证据/状态 | 处置与不得重复项 |
 | --- | --- | --- |
 | 方法卡 RAG | 双轮正确率下降且延迟上升 | `REJECTED`：永久排除；不得作为融合组件复活 |
-| P3/refine 历史证据恢复 | 144 对配对 b=12/c=4，p=0.0768；未达显著晋升口径 | `ARCHIVED`：协议修复不等于分数收益；重启需新假设与同窗预注册 |
+| P3/refine | 历史144对 b=12/c=4，p=0.0768；新W2/W2b各净+1、零败但仅complex48 | `DEPLOYED_UNVALIDATED_CANARY` 组件：取得用户授权的搭载资格，不是正式能力通过 |
 | exact_g / GR 成本前沿 | 首筛失败；唯一复测触发对称 10% VOID。两窗描述性准确率无差异，调用约 C0 的 25%，墙钟约 1/3 | `ARCHIVED`，该设计线终止；不得继续复测或直接解锁 GR |
 | P1 `current_salvage` | 2026-08-27 complex48 两轮中三份 arm-report 超过 10% model_error，public112 未产出；salvage 实际触发 0/96 | `OPEN / NO_VALID_CONCLUSION`：本次窗口 `ARCHIVED_VOID`；见 [`p1_salvage_result_2026-08-27.md`](experiments/p1_salvage_result_2026-08-27.md)，不得自动补跑或晋升 |
-| P3′ `hetero_k5` | C0 k5 上限内最多 1 Alternative + 4 Direct；首次健康探针 3/3 model_error，未完成 A/B | `DEPLOYED_UNVALIDATED_CANARY`：用户明确批准绕过本地门，runtime `18f4f5a`；见 [`hetero_k5_direct_release_2026-08-27.md`](experiments/hetero_k5_direct_release_2026-08-27.md)，回滚 `242c480` |
+| P3′ `hetero_k5` | C0 k5 内1 Alternative +4 Direct；官方Run #5为12/112、0 runner error | `BASELINE`：保留为官方最好健康锚；本地正式因果门仍未完成 |
+| ARH | complex48单窗25:25、双臂零error/invalid、零调用增量；官方靶是invalid池 | `DEPLOYED_UNVALIDATED_CANARY` 组件：本地只证明未明显回退，不能单独归因官方变化 |
+| GSA package v0 | 单窗22→25，b=3/c=0，p=0.125；同时改变hetero、投票与调用结构 | `OPEN / EXPLORATORY_POSITIVE`：须按总规范重做k4_sc matched control和严格3+1 |
 
 `exact_g` 的低成本属于可供未来新设计引用的机制观察，不构成旧 G/GR 重新运行的授权。若未来
 把“低调用门控”与一个已独立过门的能力方法融合，必须作为新候选重新预注册，并保留 C0 和
@@ -99,12 +104,13 @@
 
 ## 六、当前允许队列
 
-1. P1 首次回归已按 VOID 归档；方法仍为 `OPEN`，任何健康复测都须新预注册且次数有限。
-2. hetero 已由用户直接发布为未验证 canary；官方结果前不追加第二个运行时变量，不把发布动作
-   反写为本地 PASS。若补本地 A/B，仍须新健康窗口且不得与官方评测并行。
-3. 联网调研只进入候选池；按
+1. 先执行总规范的 Pre-P0 评测可信度校准；未过门前不启动新的能力方法窗。
+2. 当前 hetero+refine+ARH 只作未验证 canary；先回收官方日志并按预写条件保留或回滚。
+3. GSA 只能按新 method ID、严格3+1和matched control重证，现有单窗不得直接搭载。
+4. P1 首次回归已按 VOID 归档；任何健康复测都须新预注册且次数有限。
+5. 联网调研只进入候选池；按
    [`math_agent_capability_methods_2026-08-27.md`](research/math_agent_capability_methods_2026-08-27.md)
    的排序逐个做代码缝隙与预算审计，再写单方法预注册。
-4. 只有独立通过的单方法才可进入融合；优先考虑“能力方法 + 已证明的成本控制”，不融合两个
+6. 只有独立通过的单方法才可进入融合；优先考虑“能力方法 + 已证明的成本控制”，不融合两个
    尚未验证的能力方法。
-5. 官方候选始终从 `b8b78aa` 对照面构造聚焦单变量 diff；本地 main/实验分支不得直接推送。
+7. 官方候选相对当时最强健康锚构造聚焦单变量 diff；本地实验分支不得直接推送。

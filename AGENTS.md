@@ -137,6 +137,10 @@ Prompt；默认路径晋升必须在适用数据集上完成至少双轮独立 A
 `docs/excluded_approaches.md`。该表是方案处置的单一事实源；实验报告和 manifest
 仍是数字证据源。
 
+执行 Pre-P0、正式题集、能力候选、RAG/MCP/沙箱或 runtime 迁移前，还必须完整读取
+`docs/experiments/math_reasoning_agent_experiment_driven_spec_2026-08-29.md`；它定义阶段、
+统一门与必备产物，不替代排除表和具体实验数字。
+
 1. 先确认候选不属于 `REJECTED` 的原样复跑，也不重复 `ARCHIVED` 的同协议抽样；
    若关键机制或证据前提确有变化，必须以新名称、新假设和新预注册进入 `OPEN`。
 2. 共享模型端点的实验串行运行；先判预注册的 VOID 门，再判能力、卫生和成本门。

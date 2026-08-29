@@ -8,16 +8,15 @@
 ### 配置与部署
 
 **SUBMISSION_CONFIG / canary profile**:
-官方 runner 无参构造时唯一生效的提交配置。`18f4f5a` 起为 C0 answer-first +
-adaptive k5 + 4096,并在非 L0 投票预算内使用一次 AlternativeReasoner,其余为
-DirectReasoner。该配置由用户明确批准直接发布,未完成本地 A/B,属于未验证 canary;
-回滚锚为 `242c480`。改它等于改变官方得分行为。
+官方 runner 无参构造时唯一生效的提交配置。当前行为提交 `9311d8c` 为
+answer-first + hetero adaptive k5 + refine + ARH,4096 token/effective 8 calls;
+发布 tip `46c08dd`。它是未验证 canary,回滚锚为 `95d5700`。改它等于改变官方得分行为。
 _Avoid_: 默认配置、线上配置(指代不清)
 
 **C0**:
 实验对照臂 `VARIANTS["current"]`:answer-first + policy prompt + k5 自适应投票,
 4096 token,heterogeneous 关闭。08-26 以 b8b78aa 完成官方 Run #4;当前
-SUBMISSION_CONFIG 是 C0 + hetero 单变量,因此 C0 ≠ 当前提交配置。
+SUBMISSION_CONFIG 在 C0 之上还启用 hetero/refine/ARH,因此 C0 ≠ 当前提交配置。
 _Avoid_: current、基线(易与 baseline86 混淆)
 
 **精确 G(exact_g)**:

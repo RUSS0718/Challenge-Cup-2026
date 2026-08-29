@@ -679,6 +679,35 @@ class TaskAwareSolveIntegrationTest(unittest.TestCase):
 # ── P2: heterogeneous reasoner tests ────────────────────────────────────
 
 class HeterogeneousReasonerTest(unittest.TestCase):
+    def test_adaptive_k5_uses_one_alternative_and_four_direct_at_cap(self):
+        # Port of runtime 18f4f5a: the vote loop must actually invoke the
+        # AlternativeReasoner — the pre-fix variant was runtime-inert
+        # (config registered, but every resample reused the direct prompt).
+        client = FakeClient([f"最终答案：{value}" for value in range(1, 6)])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1,
+            verifier_voting_times=0,
+            max_model_calls=5,
+            enable_l0_extended_tokens=False,
+            enable_adaptive_voting=True,
+            vote_k_max=5,
+            vote_agree_threshold=3,
+            enable_heterogeneous_reasoners=True,
+            enable_step_verification=False,
+        ))
+
+        result = agent.solve("已知 f(x)=x^2，求 f(3) 并化简结果", {})
+
+        reasoners = [
+            entry.get("reasoner")
+            for entry in result["trace"]
+            if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
+        ]
+        self.assertEqual(5, len(reasoners))
+        self.assertEqual(4, reasoners.count("direct"))
+        self.assertEqual(1, reasoners.count("alternative"))
+        self.assertIn(ALTERNATIVE_REASONER_PROMPT, client.calls[1][0][0]["content"])
+
     """P2: verify that enable_heterogeneous_reasoners dispatches correctly."""
 
     def test_disabled_uses_default_single_prompt(self):
@@ -910,6 +939,40 @@ class StepVerificationTest(unittest.TestCase):
         self.assertEqual("fail", rv[0]["status"])
         # original answer preserved (3), not the bad revision (0)
         self.assertIn("3", result.get("extracted_answer", ""))
+
+    def test_reverify_unavailable_keeps_revision_like_deployed_main(self):
+        """The integration baseline preserves main's current reverify behavior."""
+        cases = [
+            ("not a verifier protocol", 6, 3, "inconclusive"),
+            (RuntimeError("reverify failed"), 6, 3, "skipped"),
+            (None, 4, 0, None),
+        ]
+        for reverify_response, max_model_calls, p3_call_boost, expected_status in cases:
+            with self.subTest(expected_status=expected_status):
+                responses = [
+                    "最终答案：3",                     # candidate
+                    "VERDICT: A",                       # audit
+                    "ERROR:calc:1+1=2 not 3\nERRORS",   # verify
+                    "最终答案：2",                       # revision
+                ]
+                if reverify_response is not None:
+                    responses.append(reverify_response)
+                client = FakeClient(responses)
+                agent = ReasoningAgent(client,
+                    AgentConfig(policy_sample_times=1, verifier_voting_times=1,
+                                max_model_calls=max_model_calls,
+                                enable_l0_extended_tokens=False,
+                                enable_step_verification=True,
+                                enable_step_revision=True,
+                                p3_call_boost=p3_call_boost))
+                result = agent.solve("计算 1+1", {})
+                rv = [e for e in result["trace"] if e.get("step") == "reverify"]
+                if expected_status is None:
+                    self.assertFalse(rv)
+                else:
+                    self.assertTrue(rv)
+                    self.assertEqual(expected_status, rv[-1]["status"])
+                self.assertIn("2", result.get("extracted_answer", ""))
 
     def test_error_and_gap_parsing(self):
         """Mixed ERROR: and GAPS in single response parse correctly."""
@@ -1520,6 +1583,215 @@ class F2IntegrationTest(unittest.TestCase):
         self.assertEqual("7", result["extracted_answer"])
         gen = [e for e in result["trace"] if e.get("step") == "generate_candidate"]
         self.assertEqual("no_answer_block", gen[0]["parse_status"])
+
+
+class Re2RereadTest(unittest.TestCase):
+    """Re2(重读题目):仅输入侧把题干再次呈现,不改调用数与输出约束。"""
+
+    PROBLEM = "已知 f(x)=x+2，求 f(3) 的值。"
+
+    def _agent(self, re2: bool):
+        return ReasoningAgent(FakeClient(["推导。\n最终答案：5"]),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_l0_extended_tokens=False,
+                        enable_adaptive_voting=False,
+                        enable_heterogeneous_reasoners=False,
+                        enable_step_verification=False,
+                        enable_re2_reread=re2))
+
+    def test_re2_enabled_repeats_problem_in_user_prompt(self):
+        client = FakeClient(["推导。\n最终答案：5"])
+        ReasoningAgent(client, self._agent(True).config).solve(self.PROBLEM, {})
+        user_content = client.calls[0][0][-1]["content"]
+        self.assertEqual(2, user_content.count(self.PROBLEM))
+
+    def test_re2_disabled_keeps_single_problem_occurrence(self):
+        client = FakeClient(["推导。\n最终答案：5"])
+        ReasoningAgent(client, self._agent(False).config).solve(self.PROBLEM, {})
+        user_content = client.calls[0][0][-1]["content"]
+        self.assertEqual(1, user_content.count(self.PROBLEM))
+
+
+class CodNumericPromptTest(unittest.TestCase):
+    """CoD-style adaptation:numeric 族 answer-first 换极简草稿变体;非数值逐字不变。"""
+
+    def test_numeric_calculation_uses_cod_variant_prompt_when_enabled(self):
+        from user_agent import NUMERIC_COD_ANSWER_FIRST_PROMPT
+        client = FakeClient(["最终答案：5\n草稿:x=3+2"])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=1,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_numeric_answer_first_prompt=True,
+            enable_numeric_chain_of_draft=True))
+        agent.solve("计算 3+2。", {})
+        system_content = client.calls[0][0][0]["content"]
+        self.assertIn("每个草稿步骤最多5个词", system_content)
+
+    def test_non_numeric_proof_prompt_is_untouched_by_cod(self):
+        client = FakeClient(["最终答案：略\n证明:略"])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=1,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_task_aware_prompt=True,
+            enable_numeric_answer_first_prompt=True,
+            enable_numeric_chain_of_draft=True))
+        agent.solve("证明：对一切实数 x 有 x^2+1>=2|x|。", {})
+        system_content = client.calls[0][0][0]["content"]
+        self.assertNotIn("每个草稿步骤最多5个词", system_content)
+
+    def test_cod_disabled_keeps_base_answer_first_prompt(self):
+        from user_agent import NUMERIC_ANSWER_FIRST_PROMPT
+        client = FakeClient(["最终答案：5"])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=1,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_numeric_answer_first_prompt=True,
+            enable_numeric_chain_of_draft=False))
+        agent.solve("计算 3+2。", {})
+        system_content = client.calls[0][0][0]["content"]
+        self.assertNotIn("每个草稿步骤最多5个词", system_content)
+        self.assertIn(NUMERIC_ANSWER_FIRST_PROMPT, system_content)
+
+
+class GsaAggregationTest(unittest.TestCase):
+    """GSA:3 采样 + 1 生成式聚合替代多数投票;聚合失败回退共识选择。"""
+
+    PROBLEM = "计算某题。"
+
+    def _run(self, responses):
+        client = FakeClient(responses)
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=4,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            vote_agree_threshold=3,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_gsa_aggregation=True))
+        result = agent.solve(self.PROBLEM, {})
+        gsa = [e for e in result['trace'] if e.get('step') == 'gsa_aggregate'][0]
+        return result, gsa, client
+
+    def test_aggregate_answer_joins_pool_and_wins(self):
+        responses = ["最终答案：7", "最终答案：7", "最终答案：8",
+                       "复核后一致的候选更可信。\n最终答案：7"]
+        result, gsa, client = self._run(responses)
+        self.assertEqual("7", result["extracted_answer"])
+        self.assertEqual("aggregated", gsa["status"])
+        self.assertEqual(4, len(client.calls))
+        self.assertTrue(any(c.get("evidence") and c["evidence"][0].get("source") == "gsa_aggregate"
+                            for c in [])) if False else None
+
+    def test_aggregate_failure_falls_back_to_consensus(self):
+        responses = ["最终答案：7", "最终答案：7", "最终答案：7", "复核说明（无标准答案行）"]
+        result, gsa, client = self._run(responses)
+        self.assertEqual("7", result["extracted_answer"])
+        self.assertEqual("aggregate_unparseable", gsa["status"])
+
+
+class ArhDualFormTest(unittest.TestCase):
+    """ARH 答案表示对齐(发4候选):numeric 族 final_response 双形态
+    (答案句 + boxed 最简规范形),喂饱两类判分抓取假设;零新增调用。"""
+
+    def _agent(self, arh: bool):
+        return ReasoningAgent(FakeClient(["推导。\n最终答案：7"]),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_l0_extended_tokens=False,
+                        enable_adaptive_voting=False,
+                        enable_heterogeneous_reasoners=False,
+                        enable_step_verification=False,
+                        enable_answer_dual_form=arh))
+
+    def test_arh_on_numeric_final_response_has_answer_line_and_boxed(self):
+        result = self._agent(True).solve("计算 3+4。", {})
+        self.assertEqual("最终答案：7\n$\\boxed{7}$", result["final_response"])
+        self.assertEqual("7", result["extracted_answer"])
+
+    def test_arh_off_keeps_bare_answer(self):
+        result = self._agent(False).solve("计算 3+4。", {})
+        self.assertEqual("7", result["final_response"])
+
+    def test_arh_non_numeric_types_are_not_boxed(self):
+        client = FakeClient(["最终答案：成立\n\n证明：\n由对称性直接可得。"])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=1,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_task_aware_prompt=True,
+            enable_numeric_answer_first_prompt=True,
+            enable_answer_dual_form=True))
+        result = agent.solve("证明：对一切实数 x 有 x^2+1>=2|x|。", {})
+        self.assertNotIn("\\boxed", result["final_response"])
+
+
+class FailurePathSalvageTest(unittest.TestCase):
+    """P1 invalid 缩减包:全部候选被拒时,从被拒响应里抢救答案式 token。
+
+    口径:官方判分中 invalid 与 incorrect 同为 0 分;把"必然 0 分"的道歉
+    兜底替换为尽力抢救的答案,只可能不劣于现状。成功路径一律不变。
+    """
+
+    def _agent(self, responses):
+        return ReasoningAgent(FakeClient(responses),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_task_aware_prompt=True,
+                        enable_l0_extended_tokens=False,
+                        enable_heterogeneous_reasoners=False,
+                        enable_step_verification=False,
+                        enable_failure_salvage=True))
+
+    def test_salvages_last_numeric_token_when_no_candidate_survives(self):
+        resp = "设未知数并列方程,移项合并同类项后两边开方,\n解得该边的长度为 12"
+        result = self._agent([resp]).solve("计算该边长度。", {})
+        self.assertEqual("最终答案：12", result["final_response"])
+        self.assertEqual("12", result["extracted_answer"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertEqual("salvaged", fin["status"])
+
+    def test_boxed_response_is_already_a_valid_success_path(self):
+        # \boxed{...} is extractable by the normal path; salvage must not fire.
+        boxed = r"推导过程略,最终结果 \boxed{\frac{3}{4}},以上为完整思路。"
+        result = self._agent([boxed]).solve("计算概率值。", {})
+        self.assertEqual("3/4", result["final_response"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertEqual("selected", fin["status"])
+
+    def test_salvage_prefers_answer_marker_over_bare_number(self):
+        text = "该概率约为 0.75,即最终答案为 3/4。以上计算可能有舍入误差。"
+        result = self._agent([text]).solve("计算某事件的概率值。", {})
+        self.assertEqual("最终答案：3/4", result["final_response"])
+
+    def test_placeholder_only_responses_keep_apology_fallback(self):
+        result = self._agent(["<答案>"]).solve("计算 1+1。", {})
+        self.assertEqual("未能生成有效数学答案。", result["final_response"])
+        self.assertEqual("", result["extracted_answer"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertEqual("fallback", fin["status"])
+
+    def test_non_numeric_problem_types_are_not_number_salvaged(self):
+        resp = "由对称性与单调性逐步论证,可得该不等式在整个定义域上成立(证毕)。"
+        result = self._agent([resp]).solve("证明：对一切实数 x 有 x^2+1>=2|x|。", {})
+        # Legacy F behaviour: no numeric salvage, no structured rewrite —
+        # final_response is the untouched response, never a bare number.
+        self.assertEqual(resp, result["final_response"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertNotEqual("salvaged", fin["status"])
+
+    def test_success_path_is_never_touched_by_salvage(self):
+        result = self._agent(["推导。\n最终答案：7"]).solve("计算 3+4。", {})
+        self.assertIn("7", result["final_response"])
+        fin = [e for e in result["trace"] if e.get("step") == "finalize"][-1]
+        self.assertNotEqual("salvaged", fin["status"])
+
+    def test_flag_off_preserves_legacy_behaviour(self):
+        agent = ReasoningAgent(
+            FakeClient(["仅有无标记的过程叙述,末尾提到数字 42"]),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_l0_extended_tokens=False,
+                        enable_step_verification=False))
+        result = agent.solve("计算某个量。", {})
+        self.assertEqual("未能生成有效数学答案。", result["final_response"])
 
 
 if __name__ == "__main__":

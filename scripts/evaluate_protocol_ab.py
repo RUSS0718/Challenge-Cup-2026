@@ -2,6 +2,9 @@
 
 The variants deliberately change one concern at a time:
 
+* ``current``: b8b78aa answer-first + adaptive k5/threshold-3 C0.
+* ``current_refine`` / ``current_strict`` / ``current_refine_strict``: C0
+  with bounded P3 revision, strict numeric salvage, or both.
 * ``baseline86``: frozen 86b66d2-style answer-only prompt, 4096 tokens.
 * ``A``: numeric answer-first prompt, no parser or token change.
 * ``B``: strict numeric salvage, no prompt or token change.
@@ -125,14 +128,98 @@ class Variant:
     adaptive_voting: bool = False
     vote_k_max: int = 3
     vote_agree_threshold: int = 2
-    max_tokens_override: int | None = None
     max_calls_override: int | None = None
     use_policy_prompt: bool = False
     substitution_check: bool = False
+    refine: bool = False
+    failure_salvage: bool = False
     heterogeneous: bool = False
+    re2: bool = False
+    cod_numeric: bool = False
+    arh: bool = False
+    gsa: bool = False
 
 
 VARIANTS = {
+    # C0/C1/C2/C3: b8b78aa answer_first + adaptive k5, isolated from defaults.
+    "current": Variant(
+        "current", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True,
+    ),
+    "current_refine": Variant(
+        "current_refine", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, refine=True,
+    ),
+    # P1 invalid-reduction arm: C0 with failure-path salvage as the only delta.
+    "current_salvage": Variant(
+        "current_salvage", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, failure_salvage=True,
+    ),
+    # Capability arm: C0 with heterogeneous reasoners as the only delta —
+    # the k5 budget splits into 1 alternative-strategy + 4 direct calls.
+    # DEPLOYED as canary 25f99b5 (official Run #5 = 12/112); it is now the
+    # reference baseline for all screens, exposed again as baseline_hetero.
+    "hetero_k5": Variant(
+        "hetero_k5", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True,
+    ),
+    "baseline_hetero": Variant(
+        "baseline_hetero", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True,
+    ),
+    # Shot-1 candidate: deployed hetero baseline + refine (verify/revise).
+    "hetero_refine": Variant(
+        "hetero_refine", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True, refine=True,
+    ),
+    # Shot-2 candidate: deployed hetero baseline + Re2 re-read (input side).
+    "re2_k5": Variant(
+        "re2_k5", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True, re2=True,
+    ),
+    # Cost candidate (piggyback release per 7-shot plan): hetero baseline +
+    # CoD minimal-draft numeric prompt. Four gates in
+    # cod_numeric_screen_draft_2026-08-27.md; passing grants cost-component
+    # status only, never a score claim.
+    "cod_hetero": Variant(
+        "cod_hetero", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True, cod_numeric=True,
+    ),
+    # Shot-4 candidate (evaluation-research adoption): deployed hetero+refine
+    # baseline + ARH dual-form final response ("answer line + boxed canonical"),
+    # numeric family only; pure post-processing, zero extra calls.
+    "hetero_refine_arh": Variant(
+        "hetero_refine_arh", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True, refine=True, arh=True,
+    ),
+    # Shot-5 candidate: GSA generative self-aggregation — fixed 3+1 calls
+    # (3 direct samples + 1 aggregation call) replacing majority voting.
+    # Compute-matched vs k5 (4 < 5); aggregate failure falls back to
+    # consensus selection. Package variable: sampling count + aggregation.
+    "gsa_4call": Variant(
+        "gsa_4call", numeric_prompt=True, adaptive_voting=False,
+        max_tokens_override=4096,
+        use_policy_prompt=True, gsa=True,
+    ),
+    "current_strict": Variant(
+        "current_strict", numeric_prompt=True, strict_salvage=True,
+        adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3,
+        max_tokens_override=4096, use_policy_prompt=True,
+    ),
+    "current_refine_strict": Variant(
+        "current_refine_strict", numeric_prompt=True, strict_salvage=True,
+        adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3,
+        max_tokens_override=4096, use_policy_prompt=True, refine=True,
+    ),
     "baseline86": Variant("baseline86"),
     "A": Variant("A", numeric_prompt=True),
     "B": Variant("B", strict_salvage=True),
@@ -142,21 +229,21 @@ VARIANTS = {
     "answer_conflict_retry": Variant("answer_conflict_retry", answer_conflict_retry=True),
     "gated_retry": Variant("gated_retry", gated_retry=True),
     "gated_retry_8k": Variant("gated_retry_8k", gated_retry=True, max_tokens_override=8192),
+    # Exact G from the cost-frontier proposal: C0's answer-first/policy prompt
+    # family with k5 voting replaced by verification-gated retry (fail-closed,
+    # at most one recovery call). GR layers refine on top for the four-arm screen.
+    "exact_g": Variant(
+        "exact_g", numeric_prompt=True, gated_retry=True, use_policy_prompt=True,
+    ),
+    "exact_g_refine": Variant(
+        "exact_g_refine", numeric_prompt=True, gated_retry=True,
+        use_policy_prompt=True, refine=True,
+    ),
     "temperature04": Variant("temperature04", temperature=0.4),
     "temperature08": Variant("temperature08", temperature=0.8),
     "adaptive_vote": Variant("adaptive_vote", adaptive_voting=True),
     "adaptive_vote08": Variant("adaptive_vote08", adaptive_voting=True, temperature=0.8),
     "adaptive_vote_k5": Variant("adaptive_vote_k5", adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3),
-    "current": Variant(
-        "current", numeric_prompt=True, adaptive_voting=True, vote_k_max=5,
-        vote_agree_threshold=3, max_tokens_override=4096,
-        max_calls_override=5, use_policy_prompt=True,
-    ),
-    "hetero_k5": Variant(
-        "hetero_k5", numeric_prompt=True, adaptive_voting=True, vote_k_max=5,
-        vote_agree_threshold=3, max_tokens_override=4096,
-        max_calls_override=5, use_policy_prompt=True, heterogeneous=True,
-    ),
     # Official R2 snapshot (accuracy 9.82%): the pinned baseline definition.
     "legacy_4k_k5": Variant(
         "legacy_4k_k5", adaptive_voting=True, vote_k_max=5,
@@ -195,11 +282,24 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
     ceiling = variant.max_tokens_override or 4096
     return AgentConfig(
         policy_sample_times=1,
+        verifier_voting_times=0,
         max_tokens=ceiling,
         l0_max_tokens=ceiling,
-        max_model_calls=variant.max_calls_override or (variant.vote_k_max if variant.adaptive_voting else 2),
+        max_model_calls=(
+            variant.max_calls_override
+            or (4 if variant.gsa else (variant.vote_k_max if variant.adaptive_voting else 2))
+        ),
         policy_prompt=POLICY_PROMPT if variant.use_policy_prompt else ANSWER_ONLY_POLICY_PROMPT,
         enable_task_aware_prompt=True,
+        enable_dynamic_budget=False,
+        enable_l0_extended_tokens=True,
+        enable_time_convergence=True,
+        enable_l2_routing=False,
+        enable_local_repair=False,
+        enable_uncertain_repair=False,
+        enable_sympy_evidence=False,
+        enable_method_rag=False,
+        enable_deterministic_solver=False,
         enable_numeric_answer_only_prompt=not variant.numeric_prompt,
         enable_numeric_answer_first_prompt=variant.numeric_prompt,
         enable_strict_numeric_salvage=variant.strict_salvage,
@@ -214,17 +314,31 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_heterogeneous_reasoners=variant.heterogeneous,
         vote_k_max=variant.vote_k_max if variant.adaptive_voting else 3,
         vote_agree_threshold=variant.vote_agree_threshold if variant.adaptive_voting else 2,
+        enable_step_verification=variant.refine,
+        enable_step_revision=variant.refine,
+        p3_call_boost=3 if variant.refine else 0,
+        enable_failure_salvage=variant.failure_salvage,
+        enable_re2_reread=variant.re2,
+        enable_numeric_chain_of_draft=variant.cod_numeric,
+        enable_answer_dual_form=variant.arh,
+        enable_gsa_aggregation=variant.gsa,
         policy_temperature=variant.temperature if variant.temperature is not None else temperature,
     )
 
 
 def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
     """Effective budget facts for the report; mirrors make_config exactly."""
+    base_calls = (
+        variant.max_calls_override
+        or (4 if variant.gsa else (variant.vote_k_max if variant.adaptive_voting else 2))
+    )
+    p3_call_boost = 3 if variant.refine else 0
     return {
         "max_tokens": variant.max_tokens_override or 4096,
         "l0_max_tokens": variant.max_tokens_override or 4096,
         "retry_max_tokens": 6144 if variant.token_retry else (variant.max_tokens_override or 4096),
-        "max_model_calls": variant.max_calls_override or (variant.vote_k_max if variant.adaptive_voting else 2),
+        "max_model_calls": base_calls,
+        "effective_max_model_calls": base_calls + p3_call_boost,
         "numeric_prompt": variant.numeric_prompt,
         "strict_salvage": variant.strict_salvage,
         "conditional_token_retry": variant.token_retry,
@@ -234,9 +348,17 @@ def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
         "truncation_recovery_prompt": False,
         "adaptive_voting": variant.adaptive_voting,
         "vote_k_max": variant.vote_k_max if variant.adaptive_voting else 0,
+        "vote_agree_threshold": variant.vote_agree_threshold if variant.adaptive_voting else 0,
         "use_policy_prompt": variant.use_policy_prompt,
         "substitution_check": variant.substitution_check,
         "heterogeneous_reasoners": variant.heterogeneous,
+        "enable_step_verification": variant.refine,
+        "enable_step_revision": variant.refine,
+        "p3_call_boost": p3_call_boost,
+        "re2_reread": variant.re2,
+        "numeric_chain_of_draft": variant.cod_numeric,
+        "answer_dual_form": variant.arh,
+        "gsa_aggregation": variant.gsa,
         "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
     }
 
@@ -263,6 +385,20 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
     trace = result.get("trace", [])
     final = next((entry for entry in reversed(trace) if entry.get("step") == "finalize"), {})
     extracted = result.get("extracted_answer", "") or ""
+    diagnostic_reasons = list(final.get("diagnostic_reasons") or [])
+    final_response_nonempty = isinstance(result.get("final_response"), str) and bool(result["final_response"].strip())
+    result_status = (
+        "error" if "model_error" in diagnostic_reasons else
+        "invalid" if final.get("status") == "fallback" or not final_response_nonempty or not extracted.strip() else
+        "ok"
+    )
+    route = next((entry for entry in trace if entry.get("step") == "route_budget"), {})
+    p3_enabled = bool(agent.config.enable_step_verification)
+
+    def trace_status(step: str) -> str:
+        entries = [entry for entry in trace if entry.get("step") == step]
+        return entries[-1].get("status") if entries else ("not_run" if p3_enabled else "disabled")
+
     ptype = classify_problem_type(item["problem"])
     verdict = judge_correct(extracted, str(item["answer"]), ptype)
     main_raw = client.raw_contents[before] if len(client.raw_contents) > before else ""
@@ -283,19 +419,24 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
         "gate_rejected": len(gate_rejected),
         "gate_rejected_modes": [entry.get("mode") for entry in gate_rejected if entry.get("mode")],
         "gate_kept_originals": bool(gate_selection.get("kept_originals")) if gate_selection else False,
-        "final_response_nonempty": isinstance(result.get("final_response"), str) and bool(result["final_response"].strip()),
+        "final_response_nonempty": final_response_nonempty,
+        "result_status": result_status,
         "finalization_status": final.get("status"),
         "extracted_present": bool(extracted.strip()),
         "extracted_answer": extracted,
         "verdict": verdict,
         "model_calls": final.get("model_calls", 0),
+        "model_call_limit": route.get("max_model_calls"),
+        "p3_verify_status": trace_status("verify"),
+        "p3_revise_status": trace_status("revise"),
+        "p3_reverify_status": trace_status("reverify"),
         "main_completion_tokens": tokens[0] if tokens else 0,
         "retry_completion_tokens": tokens[1] if len(tokens) > 1 else 0,
         "total_completion_tokens": sum(tokens),
         "latency_seconds": round(elapsed, 3),
         "main_latency_seconds": round(latencies[0], 3) if latencies else None,
         "retry_latency_seconds": round(latencies[1], 3) if len(latencies) > 1 else None,
-        "diagnostic_reasons": list(final.get("diagnostic_reasons") or []),
+        "diagnostic_reasons": diagnostic_reasons,
         "substitution_statuses": [
             entry.get("status") for entry in trace
             if entry.get("step") == "substitution_check" and entry.get("status")
@@ -315,9 +456,11 @@ def summarize_records(records: list[dict]) -> dict:
     tokens = [record["total_completion_tokens"] for record in records]
     main_finish = [record["main_finish_reason"] for record in records if record["main_finish_reason"]]
     invalid = sum(
-        record["finalization_status"] == "fallback" or not record["extracted_present"]
+        record.get("result_status") == "invalid"
+        or ("result_status" not in record and (record["finalization_status"] == "fallback" or not record["extracted_present"]))
         for record in records
     )
+    result_statuses = Counter(record.get("result_status", "unknown") for record in records)
 
     def p95(values: list[float | int]) -> float:
         if not values:
@@ -331,6 +474,8 @@ def summarize_records(records: list[dict]) -> dict:
         "correct": verdicts.get("correct", 0),
         "incorrect": verdicts.get("incorrect", 0),
         "invalid": invalid,
+        "error": result_statuses.get("error", 0),
+        "result_status_counts": dict(result_statuses),
         "accuracy": verdicts.get("correct", 0) / total if total else 0.0,
         "final_response_nonempty_rate": sum(r["final_response_nonempty"] for r in records) / total if total else 0.0,
         "main_length_rate": sum(reason == "length" for reason in main_finish) / len(main_finish) if main_finish else 0.0,
@@ -353,6 +498,9 @@ def summarize_records(records: list[dict]) -> dict:
         "p95_latency_seconds": p95(latencies),
         "diagnostic_reason_counts": dict(diagnostics),
         "substitution_status_counts": dict(substitution_statuses),
+        "p3_verify_status_counts": dict(Counter(record.get("p3_verify_status", "unknown") for record in records)),
+        "p3_revise_status_counts": dict(Counter(record.get("p3_revise_status", "unknown") for record in records)),
+        "p3_reverify_status_counts": dict(Counter(record.get("p3_reverify_status", "unknown") for record in records)),
     }
 
 
@@ -365,6 +513,7 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
     records = _solve_jobs_bounded(jobs, workers, local_breaker)
     report = summarize_records(records)
     report["variant"] = variant.name
+    report["items"] = records
     _attach_void_state(report, local_breaker)
     if save_answers_to and round_no is not None and input_file:
         append_answers(Path(save_answers_to), answer_rows(variant.name, round_no, input_file, records))
@@ -373,13 +522,10 @@ def run_variant(variant: Variant, items: list[dict], timeout: int, retry: int, w
 
 
 def answer_rows(variant_name: str, round_no: int, input_file: str, records: list[dict]) -> list[dict]:
-    """Compact per-item rows for offline paired re-judging (no raw model text).
-
-    Token telemetry (total_completion_tokens / main_finish_reason) travels with
-    each row so the length-pressure set can be built from real measurements.
-    """
-    return [
-        {
+    """Compact rows with token telemetry for offline paired re-judging."""
+    rows = []
+    for record in records:
+        row = {
             "input_file": input_file,
             "round": round_no,
             "variant": variant_name,
@@ -391,8 +537,14 @@ def answer_rows(variant_name: str, round_no: int, input_file: str, records: list
             "total_completion_tokens": record.get("total_completion_tokens"),
             "main_finish_reason": record.get("main_finish_reason"),
         }
-        for record in records
-    ]
+        for key in (
+            "final_response_nonempty", "result_status", "model_calls", "model_call_limit",
+            "p3_verify_status", "p3_revise_status", "p3_reverify_status",
+        ):
+            if key in record:
+                row[key] = record[key]
+        rows.append(row)
+    return rows
 
 
 def append_answers(path, rows: list[dict]) -> None:
@@ -448,6 +600,7 @@ def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, re
         records = records_by_variant[variant.name]
         report = summarize_records(records)
         report["variant"] = variant.name
+        report["items"] = records
         report["budget_config"] = budget_summary(variant, temperature)
         report["interleaved"] = True
         _attach_void_state(report, local_breaker)

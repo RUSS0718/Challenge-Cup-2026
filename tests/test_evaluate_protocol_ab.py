@@ -47,9 +47,48 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "current", "hetero_k5", "legacy_4k_k5", "legacy_4k_k5_exit2", "legacy_4k_k5_length_pressure", "legacy_4k_k5_substitution", "legacy_4k_k5_answer_first", "baseline8k_k2", "single_8k_t0", "k3_8k"],
+            [
+                "current", "current_refine", "current_salvage", "hetero_k5",
+                "baseline_hetero", "hetero_refine", "re2_k5", "cod_hetero",
+                "hetero_refine_arh", "gsa_4call", "current_strict",
+                "current_refine_strict", "baseline86", "A", "B", "A+B",
+                "A+B+6144", "failure_backoff", "answer_conflict_retry",
+                "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine",
+                "temperature04", "temperature08", "adaptive_vote",
+                "adaptive_vote08", "adaptive_vote_k5", "legacy_4k_k5",
+                "legacy_4k_k5_exit2", "legacy_4k_k5_length_pressure",
+                "legacy_4k_k5_substitution", "legacy_4k_k5_answer_first",
+                "baseline8k_k2", "single_8k_t0", "k3_8k",
+            ],
             list(VARIANTS),
         )
+
+    def test_current_family_reproduces_answer_first_k5_and_bounded_refine(self):
+        current = make_config(VARIANTS["current"])
+        refine = make_config(VARIANTS["current_refine"])
+        strict = make_config(VARIANTS["current_strict"])
+        both = make_config(VARIANTS["current_refine_strict"])
+
+        for config in (current, refine, strict, both):
+            self.assertEqual(4096, config.max_tokens)
+            self.assertEqual(4096, config.l0_max_tokens)
+            self.assertEqual(5, config.max_model_calls)
+            self.assertTrue(config.enable_adaptive_voting)
+            self.assertEqual(5, config.vote_k_max)
+            self.assertEqual(3, config.vote_agree_threshold)
+            self.assertTrue(config.enable_numeric_answer_first_prompt)
+            self.assertFalse(config.enable_numeric_answer_only_prompt)
+            self.assertFalse(config.enable_conditional_token_retry)
+            self.assertFalse(config.enable_verification_gated_retry)
+        self.assertEqual(POLICY_PROMPT, current.policy_prompt)
+        self.assertFalse(current.enable_step_verification)
+        self.assertFalse(current.enable_strict_numeric_salvage)
+        self.assertTrue(refine.enable_step_verification)
+        self.assertTrue(refine.enable_step_revision)
+        self.assertTrue(strict.enable_strict_numeric_salvage)
+        self.assertTrue(both.enable_step_verification)
+        self.assertTrue(both.enable_strict_numeric_salvage)
+        self.assertEqual(8, budget_summary(VARIANTS["current_refine"])["effective_max_model_calls"])
 
     def test_variant_flags_are_single_variable(self):
         baseline = make_config(VARIANTS["baseline86"])
@@ -80,6 +119,161 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(gated_8k.enable_verification_gated_retry)
         self.assertEqual(8192, gated_8k.max_tokens)
         self.assertEqual(8192, gated_8k.l0_max_tokens)
+
+    def test_exact_g_keeps_c0_prompts_and_replaces_k5_with_gated_retry(self):
+        exact_g = make_config(VARIANTS["exact_g"])
+        # Same prompt family and token ceiling as C0 ("current").
+        self.assertEqual(4096, exact_g.max_tokens)
+        self.assertEqual(4096, exact_g.l0_max_tokens)
+        self.assertTrue(exact_g.enable_numeric_answer_first_prompt)
+        self.assertFalse(exact_g.enable_numeric_answer_only_prompt)
+        self.assertEqual(POLICY_PROMPT, exact_g.policy_prompt)
+        # k5 voting replaced by verification-gated retry.
+        self.assertFalse(exact_g.enable_adaptive_voting)
+        self.assertTrue(exact_g.enable_verification_gated_retry)
+        self.assertEqual(2, exact_g.max_model_calls)
+        self.assertFalse(exact_g.enable_step_verification)
+        self.assertEqual(
+            2, budget_summary(VARIANTS["exact_g"])["effective_max_model_calls"]
+        )
+
+    def test_gr_layers_refine_on_top_of_exact_g(self):
+        gr = make_config(VARIANTS["exact_g_refine"])
+        self.assertTrue(gr.enable_numeric_answer_first_prompt)
+        self.assertTrue(gr.enable_verification_gated_retry)
+        self.assertFalse(gr.enable_adaptive_voting)
+        self.assertEqual(POLICY_PROMPT, gr.policy_prompt)
+        self.assertTrue(gr.enable_step_verification)
+        self.assertTrue(gr.enable_step_revision)
+        # Refine ceiling works like C0 refine: base cap in AgentConfig plus a
+        # runtime p3_call_boost; the report's effective value mirrors both.
+        self.assertEqual(2, gr.max_model_calls)
+        self.assertEqual(
+            budget_summary(VARIANTS["exact_g"])["effective_max_model_calls"]
+            + gr.p3_call_boost,
+            budget_summary(VARIANTS["exact_g_refine"])["effective_max_model_calls"],
+        )
+        self.assertEqual(
+            5, budget_summary(VARIANTS["exact_g_refine"])["effective_max_model_calls"]
+        )
+
+    def test_current_salvage_is_single_variable_over_current(self):
+        base = make_config(VARIANTS["current"])
+        salvage = make_config(VARIANTS["current_salvage"])
+        self.assertTrue(salvage.enable_failure_salvage)
+        # The only allowed delta over C0 is the failure-path salvage flag.
+        for field in (
+            "enable_numeric_answer_first_prompt", "enable_numeric_answer_only_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "l0_max_tokens",
+            "enable_step_verification", "enable_strict_numeric_salvage",
+            "policy_prompt", "enable_verification_gated_retry",
+        ):
+            self.assertEqual(getattr(base, field), getattr(salvage, field), field)
+
+    def test_hetero_k5_is_single_variable_over_current(self):
+        base = make_config(VARIANTS["current"])
+        hetero = make_config(VARIANTS["hetero_k5"])
+        # Only delta over C0: heterogeneous reasoner split inside the same
+        # k5 vote budget (1 alternative + 4 direct at runtime).
+        self.assertTrue(hetero.enable_heterogeneous_reasoners)
+        for field in (
+            "enable_numeric_answer_first_prompt", "enable_numeric_answer_only_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "l0_max_tokens",
+            "enable_step_verification", "policy_prompt",
+            "enable_verification_gated_retry", "p3_call_boost",
+        ):
+            self.assertEqual(getattr(base, field), getattr(hetero, field), field)
+        self.assertEqual(
+            budget_summary(VARIANTS["current"])["effective_max_model_calls"],
+            budget_summary(VARIANTS["hetero_k5"])["effective_max_model_calls"],
+        )
+
+    def test_baseline_hetero_is_reference_arm_after_baseline_drift(self):
+        # hetero_k5 graduated to the deployed canary (25f99b5, Run #5 = 12/112);
+        # every future screen compares against the hetero baseline, not C0.
+        self.assertEqual(
+            make_config(VARIANTS["hetero_k5"]).__dict__,
+            make_config(VARIANTS["baseline_hetero"]).__dict__,
+        )
+        self.assertEqual(
+            5, budget_summary(VARIANTS["baseline_hetero"])["effective_max_model_calls"]
+        )
+
+    def test_hetero_refine_is_single_variable_over_baseline_hetero(self):
+        base = make_config(VARIANTS["baseline_hetero"])
+        cand = make_config(VARIANTS["hetero_refine"])
+        self.assertTrue(cand.enable_step_verification)
+        self.assertTrue(cand.enable_step_revision)
+        for field in (
+            "enable_heterogeneous_reasoners", "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "policy_prompt",
+            "enable_failure_salvage", "enable_re2_reread",
+        ):
+            self.assertEqual(getattr(base, field), getattr(cand, field), field)
+        self.assertEqual(8, budget_summary(VARIANTS["hetero_refine"])["effective_max_model_calls"])
+
+    def test_re2_k5_is_single_variable_over_baseline_hetero(self):
+        base = make_config(VARIANTS["baseline_hetero"])
+        cand = make_config(VARIANTS["re2_k5"])
+        self.assertTrue(cand.enable_re2_reread)
+        for field in (
+            "enable_heterogeneous_reasoners", "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "policy_prompt",
+            "enable_step_verification", "p3_call_boost",
+        ):
+            self.assertEqual(getattr(base, field), getattr(cand, field), field)
+        self.assertTrue(budget_summary(VARIANTS["re2_k5"])["re2_reread"])
+
+    def test_cod_hetero_is_single_variable_over_baseline_hetero(self):
+        base = make_config(VARIANTS["baseline_hetero"])
+        cand = make_config(VARIANTS["cod_hetero"])
+        self.assertTrue(cand.enable_numeric_chain_of_draft)
+        # Non-numeric prompts must be byte-identical to the baseline (CoD is
+        # numeric-family only); the answer-first base prompt is untouched.
+        self.assertEqual(
+            make_config(VARIANTS["baseline_hetero"]).policy_prompt,
+            cand.policy_prompt,
+        )
+        for field in (
+            "enable_heterogeneous_reasoners", "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "enable_step_verification",
+            "enable_re2_reread", "p3_call_boost",
+        ):
+            self.assertEqual(getattr(base, field), getattr(cand, field), field)
+        self.assertTrue(budget_summary(VARIANTS["cod_hetero"])["numeric_chain_of_draft"])
+
+    def test_hetero_refine_arh_is_single_variable_over_hetero_refine(self):
+        base = make_config(VARIANTS["hetero_refine"])
+        cand = make_config(VARIANTS["hetero_refine_arh"])
+        self.assertTrue(cand.enable_answer_dual_form)
+        for field in (
+            "enable_heterogeneous_reasoners", "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "policy_prompt",
+            "enable_step_verification", "enable_step_revision", "p3_call_boost",
+            "enable_re2_reread", "enable_numeric_chain_of_draft",
+        ):
+            self.assertEqual(getattr(base, field), getattr(cand, field), field)
+        self.assertTrue(budget_summary(VARIANTS["hetero_refine_arh"])["answer_dual_form"])
+
+    def test_gsa_4call_is_compute_matched_package(self):
+        cand = make_config(VARIANTS["gsa_4call"])
+        # GSA replaces voting: 3 samples + 1 aggregation = 4 calls (< k5's 5).
+        self.assertTrue(cand.enable_gsa_aggregation)
+        self.assertFalse(cand.enable_adaptive_voting)
+        self.assertEqual(4, cand.max_model_calls)
+        self.assertTrue(cand.enable_numeric_answer_first_prompt)
+        self.assertEqual(POLICY_PROMPT, cand.policy_prompt)
+        self.assertFalse(cand.enable_step_verification)
+        self.assertEqual(
+            4, budget_summary(VARIANTS["gsa_4call"])["effective_max_model_calls"]
+        )
+        self.assertTrue(budget_summary(VARIANTS["gsa_4call"])["gsa_aggregation"])
 
     def test_temperature_variants_change_only_policy_temperature(self):
         baseline = make_config(VARIANTS["baseline86"])
@@ -193,6 +387,26 @@ class ProtocolAbTest(unittest.TestCase):
              "substitution_statuses": ["ERROR"]},
         ])
         self.assertEqual({"SUCCESS": 1, "ERROR": 1}, report["substitution_status_counts"])
+
+    def test_answer_rows_expose_safe_status_fields_without_raw_output(self):
+        rows = answer_rows("current_refine", 1, "sample_data/p.jsonl", [{
+            "idx": 3, "extracted_answer": "", "verdict": "unknown",
+            "diagnostic_reasons": ["model_error"], "latency_seconds": 1.0,
+            "main_finish_reason": None, "final_response_nonempty": False,
+            "result_status": "error", "model_calls": 2, "model_call_limit": 8,
+            "p3_verify_status": "skipped", "p3_revise_status": "not_run",
+            "p3_reverify_status": "disabled",
+        }])
+        self.assertEqual({
+            "final_response_nonempty": False, "result_status": "error",
+            "model_calls": 2, "model_call_limit": 8,
+            "p3_verify_status": "skipped", "p3_revise_status": "not_run",
+            "p3_reverify_status": "disabled",
+        }, {key: rows[0][key] for key in (
+            "final_response_nonempty", "result_status", "model_calls", "model_call_limit",
+            "p3_verify_status", "p3_revise_status", "p3_reverify_status",
+        )})
+        self.assertNotIn("raw_response", rows[0])
 
     def test_append_answers_is_atomic_and_appends(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -518,6 +732,7 @@ class RunVariantBreakerTest(unittest.TestCase):
         self.assertTrue(report["void"])
         self.assertEqual("consecutive_model_errors", report["void_reason"])
         self.assertEqual(3, report["consecutive_failures_max"])
+        self.assertEqual([0, 1, 2], [row["idx"] for row in report["items"]])
         self.assertEqual(3, len(rows))
 
     def test_success_resets_streak_so_batch_completes(self):

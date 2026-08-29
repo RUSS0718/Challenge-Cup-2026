@@ -45,6 +45,12 @@ NUMERIC_ANSWER_FIRST_PROMPT = """你是数学求解器。只解决题目本身�
 第一行必须且只能写：最终答案：<答案>
 从第二行起可以给出必要的简短推理或校验；不要在第一行之前输出任何内容，也不要重复最终答案。"""
 
+# CoD-style adaptation (candidate line, default off; see
+# cod_numeric_screen_draft_2026-08-27.md): numeric-family only, keeps the
+# answer-first contract, compresses the reasoning draft after line 1.
+NUMERIC_COD_ANSWER_FIRST_PROMPT = NUMERIC_ANSWER_FIRST_PROMPT + """
+从第二行起仅写最小必要草稿；每个草稿步骤最多5个词。优先使用算式和符号，省略解释性完整句。"""
+
 DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
 
 最终答案：<只写最终表达式、数值或结论>
@@ -108,6 +114,11 @@ SOLUTION_VERIFY_PROMPT = STEP_VERIFY_PROMPT  # backward-compat alias
 STEP_REVISE_PROMPT = """你是数学修正员。原解答在指定步骤有错误。请只修正受影响的推导部分，保持正确步骤不变。
 输入包含：原题、原解答、错误定位和原因。
 输出修正后的完整解答。最后一行必须使用"最终答案："明确写出答案。"""
+
+# ── GSA: generative self-aggregation ────────────────────────────────────
+GSA_AGGREGATE_PROMPT = """你是数学评审员。下面是同一道题的多个独立解答得出的候选答案。请对比各候选的推理路径与结论：若一致，直接采纳该共识；若分歧，独立复核分歧点后给出你认为最可能正确的唯一答案。不要复述全部推理。
+
+最后必须以一行「最终答案：<答案>」结尾。"""
 
 # ── Verification-gated retry instructions ────────────────────────────────
 # These are universal counter-evidence prompts for the single recovery slot.
@@ -261,6 +272,28 @@ class AgentConfig:
     enable_explicit_answer_conflict_retry: bool = False
     # B1: deterministic verification gate for the single recovery call.
     enable_verification_gated_retry: bool = False
+    # P1 invalid reduction: when every candidate is rejected and the solve
+    # would return the apology fallback, best-effort salvage an answer-like
+    # token from the rejected responses (numeric-family problems only).
+    # Failure-path only: the success path never runs this.
+    enable_failure_salvage: bool = False
+    # Re2 (re-reading): input-side only — the problem statement is shown a
+    # second time in the user prompt before answering. No extra calls,
+    # no output-constraint changes.
+    enable_re2_reread: bool = False
+    # CoD-style adaptation: numeric-family answer-first prompt switches to a
+    # minimal-draft variant (each draft step ≤5 words). Default off.
+    enable_numeric_chain_of_draft: bool = False
+    # ARH (answer representation alignment): numeric-family final_response
+    # emitted in dual form — answer line + $\\boxed{}$ canonical — covering
+    # both positional and last-boxed judge extraction hypotheses. Pure
+    # post-processing; zero extra calls. Default off.
+    enable_answer_dual_form: bool = False
+    # GSA (generative self-aggregation): replaces majority voting with a fixed
+    # 3+1 pattern — 3 independent samples, then 1 aggregation call that
+    # reconciles them into a single answer. Compute-matched (4 calls < k5's 5).
+    # Aggregate failure falls back to plain candidate selection. Default off.
+    enable_gsa_aggregation: bool = False
     # B2 remains an explicit, disabled experiment; B1 does not depend on it.
     enable_truncation_recovery_prompt: bool = False
     # Adaptive consistency voting: independent full resamples of the same
@@ -298,7 +331,7 @@ SUBMISSION_CONFIG = AgentConfig(
     max_tokens=4096,
     l0_max_tokens=4096,
     enable_heterogeneous_reasoners=True,
-    # P3 refine chain (verify -> revise -> re-verify, fail-closed) on top
+    # P3 refine chain (verify -> revise -> re-verify) on top
     # of the hetero baseline; boarding qualification: battle-night W2+W2b
     # double clean confirm (net +1 each, cost 1.26x, zero paired losses
     # accumulated). Single new variable vs 25f99b5 behavior.
@@ -701,6 +734,53 @@ def is_placeholder_answer(answer: str) -> bool:
     }
 
 
+# ── P1: failure-path salvage (invalid → judgeable best-effort answer) ────
+_SALVAGE_BOXED_RE = re.compile(r"\\boxed\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}")
+_SALVAGE_MARKER_RE = re.compile(r"(?:最终答案|答案|Final answer|Answer)\s*[:：为]?\s*(.+)")
+_SALVAGE_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?(?:/\d+)?")
+_SALVAGE_MAX_CHARS = 100
+
+
+def _salvage_answer(texts: list[str], problem_type: str) -> str:
+    """Best-effort answer from rejected responses, or "".
+
+    Priority per response: \\boxed content > explicit answer marker > the
+    last bare numeric/ratio token. Placeholder-like extractions are refused.
+    Numeric-family problems only: proof/derivation/explanation dumps of a
+    stray number would be meaningless.
+    """
+    if problem_type not in (TASK_TYPE_CALCULATION, TASK_TYPE_FILL_BLANK, TASK_TYPE_CHOICE):
+        return ""
+    for text in reversed(texts):
+        raw = text or ""
+        if not raw.strip():
+            continue
+        for pattern in (_SALVAGE_BOXED_RE, _SALVAGE_MARKER_RE, _SALVAGE_NUMBER_RE):
+            matches = list(pattern.finditer(raw))
+            for match in reversed(matches):
+                candidate = (match.group(1) if match.lastindex else match.group(0)).strip()
+                if pattern is _SALVAGE_MARKER_RE:
+                    # marker capture runs to end of text; keep only the first
+                    # segment up to a sentence break.
+                    candidate = re.split(r"[。\n;,;]", candidate)[0].strip()
+                candidate = candidate.strip("。；;,， ]）)")
+                if not candidate or len(candidate) > _SALVAGE_MAX_CHARS:
+                    continue
+                if is_placeholder_answer(candidate) or _is_placeholder_segment(candidate):
+                    continue
+                if not re.search(r"[\w\\]", candidate):
+                    # must contain at least one letter/digit/backslash:
+                    # pure punctuation tokens (e.g. ">") are not answers.
+                    continue
+                if pattern is _SALVAGE_NUMBER_RE and not re.fullmatch(
+                        r"-?\d+(?:\.\d+)?(?:/\d+)?", candidate):
+                    # bare-number tier only accepts whole numeric tokens;
+                    # marker/boxed tiers accept what they matched.
+                    continue
+                return candidate
+    return ""
+
+
 def _truncation_signals(response: str, answer: str) -> list[str]:
     """Proxy signals for finish_reason=length truncation (client returns str only).
 
@@ -975,7 +1055,12 @@ class ReasoningAgent:
         # A truncated / malformed main call yields no clear answer; allow exactly
         # one recovery generation.  Audit and P3 are off by default, so a bad
         # response can no longer fan out into many extra model calls.
-        if self.config.enable_adaptive_voting and level != "L0":
+        if self.config.enable_gsa_aggregation and level != "L0":
+            # GSA replaces majority voting entirely (independent flag).
+            self._gsa_aggregate(problem, level, candidates, trace, budget,
+                                task_prompt=self._task_policy_prompt(problem_type),
+                                problem_type=problem_type)
+        elif self.config.enable_adaptive_voting and level != "L0":
             self._adaptive_vote(problem, level, candidates, trace, budget,
                                 task_prompt=self._task_policy_prompt(problem_type),
                                 problem_type=problem_type)
@@ -1008,10 +1093,41 @@ class ReasoningAgent:
             if any(entry.get("status") == "rejected" for entry in trace if entry.get("step") == "generate_candidate"):
                 self._record_diagnostic(budget, "all_candidates_rejected")
             self._record_diagnostic(budget, "fallback")
+            # P1 invalid reduction: salvage a best-effort judgeable answer
+            # from rejected responses instead of the guaranteed-zero apology.
+            salvaged = ""
+            if self.config.enable_failure_salvage:
+                salvaged = _salvage_answer(budget.get("rejected_responses", []), problem_type)
+                if salvaged:
+                    trace.append({"step": "finalize", "status": "salvaged",
+                                  "reason": "no_valid_candidate",
+                                  "model_calls": budget["used"], "problem_type": problem_type})
+                    trace[-1]["diagnostic_reasons"] = list(budget["diagnostic_reasons"])
+                    return {"final_response": f"最终答案：{salvaged}",
+                            "extracted_answer": salvaged, "trace": trace}
             trace.append({"step":"finalize","status":"fallback","reason":"no_valid_candidate","model_calls":budget["used"],"problem_type":problem_type})
             trace[-1]["diagnostic_reasons"] = list(budget["diagnostic_reasons"])
             return {"final_response":"未能生成有效数学答案。","trace":trace, "extracted_answer": ""}
         best = self._select_candidate(candidates)
+
+        # P1 invalid reduction: a structured=False candidate carries the raw
+        # response as its "answer" (F no-answer-block path). Dumping it into
+        # final_response is a guaranteed invalid; salvage instead.
+        if (
+            self.config.enable_failure_salvage
+            and not best.get("structured")
+            and problem_type in (TASK_TYPE_CALCULATION, TASK_TYPE_FILL_BLANK, TASK_TYPE_CHOICE)
+        ):
+            salvaged = _salvage_answer(
+                [best.get("solution", "")] + budget.get("rejected_responses", []),
+                problem_type,
+            )
+            if salvaged:
+                best["answer"] = salvaged
+                best["normalized_answer"] = normalize_answer(salvaged)
+                trace.append({"step": "finalize", "status": "salvaged",
+                              "reason": "unstructured_best",
+                              "model_calls": budget["used"], "problem_type": problem_type})
 
         # ── P3: step verification + targeted revision ──
         if self.config.enable_step_verification and best.get("solution"):
@@ -1055,12 +1171,16 @@ class ReasoningAgent:
                 continue
             candidate_id += candidate_start
             user_prompt = f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}"
+            if self.config.enable_re2_reread:
+                user_prompt = f"{user_prompt}\n\n请再次仔细阅读题目：\n{problem}"
             if instruction:
                 user_prompt = f"{instruction}\n\n{user_prompt}"
             response, error = self._request(prompt, user_prompt, self.config.policy_temperature, max_tokens, budget)
             if response is None:
                 self._record_diagnostic(budget, "model_error")
                 trace.append(_tr("skipped", candidate_id, reason=error, diagnostic_reason="model_error")); continue
+            if self.config.enable_failure_salvage:
+                budget.setdefault("rejected_responses", []).append(response)
             if (self.config.enable_numeric_answer_first_prompt
                     and not self.config.enable_strict_numeric_salvage
                     and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION)):
@@ -1197,6 +1317,8 @@ class ReasoningAgent:
         if self.config.enable_numeric_answer_only_prompt and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
             return ANSWER_ONLY_POLICY_PROMPT
         if self.config.enable_numeric_answer_first_prompt and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
+            if self.config.enable_numeric_chain_of_draft:
+                return NUMERIC_COD_ANSWER_FIRST_PROMPT
             return NUMERIC_ANSWER_FIRST_PROMPT
         return TASK_PROMPTS.get(problem_type, self.config.policy_prompt)
 
@@ -1576,6 +1698,65 @@ class ReasoningAgent:
             return 0
         return max(len(group) for group in cls._answer_groups(clear).values())
 
+    def _gsa_aggregate(
+        self, problem: str, level: str,
+        candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
+        budget: dict[str, Any], task_prompt: str | None = None,
+        problem_type: str = TASK_TYPE_CALCULATION,
+    ) -> None:
+        """GSA: 3 independent samples + 1 generative aggregation call.
+
+        The aggregate answer joins the candidate pool as a new candidate; if
+        aggregation fails (no extractable answer), selection falls back to the
+        plain consensus ranking over the 3 samples. Compute-matched: 4 calls.
+        """
+        max_tokens = self._policy_max_tokens(level)
+        while len(candidates) < 3:
+            top_group_size = self._top_clear_group_size(candidates)
+            if top_group_size >= self.config.vote_agree_threshold and candidates:
+                status = "consensus_reached"
+                break
+            if budget["used"] >= budget["limit"]:
+                status = "budget_exhausted"
+                break
+            if self._time_hard_exceeded(budget.get("solve_start")):
+                status = "solve_time_budget_exhausted"
+                break
+            self._generate_candidates(problem, 1, candidates, trace, budget,
+                                      max_tokens, task_prompt=task_prompt,
+                                      problem_type=problem_type)
+        status = "aggregated"
+        if candidates:
+            listing = "\n".join(
+                f"候选{i + 1}答案：{c.get('answer', '')}" for i, c in enumerate(candidates[:3])
+            )
+            response, _err = self._request(
+                GSA_AGGREGATE_PROMPT,
+                f"题目：\n{problem}\n\n候选答案：\n{listing}",
+                self.config.policy_temperature, max_tokens, budget,
+            )
+            answer = extract_final_answer(response) if response else ""
+            if answer and not is_placeholder_answer(answer):
+                candidates.append({
+                    "candidate_id": max((c["candidate_id"] for c in candidates), default=-1) + 1,
+                    "answer": answer,
+                    "normalized_answer": normalize_answer(answer),
+                    "solution": response or "",
+                    "structured": True,
+                    "evidence": [{"source": "gsa_aggregate"}],
+                    "verification_status": "unverified",
+                    "model_calls_used": 1,
+                    "problem_type": problem_type,
+                    "explicit_answer_conflict": False,
+                })
+            else:
+                status = "aggregate_unparseable"
+        else:
+            status = "no_samples"
+        trace.append({"step": "gsa_aggregate", "status": status,
+                      "samples": len(candidates),
+                      "model_calls": budget["used"]})
+
     def _adaptive_vote(
         self, problem: str, level: str,
         candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
@@ -1606,6 +1787,9 @@ class ReasoningAgent:
                 status = "solve_time_budget_exhausted"
                 break
 
+            # Hetero k5 (port of runtime 18f4f5a): the first resample in the
+            # vote loop uses AlternativeReasoner, later ones DirectReasoner;
+            # early-consensus sequence is therefore Direct → Alternative → Direct.
             vote_prompt = task_prompt
             reasoner = None
             if self.config.enable_heterogeneous_reasoners:
@@ -1718,17 +1902,17 @@ class ReasoningAgent:
         best["normalized_answer"] = normalize_answer(revised_answer)
         trace.append({"step":"revise","status":"ok"})
 
-        # ── Re-verify; rollback if new errors found ──
+        # ── Re-verify; preserve the deployed behavior from main. ──
         if budget["used"] < budget["limit"]:
-            re_errors, re_gaps, re_conclusive = self._verify_solution(problem, revised, trace, budget, step_label="reverify")
+            re_errors, re_gaps, re_conclusive = self._verify_solution(
+                problem, revised, trace, budget, step_label="reverify"
+            )
             if re_conclusive is None:
-                pass  # skipped — keep revision.
+                pass  # unavailable verifier: keep the revision
             elif re_conclusive is False:
                 trace.append({"step":"reverify","status":"inconclusive","error_count":0,"gap_count":0})
-                # Keep revision (verifier broken, not solution).
             elif re_errors or re_gaps:
                 trace.append({"step":"reverify","status":"fail","error_count":len(re_errors),"gap_count":len(re_gaps)})
-                # Rollback: re-verify found errors the revision didn't fix.
                 best["solution"] = saved["solution"]
                 best["answer"] = saved["answer"]
                 best["normalized_answer"] = saved["normalized_answer"]
