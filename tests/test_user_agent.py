@@ -1524,3 +1524,26 @@ class F2IntegrationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ArhDualFormTest(unittest.TestCase):
+    """ARH 答案表示对齐:numeric 族 final_response 双形态,零新增调用。"""
+
+    def _agent(self, arh):
+        return ReasoningAgent(FakeClient(["推导。\n最终答案：7"]),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_l0_extended_tokens=False,
+                        enable_adaptive_voting=False,
+                        enable_heterogeneous_reasoners=False,
+                        enable_step_verification=False,
+                        enable_answer_dual_form=arh))
+
+    def test_arh_on_numeric_final_response_has_answer_line_and_boxed(self):
+        result = self._agent(True).solve("计算 3+4。", {})
+        self.assertEqual("最终答案：7\n$\\boxed{7}$", result["final_response"])
+        self.assertEqual("7", result["extracted_answer"])
+
+    def test_arh_off_keeps_bare_answer(self):
+        result = self._agent(False).solve("计算 3+4。", {})
+        self.assertEqual("7", result["final_response"])
+
+

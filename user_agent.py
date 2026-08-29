@@ -251,6 +251,11 @@ class AgentConfig:
     enable_strict_numeric_salvage: bool = False
     enable_conditional_token_retry: bool = False
     conditional_retry_max_tokens: int = 6144
+    # ARH (answer representation alignment): numeric-family final_response
+    # emitted in dual form — answer line + $\boxed{}$ canonical — covering
+    # both positional and last-boxed judge extraction hypotheses. Pure
+    # post-processing; zero extra calls. Default off.
+    enable_answer_dual_form: bool = False
     enable_failure_retry_backoff: bool = False
     failure_retry_backoff_seconds: float = 1.0
     enable_explicit_answer_conflict_retry: bool = False
@@ -299,6 +304,7 @@ SUBMISSION_CONFIG = AgentConfig(
     # accumulated). Single new variable vs 25f99b5 behavior.
     enable_step_verification=True,
     enable_step_revision=True,
+    enable_answer_dual_form=True,
     enable_method_rag=False,
     enable_deterministic_solver=False,
     enable_numeric_answer_first_prompt=True,
@@ -1237,7 +1243,12 @@ class ReasoningAgent:
           (drop thinking / prompt echo, keep the conclusion + body)
         """
         if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
-            return best.get("normalized_answer") or best["answer"]
+            answer = best.get("normalized_answer") or best["answer"]
+            if self.config.enable_answer_dual_form and answer.strip():
+                # ARH dual form: answer line feeds positional/last-number
+                # graders; trailing $\\boxed{}$ feeds last-boxed graders.
+                return f"最终答案：{answer}\n$\\boxed{{{answer}}}$"
+            return answer
         solution = best.get("solution") or best.get("answer", "")
         return reconstruct_final_response_f(solution, problem_type)
 
