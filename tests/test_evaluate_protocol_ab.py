@@ -47,7 +47,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["current", "current_refine", "current_salvage", "hetero_k5", "baseline_hetero", "hetero_refine", "re2_k5", "cod_hetero", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
+            ["current", "current_refine", "current_salvage", "hetero_k5", "baseline_hetero", "hetero_refine", "re2_k5", "cod_hetero", "hetero_refine_arh", "gsa_4call", "current_strict", "current_refine_strict", "baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "exact_g", "exact_g_refine", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5"],
             list(VARIANTS),
         )
 
@@ -234,6 +234,34 @@ class ProtocolAbTest(unittest.TestCase):
         ):
             self.assertEqual(getattr(base, field), getattr(cand, field), field)
         self.assertTrue(budget_summary(VARIANTS["cod_hetero"])["numeric_chain_of_draft"])
+
+    def test_hetero_refine_arh_is_single_variable_over_hetero_refine(self):
+        base = make_config(VARIANTS["hetero_refine"])
+        cand = make_config(VARIANTS["hetero_refine_arh"])
+        self.assertTrue(cand.enable_answer_dual_form)
+        for field in (
+            "enable_heterogeneous_reasoners", "enable_numeric_answer_first_prompt",
+            "enable_adaptive_voting", "vote_k_max", "vote_agree_threshold",
+            "max_model_calls", "max_tokens", "policy_prompt",
+            "enable_step_verification", "enable_step_revision", "p3_call_boost",
+            "enable_re2_reread", "enable_numeric_chain_of_draft",
+        ):
+            self.assertEqual(getattr(base, field), getattr(cand, field), field)
+        self.assertTrue(budget_summary(VARIANTS["hetero_refine_arh"])["answer_dual_form"])
+
+    def test_gsa_4call_is_compute_matched_package(self):
+        cand = make_config(VARIANTS["gsa_4call"])
+        # GSA replaces voting: 3 samples + 1 aggregation = 4 calls (< k5's 5).
+        self.assertTrue(cand.enable_gsa_aggregation)
+        self.assertFalse(cand.enable_adaptive_voting)
+        self.assertEqual(4, cand.max_model_calls)
+        self.assertTrue(cand.enable_numeric_answer_first_prompt)
+        self.assertEqual(POLICY_PROMPT, cand.policy_prompt)
+        self.assertFalse(cand.enable_step_verification)
+        self.assertEqual(
+            4, budget_summary(VARIANTS["gsa_4call"])["effective_max_model_calls"]
+        )
+        self.assertTrue(budget_summary(VARIANTS["gsa_4call"])["gsa_aggregation"])
 
     def test_temperature_variants_change_only_policy_temperature(self):
         baseline = make_config(VARIANTS["baseline86"])

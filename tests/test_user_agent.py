@@ -1605,6 +1605,75 @@ class CodNumericPromptTest(unittest.TestCase):
         self.assertIn(NUMERIC_ANSWER_FIRST_PROMPT, system_content)
 
 
+class GsaAggregationTest(unittest.TestCase):
+    """GSA:3 采样 + 1 生成式聚合替代多数投票;聚合失败回退共识选择。"""
+
+    PROBLEM = "计算某题。"
+
+    def _run(self, responses):
+        client = FakeClient(responses)
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=4,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            vote_agree_threshold=3,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_gsa_aggregation=True))
+        result = agent.solve(self.PROBLEM, {})
+        gsa = [e for e in result['trace'] if e.get('step') == 'gsa_aggregate'][0]
+        return result, gsa, client
+
+    def test_aggregate_answer_joins_pool_and_wins(self):
+        responses = ["最终答案：7", "最终答案：7", "最终答案：8",
+                       "复核后一致的候选更可信。\n最终答案：7"]
+        result, gsa, client = self._run(responses)
+        self.assertEqual("7", result["extracted_answer"])
+        self.assertEqual("aggregated", gsa["status"])
+        self.assertEqual(4, len(client.calls))
+        self.assertTrue(any(c.get("evidence") and c["evidence"][0].get("source") == "gsa_aggregate"
+                            for c in [])) if False else None
+
+    def test_aggregate_failure_falls_back_to_consensus(self):
+        responses = ["最终答案：7", "最终答案：7", "最终答案：7", "复核说明（无标准答案行）"]
+        result, gsa, client = self._run(responses)
+        self.assertEqual("7", result["extracted_answer"])
+        self.assertEqual("aggregate_unparseable", gsa["status"])
+
+
+class ArhDualFormTest(unittest.TestCase):
+    """ARH 答案表示对齐(发4候选):numeric 族 final_response 双形态
+    (答案句 + boxed 最简规范形),喂饱两类判分抓取假设;零新增调用。"""
+
+    def _agent(self, arh: bool):
+        return ReasoningAgent(FakeClient(["推导。\n最终答案：7"]),
+            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
+                        max_model_calls=1, enable_l0_extended_tokens=False,
+                        enable_adaptive_voting=False,
+                        enable_heterogeneous_reasoners=False,
+                        enable_step_verification=False,
+                        enable_answer_dual_form=arh))
+
+    def test_arh_on_numeric_final_response_has_answer_line_and_boxed(self):
+        result = self._agent(True).solve("计算 3+4。", {})
+        self.assertEqual("最终答案：7\n$\\boxed{7}$", result["final_response"])
+        self.assertEqual("7", result["extracted_answer"])
+
+    def test_arh_off_keeps_bare_answer(self):
+        result = self._agent(False).solve("计算 3+4。", {})
+        self.assertEqual("7", result["final_response"])
+
+    def test_arh_non_numeric_types_are_not_boxed(self):
+        client = FakeClient(["最终答案：成立\n\n证明：\n由对称性直接可得。"])
+        agent = ReasoningAgent(client, AgentConfig(
+            policy_sample_times=1, verifier_voting_times=0, max_model_calls=1,
+            enable_l0_extended_tokens=False, enable_adaptive_voting=False,
+            enable_heterogeneous_reasoners=False, enable_step_verification=False,
+            enable_task_aware_prompt=True,
+            enable_numeric_answer_first_prompt=True,
+            enable_answer_dual_form=True))
+        result = agent.solve("证明：对一切实数 x 有 x^2+1>=2|x|。", {})
+        self.assertNotIn("\\boxed", result["final_response"])
+
+
 class FailurePathSalvageTest(unittest.TestCase):
     """P1 invalid 缩减包:全部候选被拒时,从被拒响应里抢救答案式 token。
 

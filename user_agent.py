@@ -111,6 +111,11 @@ STEP_REVISE_PROMPT = """你是数学修正员。原解答在指定步骤有错�
 输入包含：原题、原解答、错误定位和原因。
 输出修正后的完整解答。最后一行必须使用"最终答案："明确写出答案。"""
 
+# ── GSA: generative self-aggregation ────────────────────────────────────
+GSA_AGGREGATE_PROMPT = """你是数学评审员。下面是同一道题的多个独立解答得出的候选答案。请对比各候选的推理路径与结论：若一致，直接采纳该共识；若分歧，独立复核分歧点后给出你认为最可能正确的唯一答案。不要复述全部推理。
+
+最后必须以一行「最终答案：<答案>」结尾。"""
+
 # ── Verification-gated retry instructions ────────────────────────────────
 # These are universal counter-evidence prompts for the single recovery slot.
 GATED_TRUNCATION_INSTRUCTION = (
@@ -268,6 +273,16 @@ class AgentConfig:
     # CoD-style adaptation: numeric-family answer-first prompt switches to a
     # minimal-draft variant (each draft step ≤5 words). Default off.
     enable_numeric_chain_of_draft: bool = False
+    # ARH (answer representation alignment): numeric-family final_response
+    # emitted in dual form — answer line + $oxed{}$ canonical — covering
+    # both positional and last-boxed judge extraction hypotheses. Pure
+    # post-processing; zero extra calls. Default off.
+    enable_answer_dual_form: bool = False
+    # GSA (generative self-aggregation): replaces majority voting with a fixed
+    # 3+1 pattern — 3 independent samples, then 1 aggregation call that
+    # reconciles them into a single answer. Compute-matched (4 calls < k5's 5).
+    # Aggregate failure falls back to plain candidate selection. Default off.
+    enable_gsa_aggregation: bool = False
     # B2 remains an explicit, disabled experiment; B1 does not depend on it.
     enable_truncation_recovery_prompt: bool = False
     # Adaptive consistency voting: independent full resamples of the same
@@ -1007,7 +1022,12 @@ class ReasoningAgent:
         # A truncated / malformed main call yields no clear answer; allow exactly
         # one recovery generation.  Audit and P3 are off by default, so a bad
         # response can no longer fan out into many extra model calls.
-        if self.config.enable_adaptive_voting and level != "L0":
+        if self.config.enable_gsa_aggregation and level != "L0":
+            # GSA replaces majority voting entirely (independent flag).
+            self._gsa_aggregate(problem, level, candidates, trace, budget,
+                                task_prompt=self._task_policy_prompt(problem_type),
+                                problem_type=problem_type)
+        elif self.config.enable_adaptive_voting and level != "L0":
             self._adaptive_vote(problem, level, candidates, trace, budget,
                                 task_prompt=self._task_policy_prompt(problem_type),
                                 problem_type=problem_type)
@@ -1307,7 +1327,12 @@ class ReasoningAgent:
           (drop thinking / prompt echo, keep the conclusion + body)
         """
         if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
-            return best.get("normalized_answer") or best["answer"]
+            answer = best.get("normalized_answer") or best["answer"]
+            if self.config.enable_answer_dual_form and answer.strip():
+                # ARH dual form: answer line feeds positional/last-number
+                # graders; trailing $oxed{}$ feeds last-boxed graders.
+                return f"最终答案：{answer}\n$\\boxed{{{answer}}}$"
+            return answer
         solution = best.get("solution") or best.get("answer", "")
         return reconstruct_final_response_f(solution, problem_type)
 
@@ -1590,6 +1615,65 @@ class ReasoningAgent:
         if not clear:
             return 0
         return max(len(group) for group in cls._answer_groups(clear).values())
+
+    def _gsa_aggregate(
+        self, problem: str, level: str,
+        candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
+        budget: dict[str, Any], task_prompt: str | None = None,
+        problem_type: str = TASK_TYPE_CALCULATION,
+    ) -> None:
+        """GSA: 3 independent samples + 1 generative aggregation call.
+
+        The aggregate answer joins the candidate pool as a new candidate; if
+        aggregation fails (no extractable answer), selection falls back to the
+        plain consensus ranking over the 3 samples. Compute-matched: 4 calls.
+        """
+        max_tokens = self._policy_max_tokens(level)
+        while len(candidates) < 3:
+            top_group_size = self._top_clear_group_size(candidates)
+            if top_group_size >= self.config.vote_agree_threshold and candidates:
+                status = "consensus_reached"
+                break
+            if budget["used"] >= budget["limit"]:
+                status = "budget_exhausted"
+                break
+            if self._time_hard_exceeded(budget.get("solve_start")):
+                status = "solve_time_budget_exhausted"
+                break
+            self._generate_candidates(problem, 1, candidates, trace, budget,
+                                      max_tokens, task_prompt=task_prompt,
+                                      problem_type=problem_type)
+        status = "aggregated"
+        if candidates:
+            listing = "\n".join(
+                f"候选{i + 1}答案：{c.get('answer', '')}" for i, c in enumerate(candidates[:3])
+            )
+            response, _err = self._request(
+                GSA_AGGREGATE_PROMPT,
+                f"题目：\n{problem}\n\n候选答案：\n{listing}",
+                self.config.policy_temperature, max_tokens, budget,
+            )
+            answer = extract_final_answer(response) if response else ""
+            if answer and not is_placeholder_answer(answer):
+                candidates.append({
+                    "candidate_id": max((c["candidate_id"] for c in candidates), default=-1) + 1,
+                    "answer": answer,
+                    "normalized_answer": normalize_answer(answer),
+                    "solution": response or "",
+                    "structured": True,
+                    "evidence": [{"source": "gsa_aggregate"}],
+                    "verification_status": "unverified",
+                    "model_calls_used": 1,
+                    "problem_type": problem_type,
+                    "explicit_answer_conflict": False,
+                })
+            else:
+                status = "aggregate_unparseable"
+        else:
+            status = "no_samples"
+        trace.append({"step": "gsa_aggregate", "status": status,
+                      "samples": len(candidates),
+                      "model_calls": budget["used"]})
 
     def _adaptive_vote(
         self, problem: str, level: str,

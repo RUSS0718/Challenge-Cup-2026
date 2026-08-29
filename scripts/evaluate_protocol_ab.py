@@ -134,6 +134,8 @@ class Variant:
     heterogeneous: bool = False
     re2: bool = False
     cod_numeric: bool = False
+    arh: bool = False
+    gsa: bool = False
 
 
 VARIANTS = {
@@ -189,6 +191,23 @@ VARIANTS = {
         vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
         use_policy_prompt=True, heterogeneous=True, cod_numeric=True,
     ),
+    # Shot-4 candidate (evaluation-research adoption): deployed hetero+refine
+    # baseline + ARH dual-form final response ("answer line + boxed canonical"),
+    # numeric family only; pure post-processing, zero extra calls.
+    "hetero_refine_arh": Variant(
+        "hetero_refine_arh", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True, refine=True, arh=True,
+    ),
+    # Shot-5 candidate: GSA generative self-aggregation — fixed 3+1 calls
+    # (3 direct samples + 1 aggregation call) replacing majority voting.
+    # Compute-matched vs k5 (4 < 5); aggregate failure falls back to
+    # consensus selection. Package variable: sampling count + aggregation.
+    "gsa_4call": Variant(
+        "gsa_4call", numeric_prompt=True, adaptive_voting=False,
+        max_tokens_override=4096,
+        use_policy_prompt=True, gsa=True,
+    ),
     "current_strict": Variant(
         "current_strict", numeric_prompt=True, strict_salvage=True,
         adaptive_voting=True, vote_k_max=5, vote_agree_threshold=3,
@@ -234,7 +253,7 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         verifier_voting_times=0,
         max_tokens=ceiling,
         l0_max_tokens=ceiling,
-        max_model_calls=variant.vote_k_max if variant.adaptive_voting else 2,
+        max_model_calls=4 if variant.gsa else (variant.vote_k_max if variant.adaptive_voting else 2),
         policy_prompt=POLICY_PROMPT if variant.use_policy_prompt else ANSWER_ONLY_POLICY_PROMPT,
         enable_task_aware_prompt=True,
         enable_dynamic_budget=False,
@@ -264,6 +283,8 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_failure_salvage=variant.failure_salvage,
         enable_re2_reread=variant.re2,
         enable_numeric_chain_of_draft=variant.cod_numeric,
+        enable_answer_dual_form=variant.arh,
+        enable_gsa_aggregation=variant.gsa,
         enable_heterogeneous_reasoners=variant.heterogeneous,
         policy_temperature=variant.temperature if variant.temperature is not None else temperature,
     )
@@ -271,7 +292,7 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
 
 def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
     """Effective budget facts for the report; mirrors make_config exactly."""
-    base_calls = variant.vote_k_max if variant.adaptive_voting else 2
+    base_calls = 4 if variant.gsa else (variant.vote_k_max if variant.adaptive_voting else 2)
     p3_call_boost = 3 if variant.refine else 0
     return {
         "max_tokens": variant.max_tokens_override or 4096,
@@ -295,6 +316,8 @@ def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
         "p3_call_boost": p3_call_boost,
         "re2_reread": variant.re2,
         "numeric_chain_of_draft": variant.cod_numeric,
+        "answer_dual_form": variant.arh,
+        "gsa_aggregation": variant.gsa,
         "policy_temperature": variant.temperature if variant.temperature is not None else temperature,
     }
 
