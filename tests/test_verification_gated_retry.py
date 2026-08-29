@@ -166,8 +166,11 @@ class SubmissionConfigTest(unittest.TestCase):
         self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
         self.assertTrue(SUBMISSION_CONFIG.enable_heterogeneous_reasoners)
-        self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
-        self.assertFalse(SUBMISSION_CONFIG.enable_step_revision)
+        # 2026-08-29 boarding: refine chain on top of hetero baseline
+        # (battle-night W2+W2b double clean confirm).
+        self.assertTrue(SUBMISSION_CONFIG.enable_step_verification)
+        self.assertTrue(SUBMISSION_CONFIG.enable_step_revision)
+        self.assertEqual(3, SUBMISSION_CONFIG.p3_call_boost)
         self.assertFalse(SUBMISSION_CONFIG.enable_conditional_token_retry)
         self.assertFalse(SUBMISSION_CONFIG.enable_explicit_answer_conflict_retry)
 

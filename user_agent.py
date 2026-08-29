@@ -293,8 +293,12 @@ SUBMISSION_CONFIG = AgentConfig(
     max_tokens=4096,
     l0_max_tokens=4096,
     enable_heterogeneous_reasoners=True,
-    enable_step_verification=False,
-    enable_step_revision=False,
+    # P3 refine chain (verify -> revise -> re-verify, fail-closed) on top
+    # of the hetero baseline; boarding qualification: battle-night W2+W2b
+    # double clean confirm (net +1 each, cost 1.26x, zero paired losses
+    # accumulated). Single new variable vs 25f99b5 behavior.
+    enable_step_verification=True,
+    enable_step_revision=True,
     enable_method_rag=False,
     enable_deterministic_solver=False,
     enable_numeric_answer_first_prompt=True,

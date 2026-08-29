@@ -1062,7 +1062,9 @@ class P0StopBleedingTest(unittest.TestCase):
     def test_truncated_response_triggers_at_most_two_calls(self):
         """Truncated main call (no answer marker) → exactly one recovery call, never 7."""
         client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
-        agent = ReasoningAgent(client)  # default stop-bleeding config
+        # stop-bleeding discipline is profile-independent: pin refine off so
+        # the conditional-retry bound stays exactly 2 calls.
+        agent = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_step_revision=False))
         result = agent.solve("计算 3+4", {})
         self.assertIn("7", result["final_response"])
         self.assertLessEqual(len(client.calls), 2)
@@ -1071,7 +1073,7 @@ class P0StopBleedingTest(unittest.TestCase):
     def test_clear_answer_skips_conditional_retry(self):
         """A clear main answer ends immediately with a single model call."""
         client = FakeClient(["最终答案：7"])
-        agent = ReasoningAgent(client)
+        agent = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_step_revision=False))
         result = agent.solve("计算 3+4", {})
         self.assertEqual("7", result["final_response"])
         self.assertEqual(1, len(client.calls))
@@ -1161,7 +1163,8 @@ class SubmissionProfileTest(unittest.TestCase):
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
-        self.assertEqual(3, len(client.calls))
+        # 3 profile calls (main + 2 vote resamples at early consensus) + 1 refine verify
+        self.assertEqual(4, len(client.calls))
         self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
         reasoners = [
             entry.get("reasoner")
