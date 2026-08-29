@@ -6,9 +6,9 @@
 
 | ref | tip | 角色 |
 | --- | --- | --- |
-| **gitcode/main** | `c9d0597` | **唯一官方评测拉取面**(行为 = hetero 单变量,即 Run #5 的 12/112 配置) |
-| **origin/main**(GitHub) | `c9d0597` | gitcode 的备份镜像,已同步 |
-| **local main** | `b8b78aa` | 已 fast-forward 到 GitHub 状态(旧滞留 e4b40c0 陷阱解除);仍落后 gitcode 4 个发布提交,**不得直接推 gitcode** |
+| **gitcode/main** | `95d5700` | **唯一官方评测拉取面**(行为 = hetero 单变量,即 Run #5 的 12/112 配置) |
+| **origin/main**(GitHub) | `95d5700` | gitcode 的备份镜像,已同步 |
+| **local main** | `95d5700` | **部署镜像,随发布滚动**(08-29 起 ff 至 gitcode tip);不得直接推 gitcode——发布一律走发布线克隆 |
 
 ## 工作分支
 
@@ -23,6 +23,12 @@
 - `codex/stable-baseline-8k-k2` @ b8b78aa(.worktrees 检出):官方 8k 时代+排除表定稿
 - `codex/weakness-fix-package-14` @ b684729(.worktrees 检出):**refine 战役原始工件所在地**(ADR-0002 引用)
 - `codex/deterministic-solver-v1` / `codex/pot-tir-executor` / `codex/resilience-quality-temperature-ab` / `codex/salvage-v1` / `codex/verification-gated-retry`:历史实验存档线
+
+## 发布后例行动作(每次 canary 发布/回滚后)
+
+1. local main ff:;
+2. GitHub 镜像同步:发布线克隆内 `git push origin gitcode/main:refs/heads/main`;
+3. 本表三行 tip 更新,随工作分支提交。
 
 ## 工作区卫生约定
 
