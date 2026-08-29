@@ -1,0 +1,60 @@
+[
+  {
+    "dataset_size": 3,
+    "verdict_counts": {
+      "unknown": 1,
+      "correct": 2
+    },
+    "correct": 2,
+    "incorrect": 0,
+    "invalid": 0,
+    "accuracy": 0.6666666666666666,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.3333333333333333,
+    "main_marker_rate": 1.0,
+    "retry_count": 0,
+    "retry_reason_counts": {},
+    "gate_short_circuit_count": 0,
+    "gate_accepted_count": 0,
+    "gate_rejected_count": 0,
+    "gate_rejected_mode_counts": {},
+    "gate_kept_originals_count": 0,
+    "average_model_calls": 4.333333333333333,
+    "p95_model_calls": 5,
+    "max_model_calls": 5,
+    "average_completion_tokens": 4427.666666666667,
+    "p95_completion_tokens": 6340,
+    "average_latency_seconds": 315.4836666666667,
+    "p95_latency_seconds": 445.808,
+    "diagnostic_reason_counts": {
+      "model_error": 2
+    },
+    "substitution_status_counts": {},
+    "variant": "current",
+    "void": false,
+    "void_reason": null,
+    "consecutive_failures_max": 2,
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 5,
+      "numeric_prompt": true,
+      "strict_salvage": false,
+      "conditional_token_retry": false,
+      "failure_retry_backoff": false,
+      "explicit_answer_conflict_retry": false,
+      "verification_gated_retry": false,
+      "truncation_recovery_prompt": false,
+      "adaptive_voting": true,
+      "vote_k_max": 5,
+      "use_policy_prompt": true,
+      "substitution_check": false,
+      "heterogeneous_reasoners": false,
+      "policy_temperature": 0.6
+    },
+    "round": 1,
+    "input_file": "sample_data/dev.jsonl",
+    "temperature": 0.6
+  }
+]

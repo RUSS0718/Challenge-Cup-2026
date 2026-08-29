@@ -41,3 +41,13 @@ adaptive vote 仍走普通 Prompt，无法实现其声称的 Alternative。`18f4
 2. 与 Run #4 同时比较 correct、invalid、截断率、runner error、attempts 和总耗时；
 3. 不用本次发布动作替代本地 A/B；
 4. 若官方 correct 回退、总时限风险恶化或 runner error 明显增加，回滚到 `242c480`。
+
+### 发布后本地窗口
+
+20:36 第二健康探针仍为 `UNHEALTHY`：dev3 中 2/3 记录 model_error，平均延迟
+315.48s、P95 445.81s。按冻结规则未启动 complex48；见
+[`hetero_k5_health_probe_2036_result_2026-08-27.md`](hetero_k5_health_probe_2036_result_2026-08-27.md)。
+
+21:30 第三健康探针仍为 `UNHEALTHY`：dev3 中 1/3 记录 model_error，平均延迟
+235.20s、P95 356.70s。仍未启动 complex48；见
+[`hetero_k5_health_probe_2130_result_2026-08-27.md`](hetero_k5_health_probe_2130_result_2026-08-27.md)。
