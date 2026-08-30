@@ -22,9 +22,9 @@ from scripts.evaluate_dev import judge_correct  # noqa: E402
 WORKTREE = REPO_ROOT / ".worktrees" / "main-integration-20260829"
 import sys as _sys
 
-_ANSWERS = _sys.argv[1] if len(_sys.argv) > 1 else "pre0_ext_answers.jsonl"
-ANSWERS = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001" / _ANSWERS
-REPORT = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001" / "pre0_ext_report.json"
+_ANSWERS = Path(_sys.argv[1]) if len(_sys.argv) > 1 else Path("docs/experiments/PRE0-EXT-001/pre0_ext_answers.jsonl")
+ANSWERS = _ANSWERS if _ANSWERS.is_absolute() else REPO_ROOT / _ANSWERS
+REPORT = ANSWERS.with_name(ANSWERS.stem.replace("_answers", "_report") + ".json")
 DATASET = REPO_ROOT / "tmp" / "pre0_ext_001" / "cache" / "ext12_run.jsonl"
 EXPERIMENT_DIR = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001"
 
@@ -109,7 +109,7 @@ def main() -> None:
         "diffset": diffset,
         "items": judged,
     }
-    out_path = EXPERIMENT_DIR / (ANSWERS.stem.replace("pre0_ext_answers", "ext12_dual_judgement") + ".json")
+    out_path = ANSWERS.with_name(ANSWERS.stem.replace("_answers", "_dual_judgement") + ".json")
     out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(output["aggregates"], ensure_ascii=False))
     print("diffset:", json.dumps(diffset, ensure_ascii=False))

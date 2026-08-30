@@ -1,0 +1,73 @@
+{
+  "experiment": "PRE0-EXT-002",
+  "window_type": "model calibration (amendment-approved compliant window; no accuracy gate)",
+  "run_id": "PRE0-EXT-002",
+  "run_started_local": "2026-08-30 15:41",
+  "run_finished_local": "2026-08-30 16:20",
+  "runtime_face": {
+    "branch": "PRE0-8.30",
+    "commit_at_launch": "5708cbe1c707535a77a3bdbca17ad2b2ca7b88b9",
+    "dirty_at_run": false
+  },
+  "environment": {
+    "python": "3.10.20",
+    "sympy": "1.14.0",
+    "requests": "2.34.2",
+    "math_verify": "0.8.0 (local eval only)",
+    "endpoint": "intern-s2-preview-397b via chat.intern-ai.org.cn (INTERN_API_KEY present, never stored)"
+  },
+  "cli": "evaluate_protocol_ab.py --variant baseline_hetero --input-files <repo>/tmp/pre0_ext_001/cache/ext12_run.jsonl --rounds 1 --workers 3 --timeout-seconds 180 --output-file docs/experiments/PRE0-EXT-002/pre0_ext_report.json --save-answers-to docs/experiments/PRE0-EXT-002/pre0_ext_answers.jsonl (env INTERN_REQUEST_DEADLINE_SECONDS=240)",
+  "arm": {
+    "name": "baseline_hetero",
+    "config": "answer-first + hetero + adaptive k5/3 + 4096 + policy prompt; max_model_calls=5"
+  },
+  "expected_n": 12,
+  "dataset": {
+    "selection_manifest": "docs/experiments/PRE0-EXT-001/selection_manifest.json (frozen reuse)",
+    "run_dataset": "tmp/pre0_ext_001/cache/ext12_run.jsonl",
+    "run_dataset_sha256": "451cb2cb1f932805694706051f04c1217cb50a0f77d4f8c05ea4addca640abcf",
+    "upstream_revision": "5f83d12e63ee3267f35044461a6cebad58ec3be1"
+  },
+  "resources": {
+    "workers": 3,
+    "timeout_seconds": 180,
+    "retry": 1,
+    "temperature": 0.6,
+    "circuit_breaker": "8 consecutive model_error",
+    "budget_solves": 12,
+    "budget_model_calls": 60,
+    "actual_model_calls": 60,
+    "stall_guard": "INTERN_REQUEST_DEADLINE_SECONDS=240 (0 triggers)"
+  },
+  "health_observed": {
+    "completed": 12,
+    "model_errors": 0,
+    "breaker_tripped": false
+  },
+  "judgement": {
+    "contract": "final_response external extraction (user_agent.extract_final_answer) + evaluate_dev.judge_correct — spec §4.3 contract_score (audit S1 fix)",
+    "contract_sources_observed": [
+      "final_response_external_extraction"
+    ],
+    "native": "math-verify 0.8.0, verify(gold, pred), parse $-wrapped, timeouts disabled (Windows)"
+  },
+  "artifacts": {
+    "dataset": {
+      "path": "tmp/pre0_ext_001/cache/ext12_run.jsonl",
+      "sha256": "451cb2cb1f932805694706051f04c1217cb50a0f77d4f8c05ea4addca640abcf"
+    },
+    "answers": {
+      "path": "docs/experiments/PRE0-EXT-002/pre0_ext_answers.jsonl",
+      "sha256": "573dc7ffb2c2688cd9319a3ce750c1242efd30ca1d3ab0ed0d28840c4fed3545"
+    },
+    "report": {
+      "path": "docs/experiments/PRE0-EXT-002/pre0_ext_report.json",
+      "sha256": "c88a7c7af65de753cc8ef77fb173a191dda396d1667f34b081a9ce7f3cb957f5"
+    },
+    "dual_judgement": {
+      "path": "docs/experiments/PRE0-EXT-002/pre0_ext_dual_judgement.json",
+      "sha256": "c9d5b84eb33175cbebb71b316dc020c4ba05f4697062b9b57c3c6a9d91872b30"
+    }
+  },
+  "api_key_stored": false
+}
