@@ -3,7 +3,7 @@
   "window_type": "model calibration (amendment-approved compliant window; no capability conclusion)",
   "run_id": "PRE0-AA-003",
   "run_started_local": "2026-08-30 14:15",
-  "run_finished_local": "2026-08-30 ~16:05",
+  "run_finished_local": "2026-08-30 15:40",
   "runtime_face": {
     "branch": "PRE0-8.30",
     "commit_at_launch": "b463f87f5edafd30f5fcdbf83c60a8ca7e1ad672",
