@@ -1023,6 +1023,17 @@ class ReasoningAgent:
             trace[-1]["diagnostic_reasons"] = list(budget["diagnostic_reasons"])
             return {"final_response":"未能生成有效数学答案。","trace":trace, "extracted_answer": ""}
         best = self._select_candidate(candidates)
+        if self.config.enable_gsa_aggregation:
+            aggregated = next(
+                (
+                    candidate for candidate in reversed(candidates)
+                    if any(e.get("source") == "gsa_aggregate" for e in candidate.get("evidence", []))
+                ),
+                None,
+            )
+            if aggregated is not None:
+                best = aggregated
+                best["selection_basis"] = "gsa_aggregate"
 
         # ── P3: step verification + targeted revision ──
         if self.config.enable_step_verification and best.get("solution"):

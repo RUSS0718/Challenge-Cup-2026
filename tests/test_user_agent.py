@@ -1161,11 +1161,11 @@ class SubmissionProfileTest(unittest.TestCase):
             "备选推导一。\n最终答案：7",
             "标准推导二。\n最终答案：7",
             "标准推导三。\n最终答案：8",
-            "最终答案：7\n前两份推导一致且正确。",
+            "最终答案：9\n独立复核后发现多数候选遗漏了边界条件。",
         ])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
-        self.assertEqual("7", result["extracted_answer"])
+        self.assertEqual("9", result["extracted_answer"])
         self.assertEqual(4, len(client.calls))
         self.assertTrue(any(e.get("step") == "gsa_aggregate" for e in result["trace"]))
         reasoners = [
