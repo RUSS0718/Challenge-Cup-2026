@@ -1,0 +1,54 @@
+{
+  "layer_registry": "P1 run files (LOCAL_CACHE_ONLY; repo stores this registry + manifests)",
+  "built_utc": "2026-08-30",
+  "components": [
+    {
+      "component": "core120_v2_math500",
+      "idx_range": [
+        0,
+        49
+      ],
+      "count": 50
+    },
+    {
+      "component": "core120_v2_olympmath40",
+      "idx_range": [
+        50,
+        89
+      ],
+      "count": 40
+    },
+    {
+      "component": "confirm_aim2024_anchor",
+      "idx_range": [
+        90,
+        119
+      ],
+      "count": 30
+    }
+  ],
+  "files": {
+    "core120_v2.jsonl": {
+      "sha256": "8ef71002eca001321ecc6c461ac5f70900f1b9d8e999f5e5c921fb0b90684cc7",
+      "items": 120
+    },
+    "confirm_aim2024_anchor.jsonl": {
+      "sha256": "277f40227f1cfbcbe15511261a21833ffaf2d8632fbc7b862fd12c8e328e5a85",
+      "items": 30
+    },
+    "confirm30_v2_aim2025.jsonl": {
+      "sha256": "ab850c8e8e2d37a8862b5d7ee38029ceb5dd14f43e313a3e8cbf97e2864af8f4",
+      "items": 30
+    },
+    "robust180_v2_selection.jsonl": {
+      "sha256": "695d9e8bc25178ba96b29a10a6bbf1bde359ce5c889c2b5c446378f9e2203b60",
+      "items": 180
+    },
+    "robust_smoke_2seeds.jsonl": {
+      "sha256": "d2c144990b70f095e31b05376dfac549eefd888ab002418b9a1dbefb9e476a1b",
+      "items": 18
+    }
+  },
+  "baseline_runtime": "hetero_k5 profile (operational_baseline_hetero_k5_25f99b5.json); executed via runner arm baseline_hetero on PRE0-8.30 line (PARITY-backed)",
+  "fresh63_v1": "SEALED — not built, not downloaded (spec §8)"
+}

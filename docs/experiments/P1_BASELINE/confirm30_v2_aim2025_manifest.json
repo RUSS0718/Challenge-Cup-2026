@@ -1,0 +1,406 @@
+{
+  "layer": "confirm30_v2_aim2025",
+  "built_utc": "2026-08-30T09:55:37.044197+00:00",
+  "upstream": {
+    "repo": "math-ai/aime25",
+    "revision": "563bb8404243c5f09de6ec262f2db674fe5bce9b",
+    "file": "test.jsonl",
+    "license": "Apache-2.0 (per HF card; MAA re-licensing chain unverified — cache-only)"
+  },
+  "raw_file_sha256": {
+    "test.jsonl": "b4e273c02d3e7fe1b74b59eae768fc8230bfb0f79539890cb56f4361caac0331"
+  },
+  "selection": {
+    "seed": null,
+    "rules": "full 30, no sampling; independent-year confirm",
+    "figure_flagged_ids": [
+      "9",
+      "10",
+      "17",
+      "19",
+      "20"
+    ]
+  },
+  "static_gates": {
+    "ids_unique": true,
+    "gold_integer": true,
+    "pool_dedup": "30 unique",
+    "gold_self_score": "integer exact"
+  },
+  "run_dataset_sha256": "ab850c8e8e2d37a8862b5d7ee38029ceb5dd14f43e313a3e8cbf97e2864af8f4",
+  "run_dataset_local_path": "tmp\\p1_data\\run\\confirm30_v2_aim2025.jsonl",
+  "item_count": 30,
+  "selection_records_no_problem_text": [
+    {
+      "idx": 0,
+      "source_id": "0",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "0",
+      "answer_type": "integer",
+      "problem_sha256": "d88e491dfffa85c92c94449f2833f678ce38b45e66e9020db262d7d5420116e3",
+      "gold_sha256": "ff5a1ae012afa5d4c889c50ad427aaf545d31a4fac04ffc1c4d03d403ba4250a",
+      "flags": []
+    },
+    {
+      "idx": 1,
+      "source_id": "1",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "1",
+      "answer_type": "integer",
+      "problem_sha256": "b0a2866832dd14d30e0056bf09eef22a9758acfad885697b7e5ed13367d7c000",
+      "gold_sha256": "a917ca757ac59f9d568616140c2f72362fc2722ab277e7b5019008f280f17beb",
+      "flags": []
+    },
+    {
+      "idx": 2,
+      "source_id": "2",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "2",
+      "answer_type": "integer",
+      "problem_sha256": "b1219c75697ac1af621d8a0baac5b22f850baf6ef5a4009e2357b460a1956f4c",
+      "gold_sha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+      "flags": []
+    },
+    {
+      "idx": 3,
+      "source_id": "3",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "3",
+      "answer_type": "integer",
+      "problem_sha256": "beeca07e097c9b9af9baa04bc315f941ab1d2884bd34c512689d8eae06495f58",
+      "gold_sha256": "2ac878b0e2180616993b4b6aa71e61166fdc86c28d47e359d0ee537eb11d46d3",
+      "flags": []
+    },
+    {
+      "idx": 4,
+      "source_id": "4",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "4",
+      "answer_type": "integer",
+      "problem_sha256": "ca19df9b678432fe098256d307f0a6a0567e5d4a8683124c004e26ebeb793c7c",
+      "gold_sha256": "efd96aedf377e20afd95285a7c751a864260bd6a149656a4040c5b7757bdbbb6",
+      "flags": []
+    },
+    {
+      "idx": 5,
+      "source_id": "5",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "5",
+      "answer_type": "integer",
+      "problem_sha256": "cf4e35766cafb58111ee0cc5272c570a546f7999a95588c23a5c613ab8e2cf40",
+      "gold_sha256": "ba689abd93c9c6a7d08b5b5c04dd27f6d69755ebe9a87fb969e73dfc11660e38",
+      "flags": []
+    },
+    {
+      "idx": 6,
+      "source_id": "6",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "6",
+      "answer_type": "integer",
+      "problem_sha256": "285e5aa4a67f0ef2def2f1d659f9f18e7dd29856bdb44e8f3407ac1bf3977818",
+      "gold_sha256": "af5422f824076084bed9b8a09086ac59f0ed8c74eea7b189d2809b198ba1f6ee",
+      "flags": []
+    },
+    {
+      "idx": 7,
+      "source_id": "7",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "7",
+      "answer_type": "integer",
+      "problem_sha256": "4d68b0232ef30ba8b12d9417009688a4b9b33b032bb14b314e6476da81d88ed6",
+      "gold_sha256": "a88a7902cb4ef697ba0b6759c50e8c10297ff58f942243de19b984841bfe1f73",
+      "flags": []
+    },
+    {
+      "idx": 8,
+      "source_id": "8",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "8",
+      "answer_type": "integer",
+      "problem_sha256": "257ed90c569d9d0b830c57378fa4a48ed3c3e5959cafd9eb92251720d63af06b",
+      "gold_sha256": "81b8a03f97e8787c53fe1a86bda042b6f0de9b0ec9c09357e107c99ba4d6948a",
+      "flags": []
+    },
+    {
+      "idx": 9,
+      "source_id": "9",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "9",
+      "answer_type": "integer",
+      "problem_sha256": "2582b1da9f2be0d406199b353437b04181045b235e24a3508596614a921e1ee1",
+      "gold_sha256": "5316ca1c5ddca8e6ceccfce58f3b8540e540ee22f6180fb89492904051b3d531",
+      "flags": [
+        "figure_asy"
+      ]
+    },
+    {
+      "idx": 10,
+      "source_id": "10",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "10",
+      "answer_type": "integer",
+      "problem_sha256": "e01d7cd065b4389d96616be625b73a3451bc28d6f72e841af7d8ddfddcbe76e2",
+      "gold_sha256": "7c252ab334fb8fd88e8242c4972c21db9c7ce0b47c9acc4ebfe40c14614cb734",
+      "flags": [
+        "figure_asy"
+      ]
+    },
+    {
+      "idx": 11,
+      "source_id": "11",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "11",
+      "answer_type": "integer",
+      "problem_sha256": "b02ffb451d68a641843d4d318c278bd4a01762ee3c48eadc8f4c82daf876da95",
+      "gold_sha256": "5e5c743a015ff8d81e2374d5bca1bdf8ed87ce18484fce8cf4062183dde08493",
+      "flags": []
+    },
+    {
+      "idx": 12,
+      "source_id": "12",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "12",
+      "answer_type": "integer",
+      "problem_sha256": "8dddd64a8df21df302ea4973e4ab25f94f79648366848a5f648c5ebfa7a5bf0f",
+      "gold_sha256": "fc56dbc6d4652b315b86b71c8d688c1ccdea9c5f1fd07763d2659fde2e2fc49a",
+      "flags": []
+    },
+    {
+      "idx": 13,
+      "source_id": "13",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "13",
+      "answer_type": "integer",
+      "problem_sha256": "32d85f9b420934e0c1c9e1bc50961d667edfc0344fbe4502f693b52307f32fc6",
+      "gold_sha256": "39fa9ec190eee7b6f4dff1100d6343e10918d044c75eac8f9e9a2596173f80c9",
+      "flags": []
+    },
+    {
+      "idx": 14,
+      "source_id": "14",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "14",
+      "answer_type": "integer",
+      "problem_sha256": "c5f97c50a9f9300b2bf8d276772de57987ab1695d80362c0ab8721d47276374b",
+      "gold_sha256": "1a42d5267aba37d7057cadd672fefef04771be2476eeee231d6f56a8e1f57733",
+      "flags": []
+    },
+    {
+      "idx": 15,
+      "source_id": "15",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "15",
+      "answer_type": "integer",
+      "problem_sha256": "d0c6936c2c8ff4cd23c7dbaac76a66d3d2f090afdd7051bf28baa1e8aa0450f1",
+      "gold_sha256": "1e5ee5e58c8f490ae68e7e91b1575ebefc2bf6c211f302a553ff0c4925e85321",
+      "flags": []
+    },
+    {
+      "idx": 16,
+      "source_id": "16",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "16",
+      "answer_type": "integer",
+      "problem_sha256": "6eefd2b7db32ba9846383433de2691d9c74454a90ce56e8e577c0f27ea702ba2",
+      "gold_sha256": "0e17daca5f3e175f448bacace3bc0da47d0655a74c8dd0dc497a3afbdad95f1f",
+      "flags": []
+    },
+    {
+      "idx": 17,
+      "source_id": "17",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "17",
+      "answer_type": "integer",
+      "problem_sha256": "558f4e407a2c2044eeed9a65fd9ef28276f62440680b7cfdf050881a7420f4b8",
+      "gold_sha256": "a46e37632fa6ca51a13fe39a567b3c23b28c2f47d8af6be9bd63e030e214ba38",
+      "flags": [
+        "figure_asy"
+      ]
+    },
+    {
+      "idx": 18,
+      "source_id": "18",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "18",
+      "answer_type": "integer",
+      "problem_sha256": "3d86ebcb143ccd87524961b435b6bd8cc8887dcd021df0f77d50488c3c530ee0",
+      "gold_sha256": "482d9673cfee5de391f97fde4d1c84f9f8d6f2cf0784fcffb958b4032de7236c",
+      "flags": []
+    },
+    {
+      "idx": 19,
+      "source_id": "19",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "19",
+      "answer_type": "integer",
+      "problem_sha256": "f748238173d49fd85dea6ca1c8b70b2ee42758c3e10dd073532d709e17032d3e",
+      "gold_sha256": "eaa0689a095d4394a05fb51b84b0175a47f68221261377e4829444cbfcae23ca",
+      "flags": [
+        "figure_asy"
+      ]
+    },
+    {
+      "idx": 20,
+      "source_id": "20",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "20",
+      "answer_type": "integer",
+      "problem_sha256": "73de78b03e5e08bdf7d831de76767570949eccfb365cf2cd173da318967a52c9",
+      "gold_sha256": "7cb676d57114874e00c536916e6dcad2a5d3cb8c9a5abc06335df359cd9a6ef9",
+      "flags": [
+        "figure_asy"
+      ]
+    },
+    {
+      "idx": 21,
+      "source_id": "21",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "21",
+      "answer_type": "integer",
+      "problem_sha256": "65d79c7ad176d1c39a94069b4548e24eddcd9249d03edef0650f6cca93cc9090",
+      "gold_sha256": "f0bc318fb8965cad8d73d578cd03c63b7987dc6a79b906aada091e1b6a13443f",
+      "flags": []
+    },
+    {
+      "idx": 22,
+      "source_id": "22",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "22",
+      "answer_type": "integer",
+      "problem_sha256": "20c392e925e29d15df2a5c64aaaa7838f47263060d8c8e81bfdf6e253f268ead",
+      "gold_sha256": "01ce4b291ad3ecd240be71870340051b755e74e91e05d5c5baa0d7830c1b75d4",
+      "flags": []
+    },
+    {
+      "idx": 23,
+      "source_id": "23",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "23",
+      "answer_type": "integer",
+      "problem_sha256": "0d502f288d070d0beb8a72d5a65771108b8507372ea4fb68871891a9bce54669",
+      "gold_sha256": "05ada863a4cf9660fd8c68e2295f1d35b2264815f5b605003d6625bd9e0492cf",
+      "flags": []
+    },
+    {
+      "idx": 24,
+      "source_id": "24",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "24",
+      "answer_type": "integer",
+      "problem_sha256": "0755bf7fbfbd623c40cebf6423d1368211c4fdd772d6b9a7e31a7427d7644f11",
+      "gold_sha256": "c8c9cad7b920b50f713830b8dc55f59fffbbad98335d9f30e0bca8fab5dfeedd",
+      "flags": []
+    },
+    {
+      "idx": 25,
+      "source_id": "25",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "25",
+      "answer_type": "integer",
+      "problem_sha256": "60d1f8f7e634a4436b3f0dc4d029f2a36b88c8b02e40c4f1385933eda7f6a695",
+      "gold_sha256": "6c658ee83fb7e812482494f3e416a876f63f418a0b8a1f5e76d47ee4177035cb",
+      "flags": []
+    },
+    {
+      "idx": 26,
+      "source_id": "26",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "26",
+      "answer_type": "integer",
+      "problem_sha256": "5793d20cc788e656f137a5a5ff4419bab23714441b5b51eb84c28331b917ff3c",
+      "gold_sha256": "9400f1b21cb527d7fa3d3eabba93557a18ebe7a2ca4e471cfe5e4c5b4ca7f767",
+      "flags": []
+    },
+    {
+      "idx": 27,
+      "source_id": "27",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "27",
+      "answer_type": "integer",
+      "problem_sha256": "09ec455b0f181e8659e5cd398129107cad1f9f80b4959143d8f15c649a986c84",
+      "gold_sha256": "766cb53c753baedac5dc782593e04694b3bae3aed057ac2ff98cc1aef6413137",
+      "flags": []
+    },
+    {
+      "idx": 28,
+      "source_id": "28",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "28",
+      "answer_type": "integer",
+      "problem_sha256": "70763bd485a15a293893e5ef26bb5076233bbbf08b4687a58f5209241cd3309d",
+      "gold_sha256": "5ef6fdf32513aa7cd11f72beccf132b9224d33f271471fff402742887a171edf",
+      "flags": []
+    },
+    {
+      "idx": 29,
+      "source_id": "29",
+      "subject": "AIME",
+      "level": "competition",
+      "language": null,
+      "problem_group_id": "29",
+      "answer_type": "integer",
+      "problem_sha256": "8c9367be95353ac8f24a7dc540a4f3d1f626bba8d5c75d102606a8096147b23a",
+      "gold_sha256": "6af1f692e9496c6d0b668316eccb93276ae6b6774fa728aac31ff40a38318760",
+      "flags": []
+    }
+  ],
+  "note": "LOCAL_CACHE_ONLY: problem/gold text lives only in tmp/p1_data/ (user decision P1_DATA)"
+}
