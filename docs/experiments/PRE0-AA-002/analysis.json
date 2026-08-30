@@ -1,7 +1,7 @@
 {
   "manifest": {
     "experiment": "PRE0-AA-002",
-    "analyzed_utc": "2026-08-30T05:27:06.226300+00:00",
+    "analyzed_utc": "2026-08-30T06:14:04.907301+00:00",
     "dataset_sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
     "recorded_input_files": [
       "D:/project/challenge_cup_2026/Challenge-Cup-2026/docs/experiments/PRE0-AA-001/aa24_dataset.jsonl"
@@ -25,10 +25,66 @@
       ]
     },
     "schedule_seeds": {
-      "1": 8301,
-      "2": 8302
+      "1": 8401,
+      "2": 8402
     },
-    "timeout_seconds": 180
+    "first_arm_reconstruction": "runner shuffles items with random.Random(seed) then rotates first arm by shuffled position; rebuilt from dataset file order + frozen seed (audit fix S3)",
+    "first_arm_by_round": {
+      "1": {
+        "19": "aa_left",
+        "10": "aa_right",
+        "11": "aa_left",
+        "3": "aa_right",
+        "23": "aa_left",
+        "22": "aa_right",
+        "13": "aa_left",
+        "15": "aa_right",
+        "21": "aa_left",
+        "4": "aa_right",
+        "20": "aa_left",
+        "16": "aa_right",
+        "14": "aa_left",
+        "7": "aa_right",
+        "17": "aa_left",
+        "9": "aa_right",
+        "18": "aa_left",
+        "12": "aa_right",
+        "6": "aa_left",
+        "1": "aa_right",
+        "5": "aa_left",
+        "0": "aa_right",
+        "8": "aa_left",
+        "2": "aa_right"
+      },
+      "2": {
+        "3": "aa_right",
+        "13": "aa_left",
+        "10": "aa_right",
+        "17": "aa_left",
+        "8": "aa_right",
+        "9": "aa_left",
+        "16": "aa_right",
+        "18": "aa_left",
+        "20": "aa_right",
+        "19": "aa_left",
+        "5": "aa_right",
+        "6": "aa_left",
+        "15": "aa_right",
+        "1": "aa_left",
+        "2": "aa_right",
+        "14": "aa_left",
+        "12": "aa_right",
+        "11": "aa_left",
+        "0": "aa_right",
+        "7": "aa_left",
+        "23": "aa_right",
+        "4": "aa_left",
+        "21": "aa_right",
+        "22": "aa_left"
+      }
+    },
+    "timeout_seconds": 180,
+    "dataset_sha256_override": null
   },
   "gates": {
     "gate1_completeness": true,
@@ -160,11 +216,11 @@
       "dominance": false,
       "first_arm_table": {
         "left_first": {
-          "left_wins": 0,
+          "left_wins": 1,
           "right_wins": 1
         },
         "right_first": {
-          "left_wins": 1,
+          "left_wins": 0,
           "right_wins": 0
         }
       },

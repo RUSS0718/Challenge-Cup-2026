@@ -421,6 +421,7 @@ def solve_one(variant: Variant, item: dict, timeout: int, retry: int, temperatur
     gate_rejected = [entry for entry in trace if entry.get("step") == "gated_retry_rejected"]
     return {
         "idx": item.get("idx"),
+        "final_response": result.get("final_response"),
         "problem_type": ptype,
         "main_finish_reason": finish[0] if finish else None,
         "retry_finish_reason": finish[1] if len(finish) > 1 else None,
@@ -551,6 +552,7 @@ def answer_rows(variant_name: str, round_no: int, input_file: str, records: list
             "main_finish_reason": record.get("main_finish_reason"),
         }
         for key in (
+            "final_response", "schedule_position",
             "final_response_nonempty", "result_status", "model_calls", "model_call_limit",
             "p3_verify_status", "p3_revise_status", "p3_reverify_status",
         ):
@@ -601,7 +603,10 @@ def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, re
 
     def work(packed):
         index, item = packed
-        return [(v.name, solve_fn(v, item)) for v in _interleave_order(index, variants)]
+        solved = [(v.name, solve_fn(v, item)) for v in _interleave_order(index, variants)]
+        for _name, record in solved:
+            record["schedule_position"] = index
+        return solved
 
     jobs = [(lambda packed=packed: work(packed)) for packed in enumerate(items)]
     for solved in _solve_jobs_bounded(jobs, workers, local_breaker):

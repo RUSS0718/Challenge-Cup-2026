@@ -1,7 +1,7 @@
 {
   "manifest": {
     "experiment": "PRE0-AA-001",
-    "analyzed_utc": "2026-08-29T18:41:41.752073+00:00",
+    "analyzed_utc": "2026-08-30T06:13:45.294415+00:00",
     "dataset_sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
     "recorded_input_files": [
       "D:/project/challenge_cup_2026/Challenge-Cup-2026/docs/experiments/PRE0-AA-001/aa24_dataset.jsonl"
@@ -28,7 +28,63 @@
       "1": 8301,
       "2": 8302
     },
-    "timeout_seconds": 180
+    "first_arm_reconstruction": "runner shuffles items with random.Random(seed) then rotates first arm by shuffled position; rebuilt from dataset file order + frozen seed (audit fix S3)",
+    "first_arm_by_round": {
+      "1": {
+        "6": "aa_left",
+        "9": "aa_right",
+        "16": "aa_left",
+        "1": "aa_right",
+        "10": "aa_left",
+        "20": "aa_right",
+        "17": "aa_left",
+        "0": "aa_right",
+        "19": "aa_left",
+        "21": "aa_right",
+        "22": "aa_left",
+        "15": "aa_right",
+        "23": "aa_left",
+        "5": "aa_right",
+        "14": "aa_left",
+        "12": "aa_right",
+        "8": "aa_left",
+        "3": "aa_right",
+        "11": "aa_left",
+        "13": "aa_right",
+        "4": "aa_left",
+        "2": "aa_right",
+        "18": "aa_left",
+        "7": "aa_right"
+      },
+      "2": {
+        "6": "aa_right",
+        "1": "aa_left",
+        "21": "aa_right",
+        "2": "aa_left",
+        "22": "aa_right",
+        "11": "aa_left",
+        "9": "aa_right",
+        "8": "aa_left",
+        "0": "aa_right",
+        "12": "aa_left",
+        "7": "aa_right",
+        "3": "aa_left",
+        "10": "aa_right",
+        "5": "aa_left",
+        "14": "aa_right",
+        "17": "aa_left",
+        "4": "aa_right",
+        "20": "aa_left",
+        "19": "aa_right",
+        "18": "aa_left",
+        "13": "aa_right",
+        "15": "aa_left",
+        "23": "aa_right",
+        "16": "aa_left"
+      }
+    },
+    "timeout_seconds": 180,
+    "dataset_sha256_override": null
   },
   "gates": {
     "gate1_completeness": true,
@@ -103,11 +159,13 @@
         "aa_left": {
           "mean_calls": 3.9166666666666665,
           "mean_tokens": 4706.25,
+          "mean_latency": 114.04243750000005,
           "p95_latency": 241.554
         },
         "aa_right": {
           "mean_calls": 4.020833333333333,
           "mean_tokens": 4493.3125,
+          "mean_latency": 105.3746875,
           "p95_latency": 183.4
         }
       },
@@ -116,11 +174,13 @@
           "aa_left": {
             "mean_calls": 3.8333333333333335,
             "mean_tokens": 4824.0,
+            "mean_latency": 117.56979166666667,
             "p95_latency": 241.554
           },
           "aa_right": {
             "mean_calls": 4.041666666666667,
             "mean_tokens": 4488.166666666667,
+            "mean_latency": 102.65887499999997,
             "p95_latency": 175.826
           }
         },
@@ -128,11 +188,13 @@
           "aa_left": {
             "mean_calls": 4.0,
             "mean_tokens": 4588.5,
+            "mean_latency": 110.51508333333332,
             "p95_latency": 196.653
           },
           "aa_right": {
             "mean_calls": 4.0,
             "mean_tokens": 4498.458333333333,
+            "mean_latency": 108.09049999999996,
             "p95_latency": 191.57
           }
         }
@@ -140,8 +202,15 @@
       "ratios_right_over_left": {
         "mean_calls": 1.0265957446808511,
         "mean_tokens": 0.9547543160690571,
+        "mean_latency": 0.9239953986427197,
         "p95_latency": 0.7592505195525638
-      }
+      },
+      "gated_metrics": [
+        "mean_calls",
+        "mean_tokens",
+        "p95_latency"
+      ],
+      "latency_stat": "p95"
     },
     "order_bias": {
       "dominance": false,

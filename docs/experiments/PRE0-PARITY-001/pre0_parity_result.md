@@ -60,6 +60,14 @@ ANSWER_ONLY_POLICY_PROMPT` 全部可用，无缺失。
   `signatures_{release,experiment}_run{1,2}.json`、
   `scripts/pre0_parity_harness.py`、`scripts/pre0_parity_runner.py`。
 
+## 4a. 审核后状态（2026-08-30）
+
+- 本窗工件记录的两面 reverify 未决语义分歧，按上位 spec"除预注册变量外签名
+  完全一致"的口径**不能算 PASS**——审核判定为部分完成。
+- fail-closed 修复已进本地 main，但**尚未对当前 HEAD ↔ 实际 release candidate
+  （gitcode 46c08dd 单体）重新生成签名**；该重跑为零模型调用，列入协议确认后的
+  收敛动作。
+
 ## 5. 明确不做
 
 - 零模型调用；不 commit、不 push、不改 `SUBMISSION_CONFIG`；

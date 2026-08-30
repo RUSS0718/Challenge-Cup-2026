@@ -24,9 +24,15 @@
     }
   },
   "runtime_face": {
-    "branch": "PRE0-8.30",
-    "commit": "99bb587 (llm_client request-deadline guard + EXT attempt-1 artifacts)",
+    "attempt_1_worktree": ".worktrees/main-integration-20260829 (39fcd12 + fail-closed/aa-arm/schedule-seed patches, now archived)",
+    "attempts_2a_2b_branch": "PRE0-8.30",
+    "attempt_2b_commit": "99bb587 (llm_client request-deadline guard + EXT attempt-1 artifacts)",
+    "attempt_2b_dirty": false,
     "base": "main 7779ab7 (integration line merged: reasoning_agent package + fail-closed reverify + aa arms + schedule-seed)"
+  },
+  "environment": {
+    "python": "3.10.20", "sympy": "1.14.0", "requests": "2.34.2", "math_verify": "0.8.0 (local eval only)",
+    "endpoint": "intern-s2-preview-397b via chat.intern-ai.org.cn (INTERN_API_KEY present, never stored)"
   },
   "arm": {
     "name": "baseline_hetero",
@@ -48,6 +54,19 @@
   "judgement": {
     "contract": "evaluate_dev.judge_correct (frozen)",
     "native": "math-verify 0.8.0, verify(gold, pred), parse $-wrapped, timeouts disabled (Windows)"
+  },
+  "artifacts": {
+    "dataset": {"path": "tmp/pre0_ext_001/cache/ext12_run.jsonl", "sha256": "451cb2cb1f932805694706051f04c1217cb50a0f77d4f8c05ea4addca640abcf"},
+    "attempt1_answers": {"path": "docs/experiments/PRE0-EXT-001/pre0_ext_answers.jsonl", "sha256": "2486ce6f2527523a3195f64be6fbd4c40510da85cc3449d837abb960f093b059"},
+    "attempt1_report": {"path": "docs/experiments/PRE0-EXT-001/pre0_ext_report.json", "sha256": "5ca1409bc1e8199fbd4630b617caf4916eef1aebf44f10febfbd7e6febeb3991"},
+    "attempt2a_answers_aborted": {"path": "docs/experiments/PRE0-EXT-001/pre0_ext_answers_attempt2a_aborted_collided.jsonl", "sha256": "ee587c881e51215ebaeb0a5b13062cec2c51e98b68ff565a14c64d2712b3fc3f"},
+    "attempt2b_answers": {"path": "docs/experiments/PRE0-EXT-001/pre0_ext_answers_attempt2b.jsonl", "sha256": "56f89660f2e1cce2f0b2d1bf4a3a31b21dd0fa930b50bf16449044f13c70fb2c"},
+    "attempt2b_report": {"path": "docs/experiments/PRE0-EXT-001/pre0_ext_report_attempt2b.json", "sha256": "607f5c330a38c0061f97de33549e25e8580852cc3864f45b023131b2640ac9f3"}
+  },
+  "budget_discipline_post_audit": {
+    "upper_spec_cap": "540 model calls total for Pre-P0 (one AA window + one EXT window)",
+    "actual": "939 archived (AA-001 381 + AA-002 385 + EXT a1 53 + 2a 60 + 2b 60) plus unarchived duplicate-process calls (11:01-11:33 relaunch, killed)",
+    "status": "EXCEEDED — original budget/exit gate cannot sign off Pre-P0; documented, not repeatable without amendment"
   },
   "api_key_stored": false
 }

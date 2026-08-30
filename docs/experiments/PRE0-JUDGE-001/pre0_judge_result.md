@@ -26,7 +26,7 @@
 | 门 | 内容 | J1 contract | J2 hendrycks | J3 math_verify |
 | --- | --- | --- | --- | --- |
 | 1 | gold self-score（双形态 gold_response） | 120/120 | 120/120 | 120/120 |
-| 2 | non_equivalent 假阳性 | 0 | 0 | 0 |
+| 2 | non_equivalent 假阳性（冻结语料范围） | 0 | 0 | 0 |
 | 3 | unparseable fail-closed 且无异常外泄 | ✓（26 例） | ✓（60 例） | ✓（48 例） |
 | 4 | ARH 双形态 canonical 一致 | 120/120 无失败（三 judge 共同前置，位置抽取 vs last-boxed 抽取归一后全等） | | |
 
@@ -63,8 +63,11 @@ equivalent 类上的低覆盖点（correct/total）与主要差集：
 | 百分比转义剥除 | `25%` | `0.25\%` | unknown | incorrect | incorrect |
 | 单位错配（cm vs m） | `15\text{ cm}` | `15\text{ m}` | unknown | **correct** | **correct** |
 
-结论：**单位错配在本仓任何口径下都不可靠**（J2 remove_right_units 与 J3 归一化
-都把单位剥掉只剩数值）。core120_v2 选题必须避免"同数值不同单位"的题面/金标；
+结论（审核修正措辞）：**单位错配在本仓任何口径下都不可靠**——J2
+remove_right_units 与 J3 归一化都把单位剥掉只剩数值，**两者在单位错配上实测产生
+假阳性**（boundary probe 判 correct）。因此正确表述不是"J3 零假阳性"，而是：
+**单位题型不受支持、必须排除出冻结集**；门 2 的"零假阳性"仅对冻结语料的
+非单位类型成立。core120_v2 选题必须避免"同数值不同单位"的题面/金标；
 若无法避免，该类答案只走 contract 口径并按 unknown 计。
 
 ## 5. 对下游的输入

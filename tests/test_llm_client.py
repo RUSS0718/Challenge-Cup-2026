@@ -84,10 +84,6 @@ class InternChatClientTest(unittest.TestCase):
         self.assertFalse(post.call_args.kwargs["data"].find(b'"thinking_mode": false') < 0)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class RequestDeadlineTest(unittest.TestCase):
     """PRE0-EXT-001 amendment A1: opt-in wall-clock deadline kills stalls."""
 
@@ -120,6 +116,44 @@ class RequestDeadlineTest(unittest.TestCase):
             client = InternChatClient(timeout=30, retry=1)
         self.assertIsNone(client.request_deadline)
         self.assertEqual(0, client.deadline_exceeded_count)
+
+    def test_zombie_completion_never_pollutes_ordered_telemetry(self):
+        """Audit finding #4: a request that completes AFTER the deadline fired
+        must not append to finish_reasons/raw_contents/latencies — those lists
+        are sliced per solve by the runners, so a late success would shift
+        every subsequent record."""
+        import requests as real_requests
+
+        response = unittest.mock.Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "choices": [{"finish_reason": "stop", "message": {"content": "late"}}],
+            "usage": {"completion_tokens": 9},
+        }
+
+        def _late_reply(*args, **kwargs):
+            time.sleep(0.8)  # far past the 0.15s deadline
+            return response
+
+        with _patch_env(INTERN_API_KEY="test", INTERN_REQUEST_DEADLINE_SECONDS="0.15"):
+            client = InternChatClient(timeout=30, retry=1)
+        with patch("llm_client.requests.post", side_effect=_late_reply):
+            with self.assertRaisesRegex(ChatClientError, "timeout"):
+                client.chat(messages=[{"role": "user", "content": "hi"}])
+        # telemetry slices still empty immediately after the timeout
+        self.assertEqual([], client.finish_reasons)
+        self.assertEqual([], client.latencies)
+        self.assertEqual([], client.raw_contents)
+        time.sleep(1.2)  # let the zombie finish writing (it must not)
+        self.assertEqual([], client.finish_reasons)
+        self.assertEqual([], client.latencies)
+        self.assertEqual([], client.raw_contents)
+        self.assertEqual(1, client.deadline_exceeded_count)
+        self.assertEqual(1, client.orphan_completions)
+        # a subsequent healthy call appends at index 0, unaffected by the zombie
+        with patch("llm_client.requests.post", return_value=response):
+            self.assertEqual("late", client.chat(messages=[{"role": "user", "content": "hi"}]))
+        self.assertEqual(["stop"], client.finish_reasons)
 
 
 if __name__ == "__main__":

@@ -4,8 +4,10 @@
 - 选题：OlymMATH 首发 revision `5f83d12`，12 唯一问题（easy/hard 各 6、四领域各 3、
   ZH/EN 各 6、无同题跨语言），seed 20260830；manifest：
   [`selection_manifest.json`](selection_manifest.json)
-- 判定：**PASS（attempt-2b）**——门 1–4 全过；attempt-1 健康失败按预注册 §5
-  复跑一次后通过。
+- 判定（2026-08-30 审核修正）：**描述性证据有效，但不合规关闭**——预注册限定
+  恰好一次复跑，实际发生 attempt-1 失败 + 2a（完整运行后被并发污染）+ 2b，
+  超出复跑额度；2b 的 12/12 零错误与 native 12/12 verdict 保留为链路描述证据，
+  不回填为原窗口合规 PASS。是否以新 ID 重跑由协议变更确认决定。
 
 ## 1. 运行历史
 
@@ -34,6 +36,10 @@
 
 - 外部题端到端链路（hf-mirror 拉取 → revision 固定 → 静态验收（400/400 gold
   self-score）→ 求解 → native/contract 双口径落盘）**可复现**；
+- **判分输入缺口（审核 S1）**：本窗双口径读取的是 Agent 内部 `extracted_answer`，
+  不是从 `final_response` 重新外部抽取——不能证明 ARH/官方输出契约可判。
+  runner 已改为在 compact answers 记录 `final_response`（未来窗生效）；
+  本窗 2b 工件无此字段，不可回补。
 - 本地客户端停摆护栏（`INTERN_REQUEST_DEADLINE_SECONDS`）经真实停摆场景验证
   有效，后续模型窗默认启用；
 - attempt-1/2a 的事故与处置已按 §8 Amendment A1 记录，工件全部保留

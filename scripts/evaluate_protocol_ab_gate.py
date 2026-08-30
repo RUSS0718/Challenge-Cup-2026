@@ -1,11 +1,34 @@
-"""Gate two-round protocol A/B reports before any default-path promotion."""
+"""Gate two-round protocol A/B reports before any default-path promotion.
+
+PRE0 audit (2026-08-30) extension: beyond the per-round comparison checks, the
+gate can now consume the window's run manifest and compact answers to verify
+the spec §4.1/§4.4 mandatory facts — pairing-key integrity (no duplicates),
+completed counts vs expected_n, per-arm model-error health gate (<=10%),
+dataset/artifact hashes, and per-round + item-cluster exact McNemar statistics.
+These integrity checks are fail-closed and separate from the promotion
+comparisons; either side failing fails the gate.
+"""
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.analyze_paired_ab import (  # noqa: E402
+    group_rows,
+    is_error_row,
+    item_cluster_counts,
+    paired_counts,
+)
+
+ERROR_RATE_THRESHOLD = 0.10
 
 
 def _parse_baseline_rounds(spec: str | None) -> dict[int, int] | None:
@@ -98,6 +121,108 @@ def check_gate(reports: list[dict[str, Any]], baseline_pairing: dict[int, int] |
     return {"passed": not failures, "failures": failures, "comparisons": comparisons}
 
 
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def check_integrity(manifest: dict[str, Any], answers_path: Path,
+                    baseline_variant: str, dataset_sha256: str | None) -> dict[str, Any]:
+    """Spec §4.1/§4.4 mandatory-field consumption; fail-closed, zero model calls."""
+    failures: list[str] = []
+    stats: dict[str, Any] = {}
+
+    artifacts = manifest.get("artifacts") or {}
+    arms_field = manifest.get("arms") or []
+    arm_names = list(arms_field) if isinstance(arms_field, dict) else list(arms_field)
+    expected_n = manifest.get("expected_n")
+    if not arm_names or expected_n is None:
+        failures.append("manifest:missing_arms_or_expected_n")
+        return {"passed": False, "failures": failures, "stats": stats}
+
+    # artifact hashes recorded in the manifest must match the actual files
+    for role in ("answers", "reports"):
+        entries = artifacts.get(role) or []
+        if isinstance(entries, dict):
+            entries = [entries]
+        for entry in entries:
+            path = entry.get("path")
+            recorded = entry.get("sha256")
+            if not path or not recorded:
+                failures.append(f"manifest:{role}:missing_path_or_sha")
+                continue
+            actual_path = REPO_ROOT / path
+            if not actual_path.is_file():
+                failures.append(f"manifest:{role}:file_missing:{path}")
+                continue
+            if sha256_file(actual_path) != recorded:
+                failures.append(f"manifest:{role}:sha_mismatch:{path}")
+
+    dataset_entry = artifacts.get("dataset") or {}
+    recorded_dataset_sha = dataset_entry.get("sha256")
+    if dataset_sha256 and recorded_dataset_sha and dataset_sha256 != recorded_dataset_sha:
+        failures.append("manifest:dataset_sha_mismatch_vs_cli")
+
+    rows = [json.loads(line) for line in answers_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    try:
+        grouped = group_rows(rows, sha_map=None)
+    except SystemExit as exc:
+        failures.append(f"answers:pairing_integrity:{exc}")
+        return {"passed": False, "failures": failures, "stats": stats}
+
+    # dataset sha override: when provided, every row's recorded hash must equal it
+    if dataset_sha256:
+        resolved = sorted({resolve_safe(row["input_file"]) for row in rows})
+        if resolved and resolved != [dataset_sha256]:
+            failures.append(f"answers:dataset_sha_unexpected:{resolved[:2]}")
+
+    counts: dict[tuple, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for (_sha, row_round, _idx, variant), row in grouped.items():
+        slot = counts[(int(row_round), variant)]
+        slot["total"] += 1
+        slot["errors"] += int(is_error_row(row))
+    for round_no in sorted({key[0] for key in counts}):
+        for arm in arm_names:
+            slot = counts.get((round_no, arm), {"total": 0, "errors": 0})
+            if slot["total"] != expected_n:
+                failures.append(f"completeness:round{round_no}:{arm}:completed={slot['total']}:expected={expected_n}")
+            rate = slot["errors"] / expected_n if expected_n else 0.0
+            if rate > ERROR_RATE_THRESHOLD:
+                failures.append(f"health:round{round_no}:{arm}:error_rate={rate:.3f}")
+    stats["completed_counts"] = {f"r{r}:{a}": counts[(r, a)]["total"] for (r, a) in sorted(counts)}
+    stats["error_counts"] = {f"r{r}:{a}": counts[(r, a)]["errors"] for (r, a) in sorted(counts)}
+
+    candidates = [arm for arm in arm_names if arm != baseline_variant]
+    if len(candidates) == 1 and len(arm_names) == 2:
+        baseline = baseline_variant
+        for round_no in sorted({row["round"] for row in rows}):
+            round_rows = [row for row in rows if row["round"] == round_no]
+            try:
+                per_round = paired_counts(round_rows, baseline, candidates[0],
+                                          round_no=round_no, expected_n=expected_n)
+                stats[f"mcnemar_round{round_no}"] = {
+                    "b": per_round["b"], "c": per_round["c"], "p": per_round["mcnemar_exact_p"]}
+            except SystemExit as exc:
+                failures.append(f"pairing:round{round_no}:{exc}")
+        try:
+            cluster = item_cluster_counts(rows, baseline, candidates[0])
+            stats["item_cluster"] = {"b": cluster["b"], "c": cluster["c"],
+                                     "ties": cluster["ties"], "p": cluster["sign_test_exact_p"]}
+        except SystemExit as exc:
+            failures.append(f"pairing:cluster:{exc}")
+
+    return {"passed": not failures, "failures": failures, "stats": stats}
+
+
+def resolve_safe(input_file: str) -> str:
+    """Best-effort dataset hash resolution that never hard-fails the audit trail."""
+    try:
+        from scripts.analyze_paired_ab import resolve_dataset_sha256
+
+        return resolve_dataset_sha256(input_file)
+    except SystemExit:
+        return "unresolvable"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check two-round protocol A/B promotion gates.")
     parser.add_argument("report", type=Path)
@@ -105,6 +230,12 @@ def main() -> None:
                         help="Reference arm name (default: baseline86; PRE0-AA-001 may use aa_left).")
     parser.add_argument("--baseline-rounds",
                         help="Comma-separated baseline rounds paired with variant rounds 1,2, e.g. 3,4.")
+    parser.add_argument("--manifest", type=Path,
+                        help="Run manifest with mandatory artifacts/arms/expected_n fields (integrity mode).")
+    parser.add_argument("--answers", type=Path,
+                        help="Compact answers JSONL (required with --manifest).")
+    parser.add_argument("--dataset-sha256",
+                        help="Expected dataset content hash; removes dev-machine path dependence.")
     args = parser.parse_args()
     payload = json.loads(args.report.read_text(encoding="utf-8"))
     result = check_gate(
@@ -112,6 +243,15 @@ def main() -> None:
         baseline_pairing=_parse_baseline_rounds(args.baseline_rounds),
         baseline_variant=args.baseline,
     )
+    if args.manifest:
+        if not args.answers:
+            raise SystemExit("--manifest requires --answers")
+        manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+        result["integrity"] = check_integrity(manifest, args.answers, args.baseline, args.dataset_sha256)
+        result["passed"] = bool(result["passed"] and result["integrity"]["passed"])
+        result["failures"] = list(result["failures"]) + [
+            f"integrity:{failure}" for failure in result["integrity"]["failures"]
+        ]
     print(json.dumps(result, ensure_ascii=False, indent=2))
     raise SystemExit(0 if result["passed"] else 1)
 

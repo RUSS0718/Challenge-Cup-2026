@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -50,7 +51,32 @@ def parse_args(argv=None):
     parser.add_argument("--latency-stat", choices=("mean", "p95"), default="mean",
                         help="AA-002 (prereg §1): gate on mean latency; P95 stays a recorded diagnostic.")
     parser.add_argument("--window", default="PRE0-AA-001")
+    parser.add_argument("--seeds", type=int, nargs=2, default=(8301, 8302),
+                        help="Frozen schedule seeds for rounds 1 and 2 (audit fix: was hardcoded).")
+    parser.add_argument("--arm-orders", nargs=2, default=("aa_left,aa_right", "aa_right,aa_left"),
+                        help="Comma-separated arm order per round (first arm rotates by shuffled position).")
+    parser.add_argument("--dataset", type=Path, default=DATASET,
+                        help="Dataset JSONL in the exact file order the runner loaded.")
+    parser.add_argument("--dataset-sha256", default=None,
+                        help="Content hash override so analysis does not depend on dev-machine paths.")
     return parser.parse_args(argv)
+
+
+def reconstruct_first_arm(dataset_path: Path, seed: int, arm_order: list[str]) -> dict:
+    """Replicate the runner's scheduling exactly (audit finding S3).
+
+    The runner shuffles ``items`` with ``random.Random(seed).shuffle`` and then
+    rotates first arm by the SHUFFLED position (``index % len(variants)``) —
+    not by the dataset ``idx``.  Rebuilding the same permutation from the
+    dataset file order + frozen seed makes Gate 6 reproducible from artifacts.
+    """
+    items = [json.loads(line) for line in dataset_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    shuffled = list(items)
+    random.Random(seed).shuffle(shuffled)
+    first_arm_by_idx = {}
+    for position, item in enumerate(shuffled):
+        first_arm_by_idx[item["idx"]] = arm_order[position % len(arm_order)]
+    return first_arm_by_idx
 
 
 def fisher_exact_2x2(a: int, b: int, c: int, d: int) -> float:
@@ -95,9 +121,21 @@ def main(argv=None) -> None:
     report_paths = list(args.reports)
     experiment_dir = args.output_dir
     rows = [json.loads(line) for line in answers_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    # key the sha map by the exact input_file string the runner recorded
+    # key the sha map by the exact input_file string the runner recorded;
+    # --dataset-sha256 (from the run manifest) removes the dev-machine path
+    # dependency entirely (audit finding #5).
     recorded_inputs = sorted({row["input_file"] for row in rows})
-    sha_map = {input_file: resolve_dataset_sha256(input_file) for input_file in recorded_inputs}
+    if args.dataset_sha256:
+        sha_map = {input_file: args.dataset_sha256 for input_file in recorded_inputs}
+    else:
+        sha_map = {input_file: resolve_dataset_sha256(input_file) for input_file in recorded_inputs}
+    arm_orders = {number: [name.strip() for name in order.split(",")]
+                  for number, order in zip((1, 2), args.arm_orders)}
+    seeds = {1: args.seeds[0], 2: args.seeds[1]}
+    first_arm_by_round = {
+        number: reconstruct_first_arm(args.dataset, seeds[number], arm_orders[number])
+        for number in (1, 2)
+    }
     round_reports = {number: load_round_reports(path) for number, path in enumerate(report_paths, start=1)}
 
     gates: dict = {}
@@ -207,7 +245,7 @@ def main(argv=None) -> None:
             continue
         if arms[ARMS[0]] == arms[ARMS[1]]:
             continue  # tie
-        first_arm = ROUND_ARM_ORDER[number][idx % 2]
+        first_arm = first_arm_by_round[number][idx]
         winner = ARMS[0] if arms[ARMS[0]] else ARMS[1]
         side = "left_first" if first_arm == ARMS[0] else "right_first"
         win = "left_wins" if winner == ARMS[0] else "right_wins"
@@ -224,9 +262,14 @@ def main(argv=None) -> None:
         "dataset_sha256": sha_map[recorded_inputs[0]] if len(recorded_inputs) == 1 else sha_map,
         "recorded_input_files": recorded_inputs,
         "expected": {"rounds": 2, "items": EXPECTED_N, "arms": list(ARMS)},
-        "round_arm_order": ROUND_ARM_ORDER,
-        "schedule_seeds": {1: 8301, 2: 8302},
+        "round_arm_order": arm_orders,
+        "schedule_seeds": seeds,
+        "first_arm_reconstruction": ("runner shuffles items with random.Random(seed) then "
+                                     "rotates first arm by shuffled position; rebuilt from "
+                                     "dataset file order + frozen seed (audit fix S3)"),
+        "first_arm_by_round": first_arm_by_round,
         "timeout_seconds": 180,
+        "dataset_sha256_override": args.dataset_sha256,
     }
     output = {
         "manifest": manifest,

@@ -56,6 +56,8 @@ class InternChatClient:
             else _optional_float_env("INTERN_REQUEST_DEADLINE_SECONDS")
         )
         self.deadline_exceeded_count = 0
+        # Zombie completions after a deadline abandonment (diagnostic only).
+        self.orphan_completions = 0
         # P0.1: per-call finish_reason log (local diagnostic only; the official
         # client keeps its own counters).  Appended in call order for serial runs.
         self.finish_reasons: List[str] = []
@@ -126,7 +128,8 @@ class InternChatClient:
 
         raise ChatClientError(last_category, self.last_failure_type)
 
-    def _post_once(self, payload: dict, headers: dict, started: float | None = None) -> str:
+    def _post_once(self, payload: dict, headers: dict, started: float | None = None,
+                   ticket: dict | None = None) -> str:
         response = requests.post(
             self.api_base,
             headers=headers,
@@ -136,13 +139,20 @@ class InternChatClient:
         response.raise_for_status()
         data = response.json()
         choice = data["choices"][0]
-        self.finish_reasons.append(choice.get("finish_reason") or "")
         usage = data.get("usage") or {}
         try:
-            self.completion_tokens.append(int(usage.get("completion_tokens") or 0))
+            completion_tokens = int(usage.get("completion_tokens") or 0)
         except (TypeError, ValueError):
-            self.completion_tokens.append(0)
+            completion_tokens = 0
         content = choice["message"]["content"]
+        if ticket is not None and ticket.get("abandoned"):
+            # Zombie completion after the deadline already fired (audit finding #4):
+            # a late success must never append to the ordered telemetry slices that
+            # callers index per solve, or it would shift every subsequent record.
+            self.orphan_completions += 1
+            return content
+        self.finish_reasons.append(choice.get("finish_reason") or "")
+        self.completion_tokens.append(completion_tokens)
         self.raw_contents.append(content if isinstance(content, str) else "")
         self.latencies.append(time.perf_counter() - (started if started is not None else time.perf_counter()))
         return content
@@ -152,13 +162,16 @@ class InternChatClient:
 
         The attempt thread is a daemon: a stalled trickle response is abandoned
         (leaked until process exit, documented) instead of hanging the solve.
+        A zombie that completes after abandonment is counted but keeps its
+        telemetry out of the ordered lists.
         """
         box: dict = {}
+        ticket: dict = {"abandoned": False}
         started = time.perf_counter()
 
         def _run() -> None:
             try:
-                box["result"] = self._post_once(payload, headers, started)
+                box["result"] = self._post_once(payload, headers, started, ticket)
             except BaseException as exc:  # noqa: BLE001 — relayed to the caller below
                 box["error"] = exc
 
@@ -166,6 +179,7 @@ class InternChatClient:
         worker.start()
         worker.join(self.request_deadline)
         if worker.is_alive():
+            ticket["abandoned"] = True
             self.deadline_exceeded_count += 1
             raise requests.Timeout(
                 f"request_deadline_exceeded:{self.request_deadline}s"

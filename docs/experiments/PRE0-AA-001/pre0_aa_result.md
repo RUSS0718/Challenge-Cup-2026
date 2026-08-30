@@ -5,6 +5,8 @@
 - 预注册：[`preregistration.md`](preregistration.md)（含 Amendment A1：timeout 120→180s）
 - 判定：**健康；5/6 门通过；gate5（P95 latency 比值）失败 → 按预注册 §6 评测协议
   判 `BLOCKED`，不得进入 P0，需协议修正后新预注册重做**
+- 状态（2026-08-30 审核）：本窗 BLOCKED 结论维持；AA-002 是协议修复候选，
+  在上位 spec amendment 获用户批准前**不视为**原退出门的达成。
 - 运行数据：`analysis.json`、`pre0_aa_reports_r{1,2}.json`、`pre0_aa_answers.jsonl`、
   `run_manifest.json`
 
@@ -25,6 +27,9 @@
 - item-cluster（24 题 × 2 轮）：**b=0, c=0, ties=24, p=1.0**——两配置在每道题上的
   两轮合计正确次数完全一致；聚类正确总数 29 = 29。
 - 首运行臂 × 获胜臂 Fisher exact p ≈ 1.0：无题型/顺序系统性关联。
+  （2026-08-30 审核修正：首臂归属按冻结 seed 重构 shuffle 后位置重算——
+  修正后 4 个决定性 item-round 完美均衡（left_first {l:1,r:1} /
+  right_first {l:1,r:1}），结论不变。）
 - 正确率层面的 A/A 一致性极强：任何真实候选与 baseline_hetero 的差异若超过
   上述噪声带，即可信。
 

@@ -1,42 +1,72 @@
 {
   "experiment": "PRE0-AA-002",
-  "window_type": "model calibration (protocol-repaired A/A; no capability conclusion)",
+  "window_type": "model calibration (protocol-repair candidate; NOT an approved spec amendment yet)",
+  "run_id": "PRE0-AA-002",
   "run_started_local": "2026-08-30 12:12",
   "run_finished_local": "2026-08-30 13:31",
   "runtime_face": {
     "branch": "PRE0-8.30",
-    "commit_at_launch": "ff.. (EXT-2b docs commit; llm_client deadline guard included)",
-    "note": "experiment face == release face since integration merge into main (user commit d84be6e/7779ab7); PARITY equivalence was established on the same patch set"
+    "commit_at_launch": "9f08bcad37d38602d2538333d56b15f2298a5bc1 (9f08bca)",
+    "dirty_at_run": false,
+    "code_sha256_at_run": {
+      "scripts/evaluate_protocol_ab.py": "df556d186df419cd0421b0177ee4a5229b8e41ea0c3a993ab76f053e56b42389",
+      "user_agent.py (facade)": "03dae85a764a00746420b50460321c1b4c5c2620e9ba62164dbcbebb73308d2a",
+      "reasoning_agent/policy.py (prompts)": "274114d6d7494555f48bd9fba377ef9df8ba6e43f1ed2d1c3ff0dafe184fc0ad",
+      "reasoning_agent/runtime.py (fail-closed reverify restored)": "199e9c6a83d60441a0faf8dd2c409e86cd155c5039dbb1af592567b5f1b67b0d",
+      "scripts/evaluate_dev.py (judge)": "216d525814987d659d34a5f4cd6d0c1f7afd4a579dc4a3469ad2b842091b05b9",
+      "llm_client.py": "ca105cb86111e13311f609a1c401ad0ad89f0f2624c13e4dc404a1bc126cea36"
+    }
   },
-  "cli_round1": "evaluate_protocol_ab.py --variant aa_left --variant aa_right --interleave-items --input-files docs/experiments/PRE0-AA-001/aa24_dataset.jsonl --round-start 1 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8401 --output-file pre0_aa_reports_r1.json --save-answers-to pre0_aa_answers.jsonl",
-  "cli_round2": "evaluate_protocol_ab.py --variant aa_right --variant aa_left --interleave-items (same dataset) --round-start 2 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8402 --output-file pre0_aa_reports_r2.json --save-answers-to pre0_aa_answers.jsonl",
+  "environment": {
+    "python": "3.10.20",
+    "sympy": "1.14.0",
+    "requests": "2.34.2",
+    "endpoint": "intern-s2-preview-397b via chat.intern-ai.org.cn (INTERN_API_KEY present, never stored)"
+  },
+  "cli_round1": "evaluate_protocol_ab.py --variant aa_left --variant aa_right --interleave-items --input-files <repo>/docs/experiments/PRE0-AA-001/aa24_dataset.jsonl --round-start 1 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8401 --output-file docs/experiments/PRE0-AA-002/pre0_aa_reports_r1.json --save-answers-to docs/experiments/PRE0-AA-002/pre0_aa_answers.jsonl (env INTERN_REQUEST_DEADLINE_SECONDS=240)",
+  "cli_round2": "evaluate_protocol_ab.py --variant aa_right --variant aa_left --interleave-items (same dataset) --round-start 2 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8402 --output-file docs/experiments/PRE0-AA-002/pre0_aa_reports_r2.json --save-answers-to docs/experiments/PRE0-AA-002/pre0_aa_answers.jsonl (env INTERN_REQUEST_DEADLINE_SECONDS=240)",
   "arms": {
     "aa_left": "baseline_hetero config field-for-field",
     "aa_right": "identical to aa_left"
   },
+  "expected_n": 24,
   "dataset": {
-    "path": "docs/experiments/PRE0-AA-001/aa24_dataset.jsonl (frozen reuse, not rebuilt)",
+    "path_repo_relative": "docs/experiments/PRE0-AA-001/aa24_dataset.jsonl (frozen reuse, not rebuilt)",
     "sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
     "items": 24
   },
-  "schedule": {"round_arm_order": {"1": ["aa_left", "aa_right"], "2": ["aa_right", "aa_left"]},
-               "schedule_seeds": {"1": 8401, "2": 8402}},
-  "protocol_repair_vs_AA001": {
-    "gate5_latency_stat": "p95 -> mean (rationale: AA-001 measured identical-arm P95@n=48 ratio 0.759, dominated by 2-3 tail solves; mean was in-band)",
-    "stall_guard": "INTERN_REQUEST_DEADLINE_SECONDS=240 (new; symmetric across arms)",
-    "everything_else": "unchanged"
+  "schedule": {
+    "round_arm_order": {"1": ["aa_left", "aa_right"], "2": ["aa_right", "aa_left"]},
+    "schedule_seeds": {"1": 8401, "2": 8402}
+  },
+  "protocol_change_vs_AA001_and_upper_spec": {
+    "gate5_latency_stat": "P95 -> mean",
+    "status": "requires explicit upper-spec amendment + user authorization BEFORE the original Pre-P0 exit gate may be considered satisfied (audit S2); data retained as calibration evidence either way",
+    "stall_guard": "INTERN_REQUEST_DEADLINE_SECONDS=240 (new; symmetric across arms; 0 triggers)"
   },
   "resources": {
     "workers": 3, "timeout_seconds": 180, "retry": 1, "temperature": 0.6,
     "circuit_breaker": "8 consecutive model_error",
     "budget_solves": 96, "budget_model_calls": 480,
-    "actual_model_calls": 385,
-    "deadline_guard_triggers": 0
+    "actual_model_calls": 385
   },
   "health_observed": {
     "model_errors": {"round1": {"aa_left": 1, "aa_right": 0}, "round2": {"aa_left": 0, "aa_right": 0}},
     "breaker_tripped": false
   },
-  "serial_discipline": "no other local model window concurrent; EXT-2b finished 12:12 before this window started 12:12+",
+  "artifacts": {
+    "dataset": {"path": "docs/experiments/PRE0-AA-001/aa24_dataset.jsonl", "sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0"},
+    "answers": {"path": "docs/experiments/PRE0-AA-002/pre0_aa_answers.jsonl", "sha256": "432d61fee45690dde7ea2c3a7fc3b6d1a02cda78de36a9324aba020a186f95f5"},
+    "reports": [
+      {"path": "docs/experiments/PRE0-AA-002/pre0_aa_reports_r1.json", "sha256": "c8d726cf4999fda0c96ca3f202e6c4703a6757216a63e77e956d2123f79ad62d"},
+      {"path": "docs/experiments/PRE0-AA-002/pre0_aa_reports_r2.json", "sha256": "bf3288946eac0ea3e32789e602b5443c2c0f7c1d0892313066770332257f48e1"}
+    ]
+  },
+  "known_gaps_post_audit": [
+    "answers rows recorded dev-machine absolute input_file paths; analysis regenerated with --dataset-sha256 override",
+    "schedule first-arm labels recomputed from frozen seeds (audit fix S3); gate6 verdict unchanged (p=1.0)",
+    "gate6 first-arm association now reproducible from dataset + seeds (no stored schedule needed)"
+  ],
+  "serial_discipline": "EXT-2b finished 12:12 before this window started; no other local model window concurrent",
   "api_key_stored": false
 }
