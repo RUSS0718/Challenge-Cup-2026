@@ -53,7 +53,8 @@ refine 暂停；ARH 后置到正确率 winner 之后；RAG、工具、MCP、沙�
 
 ### 2.1 官方 Run 事实
 
-官方日志 `eval_log_1406d54656c746b5a00e32fa27fc5b31.log`（SHA-256
+官方日志 `official_eval_log_run7_46c08dd_2026-08-30.log`（已入库
+`docs/experiments/`；SHA-256
 `d3a5c54e0e38d4a1eef59824b57bd7f2241e9e4549061f420ef8aaab7e2c0567`）确认：
 
 - checkout tip `46c08dd8d3ba26a43e46400e37fa5e00860d563d`，runtime 父提交 `9311d8c`；
