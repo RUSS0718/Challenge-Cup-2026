@@ -1,0 +1,53 @@
+{
+  "experiment": "PRE0-EXT-001",
+  "window_type": "model calibration (no accuracy gate)",
+  "attempts": {
+    "1": {
+      "started_local": "2026-08-30 02:41",
+      "ended_local": "2026-08-30 ~09:00 (3 solves stalled ~22800s each)",
+      "cli": "evaluate_protocol_ab.py --variant baseline_hetero --input-files <ext12_run.jsonl> --rounds 1 --workers 3 --timeout-seconds 180 --output-file pre0_ext_report.json --save-answers-to pre0_ext_answers.jsonl",
+      "outcome": "12 rows, 4 model_error, 3 trickle stalls ~6.3h -> HEALTH FAILED -> preregistered single rerun (Amendment A1)",
+      "artifacts": ["pre0_ext_answers.jsonl", "pre0_ext_report.json", "pre0_ext_run.log", "ext12_dual_judgement_attempt1.json"]
+    },
+    "2a": {
+      "started_local": "2026-08-30 03:30",
+      "note": "process frozen by system sleep overnight, resumed 10:52; overlapped with an accidental duplicate launch 11:01-11:31 -> concurrent same-endpoint windows (rejected pattern); data archived only",
+      "outcome": "12 rows, 0 error but PROVENANCE CONTAMINATED -> aborted, not judgeable",
+      "artifacts": ["pre0_ext_answers_attempt2a_aborted_collided.jsonl", "pre0_ext_report_attempt2a_aborted_collided.json"]
+    },
+    "2b": {
+      "started_local": "2026-08-30 11:31",
+      "ended_local": "2026-08-30 12:12",
+      "cli": "evaluate_protocol_ab.py --variant baseline_hetero --input-files <ext12_run.jsonl> --rounds 1 --workers 3 --timeout-seconds 180 --output-file pre0_ext_report_attempt2b.json --save-answers-to pre0_ext_answers_attempt2b.jsonl (env INTERN_REQUEST_DEADLINE_SECONDS=240)",
+      "outcome": "12/12 complete, 0 model_error, native judge 12/12 verdicts, 0 parser crashes -> VALID",
+      "artifacts": ["pre0_ext_answers_attempt2b.jsonl", "pre0_ext_report_attempt2b.json", "pre0_ext_run_attempt2b.log", "ext12_dual_judgement_pre0_ext_answers_attempt2b.json"]
+    }
+  },
+  "runtime_face": {
+    "branch": "PRE0-8.30",
+    "commit": "99bb587 (llm_client request-deadline guard + EXT attempt-1 artifacts)",
+    "base": "main 7779ab7 (integration line merged: reasoning_agent package + fail-closed reverify + aa arms + schedule-seed)"
+  },
+  "arm": {
+    "name": "baseline_hetero",
+    "config": "answer-first + hetero + adaptive k5/3 + 4096 tokens + policy prompt; max_model_calls=5"
+  },
+  "resources": {
+    "workers": 3, "timeout_seconds": 180, "temperature": 0.6, "retry": 1,
+    "circuit_breaker": "8 consecutive model_error",
+    "budget_solves": 12, "budget_model_calls": 60,
+    "actual_model_calls_2b": 60,
+    "stall_guard": "INTERN_REQUEST_DEADLINE_SECONDS=240 (attempt 2a/2b)"
+  },
+  "dataset": {
+    "selection_manifest": "selection_manifest.json",
+    "run_dataset": "tmp/pre0_ext_001/cache/ext12_run.jsonl (local cache only)",
+    "run_dataset_sha256": "451cb2cb1f932805694706051f04c1217cb50a0f77d4f8c05ea4addca640abcf",
+    "upstream_revision": "5f83d12e63ee3267f35044461a6cebad58ec3be1"
+  },
+  "judgement": {
+    "contract": "evaluate_dev.judge_correct (frozen)",
+    "native": "math-verify 0.8.0, verify(gold, pred), parse $-wrapped, timeouts disabled (Windows)"
+  },
+  "api_key_stored": false
+}
