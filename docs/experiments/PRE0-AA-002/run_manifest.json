@@ -1,0 +1,42 @@
+{
+  "experiment": "PRE0-AA-002",
+  "window_type": "model calibration (protocol-repaired A/A; no capability conclusion)",
+  "run_started_local": "2026-08-30 12:12",
+  "run_finished_local": "2026-08-30 13:31",
+  "runtime_face": {
+    "branch": "PRE0-8.30",
+    "commit_at_launch": "ff.. (EXT-2b docs commit; llm_client deadline guard included)",
+    "note": "experiment face == release face since integration merge into main (user commit d84be6e/7779ab7); PARITY equivalence was established on the same patch set"
+  },
+  "cli_round1": "evaluate_protocol_ab.py --variant aa_left --variant aa_right --interleave-items --input-files docs/experiments/PRE0-AA-001/aa24_dataset.jsonl --round-start 1 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8401 --output-file pre0_aa_reports_r1.json --save-answers-to pre0_aa_answers.jsonl",
+  "cli_round2": "evaluate_protocol_ab.py --variant aa_right --variant aa_left --interleave-items (same dataset) --round-start 2 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8402 --output-file pre0_aa_reports_r2.json --save-answers-to pre0_aa_answers.jsonl",
+  "arms": {
+    "aa_left": "baseline_hetero config field-for-field",
+    "aa_right": "identical to aa_left"
+  },
+  "dataset": {
+    "path": "docs/experiments/PRE0-AA-001/aa24_dataset.jsonl (frozen reuse, not rebuilt)",
+    "sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
+    "items": 24
+  },
+  "schedule": {"round_arm_order": {"1": ["aa_left", "aa_right"], "2": ["aa_right", "aa_left"]},
+               "schedule_seeds": {"1": 8401, "2": 8402}},
+  "protocol_repair_vs_AA001": {
+    "gate5_latency_stat": "p95 -> mean (rationale: AA-001 measured identical-arm P95@n=48 ratio 0.759, dominated by 2-3 tail solves; mean was in-band)",
+    "stall_guard": "INTERN_REQUEST_DEADLINE_SECONDS=240 (new; symmetric across arms)",
+    "everything_else": "unchanged"
+  },
+  "resources": {
+    "workers": 3, "timeout_seconds": 180, "retry": 1, "temperature": 0.6,
+    "circuit_breaker": "8 consecutive model_error",
+    "budget_solves": 96, "budget_model_calls": 480,
+    "actual_model_calls": 385,
+    "deadline_guard_triggers": 0
+  },
+  "health_observed": {
+    "model_errors": {"round1": {"aa_left": 1, "aa_right": 0}, "round2": {"aa_left": 0, "aa_right": 0}},
+    "breaker_tripped": false
+  },
+  "serial_discipline": "no other local model window concurrent; EXT-2b finished 12:12 before this window started 12:12+",
+  "api_key_stored": false
+}

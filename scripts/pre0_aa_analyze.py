@@ -158,10 +158,12 @@ def main(argv=None) -> None:
 
     # ── 5. cost ratios (pooled over both rounds; per-round reported) ─────
     def arm_cost(rows_for_arm: list[dict]) -> dict:
+        latencies = [r.get("latency_seconds", 0.0) for r in rows_for_arm]
         return {
             "mean_calls": sum(r.get("model_calls", 0) for r in rows_for_arm) / len(rows_for_arm),
             "mean_tokens": sum(r.get("total_completion_tokens", 0) for r in rows_for_arm) / len(rows_for_arm),
-            "p95_latency": p95([r.get("latency_seconds", 0.0) for r in rows_for_arm]),
+            "mean_latency": sum(latencies) / len(latencies) if latencies else 0.0,
+            "p95_latency": p95(latencies),
         }
 
     pooled_cost = {}

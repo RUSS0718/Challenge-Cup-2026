@@ -1,0 +1,174 @@
+{
+  "manifest": {
+    "experiment": "PRE0-AA-002",
+    "analyzed_utc": "2026-08-30T05:27:06.226300+00:00",
+    "dataset_sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
+    "recorded_input_files": [
+      "D:/project/challenge_cup_2026/Challenge-Cup-2026/docs/experiments/PRE0-AA-001/aa24_dataset.jsonl"
+    ],
+    "expected": {
+      "rounds": 2,
+      "items": 24,
+      "arms": [
+        "aa_left",
+        "aa_right"
+      ]
+    },
+    "round_arm_order": {
+      "1": [
+        "aa_left",
+        "aa_right"
+      ],
+      "2": [
+        "aa_right",
+        "aa_left"
+      ]
+    },
+    "schedule_seeds": {
+      "1": 8301,
+      "2": 8302
+    },
+    "timeout_seconds": 180
+  },
+  "gates": {
+    "gate1_completeness": true,
+    "gate2_health": true,
+    "gate3_noise": true,
+    "gate4_significance": true,
+    "gate5_cost": true,
+    "gate6_order_bias": true
+  },
+  "all_passed": true,
+  "details": {
+    "health": {
+      "1": {
+        "error_rates": {
+          "aa_left": 0.041666666666666664,
+          "aa_right": 0.0
+        },
+        "passed": true
+      },
+      "2": {
+        "error_rates": {
+          "aa_left": 0.0,
+          "aa_right": 0.0
+        },
+        "passed": true
+      }
+    },
+    "breaker_tripped": false,
+    "per_round": {
+      "1": {
+        "b": 0,
+        "c": 0,
+        "mcnemar_p": 1.0,
+        "correct": {
+          "aa_left": 16,
+          "aa_right": 16
+        },
+        "correct_diff": 0,
+        "invalid_plus_error": {
+          "aa_left": 1,
+          "aa_right": 0
+        },
+        "invalid_plus_error_diff": 1
+      },
+      "2": {
+        "b": 1,
+        "c": 1,
+        "mcnemar_p": 1.0,
+        "correct": {
+          "aa_left": 15,
+          "aa_right": 15
+        },
+        "correct_diff": 0,
+        "invalid_plus_error": {
+          "aa_left": 0,
+          "aa_right": 0
+        },
+        "invalid_plus_error_diff": 0
+      }
+    },
+    "item_cluster": {
+      "n_items": 24,
+      "b": 1,
+      "c": 1,
+      "ties": 22,
+      "sign_test_exact_p": 1.0,
+      "baseline_cluster_correct": 31,
+      "treatment_cluster_correct": 31
+    },
+    "cost": {
+      "pooled": {
+        "aa_left": {
+          "mean_calls": 3.9791666666666665,
+          "mean_tokens": 4769.395833333333,
+          "mean_latency": 130.25985416666666,
+          "p95_latency": 254.547
+        },
+        "aa_right": {
+          "mean_calls": 4.041666666666667,
+          "mean_tokens": 4747.0,
+          "mean_latency": 128.71056249999995,
+          "p95_latency": 234.156
+        }
+      },
+      "per_round": {
+        "1": {
+          "aa_left": {
+            "mean_calls": 3.9166666666666665,
+            "mean_tokens": 4514.333333333333,
+            "mean_latency": 139.6894166666667,
+            "p95_latency": 303.141
+          },
+          "aa_right": {
+            "mean_calls": 4.166666666666667,
+            "mean_tokens": 4951.0,
+            "mean_latency": 145.26270833333334,
+            "p95_latency": 229.834
+          }
+        },
+        "2": {
+          "aa_left": {
+            "mean_calls": 4.041666666666667,
+            "mean_tokens": 5024.458333333333,
+            "mean_latency": 120.83029166666665,
+            "p95_latency": 251.275
+          },
+          "aa_right": {
+            "mean_calls": 3.9166666666666665,
+            "mean_tokens": 4543.0,
+            "mean_latency": 112.15841666666665,
+            "p95_latency": 234.156
+          }
+        }
+      },
+      "ratios_right_over_left": {
+        "mean_calls": 1.0157068062827226,
+        "mean_tokens": 0.9953042619828683,
+        "mean_latency": 0.9881061461600871,
+        "p95_latency": 0.9198929863640114
+      },
+      "gated_metrics": [
+        "mean_calls",
+        "mean_latency",
+        "mean_tokens"
+      ],
+      "latency_stat": "mean"
+    },
+    "order_bias": {
+      "dominance": false,
+      "first_arm_table": {
+        "left_first": {
+          "left_wins": 0,
+          "right_wins": 1
+        },
+        "right_first": {
+          "left_wins": 1,
+          "right_wins": 0
+        }
+      },
+      "fisher_p": 1.0
+    }
+  }
+}
