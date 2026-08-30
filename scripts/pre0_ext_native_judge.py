@@ -16,6 +16,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+from user_agent import extract_final_answer  # noqa: E402
+from scripts.evaluate_dev import judge_correct  # noqa: E402
+
 WORKTREE = REPO_ROOT / ".worktrees" / "main-integration-20260829"
 import sys as _sys
 
@@ -62,13 +65,25 @@ def main() -> None:
     for row in rows:
         idx = row["idx"]
         gold = golds.get(idx, "")
-        contract = row.get("verdict", "unknown")
-        native, note = native_verdict(gold, row.get("extracted_answer", ""))
+        # S1 fix: contract score re-extracts from final_response (spec §4.3);
+        # fall back to the runner's internal extracted_answer only when the
+        # artifact predates the final_response field (PRE0-EXT-001 2b).
+        final_response = row.get("final_response")
+        if final_response is not None:
+            external = extract_final_answer(final_response)
+            contract_source = "final_response_external_extraction"
+        else:
+            external = row.get("extracted_answer", "")
+            contract_source = "agent_extracted_answer (legacy artifact)"
+        contract = judge_correct(external, gold, "calculation") if external.strip() else "unparseable"
+        native, note = native_verdict(gold, external)
         if native.startswith("crash"):
             crashes += 1
         entry = {
             "idx": idx, **meta.get(idx, {}),
+            "contract_source": contract_source,
             "extracted_answer": row.get("extracted_answer", ""),
+            "external_extraction": external,
             "result_status": row.get("result_status"),
             "model_calls": row.get("model_calls"),
             "latency_seconds": row.get("latency_seconds"),

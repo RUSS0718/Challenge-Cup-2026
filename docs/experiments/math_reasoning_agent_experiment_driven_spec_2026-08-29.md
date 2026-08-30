@@ -285,6 +285,30 @@ reverify 未决语义必须先冻结，不能在发布时顺带改变。
 
 Pre-P0 理论模型调用上限为 540；实际早共识可低于该值。任一结构门失败时停止消耗模型。
 
+## 6a. Amendment（2026-08-30，用户批准）
+
+2026-08-30 独立审核否决了首次 PRE0 完结签发（总调用 939>540、AA-002 事后改门、
+EXT 超复跑额度、manifest 强制字段缺失、僵尸遥测污染、gate6 首臂口径错误）。
+用户批准以下两项协议变更，自即日起生效：
+
+1. **AA 成本门 latency 统计量：P95 → mean。** `PRE0-AA` 窗成本门的 latency
+   分量改为 **mean latency 比值 ∈ [0.90, 1.10]**（两轮合并计）；P95 latency
+   降为记录项（不设门）。依据：AA-001 同配置双臂实测 P95@n=48=0.759 由每臂
+   2–3 个长尾 solve 主导，均值类全部在带内。AA-002 数据降为历史校准证据；
+   合规窗以新 ID `PRE0-AA-003` 重跑为准。
+2. **EXT 并发污染窗不计复跑额度；新 ID 重跑。** 共享端点并发污染的 attempt
+   （PRE0-EXT-001 attempt-2a）不计入预注册复跑额度；`PRE0-EXT-002` 按原协议
+   重跑一次（≤60 调用），契约口径升级为**从 `final_response` 重新外部抽取**
+   （spec §4.3 contract_score 原义；runner 已在 compact answers 记录
+   `final_response`）。PRE0-EXT-001 attempt-2b 保留为链路描述证据。
+3. **reverify 未决语义（PARITY 已知差异）。** 冻结语义 = fail-closed 回滚
+   （实验面行为，已进本地 main）。release face（gitcode 46c08dd 单体）在 P0
+   §7.2 发布决策对齐之前，PARITY 对 `reverify_skipped/inconclusive` 两场景的
+   分歧属**已批准的已知差异**；PARITY 以"11 场景严格一致 + 2 场景已知分歧"
+   口径验收，其余场景必须逐字节一致。
+4. **预算注记。** 已消耗 939 调用（含审核认定的漂移）不计入新窗预算；
+   `PRE0-AA-003`（≤480）与 `PRE0-EXT-002`（≤60）为批准的补偿窗，串行执行。
+
 ## 7. P0：当前官方栈与语义收敛
 
 ### 7.1 官方日志判读

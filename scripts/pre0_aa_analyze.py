@@ -237,15 +237,22 @@ def main(argv=None) -> None:
     table = {"left_first": {"left_wins": 0, "right_wins": 0},
              "right_first": {"left_wins": 0, "right_wins": 0}}
     by_key: dict[tuple, dict] = {}
+    recorded_position: dict[tuple, int] = {}
     for row in rows:
         key = (row["round"], row["idx"])
         by_key.setdefault(key, {})[row["variant"]] = row.get("verdict") == "correct"
+        if row.get("schedule_position") is not None:
+            recorded_position[key] = int(row["schedule_position"])
     for (number, idx), arms in by_key.items():
         if set(arms) != set(ARMS):
             continue
         if arms[ARMS[0]] == arms[ARMS[1]]:
             continue  # tie
-        first_arm = first_arm_by_round[number][idx]
+        if (number, idx) in recorded_position:
+            # artifact-recorded position (AA-003 onwards): authoritative
+            first_arm = arm_orders[number][recorded_position[(number, idx)] % len(ARMS)]
+        else:
+            first_arm = first_arm_by_round[number][idx]
         winner = ARMS[0] if arms[ARMS[0]] else ARMS[1]
         side = "left_first" if first_arm == ARMS[0] else "right_first"
         win = "left_wins" if winner == ARMS[0] else "right_wins"
@@ -264,9 +271,12 @@ def main(argv=None) -> None:
         "expected": {"rounds": 2, "items": EXPECTED_N, "arms": list(ARMS)},
         "round_arm_order": arm_orders,
         "schedule_seeds": seeds,
+        "first_arm_source": ("artifact_schedule_position" if recorded_position
+                             else "seed_reconstruction (audit fix S3)"),
         "first_arm_reconstruction": ("runner shuffles items with random.Random(seed) then "
                                      "rotates first arm by shuffled position; rebuilt from "
-                                     "dataset file order + frozen seed (audit fix S3)"),
+                                     "dataset file order + frozen seed when artifacts lack "
+                                     "schedule_position"),
         "first_arm_by_round": first_arm_by_round,
         "timeout_seconds": 180,
         "dataset_sha256_override": args.dataset_sha256,

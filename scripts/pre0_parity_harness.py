@@ -19,8 +19,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 EXPERIMENT_DIR = REPO_ROOT / "docs" / "experiments" / "PRE0-PARITY-001"
-RELEASE_ROOT = REPO_ROOT
-EXPERIMENT_ROOT = REPO_ROOT / ".worktrees" / "main-integration-20260829"
+import os as _os
+RELEASE_ROOT = Path(_os.environ.get("PRE0_PARITY_RELEASE_ROOT", str(REPO_ROOT)))
+EXPERIMENT_ROOT = Path(_os.environ.get("PRE0_PARITY_EXPERIMENT_ROOT", str(REPO_ROOT)))
 RUNNER = REPO_ROOT / "scripts" / "pre0_parity_runner.py"
 VENV_PYTHON = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
 
@@ -220,8 +221,8 @@ def main() -> None:
         "experiment": "PRE0-PARITY-001",
         "run_started_utc": datetime.now(timezone.utc).isoformat(),
         "model_calls": 0,
-        "release_face": {"root": str(RELEASE_ROOT), "git_head": "46c08dd (main, user_agent.py unmodified)"},
-        "experiment_face": {"root": str(EXPERIMENT_ROOT), "git_head": "39fcd12 + uncommitted 2b4ba30 restore patch"},
+        "release_face": {"root": str(RELEASE_ROOT), "description": "actual release candidate (gitcode 46c08dd monolith user_agent.py + llm_client.py)" if "pre0_parity_release" in str(RELEASE_ROOT) else "main working tree"},
+        "experiment_face": {"root": str(EXPERIMENT_ROOT), "git_head": "PRE0-8.30 HEAD (reasoning_agent package, fail-closed reverify)"},
         "scenarios_sha256": scenarios_sha,
         "faces_deterministic": deterministic,
         **comparison,
