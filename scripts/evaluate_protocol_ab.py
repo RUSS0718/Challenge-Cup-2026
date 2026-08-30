@@ -172,6 +172,19 @@ VARIANTS = {
         vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
         use_policy_prompt=True, heterogeneous=True,
     ),
+    # PRE0-AA-001: A/A noise window — both arms resolve to the baseline_hetero
+    # config field-for-field; any difference between them is noise or a
+    # protocol defect, never a capability signal.
+    "aa_left": Variant(
+        "aa_left", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True,
+    ),
+    "aa_right": Variant(
+        "aa_right", numeric_prompt=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
+        use_policy_prompt=True, heterogeneous=True,
+    ),
     # Shot-1 candidate: deployed hetero baseline + refine (verify/revise).
     "hetero_refine": Variant(
         "hetero_refine", numeric_prompt=True, adaptive_voting=True,
@@ -633,6 +646,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Allow sub-60s request timeouts for deliberate short-timeout probes.")
     parser.add_argument("--max-consecutive-failures", type=int, default=DEFAULT_MAX_CONSECUTIVE_FAILURES,
                         help="Abort the batch after this many consecutive model_error solves.")
+    parser.add_argument("--schedule-seed", type=int, default=None,
+                        help="Shuffle item scheduling order with a fixed seed; per-item arm interleaving is unaffected.")
     parser.add_argument("--output-file")
     parser.add_argument("--save-answers-to",
                         help="Persist compact per-item answers (idx/extracted_answer/verdict) as JSONL.")
@@ -681,6 +696,10 @@ def main() -> None:
         if breaker.tripped:
             break
         items = load_items(Path(input_file))
+        if args.schedule_seed is not None:
+            import random
+
+            random.Random(args.schedule_seed).shuffle(items)
         round_numbers = args.rounds if isinstance(args.rounds, list) else range(args.round_start, args.round_start + args.rounds)
         for round_no in round_numbers:
             if args.interleave_items:

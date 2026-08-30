@@ -940,8 +940,10 @@ class StepVerificationTest(unittest.TestCase):
         # original answer preserved (3), not the bad revision (0)
         self.assertIn("3", result.get("extracted_answer", ""))
 
-    def test_reverify_unavailable_keeps_revision_like_deployed_main(self):
-        """The integration baseline preserves main's current reverify behavior."""
+    def test_reverify_unavailable_rolls_back_fail_closed(self):
+        """PRE0-PARITY-001 §3 frozen semantics: an undecided re-verify
+        (malformed output, request failure, or budget exhausted before the
+        call) is fail-closed — the revision rolls back (2b4ba30 contract)."""
         cases = [
             ("not a verifier protocol", 6, 3, "inconclusive"),
             (RuntimeError("reverify failed"), 6, 3, "skipped"),
@@ -968,11 +970,15 @@ class StepVerificationTest(unittest.TestCase):
                 result = agent.solve("计算 1+1", {})
                 rv = [e for e in result["trace"] if e.get("step") == "reverify"]
                 if expected_status is None:
-                    self.assertFalse(rv)
+                    # budget exhausted before re-verify: skipped entry recorded
+                    self.assertTrue(rv)
+                    self.assertEqual("skipped", rv[-1]["status"])
                 else:
                     self.assertTrue(rv)
                     self.assertEqual(expected_status, rv[-1]["status"])
-                self.assertIn("2", result.get("extracted_answer", ""))
+                # fail-closed: original answer preserved (3), not the revision (2)
+                self.assertIn("3", result.get("extracted_answer", ""))
+                self.assertNotIn("2", result.get("extracted_answer", ""))
 
     def test_error_and_gap_parsing(self):
         """Mixed ERROR: and GAPS in single response parse correctly."""

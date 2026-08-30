@@ -946,22 +946,36 @@ class ReasoningAgent:
         best["normalized_answer"] = normalize_answer(revised_answer)
         trace.append({"step":"revise","status":"ok"})
 
-        # ── Re-verify; preserve the deployed behavior from main. ──
-        if budget["used"] < budget["limit"]:
-            re_errors, re_gaps, re_conclusive = self._verify_solution(
-                problem, revised, trace, budget, step_label="reverify"
-            )
-            if re_conclusive is None:
-                pass  # unavailable verifier: keep the revision
-            elif re_conclusive is False:
-                trace.append({"step":"reverify","status":"inconclusive","error_count":0,"gap_count":0})
-            elif re_errors or re_gaps:
-                trace.append({"step":"reverify","status":"fail","error_count":len(re_errors),"gap_count":len(re_gaps)})
-                best["solution"] = saved["solution"]
-                best["answer"] = saved["answer"]
-                best["normalized_answer"] = saved["normalized_answer"]
-            else:
-                trace.append({"step":"reverify","status":"ok","error_count":0,"gap_count":0})
+        # ── Re-verify; fail-closed (2b4ba30 semantics, PRE0-PARITY-001 §3). ──
+        # The 3bed2b7 merge regressed to main's keep-on-undecided behavior;
+        # this restores the work-branch contract: any undecided re-verify
+        # (budget exhausted, request failure, malformed output) rolls back.
+        def _rollback_revision() -> None:
+            best["solution"] = saved["solution"]
+            best["answer"] = saved["answer"]
+            best["normalized_answer"] = saved["normalized_answer"]
+
+        if budget["used"] >= budget["limit"]:
+            trace.append({"step": "reverify", "status": "skipped",
+                          "reason": "model_call_budget_exhausted"})
+            _rollback_revision()
+            return
+
+        re_errors, re_gaps, re_conclusive = self._verify_solution(
+            problem, revised, trace, budget, step_label="reverify"
+        )
+        if re_conclusive is None:
+            # Request failure/empty response is fail-closed: keep the original.
+            _rollback_revision()
+        elif re_conclusive is False:
+            trace.append({"step": "reverify", "status": "inconclusive", "error_count": 0, "gap_count": 0})
+            _rollback_revision()
+        elif re_errors or re_gaps:
+            trace.append({"step": "reverify", "status": "fail",
+                          "error_count": len(re_errors), "gap_count": len(re_gaps)})
+            _rollback_revision()
+        else:
+            trace.append({"step": "reverify", "status": "ok", "error_count": 0, "gap_count": 0})
 
     def _verify_solution(
         self, problem: str, solution: str,
