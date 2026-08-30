@@ -1,0 +1,101 @@
+{
+  "experiment": "PRE0-AA-003",
+  "window_type": "model calibration (amendment-approved compliant window; no capability conclusion)",
+  "run_id": "PRE0-AA-003",
+  "run_started_local": "2026-08-30 14:15",
+  "run_finished_local": "2026-08-30 ~16:05",
+  "runtime_face": {
+    "branch": "PRE0-8.30",
+    "commit_at_launch": "b463f87f5edafd30f5fcdbf83c60a8ca7e1ad672",
+    "dirty_at_run": false,
+    "code_sha256_at_run": {
+      "scripts/evaluate_protocol_ab.py": "020ae239c878fd7014401f6024f1a217dfacc51a264dc19bc88297b1cf6eb469",
+      "user_agent.py (facade)": "99204351f7e7af1d4dcbc37ecd59fc8de053b0aeb1d553bc9a6951e185959c96",
+      "reasoning_agent/policy.py (prompts)": "ff8c8a7cf91d2cb601cc12113ad79b4e0ac563c15e43787993e40dc1245ee051",
+      "reasoning_agent/runtime.py": "a01f84ca391b21963fea03dab59a9925b809344a1868bca2cec40ab1f30f5870",
+      "scripts/evaluate_dev.py (judge)": "b32ff174fd915042c1c356d88f356da6d6a34111812ef47f03849eb228b3613c",
+      "scripts/analyze_paired_ab.py": "295c0ad374206ab740fb39cdd2708e27600605c97457f9d6ae792633237fe133",
+      "llm_client.py": "747c7449390d57a6c6f5636c44c95b5a9726ba06203e6ebec91115c9bc24468f"
+    }
+  },
+  "environment": {
+    "python": "3.10.20",
+    "sympy": "1.14.0",
+    "requests": "2.34.2",
+    "endpoint": "intern-s2-preview-397b via chat.intern-ai.org.cn (INTERN_API_KEY present, never stored)"
+  },
+  "cli_round1": "evaluate_protocol_ab.py --variant aa_left --variant aa_right --interleave-items --input-files <repo>/docs/experiments/PRE0-AA-001/aa24_dataset.jsonl --round-start 1 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8501 --output-file docs/experiments/PRE0-AA-003/pre0_aa_reports_r1.json --save-answers-to docs/experiments/PRE0-AA-003/pre0_aa_answers.jsonl (env INTERN_REQUEST_DEADLINE_SECONDS=240)",
+  "cli_round2": "evaluate_protocol_ab.py --variant aa_right --variant aa_left --interleave-items (same dataset) --round-start 2 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8502 --output-file docs/experiments/PRE0-AA-003/pre0_aa_reports_r2.json --save-answers-to docs/experiments/PRE0-AA-003/pre0_aa_answers.jsonl (env INTERN_REQUEST_DEADLINE_SECONDS=240)",
+  "arms": {
+    "aa_left": "baseline_hetero config field-for-field",
+    "aa_right": "identical to aa_left"
+  },
+  "expected_n": 24,
+  "dataset": {
+    "path_repo_relative": "docs/experiments/PRE0-AA-001/aa24_dataset.jsonl (frozen reuse)",
+    "sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
+    "items": 24
+  },
+  "schedule": {
+    "round_arm_order": {
+      "1": [
+        "aa_left",
+        "aa_right"
+      ],
+      "2": [
+        "aa_right",
+        "aa_left"
+      ]
+    },
+    "schedule_seeds": {
+      "1": 8501,
+      "2": 8502
+    }
+  },
+  "resources": {
+    "workers": 3,
+    "timeout_seconds": 180,
+    "retry": 1,
+    "temperature": 0.6,
+    "circuit_breaker": "8 consecutive model_error",
+    "budget_solves": 96,
+    "budget_model_calls": 480,
+    "actual_model_calls": 380,
+    "stall_guard": "INTERN_REQUEST_DEADLINE_SECONDS=240 (0 triggers)"
+  },
+  "health_observed": {
+    "model_errors": {
+      "round1": {
+        "aa_left": 0,
+        "aa_right": 0
+      },
+      "round2": {
+        "aa_left": 0,
+        "aa_right": 0
+      }
+    },
+    "breaker_tripped": false
+  },
+  "artifacts": {
+    "dataset": {
+      "path": "docs/experiments/PRE0-AA-001/aa24_dataset.jsonl",
+      "sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0"
+    },
+    "answers": {
+      "path": "docs/experiments/PRE0-AA-003/pre0_aa_answers.jsonl",
+      "sha256": "04e1b65fd8c13a8482f2c45ef6ae5cadee28fb2ec1241deae11506b24a267ac9"
+    },
+    "reports": [
+      {
+        "path": "docs/experiments/PRE0-AA-003/pre0_aa_reports_r1.json",
+        "sha256": "e07cc29cc4eeefbb14a17b20394415e2e00eb7fef7da9c547ed4845b2c957fde"
+      },
+      {
+        "path": "docs/experiments/PRE0-AA-003/pre0_aa_reports_r2.json",
+        "sha256": "f95558029af20f755981ecafb560968ecbb419df01f9c2da1170098650b19770"
+      }
+    ]
+  },
+  "verdict": "gates 1-5 PASS (healthiest window: zero model errors); gate6 dominance branch FIRED (aa_right +1 in both rounds) -> window closed per prereg §3, escalated to user",
+  "api_key_stored": false
+}

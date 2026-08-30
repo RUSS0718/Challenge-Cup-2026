@@ -1,9 +1,24 @@
-# 数学推理 Agent 实验驱动推进总规范（2026-08-29）
+# 数学推理 Agent 实验驱动推进总规范（2026-08-30 最终版）
 
-状态：**SPEC_READY / NO_MODEL_RUN / NO_DEFAULT_CHANGE**。
+状态：**FINAL_SPEC / PRE0_REMEDIATION_IN_PROGRESS / P0_RESULT_KNOWN /
+ROLLBACK_REQUIRED_NOT_EXECUTED / NO_DEFAULT_CHANGE**。
 
 本规范把能力方法、评测题集、统计协议、发布门、runtime、RAG、工具、MCP 与沙箱纳入
-同一条实验链。目标是提高挑战杯官方隐藏集得分；基础设施本身不构成能力主张。
+同一条实验链。唯一优化目标是官方隐藏集 `correct`；invalid、error、调用量、token 和
+墙钟是安全与可部署约束，不能替代正确率成为“提升”。基础设施本身不构成能力主张。
+
+执行主线固定为：
+
+```text
+Pre-P0 最小修复
+→ P0 回滚并冻结 hetero_k5 健康锚
+→ P1 外部能力层与基线锚
+→ P2 严格归因 GSA
+→ P3 后续方法队列
+```
+
+refine 暂停；ARH 后置到正确率 winner 之后；RAG、工具、MCP、沙箱和 runtime 迁移冻结到
+至少一个正确率方法 `FORMAL_PASSED` 之后。
 
 ## 1. 权威来源与适用边界
 
@@ -27,25 +42,51 @@
 本规范不授权 commit、push、修改 `SUBMISSION_CONFIG`、切换三指针或在作品页面提交。
 这些动作仍需用户分别授权。
 
-## 2. 已确认的起始状态
+## 2. 2026-08-30 认知清洗后的当前事实
 
-- 当前官方 tip 为 `46c08dd`，运行时代码父提交为 `9311d8c`；工作/证据分支为
-  `b2f01ec`。commit 与指针属于时间敏感事实，执行前重验。
-- 官方在役行为为 hetero adaptive k5 + refine + ARH，effective 调用上限 8；它是
-  `DEPLOYED_UNVALIDATED_CANARY`。
-- `9311d8c` 的 reverify skipped/inconclusive 会保留 revision，与文档声称的
-  fail-closed 不一致；工作分支实现才会回滚。
-- 当前 `gsa_4call` 会两票早停、只向聚合器传答案字符串，并相对 `baseline_hetero`
-  同时关闭 hetero/adaptive voting。已有 `b=3,c=0,p=0.125` 只记为
-  `EXPLORATORY_POSITIVE`，不是 GSA 正式通过。
-- `public112` 全部走 calculation；`complex48` 与 `medium60` 完全重合 24 题，合计
-  仅 84 道唯一题；`medium60` 有 8 题标签与运行时分类不一致。
-- 当前多轮分析只按 `idx` 配对，会静默覆盖跨轮/跨数据集记录；formal gate 仍硬编码
-  `baseline86`；runner 的连续错误熔断不等于预注册的“任一臂 error rate >10% VOID”。
-- 本地能力判分使用 Agent 自己的 `extracted_answer`，不能观测 ARH 对 `final_response`
-  的外部抽取效果。
+### 2.1 官方 Run 事实
 
-以上任一事实未收敛前，不启动新的能力方法窗。
+官方日志 `eval_log_1406d54656c746b5a00e32fa27fc5b31.log`（SHA-256
+`d3a5c54e0e38d4a1eef59824b57bd7f2241e9e4549061f420ef8aaab7e2c0567`）确认：
+
+- checkout tip `46c08dd8d3ba26a43e46400e37fa5e00860d563d`，runtime 父提交 `9311d8c`；
+- input SHA-256 `7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f`，
+  与历史112题隐藏集相同；
+- hetero + refine + ARH 整栈：`correct=9 / incorrect=92 / invalid=11`，accuracy
+  `8.0357%`，valid accuracy `8.91%`；
+- agent-stage `success=111 / error=1`，infra error=0，runner completed；
+- requests 809、attempts 818、retry 9、truncated 740（90.46%）；
+- prompt tokens 401,381、completion tokens 3,005,587、total tokens 3,406,968；
+- Agent 阶段约 7h14m，超过官方6h约束，也超过本规范5.5h安全门。
+
+相对官方健康锚 `hetero_k5 @ 25f99b5`（12/83/17、0 error、约4h24m）：correct -3、
+incorrect +9、invalid -6、attempts +49.5%、completion tokens +43.3%、耗时 +64.5%。
+
+### 2.2 官方结论与因果边界
+
+- `hetero+refine+ARH @ 46c08dd` 定级为 `OFFICIAL_NEGATIVE_STACK / ROLLBACK_TRIGGERED`；
+  回滚是已触发的运营决策，尚未在本规范中视作已执行。
+- invalid=11 是历史最低，只支持“整栈输出卫生正向信号”；correct回到9证明它没有转化为
+  得分。invalid→incorrect 不属于能力提升。
+- 官方没有 `hetero+refine-only` 或 `hetero+ARH-only` 对照，不能把正确率下降或invalid
+  下降单独归因给 refine 或 ARH。
+- refine 当前形态平均7.30 attempts/题并导致超6h，暂停原样复测；未来只有机制实质改变的
+  稀疏条件 refine 才能以新 method ID 重启。
+- ARH 保留为零调用表示候选，但必须等正确率 winner 独立通过后再作附加单变量；不作为下一发。
+- `hetero_k5 @ 25f99b5` 继续作为唯一官方健康锚和后续能力对照。
+
+### 2.3 本地评测与候选状态
+
+- 首次 PRE0 完结签发已被审核撤销；已确认的历史消耗至少939次调用。STATIC完成；JUDGE
+  有单位题型边界；AA-001失败；AA-002降为历史校准；EXT-001仅作描述性证据。
+- §6a 已批准 `PRE0-AA-003` 与 `PRE0-EXT-002` 补偿窗；当前分支的修复提交和预注册不等于
+  实验已经通过，必须以完整工件和门判定为准。
+- `public112` 只支持短计算/输出卫生；`complex48+medium60` 去重后是84题legacy开发池，
+  不再作为两个独立正式池。
+- GSA package v0 的 `b=3,c=0,p=0.125` 仅为 `EXPLORATORY_POSITIVE`；它不是严格3+1，
+  也没有matched control。
+
+Pre-P0补偿窗、P0运营回滚和P1基线锚未完成前，不启动新的能力方法窗。
 
 ## 3. 术语与证据等级
 
@@ -56,6 +97,7 @@
 | `FORMAL_PASSED` | 完成固定能力门、确认门和全部卫生/成本门 | 可申请 official canary |
 | `DEPLOYED_UNVALIDATED_CANARY` | 用户授权发布但官方结果未确认 | 保留回滚锚，不称提升 |
 | `OFFICIAL_CONFIRMED` | 同一配置两次健康官方结果满足预注册门 | 可作为新的运营参照 |
+| `OFFICIAL_NEGATIVE_STACK` | 官方整栈触发预注册正确率/错误/成本回滚门 | 回滚到健康锚；组件分别保留因果边界 |
 | `VOID` | 健康、完整性或协议门失败 | 本窗不出能力结论 |
 | `ARCHIVED` / `REJECTED` | 按排除表定义处置 | 不追加同协议窗口 |
 
@@ -65,6 +107,9 @@
 - 固定能力门绝对正确率提升至少 5 个百分点；
 - 至少三个真实题型/学科组不净负；
 - 收益不是仅由 invalid→incorrect、宽松判分器或重复题加权产生。
+
+正确率是能力门的唯一正向目标。invalid、error和成本只作为fail-closed约束：候选即使
+invalid显著下降，只要correct没有增加，就不得称为能力提升。
 
 ## 4. 统一实验契约
 
@@ -289,7 +334,7 @@ Pre-P0 理论模型调用上限为 540；实际早共识可低于该值。任一
 
 2026-08-30 独立审核否决了首次 PRE0 完结签发（总调用 939>540、AA-002 事后改门、
 EXT 超复跑额度、manifest 强制字段缺失、僵尸遥测污染、gate6 首臂口径错误）。
-用户批准以下两项协议变更，自即日起生效：
+用户批准以下协议变更与处置，自即日起生效：
 
 1. **AA 成本门 latency 统计量：P95 → mean。** `PRE0-AA` 窗成本门的 latency
    分量改为 **mean latency 比值 ∈ [0.90, 1.10]**（两轮合并计）；P95 latency
@@ -309,40 +354,63 @@ EXT 超复跑额度、manifest 强制字段缺失、僵尸遥测污染、gate6 �
 4. **预算注记。** 已消耗 939 调用（含审核认定的漂移）不计入新窗预算；
    `PRE0-AA-003`（≤480）与 `PRE0-EXT-002`（≤60）为批准的补偿窗，串行执行。
 
-## 7. P0：当前官方栈与语义收敛
+## 6b. Pre-P0 当前退出条件（2026-08-30）
 
-### 7.1 官方日志判读
+当前状态为 `PRE0_REMEDIATION_IN_PROGRESS`，不是 `PRE0_COMPLETE`。以下条件全部满足后才
+允许进入能力实验：
 
-核对实际 tip、行为父提交、input hash 和五数。input hash 与历史一致时：
+1. `PRE0-AA-003` 按 §6a mean-latency 门完成两轮，真实 `schedule_position`、manifest、
+   工件 hash 和六门全部通过；
+2. `PRE0-EXT-002` 在 AA-003 完整关闭后串行运行，从 `final_response` 外部抽取完成
+   contract/native 双口径，12/12完成且0 model error；
+3. PARITY 对当时实际 experiment HEAD 与待发布 release candidate 重新签名；除已明确不进入
+   下一能力路径的 refine 未决语义外，不允许新的行为差异；
+4. formal gate 以完整性模式消费 AA-003/EXT-002 的 manifest、answers、dataset hash、VOID 和
+   item-cluster统计；
+5. PRE0总汇总记录全部attempt、真实调用总数和每个失败/污染窗，不丢弃成本；
+6. 用户审阅新汇总后明确给出进入P1/P2的GO。
 
-- `correct≥12、invalid≤17、runner_error=0、耗时≤5.5h`：保留整栈为未验证 canary；
-- 仅 `invalid>17` 且其余健康：ARH 未命中目标，只撤 ARH，回到 `95d5700`；
-- `correct<12`、runner error>0 或耗时>5.5h：撤 refine+ARH，回到官方健康锚
-  `25f99b5`；
-- invalid≤13 只称“强栈级输出卫生信号”，不能归因给 ARH 单组件。
+补偿窗正在运行或只生成部分日志时，状态保持`IN_PROGRESS`；不得提前写PASS，也不得并行启动
+EXT或任何能力实验。
 
-input hash 改变时禁止历史因果比较；健康则暂留 canary，异常则回滚，不发布下一候选。
+## 7. P0：官方整栈裁决与健康锚恢复
 
-### 7.2 refine 未决语义
+### 7.1 已完成的官方判读
 
-统计可用工件中 `revise=ok` 且 `reverify=skipped/inconclusive/budget_exhausted` 的触发数：
+本轮input hash与历史一致，且以下三条同时触发：
 
-- 为 0：把真正 fail-closed 视为当前样本上行为不活跃的契约修正，补行为测试但不称提分；
-- 大于 0：另立 `refine_unknown_rollback_v1` 单变量正式实验，不能与 GSA/runtime 同改。
+- correct 12→9，触发正确率回退；
+- agent-stage error 0→1，触发错误回退；
+- 4h24m→7h14m，触发5.5h安全门和官方6h约束。
+
+因此唯一裁决是：撤下hetero+refine+ARH整栈，运营基线恢复到`hetero_k5 @ 25f99b5`。
+本规范记录的是`ROLLBACK_REQUIRED`，不宣称GitCode指针已实际切换；发布、回滚、同步三指针和
+作品页面仍需用户单独授权与完成后验证。
+
+### 7.2 组件处置
+
+- **hetero_k5**：保留为`BASELINE / operational anchor`；
+- **refine**：当前全量verify/revise/reverify形态暂停并归档为整栈负结果的高成本组件；不以
+  fail-closed修复为理由原样复跑。若未来出现稀疏、可判触发的新机制，使用新ID预注册；
+- **ARH**：保留输出卫生候选，不作为下一能力方法；仅在正确率winner独立通过后做零调用附加；
+- **hetero+refine+ARH**：`OFFICIAL_NEGATIVE_STACK`，不得继续搭载或换名复跑。
+
+官方日志不含逐题refine trace，无法统计`revise/reverify skipped/inconclusive`触发数。该缺口只影响
+refine机制研究，不阻塞refine关闭后的GSA正确率路径。
 
 ### P0 完成条件
 
-- 唯一 `operational_baseline_id`、profile manifest 与回滚锚已冻结；
-- fail-closed 语义、排除表、README/指针地图和官方记录一致；
-- 没有未处置的在役 canary；
-- P1 使用的基线配置可由 manifest 重建。
+- 实际GitCode/main已回到或等价于`25f99b5`的hetero_k5行为，并核对远端tip；
+- 官方评测记录、排除表、README/指针地图写入9/92/11、818 attempts、7h14m和整栈处置；
+- 唯一`operational_baseline_id=hetero_k5_25f99b5`，profile manifest可重建；
+- 没有未处置的官方canary。
 
-## 8. P1：完整外部评测层与基线锚
+## 8. P1：外部能力层与hetero基线锚
 
 按第 5 节构建 `core120_v2`、`confirm30_v2`、`robust180_v2`、`fresh63_v1`。许可未
 澄清的数据仅保存在本地缓存，不提交原题。
 
-运行 P0 冻结的 operational baseline：
+只运行P0冻结的`hetero_k5`：
 
 - `core120_v2` 两轮，记录 run-to-run 方差、contract/native 差集和成本；
 - `confirm30_v2` 一轮，只建立年份锚；
@@ -350,31 +418,37 @@ input hash 改变时禁止历史因果比较；健康则暂留 canary，异常�
 - `fresh63_v1` 保持未揭盲。
 
 P1 完成条件：所有静态门通过，baseline 工件完整，双轮 item-cluster 统计可复现，预计官方
-成本有锚；此后新的能力候选才可获得 `FORMAL_PASSED`。
+成本≤5.5h；此后新的能力候选才可获得`FORMAL_PASSED`。P1只建立可信对照，不根据逐题
+错误改Prompt。
 
-## 9. P2：GSA 机制重证与融合
+## 9. P2：正确率第一候选——GSA机制重证
 
 ### 9.1 独立机制三臂
 
-- `O`：`hetero_k5 + ARH状态`，refine 关闭；
-- `M`：`hetero_k4_sc + ARH状态`，四次生成后确定性选择；
-- `G`：`hetero_k3_gsa + ARH状态`，前三次 reasoner 顺序与 M 相同，第四次聚合。
+- `O`：`hetero_k5`，官方健康锚；
+- `M`：`hetero_k4_sc`，四次生成后确定性选择；
+- `G`：`hetero_k3_gsa`，前三次reasoner顺序与M相同，第四次聚合。
 
-三臂的 ARH 状态由 P0 决定且必须一致。GSA 不早退；聚合输入使用每份最多前 6000 字符
-的候选解答；聚合失败回退前三候选确定性选择。refine、CoD、RAG、工具全部关闭。
+三臂统一关闭refine、ARH、CoD、RAG和工具。GSA不早退；健康情况下严格3份候选+1次
+聚合；聚合输入使用每份最多前6000字符的候选解答，不得只传答案字符串；聚合失败回退
+前三候选的确定性选择。
 
 先跑固定 12 题 fidelity probe：3+1 transcript 正确、聚合可抽取≥11/12、context/model
 error=0。通过后依次运行 legacy84 探索窗、`core120_v2` 两轮正式门和
 `confirm30_v2` 确认。
 
 正式机制门：`G vs M` item-cluster `b>c,p<0.05`；整包门：`G vs O` 各数据集不净负；
-mean/P95 calls≤4、聚合解析率≥98%、context overflow=0、成本/卫生过统一门。
+mean/P95 calls≤4、聚合解析率≥98%、context overflow=0、卫生/成本过统一门。invalid下降但
+correct不增加时不晋升。
 
-### 9.2 与 refine 融合
+### 9.2 通过后的附加顺序
 
-GSA 独立 `FORMAL_PASSED` 后，才比较最强单方法栈与“用 GSA 替换 k5、保留同一
-refine/ARH/fail-closed”的融合栈；effective 上限 7。完整重跑正式门与确认门。融合失败
-只归档组合，不反向否定独立组件。
+GSA独立`FORMAL_PASSED`后：
+
+1. 先以无ARH的GSA winner申请官方canary，保持能力变量唯一；
+2. 官方或正式门确认correct正向后，才比较`winner` vs `winner+ARH`；ARH必须零新增调用、
+   correct不回退，invalid只作次级卫生指标；
+3. 不与当前refine融合。任何新refine必须先以新机制独立过门。
 
 ## 10. P3：方法级突破队列
 
@@ -393,6 +467,9 @@ robust180。第一个正式通过者优先申请官方槽，停止无目的扫�
 
 ## 11. P4：来源定理 RAG
 
+状态：`FROZEN_UNTIL_CORRECTNESS_WINNER`。P2/P3尚无`FORMAL_PASSED`正确率方法时，
+本阶段不实现、不跑oracle、不新增依赖。
+
 旧 `method_rag` 保持 `REJECTED`。只允许新假设 `source_theorem_rag_v1`：显式命名
 定理/定义的问题可能因缺少准确前提失败；检索带来源的定理事实可能改善终答案。
 
@@ -408,6 +485,8 @@ robust180。第一个正式通过者优先申请官方槽，停止无目的扫�
 不得把冻结评测题或其答案放入 RAG，亦不得用 LangGraph 包装复活旧方法卡机制。
 
 ## 12. P5：工具、沙箱与 MCP
+
+状态：`FROZEN_UNTIL_CORRECTNESS_WINNER`。工具协议或隔离本身不进入近期官方槽。
 
 ### 12.1 直接工具优先
 
@@ -430,6 +509,8 @@ MCP 仅是 transport。至少一个直接工具 `FORMAL_PASSED` 且出现第二�
 保留直接 adapter。
 
 ## 13. P6：runtime 与 LangGraph
+
+状态：`FROZEN_UNTIL_TWO_PASSED_DYNAMIC_BRANCHES`。
 
 默认保留当前 imperative runtime。至少两个已过门动态分支需要共享预算、超时、trace 和
 fallback 时，先做零依赖 stdlib FSM sidecar；若只是增加包装立即停止。
@@ -455,13 +536,26 @@ import增量≤250ms。runtime 迁移必须是独立兼容性变更，不能与�
 - VOID、正式失败或官方回退后按预注册处置；不追加同协议窗口追显著。
 - 本地通过只产生官方候选，不自动修改默认路径；官方单次正向结果也不自动升级为方法突破。
 
+相对`hetero_k5`健康锚，correct是官方保留的首要门：
+
+- 首轮canary保留：同一input hash下`correct≥12`、agent-stage error=0、耗时≤5.5h，且无
+  接口/依赖失败；invalid与incorrect必须报告，但不能替代correct；
+- 首轮`correct<12`、error>0或耗时>5.5h：立即触发回滚；
+- `OFFICIAL_CONFIRMED`：同一commit/config两次健康官方运行，任一轮correct不得低于12，
+  两轮平均correct至少13；
+- “方法层突破”官方表述：除本地§3门外，两轮官方平均correct至少15，且无健康/成本回退。
+
+官方日志没有逐题答案时，跨轮计数只用于运营决策，不表述为组件因果证明。
+
 ## 15. 本规范的完成标准
 
-本规范被视为可执行，仅当：
+本规范已完成认知收敛；各阶段只有满足自身启动门时才可执行。近期继续工作的必要条件为：
 
-- Pre-P0 每项都有单独 preregistration、实现任务和验收测试；
+- §6b全部完成并由新汇总证明Pre-P0退出门通过；
+- P0回滚实际完成，远端和本地记录确认`hetero_k5`为唯一健康锚；
 - 外部数据许可/缓存策略由用户确认；
-- 当前排除表与在役状态完成事实对齐；
-- 用户明确授权启动 Pre-P0 模型窗。
+- 当前排除表、官方记录与候选状态完成事实对齐；
+- 用户明确授权启动P1基线或P2能力模型窗。
 
-在此之前，本文件只定义执行顺序和门槛，不代表任何实验已经运行或任何候选已经晋升。
+任何正在运行但未形成完整manifest/report/answers/result的窗口保持`IN_PROGRESS`；本文件不因
+存在日志或commit而预判PASS。提交、push、回滚和官方作品操作仍需分别授权。

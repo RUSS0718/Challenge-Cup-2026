@@ -1,0 +1,231 @@
+{
+  "manifest": {
+    "experiment": "PRE0-AA-003",
+    "analyzed_utc": "2026-08-30T07:40:10.992674+00:00",
+    "dataset_sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
+    "recorded_input_files": [
+      "D:/project/challenge_cup_2026/Challenge-Cup-2026/docs/experiments/PRE0-AA-001/aa24_dataset.jsonl"
+    ],
+    "expected": {
+      "rounds": 2,
+      "items": 24,
+      "arms": [
+        "aa_left",
+        "aa_right"
+      ]
+    },
+    "round_arm_order": {
+      "1": [
+        "aa_left",
+        "aa_right"
+      ],
+      "2": [
+        "aa_right",
+        "aa_left"
+      ]
+    },
+    "schedule_seeds": {
+      "1": 8501,
+      "2": 8502
+    },
+    "first_arm_source": "artifact_schedule_position",
+    "first_arm_reconstruction": "runner shuffles items with random.Random(seed) then rotates first arm by shuffled position; rebuilt from dataset file order + frozen seed when artifacts lack schedule_position",
+    "first_arm_by_round": {
+      "1": {
+        "2": "aa_left",
+        "14": "aa_right",
+        "11": "aa_left",
+        "0": "aa_right",
+        "15": "aa_left",
+        "23": "aa_right",
+        "8": "aa_left",
+        "6": "aa_right",
+        "1": "aa_left",
+        "19": "aa_right",
+        "17": "aa_left",
+        "10": "aa_right",
+        "3": "aa_left",
+        "12": "aa_right",
+        "20": "aa_left",
+        "9": "aa_right",
+        "4": "aa_left",
+        "18": "aa_right",
+        "5": "aa_left",
+        "13": "aa_right",
+        "16": "aa_left",
+        "21": "aa_right",
+        "7": "aa_left",
+        "22": "aa_right"
+      },
+      "2": {
+        "7": "aa_right",
+        "9": "aa_left",
+        "5": "aa_right",
+        "20": "aa_left",
+        "16": "aa_right",
+        "8": "aa_left",
+        "10": "aa_right",
+        "17": "aa_left",
+        "23": "aa_right",
+        "15": "aa_left",
+        "18": "aa_right",
+        "11": "aa_left",
+        "2": "aa_right",
+        "4": "aa_left",
+        "22": "aa_right",
+        "19": "aa_left",
+        "3": "aa_right",
+        "1": "aa_left",
+        "12": "aa_right",
+        "21": "aa_left",
+        "0": "aa_right",
+        "14": "aa_left",
+        "6": "aa_right",
+        "13": "aa_left"
+      }
+    },
+    "timeout_seconds": 180,
+    "dataset_sha256_override": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0"
+  },
+  "gates": {
+    "gate1_completeness": true,
+    "gate2_health": true,
+    "gate3_noise": true,
+    "gate4_significance": true,
+    "gate5_cost": true,
+    "gate6_order_bias": false
+  },
+  "all_passed": false,
+  "details": {
+    "health": {
+      "1": {
+        "error_rates": {
+          "aa_left": 0.0,
+          "aa_right": 0.0
+        },
+        "passed": true
+      },
+      "2": {
+        "error_rates": {
+          "aa_left": 0.0,
+          "aa_right": 0.0
+        },
+        "passed": true
+      }
+    },
+    "breaker_tripped": false,
+    "per_round": {
+      "1": {
+        "b": 2,
+        "c": 1,
+        "mcnemar_p": 1.0,
+        "correct": {
+          "aa_left": 14,
+          "aa_right": 15
+        },
+        "correct_diff": 1,
+        "invalid_plus_error": {
+          "aa_left": 0,
+          "aa_right": 0
+        },
+        "invalid_plus_error_diff": 0
+      },
+      "2": {
+        "b": 2,
+        "c": 1,
+        "mcnemar_p": 1.0,
+        "correct": {
+          "aa_left": 14,
+          "aa_right": 15
+        },
+        "correct_diff": 1,
+        "invalid_plus_error": {
+          "aa_left": 0,
+          "aa_right": 0
+        },
+        "invalid_plus_error_diff": 0
+      }
+    },
+    "item_cluster": {
+      "n_items": 24,
+      "b": 2,
+      "c": 0,
+      "ties": 22,
+      "sign_test_exact_p": 0.5,
+      "baseline_cluster_correct": 28,
+      "treatment_cluster_correct": 30
+    },
+    "cost": {
+      "pooled": {
+        "aa_left": {
+          "mean_calls": 4.083333333333333,
+          "mean_tokens": 4925.208333333333,
+          "mean_latency": 124.18356249999998,
+          "p95_latency": 234.272
+        },
+        "aa_right": {
+          "mean_calls": 3.8333333333333335,
+          "mean_tokens": 4522.0625,
+          "mean_latency": 113.6762708333333,
+          "p95_latency": 259.503
+        }
+      },
+      "per_round": {
+        "1": {
+          "aa_left": {
+            "mean_calls": 4.166666666666667,
+            "mean_tokens": 5040.791666666667,
+            "mean_latency": 133.60475,
+            "p95_latency": 262.794
+          },
+          "aa_right": {
+            "mean_calls": 3.7916666666666665,
+            "mean_tokens": 4202.708333333333,
+            "mean_latency": 108.53495833333334,
+            "p95_latency": 212.479
+          }
+        },
+        "2": {
+          "aa_left": {
+            "mean_calls": 4.0,
+            "mean_tokens": 4809.625,
+            "mean_latency": 114.762375,
+            "p95_latency": 207.233
+          },
+          "aa_right": {
+            "mean_calls": 3.875,
+            "mean_tokens": 4841.416666666667,
+            "mean_latency": 118.81758333333333,
+            "p95_latency": 268.205
+          }
+        }
+      },
+      "ratios_right_over_left": {
+        "mean_calls": 0.9387755102040818,
+        "mean_tokens": 0.9181464405059008,
+        "mean_latency": 0.915389030116875,
+        "p95_latency": 1.1076995970495833
+      },
+      "gated_metrics": [
+        "mean_calls",
+        "mean_latency",
+        "mean_tokens"
+      ],
+      "latency_stat": "mean"
+    },
+    "order_bias": {
+      "dominance": true,
+      "first_arm_table": {
+        "left_first": {
+          "left_wins": 2,
+          "right_wins": 3
+        },
+        "right_first": {
+          "left_wins": 0,
+          "right_wins": 1
+        }
+      },
+      "fisher_p": 0.9999999999999987
+    }
+  }
+}
