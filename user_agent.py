@@ -89,6 +89,10 @@ ALTERNATIVE_REASONER_PROMPT = """你是数学推理智能体，使用互补策�
 不要重复标准正向推导的全部步骤，聚焦于不同的推理路径或验证。
 最后一行必须使用"最终答案："明确写出答案。"""
 
+GSA_AGGREGATE_PROMPT = """你是数学评审员。对比同一道题的三份独立候选解答，复核分歧点并给出唯一答案。
+不要只按多数投票；应优先选择数学推导正确、满足全部条件的结论。
+第一行必须使用“最终答案：<答案>”，随后只给出必要的简短复核。"""
+
 # ── P3: step verification and revision prompts ────────────────────────────
 # InternLM models embed a verbose "Thinking Process" before every response,
 # which consumes tokens and makes structured lemma extraction unreliable.
@@ -232,6 +236,8 @@ class AgentConfig:
     solve_hard_timeout_seconds: float = 1080.0       # ~18 min → stop all calls
     # ── P2: heterogeneous reasoners ──
     enable_heterogeneous_reasoners: bool = False
+    # P2 GSA: strict 3 candidate generations + 1 aggregation call.
+    enable_gsa_aggregation: bool = False
     # ── P3: step verification + targeted revision ──
     enable_step_verification: bool = False
     enable_step_revision: bool = False
@@ -251,6 +257,8 @@ class AgentConfig:
     enable_strict_numeric_salvage: bool = False
     enable_conditional_token_retry: bool = False
     conditional_retry_max_tokens: int = 6144
+    # Dormant answer-representation option retained for release/test parity.
+    enable_answer_dual_form: bool = False
     enable_failure_retry_backoff: bool = False
     failure_retry_backoff_seconds: float = 1.0
     enable_explicit_answer_conflict_retry: bool = False
@@ -272,10 +280,8 @@ class AgentConfig:
 # The official runner constructs ``ReasoningAgent(client=official_client)``
 # without a config, which resolves here.
 #
-# 2026-08-27 user-approved experimental canary: C0 answer-first adaptive k5
-# with one AlternativeReasoner call inside the non-L0 vote budget; remaining
-# samples use DirectReasoner. This bypasses the unfinished local A/B gate.
-# Rollback anchor: 242c480 (C0 runtime, official Run #4 = 9/112).
+# 2026-08-30 user-authorized trial canary: strict GSA 3+1.
+# Rollback anchor: 019cc405 (hetero_k5 runtime, official Run #5 = 12/112).
 SUBMISSION_CONFIG = AgentConfig(
     policy_sample_times=1,
     policy_temperature=0.6,
@@ -284,17 +290,19 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_l0_extended_tokens=True,
     enable_task_aware_prompt=True,
     enable_time_convergence=True,
-    enable_adaptive_voting=True,
-    vote_k_max=5,
+    enable_adaptive_voting=False,
+    vote_k_max=3,
     vote_agree_threshold=3,
     enable_verification_gated_retry=False,
     enable_truncation_recovery_prompt=False,
-    max_model_calls=5,
+    max_model_calls=4,
     max_tokens=4096,
     l0_max_tokens=4096,
-    enable_heterogeneous_reasoners=True,
+    enable_heterogeneous_reasoners=False,
+    enable_gsa_aggregation=True,
     enable_step_verification=False,
     enable_step_revision=False,
+    enable_answer_dual_form=False,
     enable_method_rag=False,
     enable_deterministic_solver=False,
     enable_numeric_answer_first_prompt=True,
@@ -954,18 +962,31 @@ class ReasoningAgent:
                 return {"final_response": answer, "extracted_answer": answer, "trace": trace}
 
         # ── Candidate generation ──
+        task_prompt = self._task_policy_prompt(problem_type)
+        task_extra = "" if task_prompt in (POLICY_PROMPT, CALCULATION_PROMPT) else "\n" + task_prompt
+        if self.config.enable_gsa_aggregation and level != "L0":
+            self._generate_candidates(
+                problem, 1, candidates, trace, budget, self._policy_max_tokens(level),
+                task_prompt=ALTERNATIVE_REASONER_PROMPT + task_extra,
+                problem_type=problem_type, reasoner="alternative",
+            )
         # P2: heterogeneous reasoners — replace same-prompt sampling with complementary strategies.
-        if self.config.enable_heterogeneous_reasoners:
+        elif self.config.enable_heterogeneous_reasoners:
             self._generate_heterogeneous(problem, generation_calls, level, candidates, trace, budget, problem_type)
         else:
-            task_prompt = self._task_policy_prompt(problem_type)
             self._generate_candidates(problem, generation_calls, candidates, trace, budget, self._policy_max_tokens(level), task_prompt=task_prompt, problem_type=problem_type)
 
         # ── P0 stop-bleeding: conditional retry (≤1 recovery call) ──
         # A truncated / malformed main call yields no clear answer; allow exactly
         # one recovery generation.  Audit and P3 are off by default, so a bad
         # response can no longer fan out into many extra model calls.
-        if self.config.enable_adaptive_voting and level != "L0":
+        if self.config.enable_gsa_aggregation and level != "L0":
+            self._gsa_aggregate(
+                problem, level, candidates, trace, budget,
+                task_prompt=DIRECT_REASONER_PROMPT + task_extra,
+                problem_type=problem_type,
+            )
+        elif self.config.enable_adaptive_voting and level != "L0":
             self._adaptive_vote(problem, level, candidates, trace, budget,
                                 task_prompt=self._task_policy_prompt(problem_type),
                                 problem_type=problem_type)
@@ -1233,7 +1254,10 @@ class ReasoningAgent:
           (drop thinking / prompt echo, keep the conclusion + body)
         """
         if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
-            return best.get("normalized_answer") or best["answer"]
+            answer = best.get("normalized_answer") or best["answer"]
+            if self.config.enable_answer_dual_form and answer.strip():
+                return f"最终答案：{answer}\n$\\boxed{{{answer}}}$"
+            return answer
         solution = best.get("solution") or best.get("answer", "")
         return reconstruct_final_response_f(solution, problem_type)
 
@@ -1560,6 +1584,58 @@ class ReasoningAgent:
         if not clear:
             return 0
         return max(len(group) for group in cls._answer_groups(clear).values())
+
+    def _gsa_aggregate(
+        self, problem: str, level: str,
+        candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
+        budget: dict[str, Any], task_prompt: str,
+        problem_type: str = TASK_TYPE_CALCULATION,
+    ) -> None:
+        """Run strict GSA: three generations followed by one aggregation."""
+        max_tokens = self._policy_max_tokens(level)
+        while len(candidates) < 3 and budget["used"] < budget["limit"] - 1:
+            if self._time_hard_exceeded(budget.get("solve_start")):
+                break
+            self._generate_candidates(
+                problem, 1, candidates, trace, budget, max_tokens,
+                task_prompt=task_prompt, problem_type=problem_type,
+                reasoner="direct",
+            )
+
+        sample_count = len(candidates)
+        status = "no_samples"
+        if candidates and budget["used"] < budget["limit"]:
+            listing = "\n\n".join(
+                f"候选{i + 1}解答：\n{str(candidate.get('solution') or '')[:6000]}\n"
+                f"候选{i + 1}答案：{candidate.get('answer', '')}"
+                for i, candidate in enumerate(candidates[:3])
+            )
+            response, error = self._request(
+                GSA_AGGREGATE_PROMPT,
+                f"题目：\n{problem}\n\n候选解答：\n{listing}",
+                self.config.policy_temperature, max_tokens, budget,
+            )
+            answer = extract_final_answer(response) if response else ""
+            if answer and not is_placeholder_answer(answer):
+                candidates.append({
+                    "candidate_id": max((c["candidate_id"] for c in candidates), default=-1) + 1,
+                    "answer": answer,
+                    "normalized_answer": normalize_answer(answer),
+                    "solution": response or "",
+                    "structured": True,
+                    "evidence": [{"source": "gsa_aggregate"}],
+                    "verification_status": "unverified",
+                    "model_calls_used": 1,
+                    "problem_type": problem_type,
+                    "explicit_answer_conflict": False,
+                })
+                status = "aggregated"
+            else:
+                status = "aggregate_unparseable" if response else (error or "aggregate_error")
+        trace.append({
+            "step": "gsa_aggregate", "status": status,
+            "samples": sample_count, "model_calls": budget["used"],
+        })
 
     def _adaptive_vote(
         self, problem: str, level: str,

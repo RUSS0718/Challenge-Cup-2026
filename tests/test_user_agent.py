@@ -1141,37 +1141,42 @@ class P0StopBleedingTest(unittest.TestCase):
 class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
-    def test_submission_config_is_answer_first_promotion(self):
-        # 2026-08-26 promotion: the exact gate-passed configuration
-        # (legacy 4k+k5 snapshot + numeric answer-first prompt).
-        # Gate evidence: net +9/96 item-rounds, McNemar p=0.0039, c=0.
-        self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
+    def test_submission_config_is_strict_gsa_canary(self):
+        self.assertTrue(SUBMISSION_CONFIG.enable_gsa_aggregation)
+        self.assertFalse(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
-        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
-        self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
-        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
+        self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
+        self.assertEqual(4, SUBMISSION_CONFIG.max_model_calls)
         self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()
+        self.assertFalse(config.enable_gsa_aggregation)
         self.assertFalse(config.enable_adaptive_voting)
         self.assertEqual(2, config.max_model_calls)
 
     def test_agent_without_config_uses_submission_profile(self):
-        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：7", "最终答案：7"])
+        client = FakeClient([
+            "备选推导一。\n最终答案：7",
+            "标准推导二。\n最终答案：7",
+            "标准推导三。\n最终答案：8",
+            "最终答案：7\n前两份推导一致且正确。",
+        ])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
-        # 3 profile calls (main + 2 vote resamples at early consensus) + 1 refine verify
         self.assertEqual(4, len(client.calls))
-        self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
+        self.assertTrue(any(e.get("step") == "gsa_aggregate" for e in result["trace"]))
         reasoners = [
             entry.get("reasoner")
             for entry in result["trace"]
             if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
         ]
-        self.assertEqual(["direct", "alternative", "direct"], reasoners)
+        self.assertEqual(["alternative", "direct", "direct"], reasoners)
+        aggregate_prompt = client.calls[3][0][1]["content"]
+        self.assertIn("备选推导一", aggregate_prompt)
+        self.assertIn("标准推导三", aggregate_prompt)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
