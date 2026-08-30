@@ -1,0 +1,236 @@
+{
+  "manifest": {
+    "experiment": "PRE0-AA-004",
+    "analyzed_utc": "2026-08-30T09:31:25.686740+00:00",
+    "dataset_sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
+    "recorded_input_files": [
+      "D:/project/challenge_cup_2026/Challenge-Cup-2026/docs/experiments/PRE0-AA-001/aa24_dataset.jsonl"
+    ],
+    "expected": {
+      "rounds": 2,
+      "items": 24,
+      "arms": [
+        "aa_left",
+        "aa_right"
+      ]
+    },
+    "round_arm_order": {
+      "1": [
+        "aa_left",
+        "aa_right"
+      ],
+      "2": [
+        "aa_right",
+        "aa_left"
+      ]
+    },
+    "schedule_seeds": {
+      "1": 8601,
+      "2": 8602
+    },
+    "first_arm_source": "artifact_schedule_position",
+    "first_arm_reconstruction": "runner shuffles items with random.Random(seed) then rotates first arm by shuffled position; rebuilt from dataset file order + frozen seed when artifacts lack schedule_position",
+    "first_arm_by_round": {
+      "1": {
+        "12": "aa_left",
+        "4": "aa_right",
+        "22": "aa_left",
+        "10": "aa_right",
+        "23": "aa_left",
+        "1": "aa_right",
+        "21": "aa_left",
+        "14": "aa_right",
+        "20": "aa_left",
+        "2": "aa_right",
+        "15": "aa_left",
+        "17": "aa_right",
+        "19": "aa_left",
+        "13": "aa_right",
+        "5": "aa_left",
+        "18": "aa_right",
+        "7": "aa_left",
+        "6": "aa_right",
+        "9": "aa_left",
+        "16": "aa_right",
+        "0": "aa_left",
+        "11": "aa_right",
+        "8": "aa_left",
+        "3": "aa_right"
+      },
+      "2": {
+        "10": "aa_right",
+        "17": "aa_left",
+        "8": "aa_right",
+        "11": "aa_left",
+        "3": "aa_right",
+        "7": "aa_left",
+        "18": "aa_right",
+        "20": "aa_left",
+        "0": "aa_right",
+        "15": "aa_left",
+        "4": "aa_right",
+        "22": "aa_left",
+        "13": "aa_right",
+        "6": "aa_left",
+        "21": "aa_right",
+        "12": "aa_left",
+        "9": "aa_right",
+        "23": "aa_left",
+        "2": "aa_right",
+        "14": "aa_left",
+        "5": "aa_right",
+        "16": "aa_left",
+        "1": "aa_right",
+        "19": "aa_left"
+      }
+    },
+    "timeout_seconds": 180,
+    "dataset_sha256_override": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0"
+  },
+  "gates": {
+    "gate1_completeness": true,
+    "gate2_health": true,
+    "gate3_noise": true,
+    "gate4_significance": true,
+    "gate5_cost": true,
+    "gate6_order_bias": true
+  },
+  "all_passed": true,
+  "details": {
+    "health": {
+      "1": {
+        "error_rates": {
+          "aa_left": 0.0,
+          "aa_right": 0.0
+        },
+        "passed": true
+      },
+      "2": {
+        "error_rates": {
+          "aa_left": 0.0,
+          "aa_right": 0.0
+        },
+        "passed": true
+      }
+    },
+    "breaker_tripped": false,
+    "per_round": {
+      "1": {
+        "b": 0,
+        "c": 1,
+        "mcnemar_p": 1.0,
+        "correct": {
+          "aa_left": 16,
+          "aa_right": 15
+        },
+        "correct_diff": 1,
+        "invalid_plus_error": {
+          "aa_left": 0,
+          "aa_right": 0
+        },
+        "invalid_plus_error_diff": 0
+      },
+      "2": {
+        "b": 1,
+        "c": 0,
+        "mcnemar_p": 1.0,
+        "correct": {
+          "aa_left": 13,
+          "aa_right": 14
+        },
+        "correct_diff": 1,
+        "invalid_plus_error": {
+          "aa_left": 0,
+          "aa_right": 0
+        },
+        "invalid_plus_error_diff": 0
+      }
+    },
+    "item_cluster": {
+      "n_items": 24,
+      "b": 1,
+      "c": 1,
+      "ties": 22,
+      "sign_test_exact_p": 1.0,
+      "baseline_cluster_correct": 29,
+      "treatment_cluster_correct": 29
+    },
+    "cost": {
+      "pooled": {
+        "aa_left": {
+          "mean_calls": 4.0,
+          "mean_tokens": 4415.208333333333,
+          "mean_latency": 112.30100000000003,
+          "p95_latency": 218.927
+        },
+        "aa_right": {
+          "mean_calls": 3.8125,
+          "mean_tokens": 4566.416666666667,
+          "mean_latency": 115.5193958333333,
+          "p95_latency": 212.596
+        }
+      },
+      "per_round": {
+        "1": {
+          "aa_left": {
+            "mean_calls": 3.9583333333333335,
+            "mean_tokens": 4046.7083333333335,
+            "mean_latency": 105.39912500000001,
+            "p95_latency": 173.953
+          },
+          "aa_right": {
+            "mean_calls": 3.75,
+            "mean_tokens": 4518.75,
+            "mean_latency": 116.59458333333333,
+            "p95_latency": 211.846
+          }
+        },
+        "2": {
+          "aa_left": {
+            "mean_calls": 4.041666666666667,
+            "mean_tokens": 4783.708333333333,
+            "mean_latency": 119.20287499999999,
+            "p95_latency": 229.923
+          },
+          "aa_right": {
+            "mean_calls": 3.875,
+            "mean_tokens": 4614.083333333333,
+            "mean_latency": 114.44420833333332,
+            "p95_latency": 243.539
+          }
+        }
+      },
+      "ratios_right_over_left": {
+        "mean_calls": 0.953125,
+        "mean_tokens": 1.0342471570801681,
+        "mean_latency": 1.0286586569427991,
+        "p95_latency": 0.9710816847625008
+      },
+      "gated_metrics": [
+        "mean_calls",
+        "mean_latency",
+        "mean_tokens"
+      ],
+      "latency_stat": "mean"
+    },
+    "order_bias": {
+      "descriptive_same_arm_led_both_rounds": false,
+      "gate6a_fields_recorded": true,
+      "missing_field_rows": 0,
+      "gate6b_recomputation_match": true,
+      "gate6b_mismatches": [],
+      "first_arm_table": {
+        "left_first": {
+          "left_wins": 0,
+          "right_wins": 1
+        },
+        "right_first": {
+          "left_wins": 1,
+          "right_wins": 0
+        }
+      },
+      "fisher_p": 1.0,
+      "first_arm_source": "artifact_schedule_position+first_arm"
+    }
+  }
+}

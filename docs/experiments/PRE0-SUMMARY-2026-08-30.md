@@ -1,7 +1,12 @@
 # Pre-P0 汇总：评测可信度校准（2026-08-30）
 
-状态：**PRE0_BLOCKED_PENDING_PROTOCOL_AMENDMENT**（2026-08-30 审核结论；此前
-签发的 PRE0_COMPLETE 撤销）。
+状态：**PRE0_EXIT_CONDITIONS_MET_PENDING_USER_GO**（2026-08-30 晚更新）。
+
+演进轨迹：首签 PRE0_COMPLETE → 独立审核否决（PRE0_BLOCKED_PENDING_PROTOCOL_
+AMENDMENT）→ 两项协议变更获用户批准（spec §6a）→ AA-003 触发 gate6 旧判据
+（ORIGINAL_GATE_FAIL / SUPPORTS_AMENDMENT）→ AA-GATE6 amendment 获批（spec §6c，
+冻结文本）→ **AA-004 六门全过（最后校准窗）+ EXT-002 合规 PASS + PARITY 对
+46c08dd 重签** → §6b 退出条件 1–5 全部满足，**仅剩条件 6：用户 GO**。
 
 审核要点（独立审核，未运行模型调用）：STATIC 完成合规；JUDGE/PARITY 部分完成；
 AA-002 属看过结果后改门（未经上位 spec amendment 与用户授权）；EXT 超出复跑
@@ -17,8 +22,11 @@ AA-002 属看过结果后改门（未经上位 spec amendment 与用户授权）
 | PRE0-JUDGE-001 | 部分完成 | 120 例链路可运行；**单位题型被 J2/J3 误判等价（实测），但该类被移出正式门**——正确结论是"单位题型不受支持、必须排除"，不得声称泛化"零假阳性"（已改措辞） |
 | PRE0-PARITY-001 | 部分完成 | 工件记录 reverify 未决场景两面答案不同，与上位 spec"签名完全一致"冲突；fail-closed 修复进 main 后**未对当前 HEAD ↔ 实际 release candidate（gitcode 46c08dd 单体）重新生成签名** |
 | PRE0-AA-001 | 未通过原规范 | gate5 P95 失败 → BLOCKED（维持）；另发现 gate6 首臂归属用原始 idx 而非 shuffle 位置（已按 seeds 重构重算，结论不变）、analysis 硬编码 seed（已参数化） |
-| PRE0-AA-002 | 协议修复候选 | 数据 6/6 门通过（首臂修正后复算仍过），但 gate5 改 mean 是事后改门——**须经上位 spec amendment + 用户授权方可计入退出门** |
-| PRE0-EXT-001 | 描述性证据，不合规关闭 | attempt-1 失败 → 唯一复跑额度被 2a 占用（后遭并发污染）→ 又启动 2b，超额度；2b 保留为链路描述证据；**双口径读的是 extracted_answer 而非 final_response 外部抽取**（runner 已修，未来窗生效） |
+| PRE0-AA-002 | 历史校准证据 | 数据 6/6 门通过；gate5 改 mean 属事后改门——数据降为校准证据（§6a），不进入退出门 |
+| PRE0-AA-003 | ORIGINAL_GATE_FAIL / SUPPORTS_AMENDMENT | 门 1–5 过（两轮 0 错误）；gate6 旧"持续占优"判据因同臂 +1/+1 触发——实证该判据过严，促成 §6c |
+| PRE0-AA-004 | **PASS（6/6，§6c 口径）** | 最后校准窗：两轮 0 错误、胜者翻转、6a 字段 96/96、6b 重算 100% 一致、6c Fisher p=1.0、成本带内（375/480 调用）；formal gate 完整性模式 PASS |
+| PRE0-EXT-001 | 描述性证据，不合规关闭 | attempt-1 失败 → 唯一复跑额度被 2a 占用（后遭并发污染）→ 又启动 2b，超额度；2b 保留为链路描述证据 |
+| PRE0-EXT-002 | **PASS（门 1–4）** | §6a 批准的合规窗：12/12、0 错误、native 12/12 verdict 零 crash；契约口径升级为 `final_response` 外部抽取（S1 修复生效，12/12 行验证） |
 
 ## 2. 调用总数（审核修正）
 
@@ -29,12 +37,16 @@ AA-002 属看过结果后改门（未经上位 spec amendment 与用户授权）
 | EXT attempt-1 | 53 |
 | EXT attempt-2a（并发污染，存档） | 60 |
 | EXT attempt-2b | 60 |
-| **归档合计** | **939** |
+| **首轮归档合计（审核认定漂移）** | **939** |
+| EXT-002（§6a 批准补偿窗） | 60 |
+| AA-003（§6a 批准补偿窗，ORIGINAL_GATE_FAIL） | 380 |
+| AA-004（§6c 最后校准窗） | 375 |
+| **全项目归档合计** | **1754** |
 | 误启动未归档重复进程（11:01–11:33，被 kill） | 未计（至少） |
 
-上位 spec 预算为 **540**（一个 AA 窗 + 一个 EXT 窗）。实际运行了 2 个 AA 窗 +
-3 个 EXT attempt，**预算与重跑纪律均已漂移**；全部历史保留，但原预算/退出门
-不得用于签发。
+预算口径：原 spec 预算 540；§6a/§6c amendment 将 AA-003（≤480）、EXT-002（≤60）、
+AA-004（≤480）列为批准的补偿窗，均未超各自窗口预算；939 的历史漂移保留记录、
+不计入新窗预算。
 
 ## 3. 已完成的零调用收敛修复（2026-08-30）
 
@@ -55,28 +67,29 @@ AA-002 属看过结果后改门（未经上位 spec amendment 与用户授权）
    `9f08bca`）、dirty 清单、运行时代码 hash、python/sympy/requests/math-verify
    版本、judge/prompt 文件 hash、数据集与工件最终 sha256、分 attempt 真实调用数。
 
-## 4. 退出门核查（审核后）
+## 4. 退出门核查（§6b，2026-08-30 晚更新）
 
-| 项 | 状态 |
+| §6b 条件 | 状态 |
 | --- | --- |
-| STATIC/JUDGE/AA/EXT/PARITY 全部通过 | ❌（JUDGE/PARITY 部分完成；EXT 不合规关闭；AA-002 待 amendment） |
-| manifest/formal gate 消费工件 | ✅ 修复后成立（完整性模式冒烟通过）；此前汇总的 ✅ 属过早声明，已撤回 |
-| 指针/官方记录/排除表/候选状态对齐 | ✅ 本地侧；发4 官方日志待回收（P0 §7.1 输入） |
-| 用户授权 | ⏳ 两项协议变更待确认（见 §5） |
+| 1. AA 链六门通过（§6c 取代后 = **AA-004**） | ✅ 6/6 门 + formal gate 完整性模式 PASS |
+| 2. EXT-002 串行运行、final_response 双口径、12/12 零错误 | ✅ |
+| 3. PARITY 对实际 HEAD ↔ release candidate（gitcode 46c08dd 单体）重签 | ✅ 11 场景逐字节一致 + 2 个 reverify 未决场景=§6a 第 3 条已批准已知差异 |
+| 4. formal gate 完整性模式消费 manifest/answers/dataset hash/VOID/聚类 | ✅（AA-004 冒烟：integrity PASS） |
+| 5. 总汇总记录全部 attempt、真实调用总数、每个失败/污染窗 | ✅ 本文件 §2 |
+| 6. 用户审阅后给出进入 P1/P2 的 GO | ⏳ **待用户** |
 
-## 5. 待用户确认的两项协议变更（确认后才允许任何重跑）
+注：P0 §7.1 官方判读已由用户完成（发4 ROLLBACK_REQUIRED，恢复 `hetero_k5 @
+25f99b5` 的指针切换待用户授权执行）——该链路独立于 Pre-P0 退出门。
 
-1. **AA 成本门统计量**：上位 spec 固定 P95 latency 比值 ∈[0.90,1.10]；AA-001
-   实测同配置双臂 P95@n=48=0.759（尾部噪声主导）。是否批准上位 spec amendment
-   将该门改为 mean latency 比值 ∈[0.90,1.10]（P95 降为记录项），并以新窗口
-   重跑受影响的 AA？
-2. **EXT 污染窗处置**：attempt-1 失败后唯一复跑额度已被 2a 占用（后并发污染）。
-   是否批准"并发污染窗不计入复跑额度、允许以新 ID（PRE0-EXT-002）按原协议
-   重跑一次"，并以 `final_response` 外部抽取作为契约口径（审核 S1 的修复）？
+## 5. 协议变更决策记录（已闭环）
 
-获得确认后：只重跑受影响的 AA（新窗 + amendment 引用）与 PARITY（零调用，
-当前 HEAD ↔ gitcode 46c08dd 单体）；EXT-2b 保持描述性证据，是否重跑按上面
-第 2 项决定。在此之前 **PRE0 = BLOCKED**，不进入 P0/P1 能力实验。
+1. **AA 成本门**：用户批准 §6a（P95→mean latency）；AA-003 触发 gate6 旧判据
+   后，用户再批准 §6c（AA-GATE6-2026-08-30，删除占优硬判据、gate6 改三段
+   校验）；AA-004 为最后校准窗并全门通过。
+2. **EXT 处置**：用户批准 §6a 第 2 条（并发污染窗不计复跑额度、新 ID 重跑）；
+   EXT-002 合规 PASS，契约口径升级为 final_response 外部抽取。
+
+两项变更的完整冻结文本见 spec §6a/§6c。
 
 ## 6. 审核确认已通过的部分（保留事实）
 
