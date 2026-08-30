@@ -1,7 +1,11 @@
 # 数学推理 Agent 实验驱动推进总规范（2026-08-30 最终版）
 
-状态：**FINAL_SPEC / PRE0_REMEDIATION_IN_PROGRESS / P0_RESULT_KNOWN /
-ROLLBACK_REQUIRED_NOT_EXECUTED / NO_DEFAULT_CHANGE**。
+状态：**FINAL_SPEC / PRE0_EXIT_CONDITIONS_1_5_MET_PENDING_USER_GO / P0_DOCS_DONE /
+ROLLBACK_REQUIRED_NOT_EXECUTED / NO_DEFAULT_CHANGE**。（2026-08-30 晚：§6b 条件 1–5
+已由 AA-004 六门全过、EXT-002 合规 PASS、PARITY 对 46c08dd 重签、formal gate 完整性
+模式与总汇总证明；条件 6（用户 GO）待定。P0 官方记录/排除表/README/baseline
+profile 已写入；回滚执行本身待用户授权，见
+`docs/experiments/p0_rollback_preparation_2026-08-30.md`。）
 
 本规范把能力方法、评测题集、统计协议、发布门、runtime、RAG、工具、MCP 与沙箱纳入
 同一条实验链。唯一优化目标是官方隐藏集 `correct`；invalid、error、调用量、token 和

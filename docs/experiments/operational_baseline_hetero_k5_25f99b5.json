@@ -1,0 +1,73 @@
+{
+  "operational_baseline_id": "hetero_k5_25f99b5",
+  "role": "BASELINE / operational anchor (official Run #5; only healthy official anchor)",
+  "frozen_utc": "2026-08-30",
+  "provenance": {
+    "behavior_commit": "18f4f5a (runtime at canary publication)",
+    "boundary_commit": "25f99b5 (release boundary docs; SUBMISSION_CONFIG below extracted verbatim from this commit's user_agent.py)",
+    "official_run": {
+      "run_id": 5,
+      "record": "docs/experiments/官方评测记录.md#run-5",
+      "correct/incorrect/invalid": "12 / 83 / 17",
+      "accuracy": "10.71%",
+      "agent_stage_errors": 0,
+      "attempts": 547,
+      "truncated": "481/547 (88.0%)",
+      "duration": "~4h24m",
+      "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f"
+    }
+  },
+  "submission_config_fields": {
+    "policy_sample_times": 1,
+    "policy_temperature": 0.6,
+    "verifier_voting_times": 0,
+    "enable_dynamic_budget": false,
+    "enable_l0_extended_tokens": true,
+    "enable_task_aware_prompt": true,
+    "enable_time_convergence": true,
+    "enable_adaptive_voting": true,
+    "vote_k_max": 5,
+    "vote_agree_threshold": 3,
+    "enable_verification_gated_retry": false,
+    "enable_truncation_recovery_prompt": false,
+    "max_model_calls": 5,
+    "max_tokens": 4096,
+    "l0_max_tokens": 4096,
+    "enable_heterogeneous_reasoners": true,
+    "enable_step_verification": false,
+    "enable_step_revision": false,
+    "enable_method_rag": false,
+    "enable_deterministic_solver": false,
+    "enable_numeric_answer_first_prompt": true,
+    "enable_numeric_answer_only_prompt": false,
+    "enable_strict_numeric_salvage": false,
+    "enable_conditional_token_retry": false,
+    "enable_failure_retry_backoff": false,
+    "enable_explicit_answer_conflict_retry": false,
+    "enable_l2_routing": false,
+    "enable_local_repair": false,
+    "enable_uncertain_repair": false,
+    "enable_sympy_evidence": false,
+    "enable_answer_dual_form": "ABSENT at 25f99b5 (ARH did not exist; current code must set false)",
+    "effective_max_model_calls": "5 (no p3_call_boost; refine off)"
+  },
+  "rebuild_paths": {
+    "A_original_runtime": "gitcode main checkout at 18f4f5a (or 25f99b5); SUBMISSION_CONFIG above is the default",
+    "B_current_codebase_equivalent": {
+      "base": "PRE0-8.30 line (reasoning_agent package; fail-closed reverify; PARITY-backed equivalence vs 46c08dd monolith on all hetero_k5-active paths)",
+      "diff_from_current_SUBMISSION_CONFIG": [
+        "enable_step_verification: True -> False",
+        "enable_step_revision: True -> False",
+        "p3_call_boost: 3 -> 0 (effective call cap 8 -> 5)",
+        "enable_answer_dual_form: True -> False"
+      ],
+      "behavior_note": "refine/ARH are inactive under this profile, so the two reverify-semantics scenarios (PARITY §6a approved known divergence) are dormant; all 11 strict parity scenarios are byte-identical",
+      "experiment_arm_reference": "runner arm `baseline_hetero` (scripts/evaluate_protocol_ab.py make_config) is field-for-field this profile"
+    }
+  },
+  "status": "ROLLBACK_TRIGGERED_NOT_EXECUTED — gitcode main still at 46c08dd (OFFICIAL_NEGATIVE_STACK); pointer switch requires user authorization",
+  "forbidden": [
+    "re-running hetero+refine+ARH under any name (OFFICIAL_NEGATIVE_STACK)",
+    "calling this baseline an improvement (Run #5 is the reference anchor, not a causal win)"
+  ]
+}

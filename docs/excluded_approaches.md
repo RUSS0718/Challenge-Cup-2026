@@ -30,7 +30,7 @@
 | answer-first + k5 + 4k（`b8b78aa`，C0） | 9/112，invalid 20，截断率 88.7%，约 5h12m | `BASELINE`：降低 invalid，但没有证明核心正确率提升 |
 | hetero_k5（`25f99b5`） | 12/112，invalid 17，0 runner error；约4h24m | `BASELINE`：当前最好健康官方锚；跨窗结果不是因果证明 |
 | hetero + Re2（`7479d47`） | 11/112，invalid 27，10 runner error；约7h24m | `REJECTED`：正确率、错误和6h时限三条件均触发回滚 |
-| hetero + refine + ARH（runtime `9311d8c`） | 官方结果待回收 | `DEPLOYED_UNVALIDATED_CANARY`：发布 tip `46c08dd`，回滚锚 `95d5700` |
+| hetero + refine + ARH（runtime `9311d8c`，tip `46c08dd`） | **9/112，invalid 11，1 runner error；818 attempts；约7h14m**（官方 Run #7，2026-08-30 回收） | `OFFICIAL_NEGATIVE_STACK / ROLLBACK_TRIGGERED`：correct 12→9、error 0→1、7h14m 三门齐触；invalid 历史最低（11）未转化为得分；无组件对照，不得换名复跑。运营基线恢复目标 `hetero_k5 @ 25f99b5`（回滚执行待用户授权） |
 
 结论：提高 token 上限、在 k1/k5/B1 间机械切换都没有突破隐藏集正确数平台。C0 保留为官方
 对照，不应把 invalid 下降等价成分数收益。
@@ -102,15 +102,26 @@
 
 关闭或改标签属于外部协作动作，需团队确认；在此之前，本节承担防重复执行的护栏。
 
-## 六、当前允许队列
+## 六、当前允许队列（2026-08-30 对齐最终版规范）
 
-1. 先执行总规范的 Pre-P0 评测可信度校准；未过门前不启动新的能力方法窗。
-2. 当前 hetero+refine+ARH 只作未验证 canary；先回收官方日志并按预写条件保留或回滚。
-3. GSA 只能按新 method ID、严格3+1和matched control重证，现有单窗不得直接搭载。
-4. P1 首次回归已按 VOID 归档；任何健康复测都须新预注册且次数有限。
-5. 联网调研只进入候选池；按
+1. Pre-P0 评测可信度校准：§6b 退出条件 1–5 已满足（AA-004 六门全过=最后校准窗、
+   EXT-002 合规 PASS、PARITY 对 46c08dd 重签、formal gate 完整性模式、总汇总
+   1754 次调用全记账）；条件 6（用户 GO）待定。
+2. hetero+refine+ARH 整栈已判 `OFFICIAL_NEGATIVE_STACK / ROLLBACK_TRIGGERED`
+   （Run #7）；回滚执行（GitCode 指针）待用户单独授权，见
+   [`p0_rollback_preparation_2026-08-30.md`](experiments/p0_rollback_preparation_2026-08-30.md)。
+3. refine：全量 verify/revise/reverify 形态随整栈暂停归档；不以 fail-closed 修复
+   为由原样复跑；未来仅限机制实质改变的稀疏条件 refine 以新 method ID 预注册。
+4. ARH：保留为零调用表示候选；仅在正确率 winner 独立通过后作附加单变量，
+   不作为下一发。
+5. GSA 只能按新 method ID、严格3+1和matched control重证（spec §9.2 三臂
+   O/M/G），现有 `b=3,c=0,p=0.125` 单窗仅 `EXPLORATORY_POSITIVE`。
+6. P1 外部能力层（core120_v2 等）：静态层构建前须用户确认外部数据许可/缓存
+   策略；模型窗须用户明确 GO。
+7. P1 首次回归已按 VOID 归档；任何健康复测都须新预注册且次数有限。
+8. 联网调研只进入候选池；按
    [`math_agent_capability_methods_2026-08-27.md`](research/math_agent_capability_methods_2026-08-27.md)
    的排序逐个做代码缝隙与预算审计，再写单方法预注册。
-6. 只有独立通过的单方法才可进入融合；优先考虑“能力方法 + 已证明的成本控制”，不融合两个
+9. 只有独立通过的单方法才可进入融合；优先考虑"能力方法 + 已证明的成本控制"，不融合两个
    尚未验证的能力方法。
 7. 官方候选相对当时最强健康锚构造聚焦单变量 diff；本地实验分支不得直接推送。

@@ -5,11 +5,13 @@
 验证/修正/复验链 → 规范化输出,同时保持赛事规定的根入口与公开
 client 契约。
 
-> 当前状态(2026-08-30):官方提交面为 **hetero+refine+ARH canary**(gitcode main
-> `46c08dd`,runtime `9311d8c`),官方历史最高 **12/112**(Run #5)。本地集成/拆分
-> 基线 **442/442**，尚未push或移动main。
-> 官方分数判读一律对照五数(correct/invalid/runner error/截断率/耗时),
-> 单窗 ±1~3 题属噪声带(正确数区间见实验报告)。
+> 当前状态(2026-08-30 晚):官方 Run #7 判定 **hetero+refine+ARH 整栈 =
+> OFFICIAL_NEGATIVE_STACK / ROLLBACK_TRIGGERED**(9/92/11、1 error、7h14m 超时,
+> gitcode main 仍停在 `46c08dd`,**指针回滚待用户执行**)。运营基线恢复目标 =
+> **hetero_k5 @ 25f99b5**(官方 Run #5 = 12/112,唯一健康锚;profile 见
+> docs/experiments/operational_baseline_hetero_k5_25f99b5.json)。refine 全量
+> 形态暂停;ARH 保留为零调用后置候选。本地评测协议已按 Pre-P0 校准
+> (AA-004 六门全过,噪声带与门见 docs/experiments/PRE0-SUMMARY-2026-08-30.md)。
 
 ## 当前 Agent 架构
 
@@ -25,13 +27,13 @@ flowchart TD
     l0 --> finalize
     main1 --> vote["adaptive k5 自适应投票(hetero 在役)<br/>最多 5 个独立候选;首次补采样 = AlternativeReasoner<br/>(反证/构造/边界/数值验证),其余 Direct<br/>保守等价分组,3 票共识早退"]
     vote --> select["确定性候选选择<br/>(共识组大小优先)"]
-    select --> refine{"P3 refine 链(在役)<br/>verify → revise → 复验"}
+    select --> refine{"P3 refine 链(整栈负结果,随回滚撤下)<br/>verify → revise → 复验"}
     refine -->|"复验明确发现错误"| rollback["回滚原解"]
     refine -->|"通过"| finalize["final_response 组装<br/>numeric:规范化最简形<br/>非数值:正文重建"]
     rollback --> finalize
     finalize --> out["final_response + extracted_answer + trace"]
     vote -. "发5 GSA 备选<br/>3 采样 + 1 生成式聚合(4 调用)" .-> gsa["gsa_4call"]
-    finalize --> arh["ARH 在役<br/>答案句 + boxed 双形态"]
+    finalize --> arh["ARH(随回滚撤下;保留为零调用后置候选)<br/>答案句 + boxed 双形态"]
 ```
 
 | 层 | 在役实现 | 备注 |
@@ -40,7 +42,7 @@ flowchart TD
 | 生成 | answer-first:numeric 族第一行即最终答案 | 截断免疫(88% 截断率下答案仍可判) |
 | 采样/聚合 | adaptive k5:≤5 候选,3 票共识早退;首次补采样为异构策略 | hetero 在役(官方 Run #5 = 12/112) |
 | 修正 | P3 verify→revise→复验；明确复验错误回滚 | 当前提交行为；未决复验语义见总spec |
-| 表示 | numeric:答案句+boxed规范形;非数值:正文重建 | ARH 在役，官方效果待日志 |
+| 表示 | numeric:答案句+boxed规范形;非数值:正文重建 | ARH 随 Run #7 整栈撤下;invalid 11 为历史最低但未转化为 correct |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
 
 ## 项目架构与发布流
@@ -51,7 +53,7 @@ flowchart LR
         judge["clone main → 无参构造<br/>112 隐藏题 → eval_log 五数"]
     end
     subgraph deploy["发布面"]
-        gitcode["gitcode/main<br/>(行为 = 在役 canary)"]
+        gitcode["gitcode/main<br/>(46c08dd canary;OFFICIAL_NEGATIVE_STACK,回滚待执行)"]
         release["发布线克隆<br/>canary/revert 操作面"]
     end
     subgraph loop["实验闭环(每窗一变量)"]
