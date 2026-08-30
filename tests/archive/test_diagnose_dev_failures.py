@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.diagnose_dev_failures import classify_response
+from scripts.archive.diagnose_dev_failures import classify_response
 
 
 class DiagnoseDevelopmentFailuresTest(unittest.TestCase):

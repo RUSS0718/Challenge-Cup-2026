@@ -52,8 +52,8 @@
 |---|---|---|---|
 | `dev3` | 3 道短数值题 | client/import/最小 solve/端点健康冒烟 | 能力或泛化证据 |
 | `public112` | 18 个课程方向，但 112 题全部被运行时分成 `calculation`（[`AGENTS.md:96`](D:/project/challenge_cup_2026/Challenge-Cup-2026/AGENTS.md:96)） | 短计算、答案抽取、格式卫生、历史官方相关性回归 | 证明、解释、长题或综合推理能力 |
-| `complex48` | 24 道公开改编 + 24 道 AI 生成（[`build_freeze_set.py:2`](D:/project/challenge_cup_2026/Challenge-Cup-2026/scripts/build_freeze_set.py:2)、[`build_freeze_set.py:297`](D:/project/challenge_cup_2026/Challenge-Cup-2026/scripts/build_freeze_set.py:297)）；只与 public112 检查题干精确不重合 | 历史 A/B 连续性、路由/输出契约、长条件与跨方向压力测试 | 独立外部 benchmark、未见分布泛化、证明质量 |
-| `medium60` | 明确从 complex48 过滤出 24 道公开题，再加 36 道改编题（[`build_medium_freeze_set.py:60`](D:/project/challenge_cup_2026/Challenge-Cup-2026/scripts/build_medium_freeze_set.py:60)） | 公开来源的单窗 transfer screen | 与 complex48 合并计数或称为独立复验 |
+| `complex48` | 24 道公开改编 + 24 道 AI 生成（[`build_freeze_set.py:2`](D:/project/challenge_cup_2026/Challenge-Cup-2026/scripts/archive/build_freeze_set.py:2)、[`build_freeze_set.py:297`](D:/project/challenge_cup_2026/Challenge-Cup-2026/scripts/archive/build_freeze_set.py:297)）；只与 public112 检查题干精确不重合 | 历史 A/B 连续性、路由/输出契约、长条件与跨方向压力测试 | 独立外部 benchmark、未见分布泛化、证明质量 |
+| `medium60` | 明确从 complex48 过滤出 24 道公开题，再加 36 道改编题（[`build_medium_freeze_set.py:60`](D:/project/challenge_cup_2026/Challenge-Cup-2026/scripts/archive/build_medium_freeze_set.py:60)） | 公开来源的单窗 transfer screen | 与 complex48 合并计数或称为独立复验 |
 
 本次逐行审计 [`complex_capability_freeze_48.jsonl`](D:/project/challenge_cup_2026/Challenge-Cup-2026/sample_data/complex_capability_freeze_48.jsonl:1)
 得到：derivation/proof/explanation 共 30 题，其中 28 题的 `answer` 是数值或分数；另两题

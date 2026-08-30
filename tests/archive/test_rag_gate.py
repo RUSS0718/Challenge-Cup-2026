@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.evaluate_rag_gate import gate
+from scripts.archive.evaluate_rag_gate import gate
 
 
 class RagGateTest(unittest.TestCase):

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "sample_data" / "complex_capability_freeze_48.jsonl"
 TARGET = ROOT / "sample_data" / "medium_capability_freeze_60.jsonl"
 

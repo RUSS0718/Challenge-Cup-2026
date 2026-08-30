@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.evaluate_deterministic_gate import gate
+from scripts.archive.evaluate_deterministic_gate import gate
 
 
 class DeterministicGateTest(unittest.TestCase):

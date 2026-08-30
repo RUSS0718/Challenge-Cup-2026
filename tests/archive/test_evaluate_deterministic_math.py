@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.evaluate_deterministic_math import audit, load_items
+from scripts.archive.evaluate_deterministic_math import audit, load_items
 
 
 class DeterministicAuditTest(unittest.TestCase):

@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from llm_client import InternChatClient
-from scripts.evaluate_token_ladder import gate_check, summarize
+from scripts.archive.evaluate_token_ladder import gate_check, summarize
 
 
 @contextlib.contextmanager
@@ -80,7 +80,7 @@ class TokenLadderTest(unittest.TestCase):
         self.assertEqual(["最终答案：42"], client.raw_contents)
 
     def test_summarize_thinking_and_marker_rates(self):
-        from scripts.evaluate_token_ladder import _detect_thinking, _detect_answer_marker
+        from scripts.archive.evaluate_token_ladder import _detect_thinking, _detect_answer_marker
         self.assertTrue(_detect_thinking("Thinking Process: 1. Analyze the problem"))
         self.assertFalse(_detect_thinking("推导过程如下：由定义得"))
         self.assertTrue(_detect_answer_marker("最终答案：3"))

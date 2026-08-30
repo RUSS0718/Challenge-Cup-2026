@@ -5,13 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.evaluate_deterministic_math import audit
-from scripts.independent_stage_evaluator import evaluate_stage
+from scripts.archive.evaluate_deterministic_math import audit
+from scripts.archive.independent_stage_evaluator import evaluate_stage
 
 
 class IndependentStageEvaluatorTest(unittest.TestCase):
     def test_stage_evaluator_passes_local_stages_and_blocks_missing_model_ab(self):
-        root = Path(__file__).resolve().parents[1]
+        root = Path(__file__).resolve().parents[2]
         items = [json.loads(line) for line in (root / "sample_data" / "medium_capability_freeze_60.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         report = audit(items)
         result = evaluate_stage(report, report)

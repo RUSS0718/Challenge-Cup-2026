@@ -6,7 +6,7 @@ requiring a real LLM client or network access.
 
 import unittest
 
-from scripts.scan_budget import (
+from scripts.archive.scan_budget import (
     BASELINE_CORRECT,
     TOTAL_BUDGET_SECONDS,
     adopt_best_tier,

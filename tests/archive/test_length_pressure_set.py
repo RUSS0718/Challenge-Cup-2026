@@ -2,8 +2,8 @@ import json
 import unittest
 from pathlib import Path
 
-from scripts.build_length_pressure_set import build_pressure_set
-from scripts.validate_length_pressure_set import validate
+from scripts.archive.build_length_pressure_set import build_pressure_set
+from scripts.archive.validate_length_pressure_set import validate
 
 
 def _source_item(idx: int) -> dict:

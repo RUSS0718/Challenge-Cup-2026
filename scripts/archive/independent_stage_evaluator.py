@@ -12,14 +12,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from experiments.legacy.method_rag import MethodCardRetriever
-from scripts.evaluate_deterministic_gate import gate as deterministic_gate
-from scripts.evaluate_method_rag import evaluate as evaluate_retrieval
-from scripts.validate_medium_freeze_set import validate as validate_freeze
+from scripts.archive.evaluate_deterministic_gate import gate as deterministic_gate
+from scripts.archive.evaluate_method_rag import evaluate as evaluate_retrieval
+from scripts.archive.validate_medium_freeze_set import validate as validate_freeze
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _load_json(path: Path) -> dict[str, Any]:

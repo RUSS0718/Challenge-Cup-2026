@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 # Support both ``python scripts/validate_medium_freeze_set.py`` and module use.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.evaluate_dev import judge_correct
 
 REQUIRED = {

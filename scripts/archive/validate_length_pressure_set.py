@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from scripts.build_length_pressure_set import MAX_PRESSURE_SIZE, MIN_PRESSURE_SIZE, THRESHOLD
+from scripts.archive.build_length_pressure_set import MAX_PRESSURE_SIZE, MIN_PRESSURE_SIZE, THRESHOLD
 
 
 REQUIRED_FIELDS = {

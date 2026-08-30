@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 # 每项字段：idx, problem, answer, task_type, subject, source, source_url,
 #           source_ref, adaptation, verification, is_long, is_multi_domain
