@@ -20,7 +20,7 @@
 
 ## 一、官方评测处置（配置级）
 
-权威数字见 [`docs/experiments/官方评测记录.md`](experiments/官方评测记录.md)。
+权威数字见 [`docs/experiments/authority/官方评测记录.md`](experiments/authority/官方评测记录.md)。
 
 | 方案 | 官方结果 | 处置 |
 | --- | --- | --- |
@@ -65,7 +65,7 @@
 | 方法卡 RAG | 双轮正确率下降且延迟上升 | `REJECTED`：永久排除；不得作为融合组件复活 |
 | P3/refine | 历史144对 b=12/c=4，p=0.0768；新W2/W2b各净+1、零败但仅complex48 | `DEPLOYED_UNVALIDATED_CANARY` 组件：取得用户授权的搭载资格，不是正式能力通过 |
 | exact_g / GR 成本前沿 | 首筛失败；唯一复测触发对称 10% VOID。两窗描述性准确率无差异，调用约 C0 的 25%，墙钟约 1/3 | `ARCHIVED`，该设计线终止；不得继续复测或直接解锁 GR |
-| P1 `current_salvage` | 2026-08-27 complex48 两轮中三份 arm-report 超过 10% model_error，public112 未产出；salvage 实际触发 0/96 | `OPEN / NO_VALID_CONCLUSION`：本次窗口 `ARCHIVED_VOID`；见 [`p1_salvage_result_2026-08-27.md`](experiments/p1_salvage_result_2026-08-27.md)，不得自动补跑或晋升 |
+| P1 `current_salvage` | 2026-08-27 complex48 两轮中三份 arm-report 超过 10% model_error，public112 未产出；salvage 实际触发 0/96 | `OPEN / NO_VALID_CONCLUSION`：本次窗口 `ARCHIVED_VOID`；见 [`p1_salvage_result_2026-08-27.md`](experiments/screens-2026-08-27-29/p1_salvage/p1_salvage_result_2026-08-27.md)，不得自动补跑或晋升 |
 | P3′ `hetero_k5` | C0 k5 内1 Alternative +4 Direct；官方Run #5为12/112、0 runner error | `BASELINE`：保留为官方最好健康锚；本地正式因果门仍未完成 |
 | ARH | complex48单窗25:25、双臂零error/invalid、零调用增量；官方靶是invalid池 | `DEPLOYED_UNVALIDATED_CANARY` 组件：本地只证明未明显回退，不能单独归因官方变化 |
 | GSA package v0 | 单窗22→25，b=3/c=0，p=0.125；同时改变hetero、投票与调用结构 | `OPEN / EXPLORATORY_POSITIVE`：须按总规范重做k4_sc matched control和严格3+1 |

@@ -1,6 +1,6 @@
 # G 小筛结果与判定(exact_g vs C0,complex48)— 2026-08-27
 
-> 判定依据:预注册 `docs/experiments/g_screen_preregistration_2026-08-27.md`
+> 判定依据:预注册 `docs/experiments/screens-2026-08-27-29/g_screen/g_screen_preregistration_2026-08-27.md`
 > (先于运行冻结)。协议锚 `codex/b1-4k-canary @ 3d07de5`(快照 2b4ba30)。
 > 原始数据:`tmp/g_screen_2026-08-27/g_screen_complex48.json`,
 > manifest 同目录;冒烟 `smoke_dev.json`。

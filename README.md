@@ -205,7 +205,7 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 1. 将可复现版本推送到队伍 AtomGit 组织仓库的 `main` 分支(走发布线克隆)。
 2. 在作品页面保持关联与提交状态。
-3. 每轮结果按五数判读并记入 `docs/experiments/官方评测记录.md`,回滚条件
+3. 每轮结果按五数判读并记入 `docs/experiments/authority/官方评测记录.md`,回滚条件
    在发布记录中预写。
 
 提交、推送和作品页面操作都应单独确认。本地数据集结果只用于研发,不代表

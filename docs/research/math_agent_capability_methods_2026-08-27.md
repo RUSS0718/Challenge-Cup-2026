@@ -26,7 +26,7 @@
 
 - 官方 C0（`b8b78aa`，answer-first + k5 + 4096）为 9/112、invalid 20、截断率
   88.7%、约 5 小时 12 分。过去在 k1/k5、B1、32k 之间切换没有突破正确数平台，见
-  [官方评测记录](../experiments/官方评测记录.md)。
+  [官方评测记录](../experiments/authority/官方评测记录.md)。
 - `public_regression_112` 当前全被分类为 `calculation`，只能做计算题与输出卫生回归，
   不能证明证明题、解释题或长题能力。
 - 32k、方法卡 RAG、PoT/TIR-first、模型生成程序回代、确定性求解器、SymPy 默认路径、
@@ -103,19 +103,19 @@ token/延迟下降，才能以“成本组件”身份独立过门。
 
 ### 1. P1 `current_salvage`：首次窗口 VOID，不扩大含义
 
-现有 [P1 预注册](../experiments/p1_salvage_preregistration_2026-08-27.md) 要求先看任一臂错误率
+现有 [P1 预注册](../experiments/screens-2026-08-27-29/p1_salvage/p1_salvage_preregistration_2026-08-27.md) 要求先看任一臂错误率
 是否超过 10%。首次 complex48 两轮已有三份 arm-report 超阈值，public112 未产出，因此按
-[结果报告](../experiments/p1_salvage_result_2026-08-27.md) 记为 `ARCHIVED_VOID`，invalid 与正确率门
+[结果报告](../experiments/screens-2026-08-27-29/p1_salvage/p1_salvage_result_2026-08-27.md) 记为 `ARCHIVED_VOID`，invalid 与正确率门
 均未评估。它仍只是失败路径卫生候选；`invalid→incorrect` 不是提分，不能据本次 VOID 进入融合。
 
 ### 2. `hetero_k5`：固定预算的策略多样性
 
 - **机制**：保留 C0 所有配置和有效上限 5，只把 5 路同类生成改成 4 Direct + 1 Alternative。
 - **单变量**：只切换 `enable_heterogeneous_reasoners`；不改温度、token、投票阈值、输出协议。
-- **现有门**：严格执行 [`hetero_k5` 预注册](../experiments/hetero_k5_screen_preregistration_2026-08-27.md)：
+- **现有门**：严格执行 [`hetero_k5` 预注册](../experiments/screens-2026-08-27-29/hetero_k5/hetero_k5_screen_preregistration_2026-08-27.md)：
   正确率净失≤2、平均 calls≤C0×1.10 且 P95 不高于 C0、卫生不劣于 C0。
 - **当前启动状态**：首次 dev3 健康探针 3/3 均出现 model_error，按
-  [`hetero_k5_health_probe_result_2026-08-27.md`](../experiments/hetero_k5_health_probe_result_2026-08-27.md)
+  [`hetero_k5_health_probe_result_2026-08-27.md`](../experiments/screens-2026-08-27-29/hetero_k5/hetero_k5_health_probe_result_2026-08-27.md)
   判为 `UNHEALTHY`；没有运行 complex48，也没有能力结论。
 - **解释边界**：DIVERSE 论文表明“多样化提示 + 验证”可提高多类推理任务表现，但论文使用的
   verifier 与本仓库不同；这里只支持测试“真正的策略多样性”，不支持重开普通 k5 自洽采样。

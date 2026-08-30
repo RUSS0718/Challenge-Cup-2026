@@ -7,7 +7,7 @@
     "boundary_commit": "25f99b5 (release boundary docs; SUBMISSION_CONFIG below extracted verbatim from this commit's user_agent.py)",
     "official_run": {
       "run_id": 5,
-      "record": "docs/experiments/官方评测记录.md#run-5",
+      "record": "docs/experiments/authority/官方评测记录.md#run-5",
       "correct/incorrect/invalid": "12 / 83 / 17",
       "accuracy": "10.71%",
       "agent_stage_errors": 0,
