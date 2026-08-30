@@ -373,6 +373,36 @@ EXT 超复跑额度、manifest 强制字段缺失、僵尸遥测污染、gate6 �
 补偿窗正在运行或只生成部分日志时，状态保持`IN_PROGRESS`；不得提前写PASS，也不得并行启动
 EXT或任何能力实验。
 
+## 6c. Amendment AA-GATE6-2026-08-30（用户批准冻结文本）
+
+背景：PRE0-AA-003 在全部无偏统计门通过的情况下，因"同一名义臂两轮各 +1
+持续占优"触发 gate6 硬判据而关窗（ORIGINAL_GATE_FAIL / SUPPORTS_AMENDMENT）。
+该判据缺少统计依据并与 Gate3 重复（存在平局时"任一臂连续两轮获胜"的自然
+触发概率低于 1/2，但已足以说明"同一名义臂两轮 +1 即失败"不适合硬门）。
+冻结变更：
+
+1. 删除"任一名义臂两轮持续占优即失败"的硬判据。
+2. Gate6 改为：
+   a. 每条工件必须记录真实 `schedule_position` 和 `first_arm`；
+   b. 记录值必须与冻结 seed、shuffle 后位置和臂序重算结果 **100% 一致**；
+   c. first_arm × winner 的 Fisher exact p ≥ 0.05。
+3. 总体名义臂偏差继续由既有统计门负责：每轮 McNemar p≥0.05、item-cluster
+   sign test p≥0.05、每轮 correct 差绝对值 ≤2、每轮 invalid+error 差绝对值 ≤2。
+4. "某臂连续两轮领先"保留为描述字段，不单独决定 PASS/FAIL。
+5. AA-003 维持 `ORIGINAL_GATE_FAIL / SUPPORTS_AMENDMENT`：不按新规则追认
+   PASS，不进入 Pre-P0 退出证据。
+6. 新建 `PRE0-AA-004`：复用冻结 aa24 题集；两轮 same-item interleaved；
+   seeds **8601/8602**；第二轮反转名义臂顺序；预算 ≤480 调用；其余门、配置、
+   超时和资源参数不变。
+7. **AA-004 是该协议的最后校准窗**：健康 VOID 可按预注册复跑一次；健康但
+   统计、成本或顺序门失败，则 Pre-P0 保持 BLOCKED；**不再根据 AA-004 结果
+   修改门槛**。
+
+执行顺序：EXT-002 完整关窗落盘 → 确认无其他共享端点窗口 → 启动 AA-004 →
+AA-004 通过后 AA 链方可计入 Pre-P0 退出门。§6b 条件 1 中的 "`PRE0-AA-003`
+六门全部通过" 由本 amendment 取代为 "`PRE0-AA-004` 全门通过"；§6b 其余条件
+不变。
+
 ## 7. P0：官方整栈裁决与健康锚恢复
 
 ### 7.1 已完成的官方判读

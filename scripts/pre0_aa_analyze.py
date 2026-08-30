@@ -225,7 +225,8 @@ def main(argv=None) -> None:
         "gated_metrics": sorted(gate_ratios), "latency_stat": args.latency_stat,
     }
 
-    # ── 6. order bias ────────────────────────────────────────────────────
+    # ── 6. order bias (spec §6c gate6: 6a field presence, 6b seed/position
+    # recomputation 100% match, 6c first_arm x winner Fisher) ─────────────
     dominance = (
         per_round[1]["correct"][ARMS[0]] > per_round[1]["correct"][ARMS[1]]
         and per_round[2]["correct"][ARMS[0]] > per_round[2]["correct"][ARMS[1]]
@@ -233,23 +234,54 @@ def main(argv=None) -> None:
         per_round[1]["correct"][ARMS[1]] > per_round[1]["correct"][ARMS[0]]
         and per_round[2]["correct"][ARMS[1]] > per_round[2]["correct"][ARMS[0]]
     )
-    # first-arm x winner table over decisive item-rounds
+    recorded_position: dict[tuple, int] = {}
+    recorded_first_arm: dict[tuple, str] = {}
+    missing_fields = 0
+    for row in rows:
+        key = (row["round"], row["idx"])
+        if row.get("schedule_position") is not None:
+            recorded_position[key] = int(row["schedule_position"])
+        else:
+            missing_fields += 1
+        if row.get("first_arm"):
+            recorded_first_arm[key] = row["first_arm"]
+        else:
+            missing_fields += 1
+    gate6a = missing_fields == 0
+
+    # 6b: recompute positions and first arms from the frozen seed + shuffle +
+    # arm order; recorded values must match 100%.
+    position_by_round: dict[int, dict] = {}
+    for number in (1, 2):
+        items = [json.loads(line) for line in Path(args.dataset).read_text(encoding="utf-8").splitlines() if line.strip()]
+        shuffled = list(items)
+        random.Random(seeds[number]).shuffle(shuffled)
+        position_by_round[number] = {item["idx"]: p for p, item in enumerate(shuffled)}
+    mismatches = []
+    for (number, idx), pos in sorted(recorded_position.items()):
+        expected_position = position_by_round.get(number, {}).get(idx)
+        expected_first = arm_orders[number][pos % len(ARMS)]
+        if expected_position is not None and pos != expected_position:
+            mismatches.append({"round": number, "idx": idx, "kind": "position",
+                               "recorded": pos, "recomputed": expected_position})
+        if recorded_first_arm.get((number, idx)) != expected_first:
+            mismatches.append({"round": number, "idx": idx, "kind": "first_arm",
+                               "recorded": recorded_first_arm.get((number, idx)),
+                               "recomputed": expected_first})
+    gate6b = not mismatches
+
     table = {"left_first": {"left_wins": 0, "right_wins": 0},
              "right_first": {"left_wins": 0, "right_wins": 0}}
     by_key: dict[tuple, dict] = {}
-    recorded_position: dict[tuple, int] = {}
     for row in rows:
         key = (row["round"], row["idx"])
         by_key.setdefault(key, {})[row["variant"]] = row.get("verdict") == "correct"
-        if row.get("schedule_position") is not None:
-            recorded_position[key] = int(row["schedule_position"])
     for (number, idx), arms in by_key.items():
         if set(arms) != set(ARMS):
             continue
         if arms[ARMS[0]] == arms[ARMS[1]]:
             continue  # tie
         if (number, idx) in recorded_position:
-            # artifact-recorded position (AA-003 onwards): authoritative
             first_arm = arm_orders[number][recorded_position[(number, idx)] % len(ARMS)]
         else:
             first_arm = first_arm_by_round[number][idx]
@@ -259,8 +291,19 @@ def main(argv=None) -> None:
         table[side][win] += 1
     fisher_p = fisher_exact_2x2(table["left_first"]["left_wins"], table["left_first"]["right_wins"],
                                 table["right_first"]["left_wins"], table["right_first"]["right_wins"])
-    gates["gate6_order_bias"] = (not dominance) and fisher_p >= 0.05
-    details["order_bias"] = {"dominance": dominance, "first_arm_table": table, "fisher_p": fisher_p}
+    # §6c: dominance is DESCRIPTIVE only; gate6 = 6a AND 6b AND 6c.
+    gates["gate6_order_bias"] = gate6a and gate6b and fisher_p >= 0.05
+    details["order_bias"] = {
+        "descriptive_same_arm_led_both_rounds": dominance,
+        "gate6a_fields_recorded": gate6a,
+        "missing_field_rows": missing_fields,
+        "gate6b_recomputation_match": gate6b,
+        "gate6b_mismatches": mismatches[:10],
+        "first_arm_table": table,
+        "fisher_p": fisher_p,
+        "first_arm_source": ("artifact_schedule_position+first_arm" if recorded_position
+                             else "seed_reconstruction (legacy artifacts)"),
+    }
 
     # ── summary ──────────────────────────────────────────────────────────
     manifest = {

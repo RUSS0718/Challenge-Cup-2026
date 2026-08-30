@@ -552,7 +552,7 @@ def answer_rows(variant_name: str, round_no: int, input_file: str, records: list
             "main_finish_reason": record.get("main_finish_reason"),
         }
         for key in (
-            "final_response", "schedule_position",
+            "final_response", "schedule_position", "first_arm",
             "final_response_nonempty", "result_status", "model_calls", "model_call_limit",
             "p3_verify_status", "p3_revise_status", "p3_reverify_status",
         ):
@@ -604,8 +604,12 @@ def run_interleaved(variants: list[Variant], items: list[dict], timeout: int, re
     def work(packed):
         index, item = packed
         solved = [(v.name, solve_fn(v, item)) for v in _interleave_order(index, variants)]
+        # spec §6c gate6a: every record carries its real schedule position AND
+        # first arm (auditable against the frozen seed's shuffle).
+        first_arm = variants[index % len(variants)].name
         for _name, record in solved:
             record["schedule_position"] = index
+            record["first_arm"] = first_arm
         return solved
 
     jobs = [(lambda packed=packed: work(packed)) for packed in enumerate(items)]
