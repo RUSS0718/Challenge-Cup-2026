@@ -75,3 +75,21 @@
 - 边界：本窗分数**不得**与 OlymMATH 公开榜横比（官方 32k 预算 vs 本仓 4096）；
   12 题样本不得用于任何能力主张；native 判分方向与版本一经本窗使用即冻结，
   后续 core120_v2/confirm30_v2 必须沿用同一版本。
+
+## 8. Amendment A1（2026-08-30，attempt-1 健康失败后的预注册复跑）
+
+attempt-1（2026-08-30 02:41 启动）健康门失败：4/12 model error，其中 3 个 solve
+因端点**滴流停摆**各挂 ~22800s（~6.3h，占满 3 个 worker），慢速字节流绕过了
+requests 的 per-read timeout。按 §5 复跑规则执行**恰好一次**整窗复跑，修订：
+
+1. **本地实验客户端停摆护栏**（`llm_client.InternChatClient` 新增 opt-in
+   `request_deadline` / 环境变量 `INTERN_REQUEST_DEADLINE_SECONDS`）：每次请求在
+   daemon 线程内执行，超过墙钟时限判为 timeout 类失败（重试逻辑不变）。默认
+   关闭（None），对既有调用方零行为变化；官方提交面 client 不受影响。本窗
+   复跑设 240s。
+2. 其余协议不变：同选题（selection_manifest 冻结）、同臂 baseline_hetero、
+   workers=3、timeout=180s、temperature=0.6、熔断同前。
+3. 复跑新 run_id（attempt=2）；若健康再次失败 → 本窗 `ARCHIVED_VOID`
+   （§5 规则，不追加窗口）。
+4. attempt-1 的全部工件与双口径判分保留在结果文档中（含停摆事故与 100% 截断
+   发现），不因复跑而丢弃。

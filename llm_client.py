@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 import time
 from typing import Dict, List
 from urllib.parse import urlparse
@@ -30,6 +31,7 @@ class InternChatClient:
         self,
         timeout: int | None = None,
         retry: int | None = None,
+        request_deadline: float | None = None,
     ) -> None:
         raw_api_key = os.environ.get("INTERN_API_KEY")
         if not raw_api_key:
@@ -42,6 +44,18 @@ class InternChatClient:
         self.thinking_mode = _optional_bool_env("INTERN_THINKING_MODE")
         self.timeout = timeout if timeout is not None else _positive_int_env("INTERN_TIMEOUT_SECONDS", 30)
         self.retry = retry if retry is not None else _positive_int_env("INTERN_RETRY_COUNT", 1)
+        # PRE0-EXT-001 amendment A1: opt-in wall-clock deadline per request.
+        # A stalled (trickle-fed) response defeats the per-read requests timeout
+        # and hung three solves for ~6.3h in the EXT attempt-1 window.  When
+        # set, each attempt runs in a daemon thread; a live thread past the
+        # deadline raises a timeout-category failure (retry logic unchanged).
+        # Default None keeps the historical behavior byte-for-byte.
+        self.request_deadline = (
+            request_deadline
+            if request_deadline is not None
+            else _optional_float_env("INTERN_REQUEST_DEADLINE_SECONDS")
+        )
+        self.deadline_exceeded_count = 0
         # P0.1: per-call finish_reason log (local diagnostic only; the official
         # client keeps its own counters).  Appended in call order for serial runs.
         self.finish_reasons: List[str] = []
@@ -80,25 +94,9 @@ class InternChatClient:
         started = time.perf_counter()
         for attempt in range(self.retry):
             try:
-                response = requests.post(
-                    self.api_base,
-                    headers=headers,
-                    data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                    timeout=self.timeout,
-                )
-                response.raise_for_status()
-                data = response.json()
-                choice = data["choices"][0]
-                self.finish_reasons.append(choice.get("finish_reason") or "")
-                usage = data.get("usage") or {}
-                try:
-                    self.completion_tokens.append(int(usage.get("completion_tokens") or 0))
-                except (TypeError, ValueError):
-                    self.completion_tokens.append(0)
-                content = choice["message"]["content"]
-                self.raw_contents.append(content if isinstance(content, str) else "")
-                self.latencies.append(time.perf_counter() - started)
-                return content
+                if self.request_deadline is not None:
+                    return self._post_with_deadline(payload, headers)
+                return self._post_once(payload, headers, started)
             except requests.Timeout as exc:
                 last_category = "timeout"
                 self._record_failure(last_category, exc)
@@ -128,6 +126,54 @@ class InternChatClient:
 
         raise ChatClientError(last_category, self.last_failure_type)
 
+    def _post_once(self, payload: dict, headers: dict, started: float | None = None) -> str:
+        response = requests.post(
+            self.api_base,
+            headers=headers,
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        data = response.json()
+        choice = data["choices"][0]
+        self.finish_reasons.append(choice.get("finish_reason") or "")
+        usage = data.get("usage") or {}
+        try:
+            self.completion_tokens.append(int(usage.get("completion_tokens") or 0))
+        except (TypeError, ValueError):
+            self.completion_tokens.append(0)
+        content = choice["message"]["content"]
+        self.raw_contents.append(content if isinstance(content, str) else "")
+        self.latencies.append(time.perf_counter() - (started if started is not None else time.perf_counter()))
+        return content
+
+    def _post_with_deadline(self, payload: dict, headers: dict) -> str:
+        """Run one attempt under a wall-clock deadline (PRE0-EXT-001 amendment A1).
+
+        The attempt thread is a daemon: a stalled trickle response is abandoned
+        (leaked until process exit, documented) instead of hanging the solve.
+        """
+        box: dict = {}
+        started = time.perf_counter()
+
+        def _run() -> None:
+            try:
+                box["result"] = self._post_once(payload, headers, started)
+            except BaseException as exc:  # noqa: BLE001 — relayed to the caller below
+                box["error"] = exc
+
+        worker = threading.Thread(target=_run, daemon=True, name="intern-chat-deadline")
+        worker.start()
+        worker.join(self.request_deadline)
+        if worker.is_alive():
+            self.deadline_exceeded_count += 1
+            raise requests.Timeout(
+                f"request_deadline_exceeded:{self.request_deadline}s"
+            )
+        if "error" in box:
+            raise box["error"]
+        return box["result"]
+
     def diagnostic_snapshot(self) -> dict[str, str | None]:
         """Return safe local diagnostics; never includes credentials or prompts."""
         parsed = urlparse(self.api_base)
@@ -156,6 +202,18 @@ def _positive_int_env(name: str, default: int) -> int:
         return default
     return value if value > 0 else default
 
+
+
+def _optional_float_env(name: str) -> float | None:
+    """Optional positive float setting; unset/invalid -> None (feature off)."""
+    raw = os.environ.get(name)
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return value if value > 0 else None
 
 def _optional_bool_env(name: str) -> bool | None:
     value = os.environ.get(name)

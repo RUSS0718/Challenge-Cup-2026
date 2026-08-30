@@ -17,8 +17,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 WORKTREE = REPO_ROOT / ".worktrees" / "main-integration-20260829"
-ANSWERS = WORKTREE / "tmp" / "pre0_ext_answers.jsonl"
-REPORT = WORKTREE / "tmp" / "pre0_ext_report.json"
+ANSWERS = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001" / "pre0_ext_answers.jsonl"
+REPORT = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001" / "pre0_ext_report.json"
 DATASET = REPO_ROOT / "tmp" / "pre0_ext_001" / "cache" / "ext12_run.jsonl"
 EXPERIMENT_DIR = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001"
 

@@ -1,5 +1,6 @@
 import contextlib
 import os
+import time
 import unittest
 from unittest.mock import patch
 
@@ -81,6 +82,44 @@ class InternChatClientTest(unittest.TestCase):
         with patch("llm_client.requests.post", return_value=response) as post:
             self.assertEqual("ok", client.chat([], 0.0, 1))
         self.assertFalse(post.call_args.kwargs["data"].find(b'"thinking_mode": false') < 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class RequestDeadlineTest(unittest.TestCase):
+    """PRE0-EXT-001 amendment A1: opt-in wall-clock deadline kills stalls."""
+
+    def test_stalled_request_raises_timeout_and_counts(self):
+        import requests
+
+        with _patch_env(INTERN_API_KEY="test", INTERN_REQUEST_DEADLINE_SECONDS="0.2"):
+            client = InternChatClient(timeout=30, retry=1)
+        with patch("llm_client.requests.post", side_effect=lambda *a, **k: time.sleep(1.5)):
+            with self.assertRaisesRegex(ChatClientError, "timeout"):
+                client.chat(messages=[{"role": "user", "content": "hi"}])
+        self.assertEqual(1, client.deadline_exceeded_count)
+
+    def test_fast_request_passes_through(self):
+        response = unittest.mock.Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "choices": [{"finish_reason": "stop", "message": {"content": "ok"}}],
+            "usage": {"completion_tokens": 1},
+        }
+        with _patch_env(INTERN_API_KEY="test", INTERN_REQUEST_DEADLINE_SECONDS="5"):
+            client = InternChatClient(timeout=30, retry=1)
+        with patch("llm_client.requests.post", return_value=response):
+            self.assertEqual("ok", client.chat(messages=[{"role": "user", "content": "hi"}]))
+        self.assertEqual(0, client.deadline_exceeded_count)
+        self.assertEqual(["stop"], client.finish_reasons)
+
+    def test_deadline_defaults_off(self):
+        with _patch_env(INTERN_API_KEY="test", remove=["INTERN_REQUEST_DEADLINE_SECONDS"]):
+            client = InternChatClient(timeout=30, retry=1)
+        self.assertIsNone(client.request_deadline)
+        self.assertEqual(0, client.deadline_exceeded_count)
 
 
 if __name__ == "__main__":

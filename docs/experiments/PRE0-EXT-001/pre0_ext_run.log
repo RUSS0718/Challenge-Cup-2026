@@ -1,0 +1,1 @@
+{"input_file": "D:/project/challenge_cup_2026/Challenge-Cup-2026/tmp/pre0_ext_001/cache/ext12_run.jsonl", "round": 1, "variant": "baseline_hetero", "correct": 1, "incorrect": 1, "invalid": 1, "accuracy": 0.08333333333333333, "main_length_rate": 1.0, "retry_count": 0, "average_model_calls": 4.416666666666667, "void": false}

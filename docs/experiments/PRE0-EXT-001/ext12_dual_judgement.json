@@ -1,0 +1,270 @@
+{
+  "experiment": "PRE0-EXT-001",
+  "judged_utc": "2026-08-30T02:52:00.206985+00:00",
+  "model_calls_used_by_agent": 53,
+  "aggregates": {
+    "completed": 8,
+    "model_errors": 4,
+    "invalid": 1,
+    "total_rows": 12
+  },
+  "native_judge_crashes": 0,
+  "diffset": [
+    {
+      "idx": 0,
+      "contract": "unknown",
+      "native": "incorrect"
+    },
+    {
+      "idx": 2,
+      "contract": "unknown",
+      "native": "incorrect"
+    },
+    {
+      "idx": 3,
+      "contract": "unknown",
+      "native": "incorrect"
+    },
+    {
+      "idx": 5,
+      "contract": "unknown",
+      "native": "correct"
+    },
+    {
+      "idx": 6,
+      "contract": "unknown",
+      "native": "unparseable"
+    },
+    {
+      "idx": 7,
+      "contract": "unknown",
+      "native": "incorrect"
+    },
+    {
+      "idx": 10,
+      "contract": "unknown",
+      "native": "incorrect"
+    },
+    {
+      "idx": 8,
+      "contract": "unknown",
+      "native": "incorrect"
+    },
+    {
+      "idx": 9,
+      "contract": "unknown",
+      "native": "unparseable"
+    },
+    {
+      "idx": 11,
+      "contract": "unknown",
+      "native": "unparseable"
+    }
+  ],
+  "items": [
+    {
+      "idx": 0,
+      "unique_id": "OlymMATH-EASY-13-ZH",
+      "problem_group_id": "OlymMATH-EASY-13",
+      "subject": "代数",
+      "subject_en": "Algebra",
+      "difficulty": "easy",
+      "language": "ZH",
+      "answer_type": "scalar",
+      "extracted_answer": "Sumofrootsofunityis0.Socrosstermsvanish",
+      "result_status": "ok",
+      "model_calls": 5,
+      "latency_seconds": 400.976,
+      "contract_verdict": "unknown",
+      "native_verdict": "incorrect",
+      "native_note": ""
+    },
+    {
+      "idx": 1,
+      "unique_id": "OlymMATH-EASY-32-EN",
+      "problem_group_id": "OlymMATH-EASY-32",
+      "subject": "Algebra",
+      "subject_en": "Algebra",
+      "difficulty": "easy",
+      "language": "EN",
+      "answer_type": "scalar",
+      "extracted_answer": "11",
+      "result_status": "ok",
+      "model_calls": 5,
+      "latency_seconds": 404.891,
+      "contract_verdict": "incorrect",
+      "native_verdict": "incorrect",
+      "native_note": ""
+    },
+    {
+      "idx": 2,
+      "unique_id": "OlymMATH-EASY-18-ZH",
+      "problem_group_id": "OlymMATH-EASY-18",
+      "subject": "组合",
+      "subject_en": "Combinatorics",
+      "difficulty": "easy",
+      "language": "ZH",
+      "answer_type": "scalar",
+      "extracted_answer": "suma_k-C(n,2)<=100",
+      "result_status": "ok",
+      "model_calls": 5,
+      "latency_seconds": 466.711,
+      "contract_verdict": "unknown",
+      "native_verdict": "incorrect",
+      "native_note": ""
+    },
+    {
+      "idx": 4,
+      "unique_id": "OlymMATH-EASY-11-ZH",
+      "problem_group_id": "OlymMATH-EASY-11",
+      "subject": "数论",
+      "subject_en": "Number Theory",
+      "difficulty": "easy",
+      "language": "ZH",
+      "answer_type": "scalar",
+      "extracted_answer": "10201",
+      "result_status": "ok",
+      "model_calls": 4,
+      "latency_seconds": 377.281,
+      "contract_verdict": "correct",
+      "native_verdict": "correct",
+      "native_note": ""
+    },
+    {
+      "idx": 3,
+      "unique_id": "OlymMATH-EASY-67-EN",
+      "problem_group_id": "OlymMATH-EASY-67",
+      "subject": "Geometry",
+      "subject_en": "Geometry",
+      "difficulty": "easy",
+      "language": "EN",
+      "answer_type": "scalar",
+      "extracted_answer": "AndAP=(1/2)sqrt(3(t-1)^2+1)=sqrt(3/4(t-1)^2+1/4)",
+      "result_status": "ok",
+      "model_calls": 5,
+      "latency_seconds": 433.417,
+      "contract_verdict": "unknown",
+      "native_verdict": "incorrect",
+      "native_note": ""
+    },
+    {
+      "idx": 5,
+      "unique_id": "OlymMATH-EASY-98-EN",
+      "problem_group_id": "OlymMATH-EASY-98",
+      "subject": "Number Theory",
+      "subject_en": "Number Theory",
+      "difficulty": "easy",
+      "language": "EN",
+      "answer_type": "scalar",
+      "extracted_answer": "Sum=96",
+      "result_status": "ok",
+      "model_calls": 5,
+      "latency_seconds": 456.653,
+      "contract_verdict": "unknown",
+      "native_verdict": "correct",
+      "native_note": ""
+    },
+    {
+      "idx": 6,
+      "unique_id": "OlymMATH-HARD-63-ZH",
+      "problem_group_id": "OlymMATH-HARD-63",
+      "subject": "代数",
+      "subject_en": "Algebra",
+      "difficulty": "hard",
+      "language": "ZH",
+      "answer_type": "scalar",
+      "extracted_answer": "",
+      "result_status": "invalid",
+      "model_calls": 5,
+      "latency_seconds": 453.817,
+      "contract_verdict": "unknown",
+      "native_verdict": "unparseable",
+      "native_note": ""
+    },
+    {
+      "idx": 7,
+      "unique_id": "OlymMATH-HARD-15-EN",
+      "problem_group_id": "OlymMATH-HARD-15",
+      "subject": "Combinatorics",
+      "subject_en": "Combinatorics",
+      "difficulty": "hard",
+      "language": "EN",
+      "answer_type": "scalar",
+      "extracted_answer": "D",
+      "result_status": "ok",
+      "model_calls": 5,
+      "latency_seconds": 459.656,
+      "contract_verdict": "unknown",
+      "native_verdict": "incorrect",
+      "native_note": ""
+    },
+    {
+      "idx": 10,
+      "unique_id": "OlymMATH-HARD-73-ZH",
+      "problem_group_id": "OlymMATH-HARD-73",
+      "subject": "几何",
+      "subject_en": "Geometry",
+      "difficulty": "hard",
+      "language": "ZH",
+      "answer_type": "scalar",
+      "extracted_answer": "A=(0,0,0)",
+      "result_status": "error",
+      "model_calls": 2,
+      "latency_seconds": 22658.502,
+      "contract_verdict": "unknown",
+      "native_verdict": "incorrect",
+      "native_note": ""
+    },
+    {
+      "idx": 8,
+      "unique_id": "OlymMATH-HARD-6-ZH",
+      "problem_group_id": "OlymMATH-HARD-6",
+      "subject": "组合",
+      "subject_en": "Combinatorics",
+      "difficulty": "hard",
+      "language": "ZH",
+      "answer_type": "scalar",
+      "extracted_answer": "|1-2|+|2-3|+|3-4|+|4-9|+|9-8|+|8-7|+|7-6|+|6-5|+|5-1|",
+      "result_status": "error",
+      "model_calls": 5,
+      "latency_seconds": 23029.928,
+      "contract_verdict": "unknown",
+      "native_verdict": "incorrect",
+      "native_note": ""
+    },
+    {
+      "idx": 9,
+      "unique_id": "OlymMATH-HARD-5-EN",
+      "problem_group_id": "OlymMATH-HARD-5",
+      "subject": "Geometry",
+      "subject_en": "Geometry",
+      "difficulty": "hard",
+      "language": "EN",
+      "answer_type": "scalar",
+      "extracted_answer": "",
+      "result_status": "error",
+      "model_calls": 2,
+      "latency_seconds": 22717.352,
+      "contract_verdict": "unknown",
+      "native_verdict": "unparseable",
+      "native_note": ""
+    },
+    {
+      "idx": 11,
+      "unique_id": "OlymMATH-HARD-26-EN",
+      "problem_group_id": "OlymMATH-HARD-26",
+      "subject": "Number Theory",
+      "subject_en": "Number Theory",
+      "difficulty": "hard",
+      "language": "EN",
+      "answer_type": "scalar",
+      "extracted_answer": "",
+      "result_status": "error",
+      "model_calls": 5,
+      "latency_seconds": 105.484,
+      "contract_verdict": "unknown",
+      "native_verdict": "unparseable",
+      "native_note": ""
+    }
+  ]
+}
