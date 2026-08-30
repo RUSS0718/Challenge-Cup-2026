@@ -1,0 +1,42 @@
+{
+  "experiment": "PRE0-AA-001",
+  "window_type": "model calibration (no capability conclusion)",
+  "run_started_utc": "2026-08-30T01:33+08:00 (round 1)",
+  "run_finished_local": "2026-08-30 02:41 (96/96 rows complete)",
+  "runtime_face": {
+    "worktree": ".worktrees/main-integration-20260829",
+    "commit": "39fcd12",
+    "dirty_files": [
+      "reasoning_agent/runtime.py (PRE0-PARITY-001 amendment A1: 2b4ba30 reverify fail-closed restore)",
+      "scripts/evaluate_protocol_ab.py (aa_left/aa_right variants + --schedule-seed)",
+      "tests/test_user_agent.py (reverify rollback test updated per PRE0-PARITY-001 §3)"
+    ]
+  },
+  "cli_round1": "evaluate_protocol_ab.py --variant aa_left --variant aa_right --interleave-items --input-files <aa24_dataset.jsonl> --round-start 1 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8301 --output-file tmp/pre0_aa_reports_r1.json --save-answers-to tmp/pre0_aa_answers.jsonl",
+  "cli_round2": "evaluate_protocol_ab.py --variant aa_right --variant aa_left --interleave-items --input-files <aa24_dataset.jsonl> --round-start 2 --rounds 1 --workers 3 --timeout-seconds 180 --schedule-seed 8302 --output-file tmp/pre0_aa_reports_r2.json --save-answers-to tmp/pre0_aa_answers.jsonl",
+  "arms": {
+    "aa_left": "baseline_hetero config field-for-field (numeric answer-first + hetero + adaptive k5/3 + 4096 + policy prompt, max_model_calls=5)",
+    "aa_right": "identical to aa_left"
+  },
+  "dataset": {
+    "path": "docs/experiments/PRE0-AA-001/aa24_dataset.jsonl",
+    "sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
+    "items": 24,
+    "stratification": "6 runtime types x 4"
+  },
+  "schedule": {"round_arm_order": {"1": ["aa_left", "aa_right"], "2": ["aa_right", "aa_left"]},
+               "schedule_seeds": {"1": 8301, "2": 8302}},
+  "resources": {
+    "workers": 3, "timeout_seconds": 180, "retry": 1, "temperature": 0.6,
+    "circuit_breaker": "8 consecutive model_error",
+    "budget_solves": 96, "budget_model_calls": 480,
+    "actual_model_calls": 381,
+    "endpoint": "INTERN_API_KEY present (value not stored); intern-s2-preview-397b"
+  },
+  "health_observed": {
+    "model_errors": {"round1": {"aa_left": 0, "aa_right": 1}, "round2": {"aa_left": 0, "aa_right": 0}},
+    "breaker_tripped": false
+  },
+  "shared_endpoint_serial": "no other local model window ran concurrently; EXT ran after this window closed",
+  "api_key_stored": false
+}

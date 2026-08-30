@@ -1,0 +1,685 @@
+{
+  "face_root": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026",
+  "signatures": [
+    {
+      "scenario": "l0_direct",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "46",
+      "extracted_answer": "46",
+      "trace_sha256": "d69c7bba43609ed73ce3fe537fe99bcb3c3529b7243488004cb6c5b6b4e22b37",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "hetero_early_consensus",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "3",
+      "extracted_answer": "3",
+      "trace_sha256": "5637d7b1d41a22dc31199c1fad0cd2f78fc45ddb438eb8097c7eed1d79aeef03",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "k5_full",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "1",
+      "extracted_answer": "1",
+      "trace_sha256": "17f80be4d9f78974c2dd8cf8adb0ad796fd4cf54976bd17033cbc0911d4072a8",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "k_max_reached",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "model_error_recovery",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "7",
+      "extracted_answer": "7",
+      "trace_sha256": "aab2c2c3bdba1378b229759fdebecb04722fbeb34703913b6b98d02b4a88323f",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "skipped",
+          "reason": "empty_model_response"
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "fallback_all_rejected",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "未能生成有效数学答案。",
+      "extracted_answer": "",
+      "trace_sha256": "f2f23deaf8e9cc545cf0168adfbe011ee88b369a891ffdcb6085f1c434465daf",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "rejected",
+          "reason": "answer_not_extractable"
+        },
+        {
+          "step": "generate_candidate",
+          "status": "rejected",
+          "reason": "answer_not_extractable"
+        },
+        {
+          "step": "generate_candidate",
+          "status": "rejected",
+          "reason": "answer_not_extractable"
+        },
+        {
+          "step": "generate_candidate",
+          "status": "rejected",
+          "reason": "answer_not_extractable"
+        },
+        {
+          "step": "generate_candidate",
+          "status": "rejected",
+          "reason": "answer_not_extractable"
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "budget_exhausted",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "fallback",
+          "reason": "no_valid_candidate"
+        }
+      ]
+    },
+    {
+      "scenario": "verify_all_clear",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "5",
+      "extracted_answer": "5",
+      "trace_sha256": "34f35157f7b317a195817e46be98f138881e1db7f2e33d8974a63e140503e928",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "verify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "verify_revise",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "6",
+      "extracted_answer": "6",
+      "trace_sha256": "c6121abd24f255dd605ec5f68638e211b6d02fedd70617d40d69d712999b4612",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "verify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "revise",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "reverify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "reverify_pass",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "10",
+      "extracted_answer": "10",
+      "trace_sha256": "98034b8f0c39ebd504ff65a180382d35540815fc523ccba5991aaf7ec2941710",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "verify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "revise",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "reverify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "reverify_fail",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "5",
+      "extracted_answer": "5",
+      "trace_sha256": "60fe824a8684e8f1e1498ce3ae25627911f51b0fbb593614fd7ded4205be389c",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "verify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "revise",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "reverify",
+          "status": "fail",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "reverify_skipped",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "6",
+      "extracted_answer": "6",
+      "trace_sha256": "51f1baf86922c164bcc735b1126466897f95cd7faf07c0a32525bdf4d3ba3047",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "verify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "revise",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "reverify",
+          "status": "skipped",
+          "reason": "empty_model_response"
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "reverify_inconclusive",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "6",
+      "extracted_answer": "6",
+      "trace_sha256": "351ddb5219406e11b584275769fa90985cbcf7a2b372c164049e194c9f197ca6",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "verify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "revise",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "reverify",
+          "status": "inconclusive",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "arh_dual_form",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "最终答案：5\n$\\boxed{5}$",
+      "extracted_answer": "5",
+      "trace_sha256": "34f35157f7b317a195817e46be98f138881e1db7f2e33d8974a63e140503e928",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "consensus_reached",
+          "reason": null
+        },
+        {
+          "step": "verify",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "scenario": "non_numeric_output",
+      "call_count": 0,
+      "calls": [],
+      "final_response": "证明：设三角形ABC中AB=AC。由等边对等角定理，可得∠B=∠C。因此两底角相等，证明完毕。\n最终答案：证毕",
+      "extracted_answer": "证明：设三角形ABC中AB=AC。由等边对等角定理，可得∠B=∠C。因此两底角相等，证明完毕。最终答案：证毕",
+      "trace_sha256": "6d0a34cdaedfc09d87930c4c23e7e47b60530dd50dc9a14993959693f7a83538",
+      "trace_steps": [
+        {
+          "step": "route_budget",
+          "status": null,
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "generate_candidate",
+          "status": "ok",
+          "reason": null
+        },
+        {
+          "step": "adaptive_vote",
+          "status": "k_max_reached",
+          "reason": null
+        },
+        {
+          "step": "finalize",
+          "status": "selected",
+          "reason": null
+        }
+      ]
+    }
+  ],
+  "exports": [
+    "ALTERNATIVE_REASONER_PROMPT",
+    "ANSWER_FIRST_POLICY_PROMPT",
+    "ANSWER_ONLY_POLICY_PROMPT",
+    "AgentConfig",
+    "Any",
+    "CALCULATION_PROMPT",
+    "CHOICE_PROMPT",
+    "DERIVATION_PROMPT",
+    "DIRECT_REASONER_PROMPT",
+    "Decimal",
+    "EXPLANATION_PROMPT",
+    "FILL_BLANK_PROMPT",
+    "Fraction",
+    "GATED_CONFLICT_INSTRUCTION",
+    "GATED_PLACEHOLDER_INSTRUCTION",
+    "GATED_SANITY_INSTRUCTION",
+    "GATED_TRUNCATION_INSTRUCTION",
+    "GATED_UNSTRUCTURED_INSTRUCTION",
+    "InvalidOperation",
+    "NUMERIC_ANSWER_FIRST_PROMPT",
+    "POLICY_PROMPT",
+    "PROOF_PROMPT",
+    "ReasoningAgent",
+    "SOLUTION_VERIFY_PROMPT",
+    "STEP_REVISE_PROMPT",
+    "STEP_VERIFY_PROMPT",
+    "SUBMISSION_CONFIG",
+    "SUBSTITUTION_CHECK_PROMPT",
+    "TASK_PROMPTS",
+    "TASK_TYPE_CALCULATION",
+    "TASK_TYPE_CHOICE",
+    "TASK_TYPE_DERIVATION",
+    "TASK_TYPE_EXPLANATION",
+    "TASK_TYPE_FILL_BLANK",
+    "TASK_TYPE_PROOF",
+    "VERIFIER_PROMPT",
+    "annotations",
+    "answer_equivalence",
+    "classify_problem_type",
+    "dataclass",
+    "extract_answer_first",
+    "extract_answer_segment",
+    "extract_final_answer",
+    "extract_numeric_answer",
+    "has_conflicting_explicit_answers",
+    "is_placeholder_answer",
+    "normalize_answer",
+    "parse_structure_f",
+    "re",
+    "reconstruct_final_response",
+    "reconstruct_final_response_f",
+    "run_answer_checks",
+    "time"
+  ]
+}

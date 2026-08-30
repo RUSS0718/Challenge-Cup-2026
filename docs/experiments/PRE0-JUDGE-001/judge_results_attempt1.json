@@ -1,0 +1,2665 @@
+{
+  "manifest": {
+    "experiment": "PRE0-JUDGE-001",
+    "attempt": 1,
+    "run_started_utc": "2026-08-29T17:05:29.023211+00:00",
+    "python_version": "3.10.20",
+    "sympy_version": "1.14.0",
+    "math_verify_version": "0.8.0",
+    "corpus_path": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\docs\\experiments\\PRE0-JUDGE-001\\cases_120.jsonl",
+    "corpus_sha256": "71d8d81d06b63d20d53670fe1d49efd3238ad3d506989c2ff80f006306f3b36f",
+    "judge_implementations": {
+      "J1_contract": "user_agent.extract_final_answer + evaluate_dev.judge_correct (frozen)",
+      "J2_hendrycks": "lm-eval hendrycks_math utils.py port (strip_string, last-boxed)",
+      "J3_math_verify": "math-verify parse(parsing_timeout=None) + verify(gold, pred, timeout_seconds=None)"
+    },
+    "model_calls": 0
+  },
+  "gates": {
+    "gate1_gold_self_120": {
+      "J1_contract": true,
+      "J2_hendrycks": true,
+      "J3_math_verify": true
+    },
+    "gate2_zero_false_positives": {
+      "J1_contract": true,
+      "J2_hendrycks": true,
+      "J3_math_verify": true
+    },
+    "gate3_unparseable_fail_closed": {
+      "J1_contract": true,
+      "J2_hendrycks": true,
+      "J3_math_verify": true
+    },
+    "gate4_arh_dual_form": [
+      true,
+      []
+    ],
+    "gate1_counts": {
+      "J1_contract": 120,
+      "J2_hendrycks": 120,
+      "J3_math_verify": 120
+    }
+  },
+  "all_passed": true,
+  "summary": {
+    "coverage": {
+      "J1_contract": {
+        "correct": 28,
+        "incorrect": 11,
+        "unknown": 55,
+        "unparseable": 26,
+        "judge_crash": 0
+      },
+      "J2_hendrycks": {
+        "correct": 12,
+        "incorrect": 48,
+        "unknown": 0,
+        "unparseable": 60,
+        "judge_crash": 0
+      },
+      "J3_math_verify": {
+        "correct": 29,
+        "incorrect": 43,
+        "unknown": 0,
+        "unparseable": 48,
+        "judge_crash": 0
+      }
+    },
+    "equivalent_coverage_by_type": {
+      "J1_contract": {
+        "integer": {
+          "correct": 4,
+          "total": 4
+        },
+        "fraction_decimal": {
+          "correct": 3,
+          "total": 4
+        },
+        "radical": {
+          "correct": 2,
+          "total": 4
+        },
+        "symbolic": {
+          "correct": 1,
+          "total": 4
+        },
+        "unordered_set": {
+          "correct": 2,
+          "total": 4
+        },
+        "interval": {
+          "correct": 2,
+          "total": 4
+        },
+        "inequality": {
+          "correct": 1,
+          "total": 4
+        },
+        "tuple_vector": {
+          "correct": 3,
+          "total": 4
+        },
+        "matrix": {
+          "correct": 2,
+          "total": 4
+        },
+        "choice": {
+          "correct": 3,
+          "total": 4
+        },
+        "unit_percent": {
+          "correct": 1,
+          "total": 4
+        },
+        "truncated_placeholder": {
+          "correct": 4,
+          "total": 4
+        }
+      },
+      "J2_hendrycks": {
+        "integer": {
+          "correct": 2,
+          "total": 4
+        },
+        "fraction_decimal": {
+          "correct": 1,
+          "total": 4
+        },
+        "radical": {
+          "correct": 1,
+          "total": 4
+        },
+        "symbolic": {
+          "correct": 0,
+          "total": 4
+        },
+        "unordered_set": {
+          "correct": 0,
+          "total": 4
+        },
+        "interval": {
+          "correct": 1,
+          "total": 4
+        },
+        "inequality": {
+          "correct": 0,
+          "total": 4
+        },
+        "tuple_vector": {
+          "correct": 2,
+          "total": 4
+        },
+        "matrix": {
+          "correct": 2,
+          "total": 4
+        },
+        "choice": {
+          "correct": 1,
+          "total": 4
+        },
+        "unit_percent": {
+          "correct": 0,
+          "total": 4
+        },
+        "truncated_placeholder": {
+          "correct": 2,
+          "total": 4
+        }
+      },
+      "J3_math_verify": {
+        "integer": {
+          "correct": 3,
+          "total": 4
+        },
+        "fraction_decimal": {
+          "correct": 4,
+          "total": 4
+        },
+        "radical": {
+          "correct": 2,
+          "total": 4
+        },
+        "symbolic": {
+          "correct": 2,
+          "total": 4
+        },
+        "unordered_set": {
+          "correct": 2,
+          "total": 4
+        },
+        "interval": {
+          "correct": 2,
+          "total": 4
+        },
+        "inequality": {
+          "correct": 2,
+          "total": 4
+        },
+        "tuple_vector": {
+          "correct": 2,
+          "total": 4
+        },
+        "matrix": {
+          "correct": 2,
+          "total": 4
+        },
+        "choice": {
+          "correct": 2,
+          "total": 4
+        },
+        "unit_percent": {
+          "correct": 3,
+          "total": 4
+        },
+        "truncated_placeholder": {
+          "correct": 3,
+          "total": 4
+        }
+      }
+    },
+    "false_positive_cases": {
+      "J1_contract": [],
+      "J2_hendrycks": [],
+      "J3_math_verify": []
+    },
+    "arh_failure_count": 0
+  },
+  "diffsets": {
+    "J1_contract_vs_J3_math_verify": [
+      {
+        "case_id": "integer-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "integer-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "fraction_decimal-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "fraction_decimal-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "radical-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "radical-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "radical-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "radical-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "radical-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "radical-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "radical-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "symbolic-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "symbolic-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "symbolic-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "symbolic-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "symbolic-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "symbolic-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "symbolic-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "symbolic-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "unordered_set-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unordered_set-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unordered_set-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "unordered_set-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "interval-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "interval-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "interval-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "interval-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "interval-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "interval-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "interval-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "inequality-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "inequality-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "inequality-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "inequality-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "inequality-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "inequality-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "inequality-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "inequality-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "tuple_vector-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "matrix-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "matrix-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "matrix-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "matrix-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "matrix-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "choice-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "choice-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "choice-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "unit_percent-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unit_percent-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "unit_percent-eq4",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unit_percent-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "unit_percent-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "unit_percent-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "unit_percent-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "truncated_placeholder-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J3_math_verify": "unparseable"
+      },
+      {
+        "case_id": "truncated_placeholder-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J3_math_verify": "unparseable"
+      }
+    ],
+    "J2_hendrycks_vs_J3_math_verify": [
+      {
+        "case_id": "integer-eq4",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "fraction_decimal-eq1",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "fraction_decimal-eq2",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "fraction_decimal-eq4",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "radical-eq1",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "radical-eq4",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "symbolic-eq1",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "symbolic-eq3",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unordered_set-eq1",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unordered_set-eq2",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-eq3",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "interval-eq2",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "interval-eq3",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "interval-eq4",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "inequality-eq1",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "inequality-eq3",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "inequality-eq4",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-eq2",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-eq4",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "incorrect"
+      },
+      {
+        "case_id": "choice-eq3",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unit_percent-eq1",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unit_percent-eq3",
+        "category": "equivalent",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "unit_percent-eq4",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "correct"
+      },
+      {
+        "case_id": "truncated_placeholder-eq4",
+        "category": "equivalent",
+        "J2_hendrycks": "unparseable",
+        "J3_math_verify": "correct"
+      }
+    ],
+    "J1_contract_vs_J2_hendrycks": [
+      {
+        "case_id": "integer-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "integer-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "integer-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "fraction_decimal-eq1",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "fraction_decimal-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "fraction_decimal-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "correct"
+      },
+      {
+        "case_id": "fraction_decimal-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "fraction_decimal-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "radical-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "radical-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "radical-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "radical-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "radical-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "radical-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "radical-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "symbolic-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "symbolic-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "symbolic-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "symbolic-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "symbolic-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "symbolic-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "symbolic-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "symbolic-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "unordered_set-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "unordered_set-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "unordered_set-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unordered_set-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "interval-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "interval-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "interval-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "interval-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "interval-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "interval-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "interval-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "inequality-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "inequality-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "inequality-eq3",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "inequality-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "inequality-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "inequality-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "inequality-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "inequality-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "tuple_vector-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "tuple_vector-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "tuple_vector-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "tuple_vector-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "matrix-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "matrix-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "matrix-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "matrix-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "matrix-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "choice-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "choice-eq3",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "choice-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "choice-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "unit_percent-eq1",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unit_percent-eq2",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "unit_percent-eq3",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unit_percent-eq4",
+        "category": "equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "unit_percent-ne1",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unit_percent-ne2",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unit_percent-ne3",
+        "category": "non_equivalent",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect"
+      },
+      {
+        "case_id": "unit_percent-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "truncated_placeholder-eq2",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "truncated_placeholder-eq4",
+        "category": "equivalent",
+        "J1_contract": "correct",
+        "J2_hendrycks": "unparseable"
+      },
+      {
+        "case_id": "truncated_placeholder-up2",
+        "category": "unparseable",
+        "J1_contract": "unknown",
+        "J2_hendrycks": "unparseable"
+      }
+    ]
+  },
+  "boundary_probes": {
+    "percent_escaped_vs_25pct": {
+      "gold": "25%",
+      "pred": "0.25\\%",
+      "verdicts": {
+        "J1_contract": "unknown",
+        "J2_hendrycks": "incorrect",
+        "J3_math_verify": "incorrect"
+      }
+    },
+    "unit_mismatch_cm_vs_m": {
+      "gold": "15\\text{ cm}",
+      "pred": "15\\text{ m}",
+      "verdicts": {
+        "J1_contract": "unknown",
+        "J2_hendrycks": "correct",
+        "J3_math_verify": "correct"
+      }
+    }
+  },
+  "exception_leaks": [],
+  "results": [
+    {
+      "case_id": "integer-eq1",
+      "answer_type": "integer",
+      "category": "equivalent",
+      "gold": "948",
+      "J1_contract": "correct",
+      "J1_contract_detail": "948",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "948",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-eq2",
+      "answer_type": "integer",
+      "category": "equivalent",
+      "gold": "948",
+      "J1_contract": "correct",
+      "J1_contract_detail": "948",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-eq3",
+      "answer_type": "integer",
+      "category": "equivalent",
+      "gold": "948",
+      "J1_contract": "correct",
+      "J1_contract_detail": "948",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "948",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-eq4",
+      "answer_type": "integer",
+      "category": "equivalent",
+      "gold": "948",
+      "J1_contract": "correct",
+      "J1_contract_detail": "948.0",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-ne1",
+      "answer_type": "integer",
+      "category": "non_equivalent",
+      "gold": "948",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "949",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "949",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-ne2",
+      "answer_type": "integer",
+      "category": "non_equivalent",
+      "gold": "948",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "-948",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "-948",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-ne3",
+      "answer_type": "integer",
+      "category": "non_equivalent",
+      "gold": "948",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "489",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "489",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-up1",
+      "answer_type": "integer",
+      "category": "unparseable",
+      "gold": "948",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-up2",
+      "answer_type": "integer",
+      "category": "unparseable",
+      "gold": "948",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "integer-up3",
+      "answer_type": "integer",
+      "category": "unparseable",
+      "gold": "948",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-eq1",
+      "answer_type": "fraction_decimal",
+      "category": "equivalent",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "correct",
+      "J1_contract_detail": "0.75",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "0.75",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-eq2",
+      "answer_type": "fraction_decimal",
+      "category": "equivalent",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "correct",
+      "J1_contract_detail": "\\frac{6}{8}",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-eq3",
+      "answer_type": "fraction_decimal",
+      "category": "equivalent",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\dfrac{3}{4}",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "\\dfrac{3}{4}",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-eq4",
+      "answer_type": "fraction_decimal",
+      "category": "equivalent",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "correct",
+      "J1_contract_detail": "3/4",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-ne1",
+      "answer_type": "fraction_decimal",
+      "category": "non_equivalent",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "\\frac{4}{3}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\frac{4}{3}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-ne2",
+      "answer_type": "fraction_decimal",
+      "category": "non_equivalent",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "0.34",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "0.34",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-ne3",
+      "answer_type": "fraction_decimal",
+      "category": "non_equivalent",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "\\frac{3}{5}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\frac{3}{5}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-up1",
+      "answer_type": "fraction_decimal",
+      "category": "unparseable",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-up2",
+      "answer_type": "fraction_decimal",
+      "category": "unparseable",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "fraction_decimal-up3",
+      "answer_type": "fraction_decimal",
+      "category": "unparseable",
+      "gold": "\\frac{3}{4}",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-eq1",
+      "answer_type": "radical",
+      "category": "equivalent",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "-14+4\\sqrt{15}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "-14+4\\sqrt{15}",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-eq2",
+      "answer_type": "radical",
+      "category": "equivalent",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\sqrt{240}-14",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-eq3",
+      "answer_type": "radical",
+      "category": "equivalent",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "correct",
+      "J1_contract_detail": "4\\sqrt{15} - 14",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "4\\sqrt{15} - 14",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-eq4",
+      "answer_type": "radical",
+      "category": "equivalent",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "correct",
+      "J1_contract_detail": "4\\sqrt{15}-14",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-ne1",
+      "answer_type": "radical",
+      "category": "non_equivalent",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "14-4\\sqrt{15}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "14-4\\sqrt{15}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-ne2",
+      "answer_type": "radical",
+      "category": "non_equivalent",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "4\\sqrt{15}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "4\\sqrt{15}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-ne3",
+      "answer_type": "radical",
+      "category": "non_equivalent",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "4\\sqrt{15}+14",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "4\\sqrt{15}+14",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-up1",
+      "answer_type": "radical",
+      "category": "unparseable",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-up2",
+      "answer_type": "radical",
+      "category": "unparseable",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "radical-up3",
+      "answer_type": "radical",
+      "category": "unparseable",
+      "gold": "4\\sqrt{15}-14",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-eq1",
+      "answer_type": "symbolic",
+      "category": "equivalent",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "(x+1)^2",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "(x+1)^2",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-eq2",
+      "answer_type": "symbolic",
+      "category": "equivalent",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "1+2x+x^2",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-eq3",
+      "answer_type": "symbolic",
+      "category": "equivalent",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "x\\cdot x+2x+1",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "x\\cdot x+2x+1",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-eq4",
+      "answer_type": "symbolic",
+      "category": "equivalent",
+      "gold": "x^2+2x+1",
+      "J1_contract": "correct",
+      "J1_contract_detail": "x^2+2x+1",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-ne1",
+      "answer_type": "symbolic",
+      "category": "non_equivalent",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "x^2-2x+1",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "x^2-2x+1",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-ne2",
+      "answer_type": "symbolic",
+      "category": "non_equivalent",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "(x+1)^3",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "(x+1)^3",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-ne3",
+      "answer_type": "symbolic",
+      "category": "non_equivalent",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "x^2+2x",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "x^2+2x",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-up1",
+      "answer_type": "symbolic",
+      "category": "unparseable",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-up2",
+      "answer_type": "symbolic",
+      "category": "unparseable",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "symbolic-up3",
+      "answer_type": "symbolic",
+      "category": "unparseable",
+      "gold": "x^2+2x+1",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-eq1",
+      "answer_type": "unordered_set",
+      "category": "equivalent",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\{1,-1\\}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\{1,-1\\}",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-eq2",
+      "answer_type": "unordered_set",
+      "category": "equivalent",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "correct",
+      "J1_contract_detail": "\\{-1, 1\\}",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-eq3",
+      "answer_type": "unordered_set",
+      "category": "equivalent",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\{1,1,-1\\}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\{1,1,-1\\}",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-eq4",
+      "answer_type": "unordered_set",
+      "category": "equivalent",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "correct",
+      "J1_contract_detail": "\\{-1,1\\}",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-ne1",
+      "answer_type": "unordered_set",
+      "category": "non_equivalent",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\{-1,2\\}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\{-1,2\\}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-ne2",
+      "answer_type": "unordered_set",
+      "category": "non_equivalent",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\{1\\}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\{1\\}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-ne3",
+      "answer_type": "unordered_set",
+      "category": "non_equivalent",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\{-1,0,1\\}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\{-1,0,1\\}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-up1",
+      "answer_type": "unordered_set",
+      "category": "unparseable",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-up2",
+      "answer_type": "unordered_set",
+      "category": "unparseable",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unordered_set-up3",
+      "answer_type": "unordered_set",
+      "category": "unparseable",
+      "gold": "\\{-1,1\\}",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-eq1",
+      "answer_type": "interval",
+      "category": "equivalent",
+      "gold": "[-1, 2)",
+      "J1_contract": "correct",
+      "J1_contract_detail": "[-1,2)",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "[-1,2)",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-eq2",
+      "answer_type": "interval",
+      "category": "equivalent",
+      "gold": "[-1, 2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\left[-1, 2\\right)",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-eq3",
+      "answer_type": "interval",
+      "category": "equivalent",
+      "gold": "[-1, 2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[−1, 2)",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "[−1, 2)",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-eq4",
+      "answer_type": "interval",
+      "category": "equivalent",
+      "gold": "[-1, 2)",
+      "J1_contract": "correct",
+      "J1_contract_detail": "[-1, 2)",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-ne1",
+      "answer_type": "interval",
+      "category": "non_equivalent",
+      "gold": "[-1, 2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[-1, 2]",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "[-1, 2]",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-ne2",
+      "answer_type": "interval",
+      "category": "non_equivalent",
+      "gold": "[-1, 2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "(-1, 2)",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "(-1, 2)",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-ne3",
+      "answer_type": "interval",
+      "category": "non_equivalent",
+      "gold": "[-1, 2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[-2, 2)",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "[-2, 2)",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-up1",
+      "answer_type": "interval",
+      "category": "unparseable",
+      "gold": "[-1, 2)",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-up2",
+      "answer_type": "interval",
+      "category": "unparseable",
+      "gold": "[-1, 2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "interval-up3",
+      "answer_type": "interval",
+      "category": "unparseable",
+      "gold": "[-1, 2)",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-eq1",
+      "answer_type": "inequality",
+      "category": "equivalent",
+      "gold": "x \\geq 3",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "x\\ge 3",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "x\\ge 3",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-eq2",
+      "answer_type": "inequality",
+      "category": "equivalent",
+      "gold": "x \\geq 3",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "3 \\leq x",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-eq3",
+      "answer_type": "inequality",
+      "category": "equivalent",
+      "gold": "x \\geq 3",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "x\\geqslant 3",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "x\\geqslant 3",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-eq4",
+      "answer_type": "inequality",
+      "category": "equivalent",
+      "gold": "x \\geq 3",
+      "J1_contract": "correct",
+      "J1_contract_detail": "x \\geq 3",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-ne1",
+      "answer_type": "inequality",
+      "category": "non_equivalent",
+      "gold": "x \\geq 3",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "x > 3",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "x > 3",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-ne2",
+      "answer_type": "inequality",
+      "category": "non_equivalent",
+      "gold": "x \\geq 3",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "x \\leq 3",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "x \\leq 3",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-ne3",
+      "answer_type": "inequality",
+      "category": "non_equivalent",
+      "gold": "x \\geq 3",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "x \\geq 4",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "x \\geq 4",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-up1",
+      "answer_type": "inequality",
+      "category": "unparseable",
+      "gold": "x \\geq 3",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-up2",
+      "answer_type": "inequality",
+      "category": "unparseable",
+      "gold": "x \\geq 3",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "inequality-up3",
+      "answer_type": "inequality",
+      "category": "unparseable",
+      "gold": "x \\geq 3",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-eq1",
+      "answer_type": "tuple_vector",
+      "category": "equivalent",
+      "gold": "(3, -2)",
+      "J1_contract": "correct",
+      "J1_contract_detail": "(3,-2)",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "(3,-2)",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-eq2",
+      "answer_type": "tuple_vector",
+      "category": "equivalent",
+      "gold": "(3, -2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\left(3, -2\\right)",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-eq3",
+      "answer_type": "tuple_vector",
+      "category": "equivalent",
+      "gold": "(3, -2)",
+      "J1_contract": "correct",
+      "J1_contract_detail": "( 3, -2 )",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "( 3, -2 )",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-eq4",
+      "answer_type": "tuple_vector",
+      "category": "equivalent",
+      "gold": "(3, -2)",
+      "J1_contract": "correct",
+      "J1_contract_detail": "(3, -2)",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-ne1",
+      "answer_type": "tuple_vector",
+      "category": "non_equivalent",
+      "gold": "(3, -2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "(3, 2)",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "(3, 2)",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-ne2",
+      "answer_type": "tuple_vector",
+      "category": "non_equivalent",
+      "gold": "(3, -2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "(-3, -2)",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "(-3, -2)",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-ne3",
+      "answer_type": "tuple_vector",
+      "category": "non_equivalent",
+      "gold": "(3, -2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "(2, 3)",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "(2, 3)",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-up1",
+      "answer_type": "tuple_vector",
+      "category": "unparseable",
+      "gold": "(3, -2)",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-up2",
+      "answer_type": "tuple_vector",
+      "category": "unparseable",
+      "gold": "(3, -2)",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "tuple_vector-up3",
+      "answer_type": "tuple_vector",
+      "category": "unparseable",
+      "gold": "(3, -2)",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-eq1",
+      "answer_type": "matrix",
+      "category": "equivalent",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "correct",
+      "J1_contract_detail": "\\begin{pmatrix}1 & 2 \\\\ 3 & 4\\end{pmatrix}",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "\\begin{pmatrix}1 & 2 \\\\ 3 & 4\\end{pmatrix}",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-eq2",
+      "answer_type": "matrix",
+      "category": "equivalent",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\begin{bmatrix}1&2\\\\3&4\\end{bmatrix}",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-eq3",
+      "answer_type": "matrix",
+      "category": "equivalent",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "correct",
+      "J1_contract_detail": "\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-eq4",
+      "answer_type": "matrix",
+      "category": "equivalent",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-ne1",
+      "answer_type": "matrix",
+      "category": "non_equivalent",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\begin{pmatrix}1&3\\\\2&4\\end{pmatrix}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\begin{pmatrix}1&3\\\\2&4\\end{pmatrix}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-ne2",
+      "answer_type": "matrix",
+      "category": "non_equivalent",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\begin{pmatrix}1&2\\\\3&5\\end{pmatrix}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\begin{pmatrix}1&2\\\\3&5\\end{pmatrix}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-ne3",
+      "answer_type": "matrix",
+      "category": "non_equivalent",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "\\begin{pmatrix}1&2\\\\3&-4\\end{pmatrix}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "\\begin{pmatrix}1&2\\\\3&-4\\end{pmatrix}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-up1",
+      "answer_type": "matrix",
+      "category": "unparseable",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-up2",
+      "answer_type": "matrix",
+      "category": "unparseable",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "matrix-up3",
+      "answer_type": "matrix",
+      "category": "unparseable",
+      "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-eq1",
+      "answer_type": "choice",
+      "category": "equivalent",
+      "gold": "C",
+      "J1_contract": "correct",
+      "J1_contract_detail": "C",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "C",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-eq2",
+      "answer_type": "choice",
+      "category": "equivalent",
+      "gold": "C",
+      "J1_contract": "correct",
+      "J1_contract_detail": "C",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-eq3",
+      "answer_type": "choice",
+      "category": "equivalent",
+      "gold": "C",
+      "J1_contract": "correct",
+      "J1_contract_detail": "c",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "c",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-eq4",
+      "answer_type": "choice",
+      "category": "equivalent",
+      "gold": "C",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-ne1",
+      "answer_type": "choice",
+      "category": "non_equivalent",
+      "gold": "C",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "B",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "B",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-ne2",
+      "answer_type": "choice",
+      "category": "non_equivalent",
+      "gold": "C",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "D",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "D",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-ne3",
+      "answer_type": "choice",
+      "category": "non_equivalent",
+      "gold": "C",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "AB",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "AB",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-up1",
+      "answer_type": "choice",
+      "category": "unparseable",
+      "gold": "C",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-up2",
+      "answer_type": "choice",
+      "category": "unparseable",
+      "gold": "C",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "choice-up3",
+      "answer_type": "choice",
+      "category": "unparseable",
+      "gold": "C",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-eq1",
+      "answer_type": "unit_percent",
+      "category": "equivalent",
+      "gold": "25%",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "25\\%",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "25\\%",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-eq2",
+      "answer_type": "unit_percent",
+      "category": "equivalent",
+      "gold": "25%",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "0.25",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-eq3",
+      "answer_type": "unit_percent",
+      "category": "equivalent",
+      "gold": "15\\text{ cm}",
+      "J1_contract": "correct",
+      "J1_contract_detail": "15\\text{cm}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "15\\text{cm}",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-eq4",
+      "answer_type": "unit_percent",
+      "category": "equivalent",
+      "gold": "15\\text{ cm}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "15cm",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-ne1",
+      "answer_type": "unit_percent",
+      "category": "non_equivalent",
+      "gold": "25%",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "26%",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "26%",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-ne2",
+      "answer_type": "unit_percent",
+      "category": "non_equivalent",
+      "gold": "15\\text{ cm}",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "16\\text{ cm}",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "16\\text{ cm}",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-ne3",
+      "answer_type": "unit_percent",
+      "category": "non_equivalent",
+      "gold": "25%",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "0.26",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "0.26",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-up1",
+      "answer_type": "unit_percent",
+      "category": "unparseable",
+      "gold": "25%",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-up2",
+      "answer_type": "unit_percent",
+      "category": "unparseable",
+      "gold": "25%",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "unit_percent-up3",
+      "answer_type": "unit_percent",
+      "category": "unparseable",
+      "gold": "15\\text{ cm}",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-eq1",
+      "answer_type": "truncated_placeholder",
+      "category": "equivalent",
+      "gold": "42",
+      "J1_contract": "correct",
+      "J1_contract_detail": "42",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "42",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-eq2",
+      "answer_type": "truncated_placeholder",
+      "category": "equivalent",
+      "gold": "42",
+      "J1_contract": "correct",
+      "J1_contract_detail": "42",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-eq3",
+      "answer_type": "truncated_placeholder",
+      "category": "equivalent",
+      "gold": "42",
+      "J1_contract": "correct",
+      "J1_contract_detail": "42",
+      "J2_hendrycks": "correct",
+      "J2_hendrycks_detail": "42",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-eq4",
+      "answer_type": "truncated_placeholder",
+      "category": "equivalent",
+      "gold": "42",
+      "J1_contract": "correct",
+      "J1_contract_detail": "42",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "correct",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-ne1",
+      "answer_type": "truncated_placeholder",
+      "category": "non_equivalent",
+      "gold": "42",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "43",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "43",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-ne2",
+      "answer_type": "truncated_placeholder",
+      "category": "non_equivalent",
+      "gold": "42",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "4/2",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "4/2",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-ne3",
+      "answer_type": "truncated_placeholder",
+      "category": "non_equivalent",
+      "gold": "42",
+      "J1_contract": "incorrect",
+      "J1_contract_detail": "41",
+      "J2_hendrycks": "incorrect",
+      "J2_hendrycks_detail": "41",
+      "J3_math_verify": "incorrect",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-up1",
+      "answer_type": "truncated_placeholder",
+      "category": "unparseable",
+      "gold": "42",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-up2",
+      "answer_type": "truncated_placeholder",
+      "category": "unparseable",
+      "gold": "42",
+      "J1_contract": "unknown",
+      "J1_contract_detail": "[答案]",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    },
+    {
+      "case_id": "truncated_placeholder-up3",
+      "answer_type": "truncated_placeholder",
+      "category": "unparseable",
+      "gold": "42",
+      "J1_contract": "unparseable",
+      "J1_contract_detail": "",
+      "J2_hendrycks": "unparseable",
+      "J2_hendrycks_detail": "",
+      "J3_math_verify": "unparseable",
+      "J3_math_verify_detail": ""
+    }
+  ]
+}

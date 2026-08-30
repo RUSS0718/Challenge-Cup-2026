@@ -49,7 +49,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(
             [
                 "current", "current_refine", "current_salvage", "hetero_k5",
-                "baseline_hetero", "hetero_refine", "re2_k5", "cod_hetero",
+                "baseline_hetero", "aa_left", "aa_right", "hetero_refine", "re2_k5", "cod_hetero",
                 "hetero_refine_arh", "gsa_4call", "current_strict",
                 "current_refine_strict", "baseline86", "A", "B", "A+B",
                 "A+B+6144", "failure_backoff", "answer_conflict_retry",

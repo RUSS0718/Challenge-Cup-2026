@@ -1,0 +1,101 @@
+{
+  "experiment": "PRE0-PARITY-001",
+  "run_started_utc": "2026-08-29T17:19:08.108371+00:00",
+  "model_calls": 0,
+  "release_face": {
+    "root": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026",
+    "git_head": "46c08dd (main, user_agent.py unmodified)"
+  },
+  "experiment_face": {
+    "root": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\.worktrees\\main-integration-20260829",
+    "git_head": "39fcd12 + uncommitted 2b4ba30 restore patch"
+  },
+  "scenarios_sha256": "314a2749abdc57699b80ebdb10972e22edd10d466e8f0cbff6d9536919c4bd8b",
+  "faces_deterministic": {
+    "release": true,
+    "experiment": true
+  },
+  "all_passed": true,
+  "scenario_results": [
+    {
+      "scenario": "l0_direct",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "hetero_early_consensus",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "k5_full",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "model_error_recovery",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "fallback_all_rejected",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "verify_all_clear",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "verify_revise",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "reverify_pass",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "reverify_fail",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "reverify_skipped",
+      "kind": "expected_divergence",
+      "passed": true,
+      "detail": "calls_equal=True direction_ok=True release_final='6' experiment_final='5'"
+    },
+    {
+      "scenario": "reverify_inconclusive",
+      "kind": "expected_divergence",
+      "passed": true,
+      "detail": "calls_equal=True direction_ok=True release_final='6' experiment_final='5'"
+    },
+    {
+      "scenario": "arh_dual_form",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "scenario": "non_numeric_output",
+      "kind": "strict",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "facade_exports_ok": true,
+  "missing_exports": []
+}

@@ -1,0 +1,110 @@
+[
+  {
+    "idx": 0,
+    "problem_group_id": "OlymMATH-EASY-13",
+    "difficulty": "easy",
+    "domain_en": "Algebra",
+    "language": "ZH",
+    "unique_id": "OlymMATH-EASY-13-ZH",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 1,
+    "problem_group_id": "OlymMATH-EASY-32",
+    "difficulty": "easy",
+    "domain_en": "Algebra",
+    "language": "EN",
+    "unique_id": "OlymMATH-EASY-32-EN",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 2,
+    "problem_group_id": "OlymMATH-EASY-18",
+    "difficulty": "easy",
+    "domain_en": "Combinatorics",
+    "language": "ZH",
+    "unique_id": "OlymMATH-EASY-18-ZH",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 3,
+    "problem_group_id": "OlymMATH-EASY-67",
+    "difficulty": "easy",
+    "domain_en": "Geometry",
+    "language": "EN",
+    "unique_id": "OlymMATH-EASY-67-EN",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 4,
+    "problem_group_id": "OlymMATH-EASY-11",
+    "difficulty": "easy",
+    "domain_en": "Number Theory",
+    "language": "ZH",
+    "unique_id": "OlymMATH-EASY-11-ZH",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 5,
+    "problem_group_id": "OlymMATH-EASY-98",
+    "difficulty": "easy",
+    "domain_en": "Number Theory",
+    "language": "EN",
+    "unique_id": "OlymMATH-EASY-98-EN",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 6,
+    "problem_group_id": "OlymMATH-HARD-63",
+    "difficulty": "hard",
+    "domain_en": "Algebra",
+    "language": "ZH",
+    "unique_id": "OlymMATH-HARD-63-ZH",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 7,
+    "problem_group_id": "OlymMATH-HARD-15",
+    "difficulty": "hard",
+    "domain_en": "Combinatorics",
+    "language": "EN",
+    "unique_id": "OlymMATH-HARD-15-EN",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 8,
+    "problem_group_id": "OlymMATH-HARD-6",
+    "difficulty": "hard",
+    "domain_en": "Combinatorics",
+    "language": "ZH",
+    "unique_id": "OlymMATH-HARD-6-ZH",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 9,
+    "problem_group_id": "OlymMATH-HARD-5",
+    "difficulty": "hard",
+    "domain_en": "Geometry",
+    "language": "EN",
+    "unique_id": "OlymMATH-HARD-5-EN",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 10,
+    "problem_group_id": "OlymMATH-HARD-73",
+    "difficulty": "hard",
+    "domain_en": "Geometry",
+    "language": "ZH",
+    "unique_id": "OlymMATH-HARD-73-ZH",
+    "answer_type": "scalar"
+  },
+  {
+    "idx": 11,
+    "problem_group_id": "OlymMATH-HARD-26",
+    "difficulty": "hard",
+    "domain_en": "Number Theory",
+    "language": "EN",
+    "unique_id": "OlymMATH-HARD-26-EN",
+    "answer_type": "scalar"
+  }
+]

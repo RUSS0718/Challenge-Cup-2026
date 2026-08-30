@@ -1,0 +1,418 @@
+[
+  {
+    "name": "l0_direct",
+    "problem": "计算 12 + 34 ?",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": false,
+      "enable_step_revision": false,
+      "p3_call_boost": 0,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "12 + 34 = 46\n最终答案：46"
+    ]
+  },
+  {
+    "name": "hetero_early_consensus",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": false,
+      "enable_step_revision": false,
+      "p3_call_boost": 0,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "第一步直接相加得和。\n最终答案：3",
+      "换角度验证：1与2之和。\n最终答案：3",
+      "第三次确认一致。\n最终答案：3"
+    ]
+  },
+  {
+    "name": "k5_full",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": false,
+      "enable_step_revision": false,
+      "p3_call_boost": 0,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "最终答案：1",
+      "最终答案：2",
+      "最终答案：3",
+      "最终答案：4",
+      "最终答案：5"
+    ]
+  },
+  {
+    "name": "model_error_recovery",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": false,
+      "enable_step_revision": false,
+      "p3_call_boost": 0,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      {
+        "raise": "server_down"
+      },
+      "最终答案：7",
+      "最终答案：7",
+      "最终答案：7"
+    ]
+  },
+  {
+    "name": "fallback_all_rejected",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": false,
+      "enable_step_revision": false,
+      "p3_call_boost": 0,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "这道题目超出了我当前能够处理的范围。",
+      "这道题目超出了我当前能够处理的范围。",
+      "这道题目超出了我当前能够处理的范围。",
+      "这道题目超出了我当前能够处理的范围。",
+      "这道题目超出了我当前能够处理的范围。"
+    ]
+  },
+  {
+    "name": "verify_all_clear",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": true,
+      "enable_step_revision": true,
+      "p3_call_boost": 3,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "最终答案：5",
+      "最终答案：5",
+      "最终答案：5",
+      "ALL_OK:COMPLETE"
+    ]
+  },
+  {
+    "name": "verify_revise",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": true,
+      "enable_step_revision": true,
+      "p3_call_boost": 3,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "最终答案：5",
+      "最终答案：5",
+      "最终答案：5",
+      "ERROR: 第二步: 符号写反\nERROR: 第三步: 漏掉一项",
+      "修改后的完整解答如下。\n最终答案：6",
+      "ALL_OK:COMPLETE"
+    ]
+  },
+  {
+    "name": "reverify_pass",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": true,
+      "enable_step_revision": true,
+      "p3_call_boost": 3,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "最终答案：9",
+      "最终答案：9",
+      "最终答案：9",
+      "ERROR: 首步: 计算失误",
+      "重算后的完整解答如下。\n最终答案：10",
+      "ALL_OK:COMPLETE"
+    ]
+  },
+  {
+    "name": "reverify_fail",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": true,
+      "enable_step_revision": true,
+      "p3_call_boost": 3,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "最终答案：5",
+      "最终答案：5",
+      "最终答案：5",
+      "ERROR: 第二步: 推导错误",
+      "试图修复的完整解答。\n最终答案：6",
+      "ERROR: 第二步: 修复不完整"
+    ]
+  },
+  {
+    "name": "reverify_skipped",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": true,
+      "enable_step_revision": true,
+      "p3_call_boost": 3,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "最终答案：5",
+      "最终答案：5",
+      "最终答案：5",
+      "ERROR: 第二步: 推导错误",
+      "修正后的完整解答。\n最终答案：6",
+      {
+        "raise": "verify_endpoint_down"
+      }
+    ]
+  },
+  {
+    "name": "reverify_inconclusive",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": true,
+      "enable_step_revision": true,
+      "p3_call_boost": 3,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "最终答案：5",
+      "最终答案：5",
+      "最终答案：5",
+      "ERROR: 第二步: 推导错误",
+      "修正后的完整解答。\n最终答案：6",
+      "我觉得这个解答整体看起来没有问题。"
+    ]
+  },
+  {
+    "name": "arh_dual_form",
+    "problem": "已知 a=1，b=2，求 a+b 的值。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": true,
+      "enable_step_revision": true,
+      "p3_call_boost": 3,
+      "enable_answer_dual_form": true,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "最终答案：5",
+      "最终答案：5",
+      "最终答案：5",
+      "ALL_OK:COMPLETE"
+    ]
+  },
+  {
+    "name": "non_numeric_output",
+    "problem": "证明：等腰三角形两底角相等。",
+    "config": {
+      "policy_sample_times": 1,
+      "verifier_voting_times": 0,
+      "enable_dynamic_budget": false,
+      "enable_l0_extended_tokens": true,
+      "enable_task_aware_prompt": true,
+      "enable_time_convergence": true,
+      "enable_adaptive_voting": true,
+      "vote_k_max": 5,
+      "vote_agree_threshold": 3,
+      "max_model_calls": 5,
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "enable_heterogeneous_reasoners": true,
+      "enable_step_verification": false,
+      "enable_step_revision": false,
+      "p3_call_boost": 0,
+      "enable_answer_dual_form": false,
+      "enable_numeric_answer_first_prompt": true,
+      "enable_numeric_answer_only_prompt": false
+    },
+    "script": [
+      "证明：设三角形ABC中AB=AC。由等边对等角定理，可得∠B=∠C。因此两底角相等，证明完毕。\n最终答案：证毕",
+      "证明：设三角形ABC中AB=AC。由等边对等角定理，可得∠B=∠C。因此两底角相等，证明完毕。\n最终答案：证毕",
+      "证明：设三角形ABC中AB=AC。由等边对等角定理，可得∠B=∠C。因此两底角相等，证明完毕。\n最终答案：证毕",
+      "证明：设三角形ABC中AB=AC。由等边对等角定理，可得∠B=∠C。因此两底角相等，证明完毕。\n最终答案：证毕",
+      "证明：设三角形ABC中AB=AC。由等边对等角定理，可得∠B=∠C。因此两底角相等，证明完毕。\n最终答案：证毕"
+    ]
+  }
+]

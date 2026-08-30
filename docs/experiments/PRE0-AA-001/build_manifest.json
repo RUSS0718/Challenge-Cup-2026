@@ -1,0 +1,28 @@
+{
+  "experiment": "PRE0-AA-001",
+  "built_utc": "2026-08-29T17:21:11.249860+00:00",
+  "sources": [
+    "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\complex_capability_freeze_48.jsonl",
+    "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\medium_capability_freeze_60.jsonl"
+  ],
+  "dedup": {
+    "shared_problems": 24,
+    "unique_total": 84
+  },
+  "selection": {
+    "classifier": "user_agent.classify_problem_type (runtime)",
+    "sort_key": "sha256(normalized problem text)",
+    "per_class": 4,
+    "class_counts": {
+      "calculation": 4,
+      "derivation": 4,
+      "proof": 4,
+      "explanation": 4,
+      "fill_blank": 4,
+      "choice": 4
+    }
+  },
+  "dataset_sha256": "e242384a0374b497c89a7c173cb65eb7795f474e0089b30e42a06e4b43d0cdd0",
+  "item_count": 24,
+  "norm_algorithm": "NFKC -> remove all whitespace -> lowercase"
+}

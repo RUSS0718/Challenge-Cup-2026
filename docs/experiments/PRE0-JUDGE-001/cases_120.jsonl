@@ -1,0 +1,120 @@
+{"case_id": "integer-eq1", "answer_type": "integer", "category": "equivalent", "gold": "948", "pred_response": "最终答案：948\n$\\boxed{948}$", "note": ""}
+{"case_id": "integer-eq2", "answer_type": "integer", "category": "equivalent", "gold": "948", "pred_response": "所以最终答案：948", "note": ""}
+{"case_id": "integer-eq3", "answer_type": "integer", "category": "equivalent", "gold": "948", "pred_response": "答案是 $\\boxed{948}$", "note": ""}
+{"case_id": "integer-eq4", "answer_type": "integer", "category": "equivalent", "gold": "948", "pred_response": "948.0", "note": ""}
+{"case_id": "integer-ne1", "answer_type": "integer", "category": "non_equivalent", "gold": "948", "pred_response": "最终答案：949\n$\\boxed{949}$", "note": ""}
+{"case_id": "integer-ne2", "answer_type": "integer", "category": "non_equivalent", "gold": "948", "pred_response": "最终答案：-948\n$\\boxed{-948}$", "note": ""}
+{"case_id": "integer-ne3", "answer_type": "integer", "category": "non_equivalent", "gold": "948", "pred_response": "最终答案：489\n$\\boxed{489}$", "note": ""}
+{"case_id": "integer-up1", "answer_type": "integer", "category": "unparseable", "gold": "948", "pred_response": "我们对上式继续化简，代入原条件后整理9", "note": "unparseable shape: truncated"}
+{"case_id": "integer-up2", "answer_type": "integer", "category": "unparseable", "gold": "948", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "integer-up3", "answer_type": "integer", "category": "unparseable", "gold": "948", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "fraction_decimal-eq1", "answer_type": "fraction_decimal", "category": "equivalent", "gold": "\\frac{3}{4}", "pred_response": "最终答案：0.75\n$\\boxed{0.75}$", "note": ""}
+{"case_id": "fraction_decimal-eq2", "answer_type": "fraction_decimal", "category": "equivalent", "gold": "\\frac{3}{4}", "pred_response": "所以最终答案：\\frac{6}{8}", "note": ""}
+{"case_id": "fraction_decimal-eq3", "answer_type": "fraction_decimal", "category": "equivalent", "gold": "\\frac{3}{4}", "pred_response": "答案是 $\\boxed{\\dfrac{3}{4}}$", "note": ""}
+{"case_id": "fraction_decimal-eq4", "answer_type": "fraction_decimal", "category": "equivalent", "gold": "\\frac{3}{4}", "pred_response": "3/4", "note": ""}
+{"case_id": "fraction_decimal-ne1", "answer_type": "fraction_decimal", "category": "non_equivalent", "gold": "\\frac{3}{4}", "pred_response": "最终答案：\\frac{4}{3}\n$\\boxed{\\frac{4}{3}}$", "note": ""}
+{"case_id": "fraction_decimal-ne2", "answer_type": "fraction_decimal", "category": "non_equivalent", "gold": "\\frac{3}{4}", "pred_response": "最终答案：0.34\n$\\boxed{0.34}$", "note": ""}
+{"case_id": "fraction_decimal-ne3", "answer_type": "fraction_decimal", "category": "non_equivalent", "gold": "\\frac{3}{4}", "pred_response": "最终答案：\\frac{3}{5}\n$\\boxed{\\frac{3}{5}}$", "note": ""}
+{"case_id": "fraction_decimal-up1", "answer_type": "fraction_decimal", "category": "unparseable", "gold": "\\frac{3}{4}", "pred_response": "我们对上式继续化简，代入原条件后整理fra", "note": "unparseable shape: truncated"}
+{"case_id": "fraction_decimal-up2", "answer_type": "fraction_decimal", "category": "unparseable", "gold": "\\frac{3}{4}", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "fraction_decimal-up3", "answer_type": "fraction_decimal", "category": "unparseable", "gold": "\\frac{3}{4}", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "radical-eq1", "answer_type": "radical", "category": "equivalent", "gold": "4\\sqrt{15}-14", "pred_response": "最终答案：-14+4\\sqrt{15}\n$\\boxed{-14+4\\sqrt{15}}$", "note": ""}
+{"case_id": "radical-eq2", "answer_type": "radical", "category": "equivalent", "gold": "4\\sqrt{15}-14", "pred_response": "所以最终答案：\\sqrt{240}-14", "note": ""}
+{"case_id": "radical-eq3", "answer_type": "radical", "category": "equivalent", "gold": "4\\sqrt{15}-14", "pred_response": "答案是 $\\boxed{4\\sqrt{15} - 14}$", "note": ""}
+{"case_id": "radical-eq4", "answer_type": "radical", "category": "equivalent", "gold": "4\\sqrt{15}-14", "pred_response": "4\\sqrt{15}-14", "note": ""}
+{"case_id": "radical-ne1", "answer_type": "radical", "category": "non_equivalent", "gold": "4\\sqrt{15}-14", "pred_response": "最终答案：14-4\\sqrt{15}\n$\\boxed{14-4\\sqrt{15}}$", "note": ""}
+{"case_id": "radical-ne2", "answer_type": "radical", "category": "non_equivalent", "gold": "4\\sqrt{15}-14", "pred_response": "最终答案：4\\sqrt{15}\n$\\boxed{4\\sqrt{15}}$", "note": ""}
+{"case_id": "radical-ne3", "answer_type": "radical", "category": "non_equivalent", "gold": "4\\sqrt{15}-14", "pred_response": "最终答案：4\\sqrt{15}+14\n$\\boxed{4\\sqrt{15}+14}$", "note": ""}
+{"case_id": "radical-up1", "answer_type": "radical", "category": "unparseable", "gold": "4\\sqrt{15}-14", "pred_response": "我们对上式继续化简，代入原条件后整理4sq", "note": "unparseable shape: truncated"}
+{"case_id": "radical-up2", "answer_type": "radical", "category": "unparseable", "gold": "4\\sqrt{15}-14", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "radical-up3", "answer_type": "radical", "category": "unparseable", "gold": "4\\sqrt{15}-14", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "symbolic-eq1", "answer_type": "symbolic", "category": "equivalent", "gold": "x^2+2x+1", "pred_response": "最终答案：(x+1)^2\n$\\boxed{(x+1)^2}$", "note": ""}
+{"case_id": "symbolic-eq2", "answer_type": "symbolic", "category": "equivalent", "gold": "x^2+2x+1", "pred_response": "所以最终答案：1+2x+x^2", "note": ""}
+{"case_id": "symbolic-eq3", "answer_type": "symbolic", "category": "equivalent", "gold": "x^2+2x+1", "pred_response": "答案是 $\\boxed{x\\cdot x+2x+1}$", "note": ""}
+{"case_id": "symbolic-eq4", "answer_type": "symbolic", "category": "equivalent", "gold": "x^2+2x+1", "pred_response": "x^2+2x+1", "note": ""}
+{"case_id": "symbolic-ne1", "answer_type": "symbolic", "category": "non_equivalent", "gold": "x^2+2x+1", "pred_response": "最终答案：x^2-2x+1\n$\\boxed{x^2-2x+1}$", "note": ""}
+{"case_id": "symbolic-ne2", "answer_type": "symbolic", "category": "non_equivalent", "gold": "x^2+2x+1", "pred_response": "最终答案：(x+1)^3\n$\\boxed{(x+1)^3}$", "note": ""}
+{"case_id": "symbolic-ne3", "answer_type": "symbolic", "category": "non_equivalent", "gold": "x^2+2x+1", "pred_response": "最终答案：x^2+2x\n$\\boxed{x^2+2x}$", "note": ""}
+{"case_id": "symbolic-up1", "answer_type": "symbolic", "category": "unparseable", "gold": "x^2+2x+1", "pred_response": "我们对上式继续化简，代入原条件后整理x2", "note": "unparseable shape: truncated"}
+{"case_id": "symbolic-up2", "answer_type": "symbolic", "category": "unparseable", "gold": "x^2+2x+1", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "symbolic-up3", "answer_type": "symbolic", "category": "unparseable", "gold": "x^2+2x+1", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "unordered_set-eq1", "answer_type": "unordered_set", "category": "equivalent", "gold": "\\{-1,1\\}", "pred_response": "最终答案：\\{1,-1\\}\n$\\boxed{\\{1,-1\\}}$", "note": ""}
+{"case_id": "unordered_set-eq2", "answer_type": "unordered_set", "category": "equivalent", "gold": "\\{-1,1\\}", "pred_response": "所以最终答案：\\{-1, 1\\}", "note": ""}
+{"case_id": "unordered_set-eq3", "answer_type": "unordered_set", "category": "equivalent", "gold": "\\{-1,1\\}", "pred_response": "答案是 $\\boxed{\\{1,1,-1\\}}$", "note": ""}
+{"case_id": "unordered_set-eq4", "answer_type": "unordered_set", "category": "equivalent", "gold": "\\{-1,1\\}", "pred_response": "\\{-1,1\\}", "note": ""}
+{"case_id": "unordered_set-ne1", "answer_type": "unordered_set", "category": "non_equivalent", "gold": "\\{-1,1\\}", "pred_response": "最终答案：\\{-1,2\\}\n$\\boxed{\\{-1,2\\}}$", "note": ""}
+{"case_id": "unordered_set-ne2", "answer_type": "unordered_set", "category": "non_equivalent", "gold": "\\{-1,1\\}", "pred_response": "最终答案：\\{1\\}\n$\\boxed{\\{1\\}}$", "note": ""}
+{"case_id": "unordered_set-ne3", "answer_type": "unordered_set", "category": "non_equivalent", "gold": "\\{-1,1\\}", "pred_response": "最终答案：\\{-1,0,1\\}\n$\\boxed{\\{-1,0,1\\}}$", "note": ""}
+{"case_id": "unordered_set-up1", "answer_type": "unordered_set", "category": "unparseable", "gold": "\\{-1,1\\}", "pred_response": "我们对上式继续化简，代入原条件后整理1", "note": "unparseable shape: truncated"}
+{"case_id": "unordered_set-up2", "answer_type": "unordered_set", "category": "unparseable", "gold": "\\{-1,1\\}", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "unordered_set-up3", "answer_type": "unordered_set", "category": "unparseable", "gold": "\\{-1,1\\}", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "interval-eq1", "answer_type": "interval", "category": "equivalent", "gold": "[-1, 2)", "pred_response": "最终答案：[-1,2)\n$\\boxed{[-1,2)}$", "note": ""}
+{"case_id": "interval-eq2", "answer_type": "interval", "category": "equivalent", "gold": "[-1, 2)", "pred_response": "所以最终答案：\\left[-1, 2\\right)", "note": ""}
+{"case_id": "interval-eq3", "answer_type": "interval", "category": "equivalent", "gold": "[-1, 2)", "pred_response": "答案是 $\\boxed{[−1, 2)}$", "note": ""}
+{"case_id": "interval-eq4", "answer_type": "interval", "category": "equivalent", "gold": "[-1, 2)", "pred_response": "[-1, 2)", "note": ""}
+{"case_id": "interval-ne1", "answer_type": "interval", "category": "non_equivalent", "gold": "[-1, 2)", "pred_response": "最终答案：[-1, 2]\n$\\boxed{[-1, 2]}$", "note": ""}
+{"case_id": "interval-ne2", "answer_type": "interval", "category": "non_equivalent", "gold": "[-1, 2)", "pred_response": "最终答案：(-1, 2)\n$\\boxed{(-1, 2)}$", "note": ""}
+{"case_id": "interval-ne3", "answer_type": "interval", "category": "non_equivalent", "gold": "[-1, 2)", "pred_response": "最终答案：[-2, 2)\n$\\boxed{[-2, 2)}$", "note": ""}
+{"case_id": "interval-up1", "answer_type": "interval", "category": "unparseable", "gold": "[-1, 2)", "pred_response": "我们对上式继续化简，代入原条件后整理1", "note": "unparseable shape: truncated"}
+{"case_id": "interval-up2", "answer_type": "interval", "category": "unparseable", "gold": "[-1, 2)", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "interval-up3", "answer_type": "interval", "category": "unparseable", "gold": "[-1, 2)", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "inequality-eq1", "answer_type": "inequality", "category": "equivalent", "gold": "x \\geq 3", "pred_response": "最终答案：x\\ge 3\n$\\boxed{x\\ge 3}$", "note": ""}
+{"case_id": "inequality-eq2", "answer_type": "inequality", "category": "equivalent", "gold": "x \\geq 3", "pred_response": "所以最终答案：3 \\leq x", "note": ""}
+{"case_id": "inequality-eq3", "answer_type": "inequality", "category": "equivalent", "gold": "x \\geq 3", "pred_response": "答案是 $\\boxed{x\\geqslant 3}$", "note": ""}
+{"case_id": "inequality-eq4", "answer_type": "inequality", "category": "equivalent", "gold": "x \\geq 3", "pred_response": "x \\geq 3", "note": ""}
+{"case_id": "inequality-ne1", "answer_type": "inequality", "category": "non_equivalent", "gold": "x \\geq 3", "pred_response": "最终答案：x > 3\n$\\boxed{x > 3}$", "note": ""}
+{"case_id": "inequality-ne2", "answer_type": "inequality", "category": "non_equivalent", "gold": "x \\geq 3", "pred_response": "最终答案：x \\leq 3\n$\\boxed{x \\leq 3}$", "note": ""}
+{"case_id": "inequality-ne3", "answer_type": "inequality", "category": "non_equivalent", "gold": "x \\geq 3", "pred_response": "最终答案：x \\geq 4\n$\\boxed{x \\geq 4}$", "note": ""}
+{"case_id": "inequality-up1", "answer_type": "inequality", "category": "unparseable", "gold": "x \\geq 3", "pred_response": "我们对上式继续化简，代入原条件后整理xg", "note": "unparseable shape: truncated"}
+{"case_id": "inequality-up2", "answer_type": "inequality", "category": "unparseable", "gold": "x \\geq 3", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "inequality-up3", "answer_type": "inequality", "category": "unparseable", "gold": "x \\geq 3", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "tuple_vector-eq1", "answer_type": "tuple_vector", "category": "equivalent", "gold": "(3, -2)", "pred_response": "最终答案：(3,-2)\n$\\boxed{(3,-2)}$", "note": ""}
+{"case_id": "tuple_vector-eq2", "answer_type": "tuple_vector", "category": "equivalent", "gold": "(3, -2)", "pred_response": "所以最终答案：\\left(3, -2\\right)", "note": ""}
+{"case_id": "tuple_vector-eq3", "answer_type": "tuple_vector", "category": "equivalent", "gold": "(3, -2)", "pred_response": "答案是 $\\boxed{( 3, -2 )}$", "note": ""}
+{"case_id": "tuple_vector-eq4", "answer_type": "tuple_vector", "category": "equivalent", "gold": "(3, -2)", "pred_response": "(3, -2)", "note": ""}
+{"case_id": "tuple_vector-ne1", "answer_type": "tuple_vector", "category": "non_equivalent", "gold": "(3, -2)", "pred_response": "最终答案：(3, 2)\n$\\boxed{(3, 2)}$", "note": ""}
+{"case_id": "tuple_vector-ne2", "answer_type": "tuple_vector", "category": "non_equivalent", "gold": "(3, -2)", "pred_response": "最终答案：(-3, -2)\n$\\boxed{(-3, -2)}$", "note": ""}
+{"case_id": "tuple_vector-ne3", "answer_type": "tuple_vector", "category": "non_equivalent", "gold": "(3, -2)", "pred_response": "最终答案：(2, 3)\n$\\boxed{(2, 3)}$", "note": ""}
+{"case_id": "tuple_vector-up1", "answer_type": "tuple_vector", "category": "unparseable", "gold": "(3, -2)", "pred_response": "我们对上式继续化简，代入原条件后整理3", "note": "unparseable shape: truncated"}
+{"case_id": "tuple_vector-up2", "answer_type": "tuple_vector", "category": "unparseable", "gold": "(3, -2)", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "tuple_vector-up3", "answer_type": "tuple_vector", "category": "unparseable", "gold": "(3, -2)", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "matrix-eq1", "answer_type": "matrix", "category": "equivalent", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "最终答案：\\begin{pmatrix}1 & 2 \\\\ 3 & 4\\end{pmatrix}\n$\\boxed{\\begin{pmatrix}1 & 2 \\\\ 3 & 4\\end{pmatrix}}$", "note": ""}
+{"case_id": "matrix-eq2", "answer_type": "matrix", "category": "equivalent", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "所以最终答案：\\begin{bmatrix}1&2\\\\3&4\\end{bmatrix}", "note": ""}
+{"case_id": "matrix-eq3", "answer_type": "matrix", "category": "equivalent", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "答案是 $\\boxed{\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}}$", "note": ""}
+{"case_id": "matrix-eq4", "answer_type": "matrix", "category": "equivalent", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "note": ""}
+{"case_id": "matrix-ne1", "answer_type": "matrix", "category": "non_equivalent", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "最终答案：\\begin{pmatrix}1&3\\\\2&4\\end{pmatrix}\n$\\boxed{\\begin{pmatrix}1&3\\\\2&4\\end{pmatrix}}$", "note": ""}
+{"case_id": "matrix-ne2", "answer_type": "matrix", "category": "non_equivalent", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "最终答案：\\begin{pmatrix}1&2\\\\3&5\\end{pmatrix}\n$\\boxed{\\begin{pmatrix}1&2\\\\3&5\\end{pmatrix}}$", "note": ""}
+{"case_id": "matrix-ne3", "answer_type": "matrix", "category": "non_equivalent", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "最终答案：\\begin{pmatrix}1&2\\\\3&-4\\end{pmatrix}\n$\\boxed{\\begin{pmatrix}1&2\\\\3&-4\\end{pmatrix}}$", "note": ""}
+{"case_id": "matrix-up1", "answer_type": "matrix", "category": "unparseable", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "我们对上式继续化简，代入原条件后整理beg", "note": "unparseable shape: truncated"}
+{"case_id": "matrix-up2", "answer_type": "matrix", "category": "unparseable", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "matrix-up3", "answer_type": "matrix", "category": "unparseable", "gold": "\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "choice-eq1", "answer_type": "choice", "category": "equivalent", "gold": "C", "pred_response": "最终答案：C\n$\\boxed{C}$", "note": ""}
+{"case_id": "choice-eq2", "answer_type": "choice", "category": "equivalent", "gold": "C", "pred_response": "所以最终答案：C", "note": ""}
+{"case_id": "choice-eq3", "answer_type": "choice", "category": "equivalent", "gold": "C", "pred_response": "答案是 $\\boxed{c}$", "note": ""}
+{"case_id": "choice-eq4", "answer_type": "choice", "category": "equivalent", "gold": "C", "pred_response": "\\text{C}", "note": ""}
+{"case_id": "choice-ne1", "answer_type": "choice", "category": "non_equivalent", "gold": "C", "pred_response": "最终答案：B\n$\\boxed{B}$", "note": ""}
+{"case_id": "choice-ne2", "answer_type": "choice", "category": "non_equivalent", "gold": "C", "pred_response": "最终答案：D\n$\\boxed{D}$", "note": ""}
+{"case_id": "choice-ne3", "answer_type": "choice", "category": "non_equivalent", "gold": "C", "pred_response": "最终答案：AB\n$\\boxed{AB}$", "note": ""}
+{"case_id": "choice-up1", "answer_type": "choice", "category": "unparseable", "gold": "C", "pred_response": "我们对上式继续化简，代入原条件后整理其中", "note": "unparseable shape: truncated"}
+{"case_id": "choice-up2", "answer_type": "choice", "category": "unparseable", "gold": "C", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "choice-up3", "answer_type": "choice", "category": "unparseable", "gold": "C", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "unit_percent-eq1", "answer_type": "unit_percent", "category": "equivalent", "gold": "25%", "pred_response": "最终答案：25\\%\n$\\boxed{25\\%}$", "note": ""}
+{"case_id": "unit_percent-eq2", "answer_type": "unit_percent", "category": "equivalent", "gold": "25%", "pred_response": "所以最终答案：0.25", "note": ""}
+{"case_id": "unit_percent-eq3", "answer_type": "unit_percent", "category": "equivalent", "gold": "15\\text{ cm}", "pred_response": "答案是 $\\boxed{15\\text{cm}}$", "note": ""}
+{"case_id": "unit_percent-eq4", "answer_type": "unit_percent", "category": "equivalent", "gold": "15\\text{ cm}", "pred_response": "15cm", "note": ""}
+{"case_id": "unit_percent-ne1", "answer_type": "unit_percent", "category": "non_equivalent", "gold": "25%", "pred_response": "最终答案：26%\n$\\boxed{26%}$", "note": ""}
+{"case_id": "unit_percent-ne2", "answer_type": "unit_percent", "category": "non_equivalent", "gold": "15\\text{ cm}", "pred_response": "最终答案：16\\text{ cm}\n$\\boxed{16\\text{ cm}}$", "note": ""}
+{"case_id": "unit_percent-ne3", "answer_type": "unit_percent", "category": "non_equivalent", "gold": "25%", "pred_response": "最终答案：0.26\n$\\boxed{0.26}$", "note": ""}
+{"case_id": "unit_percent-up1", "answer_type": "unit_percent", "category": "unparseable", "gold": "25%", "pred_response": "我们对上式继续化简，代入原条件后整理2", "note": "unparseable shape: truncated"}
+{"case_id": "unit_percent-up2", "answer_type": "unit_percent", "category": "unparseable", "gold": "25%", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "unit_percent-up3", "answer_type": "unit_percent", "category": "unparseable", "gold": "15\\text{ cm}", "pred_response": "", "note": "unparseable shape: empty"}
+{"case_id": "truncated_placeholder-eq1", "answer_type": "truncated_placeholder", "category": "equivalent", "gold": "42", "pred_response": "最终答案：42\n$\\boxed{42}$", "note": ""}
+{"case_id": "truncated_placeholder-eq2", "answer_type": "truncated_placeholder", "category": "equivalent", "gold": "42", "pred_response": "所以最终答案：42", "note": ""}
+{"case_id": "truncated_placeholder-eq3", "answer_type": "truncated_placeholder", "category": "equivalent", "gold": "42", "pred_response": "答案是 $\\boxed{42}$", "note": ""}
+{"case_id": "truncated_placeholder-eq4", "answer_type": "truncated_placeholder", "category": "equivalent", "gold": "42", "pred_response": "42", "note": ""}
+{"case_id": "truncated_placeholder-ne1", "answer_type": "truncated_placeholder", "category": "non_equivalent", "gold": "42", "pred_response": "最终答案：43\n$\\boxed{43}$", "note": ""}
+{"case_id": "truncated_placeholder-ne2", "answer_type": "truncated_placeholder", "category": "non_equivalent", "gold": "42", "pred_response": "最终答案：4/2\n$\\boxed{4/2}$", "note": ""}
+{"case_id": "truncated_placeholder-ne3", "answer_type": "truncated_placeholder", "category": "non_equivalent", "gold": "42", "pred_response": "最终答案：41\n$\\boxed{41}$", "note": ""}
+{"case_id": "truncated_placeholder-up1", "answer_type": "truncated_placeholder", "category": "unparseable", "gold": "42", "pred_response": "我们对上式继续化简，代入原条件后整理4", "note": "unparseable shape: truncated"}
+{"case_id": "truncated_placeholder-up2", "answer_type": "truncated_placeholder", "category": "unparseable", "gold": "42", "pred_response": "最终答案：[答案]", "note": "unparseable shape: placeholder"}
+{"case_id": "truncated_placeholder-up3", "answer_type": "truncated_placeholder", "category": "unparseable", "gold": "42", "pred_response": "", "note": "unparseable shape: empty"}

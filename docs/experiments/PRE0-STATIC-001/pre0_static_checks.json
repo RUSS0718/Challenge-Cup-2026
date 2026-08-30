@@ -1,0 +1,808 @@
+{
+  "experiment": "PRE0-STATIC-001",
+  "all_passed": true,
+  "checks": [
+    {
+      "name": "dataset sha resolution yields 64-hex digest",
+      "passed": true,
+      "detail": "341e97e3231b2cf6"
+    },
+    {
+      "name": "r1 mcnemar hand-calc",
+      "passed": true,
+      "detail": "{\"b\": 2, \"c\": 1, \"mcnemar_exact_p\": 1.0}"
+    },
+    {
+      "name": "r2 mcnemar hand-calc",
+      "passed": true,
+      "detail": "{\"b\": 1, \"c\": 1, \"mcnemar_exact_p\": 1.0}"
+    },
+    {
+      "name": "per-round n_paired=3 (cross-round not collapsed)",
+      "passed": true,
+      "detail": "r1=3 r2=3"
+    },
+    {
+      "name": "cluster hand-calc",
+      "passed": true,
+      "detail": "{\"b\": 2, \"c\": 1, \"ties\": 0, \"sign_test_exact_p\": 1.0, \"baseline_cluster_correct\": 2, \"treatment_cluster_correct\": 3}"
+    },
+    {
+      "name": "item-round pooled descriptive = 6 observations",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "cluster deltas match hand-calc",
+      "passed": true,
+      "detail": "{\"('341e97e3231b2cf6260ba054ede7a4de04bb8245f04d5c9f59a4487ce15031a7', 0)\": 2, \"('341e97e3231b2cf6260ba054ede7a4de04bb8245f04d5c9f59a4487ce15031a7', 1)\": -2, \"('341e97e3231b2cf6260ba054ede7a4de04bb8245f04d5c9f59a4487ce15031a7', 2)\": 1}"
+    },
+    {
+      "name": "healthy expected_n satisfied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "9% error healthy",
+      "passed": true,
+      "detail": "{\"armX\": 0.09, \"armY\": 0.09}"
+    },
+    {
+      "name": "9% error rates are exactly 0.09",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "11% error VOID",
+      "passed": true,
+      "detail": "{\"armX\": 0.11, \"armY\": 0.09}"
+    },
+    {
+      "name": "paired_counts expected_n path flags VOID and exact rates",
+      "passed": true,
+      "detail": "{\"armX\": 0.11, \"armY\": 0.09}"
+    },
+    {
+      "name": "breaker field separate from error-rate field",
+      "passed": true,
+      "detail": "{\"breaker_reason\": \"consecutive_model_errors\", \"error_rate_void_reason\": null, \"void_reason\": \"consecutive_model_errors\"}"
+    },
+    {
+      "name": "breaker and health reasons are distinct strings",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "duplicate key fails closed",
+      "passed": true,
+      "detail": "exit message: duplicate_pair_key:('341e97e3231b2cf6260ba054ede7a4de04bb8245f04d5c9f59a4487ce15031a7', 1, 0, 'ctl') — cross-round/variant records must never overwrite"
+    },
+    {
+      "name": "missing arm item fails closed",
+      "passed": true,
+      "detail": "exit message: unpaired_items: only_baseline=[] only_treatment=[('341e97e3231b2cf6260ba054ede7a4de04bb8245f04d5c9f59a4487ce15031a7', 1, 0)]"
+    },
+    {
+      "name": "partial window (completed != expected) fails closed",
+      "passed": true,
+      "detail": "exit message: completed_n_mismatch: expected=3 completed=2"
+    },
+    {
+      "name": "unresolvable dataset hash fails closed",
+      "passed": true,
+      "detail": "exit message: dataset_sha256_unresolvable:does/not/exist.jsonl — provide --sha-map or the dataset file"
+    },
+    {
+      "name": "real overlap blocks independent pooling",
+      "passed": true,
+      "detail": "exit message: dataset_overlap_blocks_pooling:dict_keys(['D:\\\\project\\\\challenge_cup_2026\\\\Challenge-Cup-2026\\\\sample_data\\\\complex_capability_freeze_48.jsonl||D:\\\\project\\\\ch"
+    },
+    {
+      "name": "complex48 vs medium60 overlap == 24",
+      "passed": true,
+      "detail": "{\"D:\\\\project\\\\challenge_cup_2026\\\\Challenge-Cup-2026\\\\sample_data\\\\complex_capability_freeze_48.jsonl\": 48, \"D:\\\\project\\\\challenge_cup_2026\\\\Challenge-Cup-2026\\\\sample_data\\\\medium_capability_freeze_60.jsonl\": 60}"
+    },
+    {
+      "name": "dedup union == 84 unique problems",
+      "passed": true,
+      "detail": "union=84"
+    },
+    {
+      "name": "synthetic single-problem overlap detected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "public112 runtime classifier all calculation",
+      "passed": true,
+      "detail": "{\"calculation\": 112}"
+    },
+    {
+      "name": "CLI end-to-end on positive artifacts",
+      "passed": true,
+      "detail": "{\n  \"n_paired\": 6,\n  \"datasets\": [\n    \"341e97e3231b2cf6260ba054ede7a4de04bb8245f04d5c9f59a4487ce15031a7\"\n  ],\n  \"round\": null,\n  \"b\": 3,\n  \"c\": 2,\n  \"baseline_correct\": 2,\n  \"treatment_correct\": 3,\n "
+    }
+  ],
+  "classifier_audits": {
+    "public_regression_112": {
+      "dataset": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\public_regression_112.jsonl",
+      "count": 112,
+      "stored_label_counts": {
+        "<absent>": 112
+      },
+      "runtime_label_counts": {
+        "calculation": 112
+      },
+      "mismatch_count": 112,
+      "mismatches": [
+        {
+          "idx": 5000,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5001,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5002,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5003,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5004,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5005,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5006,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5007,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5008,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5009,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5010,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5011,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5012,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5013,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5014,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5015,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5016,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5017,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5018,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5019,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5020,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5021,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5022,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5023,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5024,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5025,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5026,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5027,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5028,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5029,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5030,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5031,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5032,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5033,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5034,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5035,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5036,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5037,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5038,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5039,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5040,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5041,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5042,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5043,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5044,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5045,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5046,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5047,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5048,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5049,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5050,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5051,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5052,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5053,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5054,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5055,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5056,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5057,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5058,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5059,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5060,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5061,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5062,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5063,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5064,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5065,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5066,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5067,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5068,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5069,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5070,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5071,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5072,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5073,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5074,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5075,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5076,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5077,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5078,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5079,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5080,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5081,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5082,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5083,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5084,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5085,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5086,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5087,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5088,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5089,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5090,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5091,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5092,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5093,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5094,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5095,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5096,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5097,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5098,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5099,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5100,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5101,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5102,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5103,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5104,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5105,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5106,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5107,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5108,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5109,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5110,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 5111,
+          "stored": "<absent>",
+          "runtime": "calculation"
+        }
+      ]
+    },
+    "complex_capability_freeze_48": {
+      "dataset": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\complex_capability_freeze_48.jsonl",
+      "count": 48,
+      "stored_label_counts": {
+        "derivation": 10,
+        "proof": 10,
+        "explanation": 10,
+        "calculation": 6,
+        "choice": 6,
+        "fill_blank": 6
+      },
+      "runtime_label_counts": {
+        "derivation": 10,
+        "proof": 10,
+        "explanation": 10,
+        "calculation": 6,
+        "choice": 6,
+        "fill_blank": 6
+      },
+      "mismatch_count": 0,
+      "mismatches": []
+    },
+    "medium_capability_freeze_60": {
+      "dataset": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\medium_capability_freeze_60.jsonl",
+      "count": 60,
+      "stored_label_counts": {
+        "derivation": 14,
+        "proof": 14,
+        "explanation": 10,
+        "calculation": 10,
+        "choice": 6,
+        "fill_blank": 6
+      },
+      "runtime_label_counts": {
+        "derivation": 12,
+        "proof": 14,
+        "explanation": 10,
+        "calculation": 18,
+        "fill_blank": 6
+      },
+      "mismatch_count": 8,
+      "mismatches": [
+        {
+          "idx": 6103,
+          "stored": "derivation",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 6108,
+          "stored": "choice",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 6109,
+          "stored": "choice",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 6206,
+          "stored": "derivation",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 6216,
+          "stored": "choice",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 6217,
+          "stored": "choice",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 6218,
+          "stored": "choice",
+          "runtime": "calculation"
+        },
+        {
+          "idx": 6219,
+          "stored": "choice",
+          "runtime": "calculation"
+        }
+      ]
+    }
+  },
+  "overlap_complex_medium": {
+    "overlap_count": 24,
+    "union_unique": 84,
+    "unique_counts": {
+      "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\complex_capability_freeze_48.jsonl": 48,
+      "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\medium_capability_freeze_60.jsonl": 60
+    }
+  },
+  "overlap_public_vs_legacy": {
+    "total_overlap_pairs": 24,
+    "overlaps": {
+      "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\complex_capability_freeze_48.jsonl||D:\\project\\challenge_cup_2026\\Challenge-Cup-2026\\sample_data\\medium_capability_freeze_60.jsonl": {
+        "count": 24,
+        "digests": [
+          "009451f72f4cd68329d4846b98b302d6eff831b2d2629a5ffce2c1b13005e839",
+          "01f02f23d735d519dcb18eb5875a1ae56c5e4a7b3ac181c0ac3bdd88ec5e2c11",
+          "06924ce76fad2e0582c093af6081325af383e7b1c230f287d0f0ce55f02410ba",
+          "0758ea008eb6e75011bbe87312ab9934eef83da592054e255a790cd8396b2c1f",
+          "183113530d8f01522a7d9ed3f8f1a351f19a69fed04044ca20312b7c4972cf43"
+        ]
+      }
+    }
+  }
+}

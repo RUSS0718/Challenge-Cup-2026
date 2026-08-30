@@ -22,7 +22,8 @@ def _parse_baseline_rounds(spec: str | None) -> dict[int, int] | None:
     return {variant_round: baseline_round for variant_round, baseline_round in zip((1, 2), values)}
 
 
-def check_gate(reports: list[dict[str, Any]], baseline_pairing: dict[int, int] | None = None) -> dict[str, Any]:
+def check_gate(reports: list[dict[str, Any]], baseline_pairing: dict[int, int] | None = None,
+               baseline_variant: str = "baseline86") -> dict[str, Any]:
     pairing = baseline_pairing or {1: 1, 2: 2}
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for report in reports:
@@ -31,9 +32,9 @@ def check_gate(reports: list[dict[str, Any]], baseline_pairing: dict[int, int] |
     failures: list[str] = []
     comparisons: list[dict[str, Any]] = []
     datasets = sorted({key[0] for key in grouped})
-    variants = sorted({key[1] for key in grouped if key[1] != "baseline86"})
+    variants = sorted({key[1] for key in grouped if key[1] != baseline_variant})
     for dataset in datasets:
-        baseline_rounds = {int(r.get("round", 0)): r for r in grouped.get((dataset, "baseline86"), [])}
+        baseline_rounds = {int(r.get("round", 0)): r for r in grouped.get((dataset, baseline_variant), [])}
         if len(baseline_rounds) < 2:
             failures.append(f"{dataset}:baseline_missing_two_rounds")
             continue
@@ -100,6 +101,8 @@ def check_gate(reports: list[dict[str, Any]], baseline_pairing: dict[int, int] |
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check two-round protocol A/B promotion gates.")
     parser.add_argument("report", type=Path)
+    parser.add_argument("--baseline", default="baseline86",
+                        help="Reference arm name (default: baseline86; PRE0-AA-001 may use aa_left).")
     parser.add_argument("--baseline-rounds",
                         help="Comma-separated baseline rounds paired with variant rounds 1,2, e.g. 3,4.")
     args = parser.parse_args()
@@ -107,6 +110,7 @@ def main() -> None:
     result = check_gate(
         payload if isinstance(payload, list) else payload.get("reports", []),
         baseline_pairing=_parse_baseline_rounds(args.baseline_rounds),
+        baseline_variant=args.baseline,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     raise SystemExit(0 if result["passed"] else 1)

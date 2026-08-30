@@ -1,0 +1,30 @@
+{
+  "experiment": "PRE0-EXT-001",
+  "selected_utc": "2026-08-29T17:37:04.714126+00:00",
+  "upstream": {
+    "dataset": "RUC-AIBOX/OlymMATH",
+    "revision": "5f83d12e63ee3267f35044461a6cebad58ec3be1",
+    "files_sha256": {
+      "OlymMATH-EN-EASY.jsonl": "1d96903b3017abd80388005ca9ad68c8074540ad6f41ee7cd92ac79cbcf5bc0a",
+      "OlymMATH-ZH-EASY.jsonl": "133bf074b16702bfe938dfd1736373b0e093f460f232fb25f4c064ed948c52bc",
+      "OlymMATH-EN-HARD.jsonl": "bc61595737aef5d8d9984743faf9d7a75603cc81f7cf571cd8c0fba5b70ac0b1",
+      "OlymMATH-ZH-HARD.jsonl": "50588dc36af09e4d1eb4b5dd8c182fb5197ddbe2bf78cba0ee19ad923b687926"
+    },
+    "license": "MIT (per HF dataset card; audit 2026-08-29 §3.4)",
+    "download_date": "2026-08-30",
+    "mirror": "hf-mirror.com"
+  },
+  "selection": {
+    "seed": 20260830,
+    "algorithm": "per-domain easy/hard quota {Algebra 2/1, Geometry 1/2, Number Theory 2/1, Combinatorics 1/2}; within-cell seeded sample from sorted unique-id stems; language alternates ZH/EN over sorted selections; no stem reused across languages",
+    "counts": {
+      "easy": 6,
+      "hard": 6,
+      "ZH": 6,
+      "EN": 6
+    },
+    "static_gate": "static_gate_result.json: 400/400 gold self-score, 0 parallel mismatches"
+  },
+  "run_dataset_sha256": "451cb2cb1f932805694706051f04c1217cb50a0f77d4f8c05ea4addca640abcf",
+  "note": "problem texts live only in the local cache (tmp/pre0_ext_001/cache/); the repo keeps IDs and hashes"
+}
