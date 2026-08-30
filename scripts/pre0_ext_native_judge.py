@@ -17,7 +17,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 WORKTREE = REPO_ROOT / ".worktrees" / "main-integration-20260829"
-ANSWERS = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001" / "pre0_ext_answers.jsonl"
+import sys as _sys
+
+_ANSWERS = _sys.argv[1] if len(_sys.argv) > 1 else "pre0_ext_answers.jsonl"
+ANSWERS = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001" / _ANSWERS
 REPORT = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001" / "pre0_ext_report.json"
 DATASET = REPO_ROOT / "tmp" / "pre0_ext_001" / "cache" / "ext12_run.jsonl"
 EXPERIMENT_DIR = REPO_ROOT / "docs" / "experiments" / "PRE0-EXT-001"
@@ -91,7 +94,7 @@ def main() -> None:
         "diffset": diffset,
         "items": judged,
     }
-    out_path = EXPERIMENT_DIR / "ext12_dual_judgement.json"
+    out_path = EXPERIMENT_DIR / (ANSWERS.stem.replace("pre0_ext_answers", "ext12_dual_judgement") + ".json")
     out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(output["aggregates"], ensure_ascii=False))
     print("diffset:", json.dumps(diffset, ensure_ascii=False))

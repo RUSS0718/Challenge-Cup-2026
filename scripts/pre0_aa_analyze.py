@@ -40,6 +40,19 @@ ARMS = ("aa_left", "aa_right")
 ROUND_ARM_ORDER = {1: ["aa_left", "aa_right"], 2: ["aa_right", "aa_left"]}
 
 
+def parse_args(argv=None):
+    import argparse
+
+    parser = argparse.ArgumentParser(description="PRE0-AA six-gate analysis")
+    parser.add_argument("--answers", type=Path, default=ANSWERS)
+    parser.add_argument("--reports", type=Path, nargs=2, default=REPORTS)
+    parser.add_argument("--output-dir", type=Path, default=EXPERIMENT_DIR)
+    parser.add_argument("--latency-stat", choices=("mean", "p95"), default="mean",
+                        help="AA-002 (prereg §1): gate on mean latency; P95 stays a recorded diagnostic.")
+    parser.add_argument("--window", default="PRE0-AA-001")
+    return parser.parse_args(argv)
+
+
 def fisher_exact_2x2(a: int, b: int, c: int, d: int) -> float:
     """Two-sided Fisher exact p for [[a, b], [c, d]] (stdlib hypergeometric)."""
     row1, row2 = a + b, c + d
@@ -76,12 +89,16 @@ def load_round_reports(path: Path) -> dict:
     return {report["variant"]: report for report in reports}
 
 
-def main() -> None:
-    rows = [json.loads(line) for line in ANSWERS.read_text(encoding="utf-8").splitlines() if line.strip()]
+def main(argv=None) -> None:
+    args = parse_args(argv)
+    answers_path = args.answers
+    report_paths = list(args.reports)
+    experiment_dir = args.output_dir
+    rows = [json.loads(line) for line in answers_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     # key the sha map by the exact input_file string the runner recorded
     recorded_inputs = sorted({row["input_file"] for row in rows})
     sha_map = {input_file: resolve_dataset_sha256(input_file) for input_file in recorded_inputs}
-    round_reports = {number: load_round_reports(path) for number, path in enumerate(REPORTS, start=1)}
+    round_reports = {number: load_round_reports(path) for number, path in enumerate(report_paths, start=1)}
 
     gates: dict = {}
     details: dict = {}
@@ -155,12 +172,18 @@ def main() -> None:
         for number in (1, 2):
             per_round_cost.setdefault(number, {})[arm] = arm_cost(
                 [r for r in rows if r["variant"] == arm and r["round"] == number])
+    latency_metric = "mean_latency" if args.latency_stat == "mean" else "p95_latency"
     ratios = {
         metric: pooled_cost[ARMS[1]][metric] / pooled_cost[ARMS[0]][metric] if pooled_cost[ARMS[0]][metric] else 1.0
-        for metric in ("mean_calls", "mean_tokens", "p95_latency")
+        for metric in ("mean_calls", "mean_tokens", "mean_latency", "p95_latency")
     }
-    gates["gate5_cost"] = all(0.90 <= value <= 1.10 for value in ratios.values())
-    details["cost"] = {"pooled": pooled_cost, "per_round": per_round_cost, "ratios_right_over_left": ratios}
+    gate_ratios = {metric: ratios[metric] for metric in ("mean_calls", "mean_tokens", latency_metric)}
+    gates["gate5_cost"] = all(0.90 <= value <= 1.10 for value in gate_ratios.values())
+    details["cost"] = {
+        "pooled": pooled_cost, "per_round": per_round_cost,
+        "ratios_right_over_left": ratios,
+        "gated_metrics": sorted(gate_ratios), "latency_stat": args.latency_stat,
+    }
 
     # ── 6. order bias ────────────────────────────────────────────────────
     dominance = (
@@ -194,7 +217,7 @@ def main() -> None:
 
     # ── summary ──────────────────────────────────────────────────────────
     manifest = {
-        "experiment": "PRE0-AA-001",
+        "experiment": args.window,
         "analyzed_utc": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
         "dataset_sha256": sha_map[recorded_inputs[0]] if len(recorded_inputs) == 1 else sha_map,
         "recorded_input_files": recorded_inputs,
@@ -209,11 +232,12 @@ def main() -> None:
         "all_passed": all(gates.values()),
         "details": details,
     }
-    (EXPERIMENT_DIR / "analysis.json").write_text(
+    (experiment_dir / "analysis.json").write_text(
         json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"gates": gates, "all_passed": output["all_passed"],
                       "cluster": details["item_cluster"], "ratios": ratios,
-                      "fisher_p": fisher_p}, ensure_ascii=False, indent=2))
+                      "gated_metrics": sorted(gate_ratios), "fisher_p": fisher_p},
+                     ensure_ascii=False, indent=2))
     sys.exit(0 if output["all_passed"] else 1)
 
 
