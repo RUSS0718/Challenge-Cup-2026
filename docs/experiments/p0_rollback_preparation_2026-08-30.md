@@ -1,7 +1,12 @@
 # P0 回滚准备（2026-08-30）——待用户授权执行
 
-状态：`ROLLBACK_REQUIRED_NOT_EXECUTED`。本文件只准备、不执行：GitCode 指针切换、
-提交仓库 push、作品页面操作都需要用户单独授权。
+状态：**EXECUTED（2026-08-30 深夜，用户决策 PATH_A_LINEAR_REVERT）**。
+执行记录：分支 `p0-rollback-46c08dd`（基于 gitcode tip 46c08dd）→ 恢复
+`user_agent.py` 为 25f99b5 字节（blob e804506…，仅 runtime，21 行 diff 反转）
+→ 提交 `019cc40` → **fast-forward push 至 gitcode main（无 force）** →
+fetch 复核远端 tip=`019cc40`、blob 一致 → 离线接口冒烟（SUBMISSION_CONFIG
+refine/ARH 关、三并发 solve、JSON、非空 final_response）通过。
+PRE0 重构未发布（保留在本地 PRE0-8.30）。以下原始准备文本保留作档案。
 
 ## 1. 裁决回顾
 
@@ -48,7 +53,7 @@ ROLLBACK_TRIGGERED`。运营基线恢复目标：`hetero_k5 @ 25f99b5`
 
 | §7 P0 完成条件 | 状态 |
 | --- | --- |
-| GitCode/main 回到或等价于 `25f99b5` hetero_k5 行为，核对远端 tip | ⏳ 待授权执行 |
+| GitCode/main 回到或等价于 `25f99b5` hetero_k5 行为，核对远端 tip | ✅ **已执行并验证**（远端 tip 019cc40，blob=e804506…=25f99b5 字节） |
 | 官方评测记录/排除表/README 写入 9/92/11、818、7h14m 与整栈处置 | ✅ 本批提交完成 |
 | 唯一 `operational_baseline_id=hetero_k5_25f99b5`，manifest 可重建 | ✅ profile 已冻结 |
 | 没有未处置的官方 canary | ✅ 发4 = `OFFICIAL_NEGATIVE_STACK` 已处置（回滚执行本身待授权） |

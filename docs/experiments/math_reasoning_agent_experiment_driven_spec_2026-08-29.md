@@ -1,7 +1,10 @@
 # 数学推理 Agent 实验驱动推进总规范（2026-08-30 最终版）
 
-状态：**FINAL_SPEC / PRE0_EXIT_CONDITIONS_1_5_MET_PENDING_USER_GO / P0_DOCS_DONE /
-ROLLBACK_REQUIRED_NOT_EXECUTED / NO_DEFAULT_CHANGE**。（2026-08-30 晚：§6b 条件 1–5
+状态：**FINAL_SPEC / PRE0_EXIT_CONDITIONS_1_5_MET_PENDING_USER_GO / P0_ROLLBACK_EXECUTED_2026_08_30 /
+P1_STARTED_LOCAL_CACHE_ONLY / NO_DEFAULT_CHANGE**。（2026-08-30 深夜：用户决策
+PATH_A_LINEAR_REVERT 已执行——gitcode main 46c08dd→019cc40（fast-forward，无 force），
+远端 user_agent.py blob=e804506… 与 25f99b5 逐字节一致，接口冒烟（三并发/JSON/非空
+final_response）通过；PRE0 refactor 未发布。P1 以 LOCAL_CACHE_ONLY 模式启动。）（2026-08-30 晚：§6b 条件 1–5
 已由 AA-004 六门全过、EXT-002 合规 PASS、PARITY 对 46c08dd 重签、formal gate 完整性
 模式与总汇总证明；条件 6（用户 GO）待定。P0 官方记录/排除表/README/baseline
 profile 已写入；回滚执行本身待用户授权，见

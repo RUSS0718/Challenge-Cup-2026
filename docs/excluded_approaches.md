@@ -30,7 +30,7 @@
 | answer-first + k5 + 4k（`b8b78aa`，C0） | 9/112，invalid 20，截断率 88.7%，约 5h12m | `BASELINE`：降低 invalid，但没有证明核心正确率提升 |
 | hetero_k5（`25f99b5`） | 12/112，invalid 17，0 runner error；约4h24m | `BASELINE`：当前最好健康官方锚；跨窗结果不是因果证明 |
 | hetero + Re2（`7479d47`） | 11/112，invalid 27，10 runner error；约7h24m | `REJECTED`：正确率、错误和6h时限三条件均触发回滚 |
-| hetero + refine + ARH（runtime `9311d8c`，tip `46c08dd`） | **9/112，invalid 11，1 runner error；818 attempts；约7h14m**（官方 Run #7，2026-08-30 回收） | `OFFICIAL_NEGATIVE_STACK / ROLLBACK_TRIGGERED`：correct 12→9、error 0→1、7h14m 三门齐触；invalid 历史最低（11）未转化为得分；无组件对照，不得换名复跑。运营基线恢复目标 `hetero_k5 @ 25f99b5`（回滚执行待用户授权） |
+| hetero + refine + ARH（runtime `9311d8c`，tip `46c08dd`） | **9/112，invalid 11，1 runner error；818 attempts；约7h14m**（官方 Run #7，2026-08-30 回收） | `OFFICIAL_NEGATIVE_STACK / ROLLBACK_TRIGGERED`：correct 12→9、error 0→1、7h14m 三门齐触；invalid 历史最低（11）未转化为得分；无组件对照，不得换名复跑。运营基线已恢复：gitcode main 019cc40 线性 revert 至 25f99b5 字节（2026-08-30 执行） |
 
 结论：提高 token 上限、在 k1/k5/B1 间机械切换都没有突破隐藏集正确数平台。C0 保留为官方
 对照，不应把 invalid 下降等价成分数收益。

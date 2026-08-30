@@ -53,7 +53,7 @@
   },
   "rebuild_paths": {
     "A_original_runtime": "gitcode main checkout at 18f4f5a (or 25f99b5); SUBMISSION_CONFIG above is the default",
-    "B_current_codebase_equivalent": {
+    "B_current_codebase_equivalent_NOT_USED": {
       "base": "PRE0-8.30 line (reasoning_agent package; fail-closed reverify; PARITY-backed equivalence vs 46c08dd monolith on all hetero_k5-active paths)",
       "diff_from_current_SUBMISSION_CONFIG": [
         "enable_step_verification: True -> False",
@@ -65,7 +65,7 @@
       "experiment_arm_reference": "runner arm `baseline_hetero` (scripts/evaluate_protocol_ab.py make_config) is field-for-field this profile"
     }
   },
-  "status": "ROLLBACK_TRIGGERED_NOT_EXECUTED — gitcode main still at 46c08dd (OFFICIAL_NEGATIVE_STACK); pointer switch requires user authorization",
+  "status": "RESTORED (2026-08-30): gitcode main fast-forwarded 46c08dd -> 019cc40 (linear revert); remote user_agent.py blob e804506... is byte-identical to 25f99b5. This profile is now the live official runtime.",
   "forbidden": [
     "re-running hetero+refine+ARH under any name (OFFICIAL_NEGATIVE_STACK)",
     "calling this baseline an improvement (Run #5 is the reference anchor, not a causal win)"
