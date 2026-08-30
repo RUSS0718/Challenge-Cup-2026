@@ -9,7 +9,7 @@ C2+D 与 F 解析，验证 F 的离线晋升门槛：
 4. 无可靠答案和正文结构时明确返回「不具备重建条件」。
 
 用法：
-  python scripts/compare_f_parser.py docs/13_2/raw_dump/raw_token3072_temp0.6.jsonl
+  python experiments/legacy/scripts/compare_f_parser.py <archived-raw-response.jsonl>
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 from user_agent import (  # noqa: E402
@@ -42,7 +42,9 @@ def _has_thinking(text: str) -> bool:
 
 
 def main() -> None:
-    raw_path = Path(sys.argv[1] if len(sys.argv) > 1 else "docs/13_2/raw_dump/raw_token3072_temp0.6.jsonl")
+    if len(sys.argv) != 2:
+        raise SystemExit("usage: compare_f_parser.py <archived-raw-response.jsonl>")
+    raw_path = Path(sys.argv[1])
     records = [json.loads(l) for l in raw_path.read_text(encoding="utf-8").splitlines() if l.strip()]
     # 只对照非数值题型（derivation/proof/explanation），数值题型走 compact 答案不走正文解析。
     records = [r for r in records if r["problem_type"] in _NON_NUMERIC_TASK_TYPES]

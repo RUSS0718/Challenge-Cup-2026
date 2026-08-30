@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """冻结集两轮基线结果分析：按 task_type 宏平均 + 失败类别归类。
 
-读取 docs/13_2/freeze_round{1,2}.json 的 records，结合冻结集 task_type 标签，
+读取历史 docs/13_2/freeze_round{1,2}.json 的 records，结合冻结集 task_type 标签，
 输出：整体宏平均、各题型 correct/incorrect/unknown 明细、失败类别归类。
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT))
 
 FREEZE = REPO_ROOT / "sample_data" / "complex_capability_freeze_48.jsonl"

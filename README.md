@@ -2,11 +2,12 @@
 
 本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现:一个受调用预算约束的数学
 推理智能体。流水线为题型识别 → 答案先行生成 → 异构自适应投票 → 确定性选择 →
-fail-closed 验证/修正链 → 规范化输出,同时保持赛事规定的单文件入口与公开
+验证/修正/复验链 → 规范化输出,同时保持赛事规定的根入口与公开
 client 契约。
 
-> 当前状态(2026-08-29):提交面为 **hetero+refine canary**(gitcode main
-> `95d5700`),官方历史最高 **12/112**(Run #5)。测试基线 **380/380**。
+> 当前状态(2026-08-30):官方提交面为 **hetero+refine+ARH canary**(gitcode main
+> `46c08dd`,runtime `9311d8c`),官方历史最高 **12/112**(Run #5)。本地集成/拆分
+> 基线 **442/442**，尚未push或移动main。
 > 官方分数判读一律对照五数(correct/invalid/runner error/截断率/耗时),
 > 单窗 ±1~3 题属噪声带(正确数区间见实验报告)。
 
@@ -24,13 +25,13 @@ flowchart TD
     l0 --> finalize
     main1 --> vote["adaptive k5 自适应投票(hetero 在役)<br/>最多 5 个独立候选;首次补采样 = AlternativeReasoner<br/>(反证/构造/边界/数值验证),其余 Direct<br/>保守等价分组,3 票共识早退"]
     vote --> select["确定性候选选择<br/>(共识组大小优先)"]
-    select --> refine{"P3 refine 链(发3 在役)<br/>verify → revise → 复验"}
-    refine -->|"复验不确定/失败<br/>fail-closed"| rollback["回滚原解"]
+    select --> refine{"P3 refine 链(在役)<br/>verify → revise → 复验"}
+    refine -->|"复验明确发现错误"| rollback["回滚原解"]
     refine -->|"通过"| finalize["final_response 组装<br/>numeric:规范化最简形<br/>非数值:正文重建"]
     rollback --> finalize
     finalize --> out["final_response + extracted_answer + trace"]
     vote -. "发5 GSA 备选<br/>3 采样 + 1 生成式聚合(4 调用)" .-> gsa["gsa_4call"]
-    finalize -. "发4 ARH 备选<br/>答案句 + boxed 双形态" .-> arh["hetero_refine_arh"]
+    finalize --> arh["ARH 在役<br/>答案句 + boxed 双形态"]
 ```
 
 | 层 | 在役实现 | 备注 |
@@ -38,8 +39,8 @@ flowchart TD
 | 题型识别 | 纯文本规则六分类,不读 metadata | 常开 |
 | 生成 | answer-first:numeric 族第一行即最终答案 | 截断免疫(88% 截断率下答案仍可判) |
 | 采样/聚合 | adaptive k5:≤5 候选,3 票共识早退;首次补采样为异构策略 | hetero 在役(官方 Run #5 = 12/112) |
-| 修正 | P3 verify→revise→复验,**fail-closed** | 发3 搭载,Run #7 待判 |
-| 表示 | numeric:规范化最简形;非数值:正文重建 | 发4 ARH(双形态)待筛窗 |
+| 修正 | P3 verify→revise→复验；明确复验错误回滚 | 当前提交行为；未决复验语义见总spec |
+| 表示 | numeric:答案句+boxed规范形;非数值:正文重建 | ARH 在役，官方效果待日志 |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
 
 ## 项目架构与发布流
@@ -54,7 +55,7 @@ flowchart LR
         release["发布线克隆<br/>canary/revert 操作面"]
     end
     subgraph loop["实验闭环(每窗一变量)"]
-        branch["工作分支 codex/b1-4k-canary<br/>23 变体 + 380 测试"]
+        branch["本地集成分支<br/>36 变体 + 442 测试"]
         runner["evaluate_protocol_ab.py<br/>240s / workers=3 / 交错配对"]
         sets["冻结集 complex48 / medium60<br/>public112 / dev(探针)"]
         judge2["判定:void 门(错误率>10%整窗作废)<br/>→ 正确率/成本/卫生门 → 逐题配对"]
@@ -69,18 +70,23 @@ flowchart LR
 ## 项目目录结构
 
 ```text
-├── user_agent.py                        # Agent 核心:ReasoningAgent + 全部实验开关
+├── user_agent.py                        # 官方兼容入口与重导出 facade
+├── reasoning_agent/
+│   ├── policy.py                        # 题型、Prompt、AgentConfig、提交 profile
+│   ├── answers.py                       # 抽取、规范化、等价与确定性检查
+│   ├── runtime.py                       # ReasoningAgent 求解编排
+│   └── tools/                           # 默认关闭的受控数学工具实现
 ├── llm_client.py                        # 书生 API client(本地评测用)
 ├── main.py                              # 本地逐题 runner
 ├── scripts/
-│   ├── evaluate_protocol_ab.py          # 实验主力 runner:23 变体/交错配对/void 熔断
+│   ├── evaluate_protocol_ab.py          # 实验主力 runner:交错配对/void 熔断
 │   └── evaluate_dev.py                  # 单配置 evaluator 与消融 CLI
 ├── sample_data/
 │   ├── dev.jsonl                        # 3 题冒烟集
 │   ├── public_regression_112.jsonl      # 112 题短题知识覆盖集(回归保护)
 │   ├── medium_capability_freeze_60.jsonl
 │   └── complex_capability_freeze_48.jsonl
-├── tests/                               # 380+ 单测(行为/单变量/档位断言)
+├── tests/                               # 442+ 单测(行为/单变量/档位断言)
 ├── docs/
 │   ├── excluded_approaches.md           # 淘汰方案单一事实源(七条死线)
 │   ├── research/                        # 候选依据:能力/评测方法研究 + 采纳报告
@@ -88,24 +94,24 @@ flowchart LR
 │   ├── adr/                             # 关键决策记录
 │   ├── agents/                          # 工作流约定
 │   └── branches_map.md                  # 分支与发布面地图
-├── method_cards.jsonl 等                 # 已归档实验的离线资产(对应开关默认关)
+├── experiments/legacy/                  # 已归档、默认关闭的实验实现与资产
 └── tmp/                                 # 未归档原始工件(untracked)
 ```
 
 ## 提交配置与实验开关板
 
 官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造,解析到
-`SUBMISSION_CONFIG`(在役 canary,2026-08-29 发3):answer-first 主调用 +
-**hetero adaptive k5**(首次补采样为异构策略)+ **P3 refine 链(fail-closed)**,
-effective 调用上限 8(5+3),4096 token/调用。
+`SUBMISSION_CONFIG`(runtime `9311d8c`):answer-first 主调用 + **hetero adaptive k5**
+(首次补采样为异构策略)+ **P3 refine 链** + **ARH 双形态**,effective 调用上限
+8(5+3),4096 token/调用。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
 | `enable_adaptive_voting`(k5/threshold3) | ✅ | 共识投票 |
 | `enable_heterogeneous_reasoners` | ✅ | 投票内 1 路 Alternative |
-| `enable_step_verification` / `enable_step_revision` | ✅ | refine 链(fail-closed) |
-| `enable_answer_dual_form`(ARH,发4) | ⬜ | 预包就绪,待筛窗 |
-| `enable_gsa_aggregation`(GSA,发5) | ⬜ | 筛窗在跑 |
+| `enable_step_verification` / `enable_step_revision` | ✅ | refine 链 |
+| `enable_answer_dual_form`(ARH) | ✅ | 答案句 + boxed 双形态 |
+| `enable_gsa_aggregation`(GSA) | ⬜ | 探索性正信号，须按总spec重证 |
 | `enable_numeric_chain_of_draft`(CoD) | ⬜ | ARCHIVED |
 | `enable_re2_reread`(Re2) | ⬜ | ARCHIVED(官方回滚) |
 | `enable_failure_salvage`(P1) | ⬜ | ARCHIVED |
@@ -168,18 +174,18 @@ python -m unittest discover -s tests -q
 python -m py_compile user_agent.py llm_client.py sympy_adapter.py main.py scripts/evaluate_dev.py
 ```
 
-当前验收基线 **380/380**(主线)。提交前还应确认:`user_agent.py` 可正常
+当前本地集成验收基线 **442/442**。提交前还应确认:`user_agent.py` 可正常
 import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍返回
 可序列化非空 `final_response`;仓库无 API key、个人路径与样例答案特判;实际
 提交配置与 A/B 报告中的配置一致。
 
 ## 当前路线
 
-- **在役**:hetero+refine canary(发3,Run #7 待判),回滚锚 = hetero 单变量
-  (官方 12/112)。
-- **发4**:ARH 答案表示对齐(双形态,来自评测方法调研采纳,规格见
-  `docs/research/evaluation_adoption_提分行动_2026-08-29.md`)。
-- **发5**:GSA 生成式聚合(3+1,compute-matched)。
+- **在役**:hetero+refine+ARH canary(runtime `9311d8c`),回滚锚 `95d5700`；
+  官方日志待回收。
+- **下一步**:先执行
+  `docs/experiments/math_reasoning_agent_experiment_driven_spec_2026-08-29.md` 的 Pre-P0，
+  再决定 GSA 或后续方法窗。
 - **已淘汰**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
   P1 salvage、G 门控、TIR/回代验证、32k 天花板。
 - **暂不引入**:LLM-as-judge 本地判分、PRM 组件、LangGraph/AgentScope、

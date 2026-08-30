@@ -138,7 +138,7 @@ Prompt；默认路径晋升必须在适用数据集上完成至少双轮独立 A
 仍是数字证据源。
 
 执行 Pre-P0、正式题集、能力候选、RAG/MCP/沙箱或 runtime 迁移前，还必须完整读取
-`docs/specs/math_reasoning_agent_experiment_driven_spec_2026-08-29.md`；它定义阶段、
+`docs/experiments/math_reasoning_agent_experiment_driven_spec_2026-08-29.md`；它定义阶段、
 统一门与必备产物，不替代排除表和具体实验数字。
 
 1. 先确认候选不属于 `REJECTED` 的原样复跑，也不重复 `ARCHIVED` 的同协议抽样；
