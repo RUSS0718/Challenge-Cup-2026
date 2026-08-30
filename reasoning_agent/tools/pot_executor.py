@@ -276,7 +276,7 @@ def execute_program(
     except ImportError:
         return {"status": "ERROR", "reason": "sympy_unavailable", "answer": None}
     try:
-        from user_agent import normalize_answer
+        from reasoning_agent.answers import normalize_answer
     except ImportError:
         return {"status": "ERROR", "reason": "normalize_unavailable", "answer": None}
 

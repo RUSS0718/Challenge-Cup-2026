@@ -11,8 +11,8 @@ import re
 from fractions import Fraction
 from typing import Any
 
-from pot_executor import PotExecutorConfig, execute_program
-from user_agent import normalize_answer
+from reasoning_agent.answers import normalize_answer
+from reasoning_agent.tools.pot_executor import PotExecutorConfig, execute_program
 
 
 _RATIONAL_RE = re.compile(r"^-?\d+(?:/\d+)?$")
