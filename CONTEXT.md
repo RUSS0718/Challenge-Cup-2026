@@ -8,11 +8,14 @@
 ### 配置与部署
 
 **SUBMISSION_CONFIG / canary profile**:
-官方 runner 无参构造时唯一生效的提交配置。`18f4f5a` 起为 C0 answer-first +
-adaptive k5 + 4096,并在非 L0 投票预算内使用一次 AlternativeReasoner,其余为
-DirectReasoner。该配置由用户明确批准直接发布,未完成本地 A/B,属于未验证 canary;
-回滚锚为 `242c480`。改它等于改变官方得分行为。
+官方 runner 无参构造时唯一生效的提交配置。当前保持 `ff040df` 的严格 GSA 3+1
+canary 行为；BTCS Frame v2 backport 不修改该对象。改它等于改变官方得分行为。
 _Avoid_: 默认配置、线上配置(指代不清)
+
+**BTCS Frame v2**:
+`btcs_frame_v2` 是独立的 opt-in 有界共识协议；只有显式传入
+`AgentConfig(protocol_mode="btcs_frame_v2")` 才启用。离线门通过，但资源资格窗
+为 1/3 成功并作废，因此没有 fidelity 或能力结论。
 
 **C0**:
 实验对照臂 `VARIANTS["current"]`:answer-first + policy prompt + k5 自适应投票,

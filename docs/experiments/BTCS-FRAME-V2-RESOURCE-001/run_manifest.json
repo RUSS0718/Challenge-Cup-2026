@@ -1,0 +1,61 @@
+{
+  "run_id": "BTCS-FRAME-V2-RESOURCE-001",
+  "method_id": "btcs_frame_v2",
+  "status": "VOID_RESOURCE_HEALTH",
+  "started_at_utc": "2026-09-01T14:41:49.4973987Z",
+  "ended_at_utc": "2026-09-01T14:48:11.4091136Z",
+  "elapsed_seconds": 381.661,
+  "branch": "codex/btcs-v1",
+  "commit": "2bca89a864098aa8253c7e793d73224b9d88d6ec",
+  "dirty_state_before_run": true,
+  "input": {
+    "path": "sample_data/dev.jsonl",
+    "expected_count": 3,
+    "sha256": "b7ce841afeda28e9bc9b026574678e1201eaaf12f7de08f7fcec48a3b176a281"
+  },
+  "runtime": {
+    "script": "scripts/btcs_frame_v2_resource_probe.py",
+    "python": "3.12.13",
+    "requests": "2.34.2",
+    "workers": 1,
+    "cli": "python scripts/btcs_frame_v2_resource_probe.py --input sample_data/dev.jsonl --timeout 300 --deadline 360"
+  },
+  "model": {
+    "endpoint": "https://chat.intern-ai.org.cn/api/v1/chat/completions",
+    "model": "intern-s2-preview-397b",
+    "temperature": 0.6,
+    "solver_max_tokens": 4096,
+    "client_retry": 1,
+    "timeout_seconds": 300,
+    "request_deadline_seconds": 360
+  },
+  "source_sha256": {
+    "reasoning_agent/btcs.py": "0bcb8a34243dc0549c604fe1f8795a6313ca682c8608056fb14643fb7cd25d4b",
+    "reasoning_agent/policy.py": "b46cab2c93db8f490071c21e0ec8b763068572bd3ec5708b6f5aa8d631958bff",
+    "reasoning_agent/runtime.py": "0d970cb9c300127e41acaab7054208b119c610340c395a20731a79ead16d6d2c",
+    "user_agent.py": "52930c74ff4bb21ae19a07ba89a49274a72958e249a09e1e9b911ea34765e202",
+    "scripts/btcs_fidelity_probe.py": "66ccb0213b4c31908f232e177e844732f48ddad4c087372643c72a37cca1d336",
+    "scripts/btcs_frame_v2_resource_probe.py": "3232c9b111fc330050209ec06858197f481da2b43f042fe16810ce4950331848",
+    "scripts/replay_btcs.py": "5cda71a5ac5ac2e4dc0eb17782e38a9f9270a5c5eedb28284873f3478efc5d87",
+    "sample_data/dev.jsonl": "b7ce841afeda28e9bc9b026574678e1201eaaf12f7de08f7fcec48a3b176a281"
+  },
+  "health_gate": {
+    "expected_requests": 3,
+    "completed_requests": 3,
+    "ok": 1,
+    "error": 2,
+    "deadline_exceeded_count": 0,
+    "orphan_completions": 0,
+    "probe_http_attempts": 3,
+    "pass": false
+  },
+  "capability_conclusion": null,
+  "artifact_sha256": {
+    "preregistration.md": "d9f47b101080b33dcd46fc77d1cb984e9da24882d09c7ad650fe153985a00295",
+    "answers.jsonl": "c06b70c2246668d0ca9682a584b84e63b134c9dbbfacb73db5d2370f3a1582dc",
+    "progress.jsonl": "54a993be8069bb2cb40503ca27e0688ab367e82edd20c580da31269bf55605b3",
+    "health_probe_result.json": "84b5fb7dbc48378d6f35a4b8dd815bc98b4c64e8088707c904c3397cf1951144",
+    "report.json": "cc4d318b9cc25b6416fe17456fa891e4335873ed87c4081d8b9dd81f5dbb3edf",
+    "result.md": "170fec9dff80911831e628dc23c0efe2a8eff86b1036e481028f423c8097b163"
+  }
+}

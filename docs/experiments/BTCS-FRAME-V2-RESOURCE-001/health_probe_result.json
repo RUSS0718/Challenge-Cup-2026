@@ -1,0 +1,16 @@
+{
+  "run_id": "BTCS-FRAME-V2-RESOURCE-001",
+  "status": "VOID_RESOURCE_HEALTH",
+  "workers": 1,
+  "count": 3,
+  "ok": 1,
+  "error": 2,
+  "rows": [
+    {"idx": 0, "status": "error", "error_category": "timeout", "latency_seconds": 21.042},
+    {"idx": 1, "status": "error", "error_category": "timeout", "latency_seconds": 300.137},
+    {"idx": 2, "status": "ok", "nonempty": true, "finish_reason": "stop", "completion_tokens": 719, "latency_seconds": 60.48}
+  ],
+  "deadline_exceeded_count": 0,
+  "orphan_completions": 0,
+  "health_gate_pass": false
+}

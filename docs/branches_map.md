@@ -1,0 +1,41 @@
+# 分支与发布面地图(2026-09-01 梳理)
+
+> 目的:终结"两个 main"时代的拓扑混乱。此后引用任何分支,以本文件为准。
+
+## 发布与镜像
+
+| ref | tip | 角色 |
+| --- | --- | --- |
+| **gitcode/main** | 本提交（父提交 `ff040df`） | **唯一官方评测拉取面**；保留严格 GSA 默认配置，新增 BTCSv2 opt-in backport |
+| **origin/main**(GitHub) | 未在本次整理同步 | 不作为本次发布面 |
+| **local main** | 未在本次整理切换 | 保留现状，不覆盖本地历史 |
+
+## 工作分支
+
+| 分支 | tip | 内容 |
+| --- | --- | --- |
+| **codex/btcs-v1** | `30f3aeb` | BTCSv2 模块化开发提交；已推 GitCode，资源窗作废 |
+| **codex/b1-4k-canary** | `b2f01ec` | 已推 GitHub 的实验/证据分支；包含 GSA/ARH 工件与最新研究文档 |
+| **codex/main-integration-20260829** | `d84be6e` | 集成历史分支；内容已快进到 local main，当前无工作树 |
+| codex/c0-evidence-release-20260827 | `0409103` | 历史发布工作树注册；当前本地路径已失效,不得作为发布面 |
+| codex/cod-numeric-candidate-20260827 | `25f99b5`+未提交 CoD | CoD 原始实现存档(实现已移植主线);CoD 线 ARCHIVED |
+
+## 历史档案分支(全部保留,勿删)
+
+- `codex/stable-baseline-8k-k2` @ b8b78aa(无工作树):官方 8k 时代+排除表定稿
+- `codex/weakness-fix-package-14` @ b684729(无工作树):**refine 战役原始工件所在地**(ADR-0002 引用)
+- `codex/deterministic-solver-v1` / `codex/pot-tir-executor` / `codex/resilience-quality-temperature-ab` / `codex/salvage-v1` / `codex/verification-gated-retry`:历史实验存档线
+
+## 发布后例行动作(每次 canary 发布/回滚后)
+
+1. local main ff:;
+2. GitHub 镜像同步:发布线克隆内 `git push origin gitcode/main:refs/heads/main`;
+3. 本表三行 tip 更新,随工作分支提交。
+
+## 工作区卫生约定
+
+- `tmp/` 保持 untracked:原始工件先判定、后拷贝归档至 `docs/experiments/`,
+  判定未归档的窗不得清理;
+- 当前 Git worktree 仅保留仓库根目录(local main)；辅助 worktree 已全部解除注册。
+- 原集成目录中的未跟踪缓存已可恢复地归档到 `tmp/archived_worktree_main-integration-20260829/`；
+  本地分支与实验产物均保留。

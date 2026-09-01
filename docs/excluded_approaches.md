@@ -99,6 +99,12 @@
 
 ## 六、当前允许队列
 
+0. `btcs_v1`：真实帧解析 6/7（85.7143%），低于 95% 预注册门，保持
+   `ARCHIVED_VOID / NO_CAPABILITY_CONCLUSION`，不得原样复跑。
+0a. `btcs_frame_v2`：离线结构门通过；独立 workers=1 资源资格窗仅 1/3 成功、
+    2 timeout，状态为 `VOID_RESOURCE_HEALTH / NO_CAPABILITY_CONCLUSION`。
+    fidelity 未启动；不得继承 v1 结果或修改安全门。
+
 1. P1 首次回归已按 VOID 归档；方法仍为 `OPEN`，任何健康复测都须新预注册且次数有限。
 2. hetero 已由用户直接发布为未验证 canary；官方结果前不追加第二个运行时变量，不把发布动作
    反写为本地 PASS。若补本地 A/B，仍须新健康窗口且不得与官方评测并行。

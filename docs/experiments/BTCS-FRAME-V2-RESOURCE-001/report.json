@@ -1,0 +1,19 @@
+{
+  "run_id": "BTCS-FRAME-V2-RESOURCE-001",
+  "method_id": "btcs_frame_v2",
+  "window_type": "resource_only",
+  "status": "VOID_RESOURCE_HEALTH",
+  "workers": 1,
+  "expected_requests": 3,
+  "completed_requests": 3,
+  "ok": 1,
+  "error": 2,
+  "error_categories": {"timeout": 2},
+  "deadline_exceeded_count": 0,
+  "orphan_completions": 0,
+  "probe_http_attempts": 3,
+  "elapsed_seconds": 381.661,
+  "health_gate": false,
+  "capability_conclusion": null,
+  "next_stage": "blocked_no_fidelity"
+}

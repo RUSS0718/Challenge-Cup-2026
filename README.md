@@ -5,10 +5,9 @@
 fail-closed 验证/修正链 → 规范化输出,同时保持赛事规定的单文件入口与公开
 client 契约。
 
-> 当前状态(2026-08-29):提交面为 **hetero+refine canary**(gitcode main
-> `95d5700`),官方历史最高 **12/112**(Run #5)。测试基线 **380/380**。
-> 官方分数判读一律对照五数(correct/invalid/runner error/截断率/耗时),
-> 单窗 ±1~3 题属噪声带(正确数区间见实验报告)。
+> 当前状态（2026-09-01）：默认提交路径保持 `ff040df` 的严格 GSA 3+1 canary。
+> 本次只 backport `btcs_frame_v2` opt-in 候选，不修改 `SUBMISSION_CONFIG`。
+> v2 资源资格窗 1/3 成功并作废，尚无 fidelity 或能力结论。
 
 ## 当前 Agent 架构
 
@@ -20,27 +19,27 @@ flowchart TD
     entry["ReasoningAgent.solve(problem, metadata)"] --> classify["P0 题型识别(纯文本,六类)"]
     classify --> route{"预算路由"}
     route -->|"L0 简算"| l0["Direct × 1(4096 tokens)"]
-    route -->|"默认"| main1["主调用 × 1<br/>answer-first:numeric 族第一行 = 最终答案"]
+    route -->|"默认"| samples["Alternative + Direct + Direct"]
+    samples --> aggregate["GSA 聚合 × 1<br/>失败时确定性回退"]
     l0 --> finalize
-    main1 --> vote["adaptive k5 自适应投票(hetero 在役)<br/>最多 5 个独立候选;首次补采样 = AlternativeReasoner<br/>(反证/构造/边界/数值验证),其余 Direct<br/>保守等价分组,3 票共识早退"]
-    vote --> select["确定性候选选择<br/>(共识组大小优先)"]
-    select --> refine{"P3 refine 链(发3 在役)<br/>verify → revise → 复验"}
-    refine -->|"复验不确定/失败<br/>fail-closed"| rollback["回滚原解"]
-    refine -->|"通过"| finalize["final_response 组装<br/>numeric:规范化最简形<br/>非数值:正文重建"]
-    rollback --> finalize
+    aggregate --> finalize["final_response 组装<br/>numeric:规范化最简形<br/>非数值:正文重建"]
     finalize --> out["final_response + extracted_answer + trace"]
-    vote -. "发5 GSA 备选<br/>3 采样 + 1 生成式聚合(4 调用)" .-> gsa["gsa_4call"]
-    finalize -. "发4 ARH 备选<br/>答案句 + boxed 双形态" .-> arh["hetero_refine_arh"]
 ```
 
 | 层 | 在役实现 | 备注 |
 | --- | --- | --- |
 | 题型识别 | 纯文本规则六分类,不读 metadata | 常开 |
 | 生成 | answer-first:numeric 族第一行即最终答案 | 截断免疫(88% 截断率下答案仍可判) |
-| 采样/聚合 | adaptive k5:≤5 候选,3 票共识早退;首次补采样为异构策略 | hetero 在役(官方 Run #5 = 12/112) |
-| 修正 | P3 verify→revise→复验,**fail-closed** | 发3 搭载,Run #7 待判 |
-| 表示 | numeric:规范化最简形;非数值:正文重建 | 发4 ARH(双形态)待筛窗 |
+| 采样/聚合 | 严格 GSA 3+1，聚合失败确定性回退 | `ff040df` 默认行为 |
+| 修正 | 关闭 | refine 不在当前默认路径 |
+| 表示 | numeric:规范化最简形;非数值:正文重建 | ARH 关闭 |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
+
+### BTCS Frame v2 候选
+
+显式设置 `AgentConfig(protocol_mode="btcs_frame_v2")` 后，系统使用有限 `FINAL`
+答案帧、本地等价共识和只能选择 A/B/C 的受限 Arbiter。每题 logical calls≤4、
+HTTP attempts≤5、retry≤1；`UNKNOWN` fail-closed。该路径默认关闭。
 
 ## 项目架构与发布流
 
@@ -70,17 +69,21 @@ flowchart LR
 
 ```text
 ├── user_agent.py                        # Agent 核心:ReasoningAgent + 全部实验开关
+├── reasoning_agent/btcs.py              # opt-in BTCS Frame v2 协议
 ├── llm_client.py                        # 书生 API client(本地评测用)
 ├── main.py                              # 本地逐题 runner
 ├── scripts/
 │   ├── evaluate_protocol_ab.py          # 实验主力 runner:23 变体/交错配对/void 熔断
+│   ├── btcs_fidelity_probe.py           # 固定 10 题 fidelity 门
+│   ├── btcs_frame_v2_resource_probe.py  # workers=1 资源资格窗
+│   ├── replay_btcs.py                   # 离线 transcript replay
 │   └── evaluate_dev.py                  # 单配置 evaluator 与消融 CLI
 ├── sample_data/
 │   ├── dev.jsonl                        # 3 题冒烟集
 │   ├── public_regression_112.jsonl      # 112 题短题知识覆盖集(回归保护)
 │   ├── medium_capability_freeze_60.jsonl
 │   └── complex_capability_freeze_48.jsonl
-├── tests/                               # 380+ 单测(行为/单变量/档位断言)
+├── tests/                               # 442 项单测(默认路径 + BTCSv2 backport)
 ├── docs/
 │   ├── excluded_approaches.md           # 淘汰方案单一事实源(七条死线)
 │   ├── research/                        # 候选依据:能力/评测方法研究 + 采纳报告
@@ -94,18 +97,20 @@ flowchart LR
 
 ## 提交配置与实验开关板
 
-官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造,解析到
-`SUBMISSION_CONFIG`(在役 canary,2026-08-29 发3):answer-first 主调用 +
-**hetero adaptive k5**(首次补采样为异构策略)+ **P3 refine 链(fail-closed)**,
-effective 调用上限 8(5+3),4096 token/调用。
+官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到
+`SUBMISSION_CONFIG`：严格 GSA 3+1，最多4次调用、4096 token/solver。
+
+BTCS Frame v2 不在默认配置中启用；它只由显式 `protocol_mode` 实验配置进入，
+不会与 GSA、adaptive voting、refine、salvage、RAG 或 SymPy 叠加。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
-| `enable_adaptive_voting`(k5/threshold3) | ✅ | 共识投票 |
-| `enable_heterogeneous_reasoners` | ✅ | 投票内 1 路 Alternative |
-| `enable_step_verification` / `enable_step_revision` | ✅ | refine 链(fail-closed) |
-| `enable_answer_dual_form`(ARH,发4) | ⬜ | 预包就绪,待筛窗 |
-| `enable_gsa_aggregation`(GSA,发5) | ⬜ | 筛窗在跑 |
+| `protocol_mode="btcs_frame_v2"` | ⬜ | opt-in 候选，默认关闭 |
+| `enable_adaptive_voting`(k5/threshold3) | ⬜ | GSA 默认路径关闭 |
+| `enable_heterogeneous_reasoners` | ⬜ | GSA 显式安排三候选顺序 |
+| `enable_step_verification` / `enable_step_revision` | ⬜ | refine 已撤下 |
+| `enable_answer_dual_form`(ARH) | ⬜ | 默认关闭 |
+| `enable_gsa_aggregation`(GSA) | ✅ | 严格3+1 canary |
 | `enable_numeric_chain_of_draft`(CoD) | ⬜ | ARCHIVED |
 | `enable_re2_reread`(Re2) | ⬜ | ARCHIVED(官方回滚) |
 | `enable_failure_salvage`(P1) | ⬜ | ARCHIVED |
@@ -168,7 +173,7 @@ python -m unittest discover -s tests -q
 python -m py_compile user_agent.py llm_client.py sympy_adapter.py main.py scripts/evaluate_dev.py
 ```
 
-当前验收基线 **380/380**(主线)。提交前还应确认:`user_agent.py` 可正常
+当前 GitCode/main backport 验收基线 **442/442**。提交前还应确认:`user_agent.py` 可正常
 import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍返回
 可序列化非空 `final_response`;仓库无 API key、个人路径与样例答案特判;实际
 提交配置与 A/B 报告中的配置一致。

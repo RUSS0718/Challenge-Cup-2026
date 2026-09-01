@@ -274,6 +274,30 @@ class AgentConfig:
     enable_adaptive_voting: bool = False
     vote_k_max: int = 3
     vote_agree_threshold: int = 2
+    # BTCS Frame v2 is opt-in; the promoted GSA profile leaves this unset.
+    protocol_mode: str | None = None
+    btcs_max_model_calls: int = 4
+    btcs_solver_max_tokens: int = 4096
+    btcs_arbiter_max_tokens: int = 256
+    btcs_continuation_max_tokens: int = 256
+    btcs_retry_limit: int = 1
+    btcs_retry_base_delay_seconds: float = 0.25
+
+    def __post_init__(self) -> None:
+        if self.protocol_mode != "btcs_frame_v2":
+            return
+        forbidden = (
+            "enable_gsa_aggregation",
+            "enable_adaptive_voting",
+            "enable_step_verification",
+            "enable_step_revision",
+            "enable_failure_salvage",
+            "enable_method_rag",
+            "enable_sympy_evidence",
+        )
+        enabled = [name for name in forbidden if getattr(self, name, False)]
+        if enabled:
+            raise ValueError("BTCS requires exclusive protocol flags: " + ", ".join(enabled))
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -940,6 +964,9 @@ class ReasoningAgent:
         # P0: classify problem type (universal, text-based)
         problem_type = classify_problem_type(problem)
 
+        if self.config.protocol_mode == "btcs_frame_v2":
+            return self._solve_btcs(problem, problem_type)
+
         trace, candidates = [], []
         generation_calls, level = self._generation_plan(problem)
         # P0: per-solve budget dict carries time for call isolation (no shared instance field).
@@ -1045,6 +1072,29 @@ class ReasoningAgent:
         extracted_answer = best.get("normalized_answer") or best.get("answer", "")
         trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"],"problem_type":problem_type,"diagnostic_reasons":list(budget["diagnostic_reasons"])})
         return {"final_response":final_answer,"trace":trace, "extracted_answer": extracted_answer}
+
+    def _solve_btcs(self, problem: str, problem_type: str) -> dict[str, Any]:
+        """Run the isolated BTCS Frame v2 protocol."""
+        from reasoning_agent.btcs import BoundedTypedConsensus, SolveBudget
+
+        result = BoundedTypedConsensus().run(
+            problem,
+            problem_type,
+            self.client.chat,
+            SolveBudget.from_config(self.config),
+        )
+        final_response = result.final_response
+        if not isinstance(final_response, str) or not final_response.strip():
+            final_response = "未能生成有效数学答案。"
+        return {
+            "final_response": final_response,
+            "extracted_answer": (
+                result.extracted_answer
+                if isinstance(result.extracted_answer, str)
+                else ""
+            ),
+            "trace": result.trace,
+        }
 
     # ── Candidate generation ─────────────────────────────────────────────
 
