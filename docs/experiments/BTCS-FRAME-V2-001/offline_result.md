@@ -5,6 +5,9 @@
 - 整理后的 BTCSv2 提交候选全量 unittest：502/502
 - 此前混合工作树验收记录：507/507；该数字不作为本次提交范围的门结论
 - GitCode/main 最小 backport（保留 `ff040df` 默认 GSA 配置）：442/442
+
+2026-09-02 用户明确授权把默认提交配置切换为 `btcs_frame_v2` 进行 official trial。
+该发布不改变资源窗 VOID 和 `NO_CAPABILITY_CONCLUSION`，回滚锚为 `e9df37e`。
 - v2 replay：单行 `FINAL`、有限 Markdown wrapper、proof `BODY`、诊断计数、来源指标和
   数值 Arbiter evidence 约束均通过
 - `py_compile`：通过

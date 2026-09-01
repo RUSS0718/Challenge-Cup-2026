@@ -1,12 +1,12 @@
 # Challenge Cup 2026 数学推理智能体
 
 本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现:一个受调用预算约束的数学
-推理智能体。流水线为题型识别 → 答案先行生成 → 异构自适应投票 → 确定性选择 →
-fail-closed 验证/修正链 → 规范化输出,同时保持赛事规定的单文件入口与公开
+推理智能体。当前默认流水线为题型识别 → BTCS Frame v2 求解 → 本地答案共识 →
+受限 Arbiter → 规范化输出，同时保持赛事规定的单文件入口与公开
 client 契约。
 
-> 当前状态（2026-09-01）：默认提交路径保持 `ff040df` 的严格 GSA 3+1 canary。
-> 本次只 backport `btcs_frame_v2` opt-in 候选，不修改 `SUBMISSION_CONFIG`。
+> 当前状态（2026-09-02）：经用户明确授权，默认提交路径已切换为
+> `btcs_frame_v2` official trial；回滚锚为 `e9df37e` 的严格 GSA 3+1。
 > v2 资源资格窗 1/3 成功并作废，尚无 fidelity 或能力结论。
 
 ## 当前 Agent 架构
@@ -17,29 +17,28 @@ client 契约。
 ```mermaid
 flowchart TD
     entry["ReasoningAgent.solve(problem, metadata)"] --> classify["P0 题型识别(纯文本,六类)"]
-    classify --> route{"预算路由"}
-    route -->|"L0 简算"| l0["Direct × 1(4096 tokens)"]
-    route -->|"默认"| samples["Alternative + Direct + Direct"]
-    samples --> aggregate["GSA 聚合 × 1<br/>失败时确定性回退"]
-    l0 --> finalize
-    aggregate --> finalize["final_response 组装<br/>numeric:规范化最简形<br/>非数值:正文重建"]
+    classify --> solvers["BTCS solver A/B，必要时 C"]
+    solvers --> consensus{"本地等价共识"}
+    consensus -->|"一致"| finalize["final_response 组装"]
+    consensus -->|"分歧"| arbiter["Bounded Arbiter<br/>仅 SELECT A/B/C/UNKNOWN"]
+    arbiter --> finalize
     finalize --> out["final_response + extracted_answer + trace"]
 ```
 
 | 层 | 在役实现 | 备注 |
 | --- | --- | --- |
 | 题型识别 | 纯文本规则六分类,不读 metadata | 常开 |
-| 生成 | answer-first:numeric 族第一行即最终答案 | 截断免疫(88% 截断率下答案仍可判) |
-| 采样/聚合 | 严格 GSA 3+1，聚合失败确定性回退 | `ff040df` 默认行为 |
-| 修正 | 关闭 | refine 不在当前默认路径 |
-| 表示 | numeric:规范化最简形;非数值:正文重建 | ARH 关闭 |
+| 生成 | 数值题单行 `FINAL`；证明题 `FINAL/EVIDENCE/BODY` | 最多3个 solver candidates |
+| 选择 | 本地等价共识；分歧时受限 Arbiter | 不允许创造新答案 |
+| 预算 | logical≤4、HTTP≤5、retry≤1 | solver 4096 tokens |
+| 表示 | numeric 规范化；非数值正文重建 | `UNKNOWN` fail-closed |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
 
-### BTCS Frame v2 候选
+### BTCS Frame v2 默认路径
 
-显式设置 `AgentConfig(protocol_mode="btcs_frame_v2")` 后，系统使用有限 `FINAL`
+官方无参构造现在直接使用有限 `FINAL`
 答案帧、本地等价共识和只能选择 A/B/C 的受限 Arbiter。每题 logical calls≤4、
-HTTP attempts≤5、retry≤1；`UNKNOWN` fail-closed。该路径默认关闭。
+HTTP attempts≤5、retry≤1；`UNKNOWN` fail-closed。
 
 ## 项目架构与发布流
 
@@ -69,7 +68,7 @@ flowchart LR
 
 ```text
 ├── user_agent.py                        # Agent 核心:ReasoningAgent + 全部实验开关
-├── reasoning_agent/btcs.py              # opt-in BTCS Frame v2 协议
+├── reasoning_agent/btcs.py              # 默认 BTCS Frame v2 协议
 ├── llm_client.py                        # 书生 API client(本地评测用)
 ├── main.py                              # 本地逐题 runner
 ├── scripts/
@@ -98,19 +97,18 @@ flowchart LR
 ## 提交配置与实验开关板
 
 官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到
-`SUBMISSION_CONFIG`：严格 GSA 3+1，最多4次调用、4096 token/solver。
-
-BTCS Frame v2 不在默认配置中启用；它只由显式 `protocol_mode` 实验配置进入，
-不会与 GSA、adaptive voting、refine、salvage、RAG 或 SymPy 叠加。
+`SUBMISSION_CONFIG`：BTCS Frame v2，logical calls≤4、HTTP attempts≤5、
+retry≤1、4096 token/solver；不与 GSA、adaptive voting、refine、salvage、RAG
+或 SymPy 叠加。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
-| `protocol_mode="btcs_frame_v2"` | ⬜ | opt-in 候选，默认关闭 |
+| `protocol_mode="btcs_frame_v2"` | ✅ | 当前 official trial |
 | `enable_adaptive_voting`(k5/threshold3) | ⬜ | GSA 默认路径关闭 |
 | `enable_heterogeneous_reasoners` | ⬜ | GSA 显式安排三候选顺序 |
 | `enable_step_verification` / `enable_step_revision` | ⬜ | refine 已撤下 |
 | `enable_answer_dual_form`(ARH) | ⬜ | 默认关闭 |
-| `enable_gsa_aggregation`(GSA) | ✅ | 严格3+1 canary |
+| `enable_gsa_aggregation`(GSA) | ⬜ | 回滚锚 `e9df37e` |
 | `enable_numeric_chain_of_draft`(CoD) | ⬜ | ARCHIVED |
 | `enable_re2_reread`(Re2) | ⬜ | ARCHIVED(官方回滚) |
 | `enable_failure_salvage`(P1) | ⬜ | ARCHIVED |
@@ -180,11 +178,9 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 ## 当前路线
 
-- **在役**:hetero+refine canary(发3,Run #7 待判),回滚锚 = hetero 单变量
-  (官方 12/112)。
-- **发4**:ARH 答案表示对齐(双形态,来自评测方法调研采纳,规格见
-  `docs/research/evaluation_adoption_提分行动_2026-08-29.md`)。
-- **发5**:GSA 生成式聚合(3+1,compute-matched)。
+- **在役**：BTCS Frame v2 official trial；尚无 fidelity 或能力结论。
+- **回滚锚**：`e9df37e` 严格 GSA 3+1。
+- **下一步**：读取同一隐藏集 official log 后按 correct/error/耗时门裁决 keep/rollback。
 - **已淘汰**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
   P1 salvage、G 门控、TIR/回代验证、32k 天花板。
 - **暂不引入**:LLM-as-judge 本地判分、PRM 组件、LangGraph/AgentScope、

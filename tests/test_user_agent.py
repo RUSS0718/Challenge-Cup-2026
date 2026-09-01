@@ -1095,7 +1095,7 @@ class P0StopBleedingTest(unittest.TestCase):
 
     def test_truncation_signals_recorded_on_rejected_candidate(self):
         client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
-        agent = ReasoningAgent(client)
+        agent = ReasoningAgent(client, AgentConfig())
         result = agent.solve("计算 3+4", {})
         rejected = [e for e in result["trace"]
                     if e.get("step") == "generate_candidate" and e.get("status") == "rejected"]
@@ -1125,7 +1125,7 @@ class P0StopBleedingTest(unittest.TestCase):
 
     def test_diagnostic_trace_is_safe_and_reports_fallback_reasons(self):
         client = FakeClient(["最终答案：<答案>", "根据题意，代入公式可得"])
-        result = ReasoningAgent(client).solve("计算 3+4", {})
+        result = ReasoningAgent(client, AgentConfig()).solve("计算 3+4", {})
         finalize = result["trace"][-1]
         self.assertEqual("fallback", finalize["status"])
         self.assertIn("all_candidates_rejected", finalize["diagnostic_reasons"])
@@ -1141,8 +1141,9 @@ class P0StopBleedingTest(unittest.TestCase):
 class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
-    def test_submission_config_is_strict_gsa_canary(self):
-        self.assertTrue(SUBMISSION_CONFIG.enable_gsa_aggregation)
+    def test_submission_config_is_btcs_frame_v2_canary(self):
+        self.assertFalse(SUBMISSION_CONFIG.enable_gsa_aggregation)
+        self.assertEqual("btcs_frame_v2", SUBMISSION_CONFIG.protocol_mode)
         self.assertFalse(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
@@ -1157,26 +1158,12 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(2, config.max_model_calls)
 
     def test_agent_without_config_uses_submission_profile(self):
-        client = FakeClient([
-            "备选推导一。\n最终答案：7",
-            "标准推导二。\n最终答案：7",
-            "标准推导三。\n最终答案：8",
-            "最终答案：9\n独立复核后发现多数候选遗漏了边界条件。",
-        ])
+        client = FakeClient(["FINAL: 9", "FINAL: 9"])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("9", result["extracted_answer"])
-        self.assertEqual(4, len(client.calls))
-        self.assertTrue(any(e.get("step") == "gsa_aggregate" for e in result["trace"]))
-        reasoners = [
-            entry.get("reasoner")
-            for entry in result["trace"]
-            if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
-        ]
-        self.assertEqual(["alternative", "direct", "direct"], reasoners)
-        aggregate_prompt = client.calls[3][0][1]["content"]
-        self.assertIn("备选推导一", aggregate_prompt)
-        self.assertIn("标准推导三", aggregate_prompt)
+        self.assertEqual(2, len(client.calls))
+        self.assertEqual("btcs_frame_v2", result["trace"][-1]["protocol"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════

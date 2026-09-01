@@ -103,7 +103,9 @@
    `ARCHIVED_VOID / NO_CAPABILITY_CONCLUSION`，不得原样复跑。
 0a. `btcs_frame_v2`：离线结构门通过；独立 workers=1 资源资格窗仅 1/3 成功、
     2 timeout，状态为 `VOID_RESOURCE_HEALTH / NO_CAPABILITY_CONCLUSION`。
-    fidelity 未启动；不得继承 v1 结果或修改安全门。
+    fidelity 未启动；不得继承 v1 结果或修改安全门。2026-09-02 用户明确授权绕过
+    本地晋升顺序进入 official trial，部署状态为 `DEPLOYED_UNVALIDATED_CANARY`；
+    该发布动作不追认资源门或能力门通过，回滚锚为 `e9df37e`。
 
 1. P1 首次回归已按 VOID 归档；方法仍为 `OPEN`，任何健康复测都须新预注册且次数有限。
 2. hetero 已由用户直接发布为未验证 canary；官方结果前不追加第二个运行时变量，不把发布动作

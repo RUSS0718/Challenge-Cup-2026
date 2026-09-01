@@ -6,7 +6,7 @@
 
 | ref | tip | 角色 |
 | --- | --- | --- |
-| **gitcode/main** | 本提交（父提交 `ff040df`） | **唯一官方评测拉取面**；保留严格 GSA 默认配置，新增 BTCSv2 opt-in backport |
+| **gitcode/main** | 本提交（父提交 `e9df37e`） | **唯一官方评测拉取面**；BTCSv2 official trial，GSA 回滚锚为 `e9df37e` |
 | **origin/main**(GitHub) | 未在本次整理同步 | 不作为本次发布面 |
 | **local main** | 未在本次整理切换 | 保留现状，不覆盖本地历史 |
 

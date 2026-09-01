@@ -58,3 +58,10 @@ solver 请求，目标 raw solver response 数至少 20；实际 response 数在
 
 安全门通过且 raw solver response 数达到 20 后，才可评价预注册的 raw parse rate；该结果仍不是
 能力结论。只有后续独立 hard smoke 通过，才考虑 `BTCS-LEGACY84-001`。
+
+## 2026-09-02 用户发布覆盖
+
+用户明确要求将 `SUBMISSION_CONFIG` 切换为 `btcs_frame_v2`，以官方评测直接观察该方法。
+该决定覆盖“先资源/fidelity、后 official canary”的执行顺序，但不修改任何历史门槛，
+不追认资源窗或 fidelity 通过。部署状态为 `DEPLOYED_UNVALIDATED_CANARY`，回滚锚为
+`e9df37e` 的严格 GSA 3+1。

@@ -2,7 +2,10 @@
 
 状态：**FINAL_SPEC / PRE0_EXIT_CONDITIONS_1_5_MET / P0_ROLLBACK_EXECUTED_2026_08_30 /
 P1_BASELINE_COMPLETE_DESCRIPTIVE / FORMAL_WINDOW_001_PASS / P2_GSA_FIDELITY_PASS_LEGACY_NEXT /
-BTCS_FRAME_V2_OFFLINE_ACCEPTED / BTCS_FRAME_V2_RESOURCE_VOID / CORE_BLOCKED / P3_KCV_DEFAULT_OFF**。（2026-09-01：BTCS Frame v2 离线结构验收通过，
+BTCS_FRAME_V2_OFFLINE_ACCEPTED / BTCS_FRAME_V2_RESOURCE_VOID / BTCS_FRAME_V2_DEPLOYED_UNVALIDATED_CANARY /
+CORE_BLOCKED / P3_KCV_DEFAULT_OFF**。（2026-09-02：用户明确授权将默认提交配置切换为
+`btcs_frame_v2` 进行 official trial；该发布不追认资源或能力门通过，回滚锚为 `e9df37e`。）
+（2026-09-01：BTCS Frame v2 离线结构验收通过，
 但 workers=1 资源资格窗仅 1/3 成功并作废，尚无能力实验结论。）（2026-08-30 深夜：用户决策
 PATH_A_LINEAR_REVERT 已执行——gitcode main 46c08dd→019cc40（fast-forward，无 force），
 远端 user_agent.py blob=e804506… 与 25f99b5 逐字节一致，接口冒烟（三并发/JSON/非空
@@ -632,8 +635,9 @@ GSA `ff040df` 作为 control。它使用单行数值 `FINAL` 帧、证明类 `FI
   JSON 序列化、trace 卫生和硬上限检查通过。
 - 资源门：`BTCS-FRAME-V2-RESOURCE-001` 使用 workers=1、solver 4096 tokens、retry=1，
   3 个串行请求仅 1/3 成功、2 timeout，处置为 `VOID_RESOURCE_HEALTH`。
-- 实验状态：未启动 fidelity、hard smoke、legacy84、core120、confirm30 或 official
-  canary；没有能力结论。`SUBMISSION_CONFIG` 保持不变。
+- 实验状态：未启动 fidelity、hard smoke、legacy84、core120 或 confirm30；没有能力
+  结论。2026-09-02 用户授权直接进入 official trial，`SUBMISSION_CONFIG` 已切换为
+  `btcs_frame_v2`，GSA 回滚锚为 `e9df37e`；发布动作不改变历史门判定。
 - 继续条件：新的健康资源窗必须满足 3/3、0 error、0 deadline、0 orphan；fidelity 少于
   20 个实际 solver responses 时只记 `RAW_SAMPLE_INSUFFICIENT`，不得追加样本或降低门槛。
 

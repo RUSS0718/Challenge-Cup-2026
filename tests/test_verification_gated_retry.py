@@ -147,7 +147,7 @@ class GatedRetryFlowTest(unittest.TestCase):
 
 
 class SubmissionConfigTest(unittest.TestCase):
-    def test_official_profile_is_strict_gsa_canary(self):
+    def test_official_profile_is_btcs_frame_v2_canary(self):
         self.assertEqual(1, SUBMISSION_CONFIG.policy_sample_times)
         self.assertEqual(0.6, SUBMISSION_CONFIG.policy_temperature)
         self.assertEqual(4, SUBMISSION_CONFIG.max_model_calls)
@@ -160,7 +160,8 @@ class SubmissionConfigTest(unittest.TestCase):
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertFalse(SUBMISSION_CONFIG.enable_truncation_recovery_prompt)
         self.assertFalse(SUBMISSION_CONFIG.enable_adaptive_voting)
-        self.assertTrue(SUBMISSION_CONFIG.enable_gsa_aggregation)
+        self.assertFalse(SUBMISSION_CONFIG.enable_gsa_aggregation)
+        self.assertEqual("btcs_frame_v2", SUBMISSION_CONFIG.protocol_mode)
         self.assertEqual(3, SUBMISSION_CONFIG.vote_k_max)
         self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)

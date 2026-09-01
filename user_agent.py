@@ -274,7 +274,7 @@ class AgentConfig:
     enable_adaptive_voting: bool = False
     vote_k_max: int = 3
     vote_agree_threshold: int = 2
-    # BTCS Frame v2 is opt-in; the promoted GSA profile leaves this unset.
+    # BTCS Frame v2 selector; None keeps the legacy runtime available for A/B.
     protocol_mode: str | None = None
     btcs_max_model_calls: int = 4
     btcs_solver_max_tokens: int = 4096
@@ -304,8 +304,8 @@ class AgentConfig:
 # The official runner constructs ``ReasoningAgent(client=official_client)``
 # without a config, which resolves here.
 #
-# 2026-08-30 user-authorized trial canary: strict GSA 3+1.
-# Rollback anchor: 019cc405 (hetero_k5 runtime, official Run #5 = 12/112).
+# 2026-09-02 user-authorized BTCS Frame v2 official trial.
+# Rollback anchor: e9df37e (strict GSA 3+1, same code with BTCS default off).
 SUBMISSION_CONFIG = AgentConfig(
     policy_sample_times=1,
     policy_temperature=0.6,
@@ -323,7 +323,7 @@ SUBMISSION_CONFIG = AgentConfig(
     max_tokens=4096,
     l0_max_tokens=4096,
     enable_heterogeneous_reasoners=False,
-    enable_gsa_aggregation=True,
+    enable_gsa_aggregation=False,
     enable_step_verification=False,
     enable_step_revision=False,
     enable_answer_dual_form=False,
@@ -339,6 +339,7 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_local_repair=False,
     enable_uncertain_repair=False,
     enable_sympy_evidence=False,
+    protocol_mode="btcs_frame_v2",
 )
 
 
