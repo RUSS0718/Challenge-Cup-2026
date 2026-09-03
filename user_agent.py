@@ -127,6 +127,14 @@ PLAN_SOLVE_PROMPT = """你是数学求解器。按照给定计划完成求解：
 不要复述计划全文。最后一行必须且只能使用“最终答案：X”，X 只含最终结果。
 若计划不足以得到明确答案，最后一行写“最终答案：UNKNOWN”。"""
 
+TYPED_CAPSULE_PRIMARY_PROMPT = """你是数学求解器。第一行必须且只能写：ANSWER: <纯数学结果>
+随后最多给出 10 条关键推理；禁止 Thinking Process、计划回显、多个答案或自然语言答案行。
+ANSWER 行中的结果只能是整数、分数、数学表达式、集合、矩阵或选项字母，不得包含句子。"""
+TYPED_CAPSULE_RETRY_PROMPT = """你是数学求解器。请重新独立计算原题，不要参考任何先前回答。
+第一行必须且只能写：ANSWER: <纯数学结果>
+随后最多给出 3 条关键校验。不要输出计划、Thinking Process、多个答案或解释性句子。
+如果无法确定，第一行写 ANSWER: UNKNOWN。"""
+
 # ── P3: step verification and revision prompts ────────────────────────────
 # InternLM models embed a verbose "Thinking Process" before every response,
 # which consumes tokens and makes structured lemma extraction unreliable.
@@ -318,6 +326,8 @@ class AgentConfig:
     kcv_select_max_tokens: int = 512
     plan_compact_max_tokens: int = 600
     plan_solve_max_tokens: int = 3072
+    enable_typed_answer_capsule: bool = False
+    capsule_retry_max_tokens: int = 2048
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -368,6 +378,18 @@ SUBMISSION_CONFIG = AgentConfig(
 _ANSWER_MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]\s*([^\n\r]+)", re.IGNORECASE)
 _ANSWER_MARKER_LINE_STRICT_RE = re.compile(
     r"^\s*(?:最终答案|final\s+answer|答案)\s*[:：]\s*(.*?)\s*$",
+    re.IGNORECASE,
+)
+_TYPED_ANSWER_LINE_RE = re.compile(
+    r"^\s*(?:ANSWER|最终答案|final\\s+answer)\s*[:：]\s*(.*?)\s*$",
+    re.IGNORECASE,
+)
+_TYPED_MATH_TOKEN_RE = re.compile(
+    r"^[\s0-9A-Za-z_+*/^=(){}\[\].,<>≤≥±×÷\\-]+$"
+)
+_TYPED_SENTENCE_RE = re.compile(
+    r"(?:因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导|therefore|because|the|this|we)"
+    r"|[，。；;、？！:：\"“”‘’]",
     re.IGNORECASE,
 )
 _CHOICE_LINE_RE = re.compile(r"^(?:选项\s*)?([A-Da-d])(?:[.。)）]?)\s*$")
@@ -424,8 +446,27 @@ def extract_answer_first(response: str) -> str:
     return extract_final_answer(response)
 
 
+def extract_typed_answer(response: str) -> str:
+    """Extract only a pure token from an independent ANSWER: line."""
+    if not isinstance(response, str) or not response.strip():
+        return ""
+    for line in response.splitlines():
+        match = _TYPED_ANSWER_LINE_RE.match(line)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        if not value or value.upper() == "UNKNOWN" or is_placeholder_answer(value):
+            continue
+        if len(value) > 80 or _TYPED_SENTENCE_RE.search(value):
+            continue
+        if not _TYPED_MATH_TOKEN_RE.fullmatch(value):
+            continue
+        return value
+    return ""
+
+
 def extract_numeric_answer(response: str) -> str:
-    """Extract a conservative answer for numeric/choice/fill-blank tasks.
+    """Extract a conservative answer for numeric/choice/fill-blank tasks.""
 
     This salvage arm only accepts an independent answer-marker line, a closed
     ``\\boxed{...}``, a standalone option letter, or a short pure-math line.
@@ -989,6 +1030,8 @@ class ReasoningAgent:
 
         if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
             raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
+        if self.config.enable_typed_answer_capsule:
+            return self._solve_typed_answer_capsule(problem, problem_type)
         if self.config.enable_condition_checked_selection:
             return self._solve_condition_checked_selection(problem, problem_type)
         if self.config.enable_plan_solve_compact:
@@ -1240,6 +1283,41 @@ class ReasoningAgent:
             "model_calls": budget["used"],
         })
         return {"final_response": "UNKNOWN", "extracted_answer": "", "trace": trace}
+
+    def _solve_typed_answer_capsule(self, problem: str, problem_type: str) -> dict[str, Any]:
+        """V5: primary typed capsule plus one independent compact retry."""
+        trace: list[dict[str, Any]] = []
+        budget: dict[str, Any] = {"used": 0, "limit": 2, "diagnostic_reasons": [],
+                                   "solve_start": time.monotonic() if self.config.enable_time_convergence else None}
+        trace.append({"step": "route_budget", "method": "typed_answer_capsule_v1",
+                      "generation_calls": 1, "max_model_calls": 2, "problem_type": problem_type})
+        primary, primary_error = self._request(
+            TYPED_CAPSULE_PRIMARY_PROMPT,
+            f"题目：\n{problem}\n\n请直接求解。",
+            self.config.policy_temperature,
+            self.config.max_tokens,
+            budget,
+        )
+        answer = extract_typed_answer(primary or "")
+        if answer:
+            trace.append({"step": "capsule_primary", "status": "accepted", "typed": True})
+            trace.append({"step": "finalize", "status": "selected", "model_calls": budget["used"]})
+            return {"final_response": f"ANSWER: {answer}", "extracted_answer": answer, "trace": trace}
+        trace.append({"step": "capsule_primary", "status": "retry", "reason": primary_error or "no_typed_answer"})
+        retry, retry_error = self._request(
+            TYPED_CAPSULE_RETRY_PROMPT,
+            f"题目：\n{problem}\n\n请重新独立计算并按指定格式输出。",
+            self.config.policy_temperature,
+            self.config.capsule_retry_max_tokens,
+            budget,
+        )
+        answer = extract_typed_answer(retry or "")
+        if not answer:
+            trace.append({"step": "capsule_retry", "status": "rejected", "reason": retry_error or "no_typed_answer"})
+            return self._unknown_result(trace, budget, "typed_answer_unavailable")
+        trace.append({"step": "capsule_retry", "status": "accepted", "typed": True})
+        trace.append({"step": "finalize", "status": "selected", "model_calls": budget["used"]})
+        return {"final_response": f"ANSWER: {answer}", "extracted_answer": answer, "trace": trace}
 
     def _solve_condition_checked_selection(self, problem: str, problem_type: str) -> dict[str, Any]:
         """condition_checked_selection_v1: ≤3 hetero candidates + optional KCV select."""

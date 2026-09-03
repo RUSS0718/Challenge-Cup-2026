@@ -1,0 +1,16 @@
+{
+  "run_id": "V5-HARD20-TYPED-CAPSULE-001",
+  "method_id": "typed_answer_capsule_v1",
+  "dataset_sha256": "3cf90e65ef9239a70d9675b3807a01692d19aef27fa7cd1e5ffcefdc70ef12dd",
+  "expected_items": 20,
+  "pending_items": 20,
+  "workers": 3,
+  "timeout_seconds": 900,
+  "hard_stop_seconds": 10800.0,
+  "max_calls_per_item": 2,
+  "primary_max_tokens": 4096,
+  "retry_max_tokens": 2048,
+  "client_retry": 0,
+  "git_head": "83971a393310157b2b85acbd184095446ec6d056",
+  "start_unix": 1788446557.2508376
+}

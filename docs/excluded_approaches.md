@@ -108,6 +108,16 @@
 `core120` 或申请 official canary；若重启必须提出实质变化、新 method ID 和新预注册，
 不得追加本窗第二轮追求显著性。
 
+## 五点六、V5-HARD20-TYPED-CAPSULE-001（2026-09-03）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| 首轮（`retry=0`） | 20/20 请求未执行 HTTP 调用，全部 request error | `VOID_RUNNER_CONFIGURATION`；不作为能力结论 |
+| 合规重跑（`retry=1`） | 20/20 完成、0 model error；typed answer 4/20（20%）、native correct 2/20、invalid 17/20、平均 1.85 calls | `EXPLORATORY_NO_GO / NO_PROMOTION`；形成率、correct、卫生、成本门均失败；不启动 baseline matched 复验，不修改 `SUBMISSION_CONFIG` |
+
+完整工件：`docs/experiments/V5-HARD20-TYPED-CAPSULE-001-RETRY/`。官方发布面继续锁定
+`hetero_k5 @ 25f99b5`（GitCode `34bc353`）。
+
 ## 六、当前允许队列
 
 0. `btcs_v1`：真实帧解析 6/7（85.7143%），低于 95% 预注册门，保持
