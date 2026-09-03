@@ -8,19 +8,20 @@
 ### 配置与部署
 
 **SUBMISSION_CONFIG / canary profile**:
-官方 runner 无参构造时唯一生效的提交配置。2026-09-02 经用户明确授权切换为
-`btcs_frame_v2` official trial；回滚锚为 `e9df37e` 的严格 GSA 3+1。改它等于改变官方得分行为。
+官方 runner 无参构造时唯一生效的提交配置。2026-09-03 经用户明确授权切换为
+`contextual_answer_reconstruction_v1`；运营参考锚为 `hetero_k5 @ 25f99b5`
+（GitCode `34bc353`）。改它等于改变官方得分行为。
 _Avoid_: 默认配置、线上配置(指代不清)
 
-**BTCS Frame v2**:
-`btcs_frame_v2` 是独立的有界共识协议，当前已进入默认提交配置。离线门通过，
-但资源资格窗为 1/3 成功并作废、fidelity 未启动，因此发布状态仍是
-`DEPLOYED_UNVALIDATED_CANARY / NO_CAPABILITY_CONCLUSION`。
+**Contextual Answer Reconstruction v1**:
+新默认路径先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，
+才使用一次受限上下文重构，最后保留一条独立候选或 `UNKNOWN`。方法尚未完成
+真实能力验证；RAG、工具、MCP、旧 BTCS/KCV/PS-C/V5 路径均关闭。
 
 **C0**:
 实验对照臂 `VARIANTS["current"]`:answer-first + policy prompt + k5 自适应投票,
 4096 token,heterogeneous 关闭。08-26 以 b8b78aa 完成官方 Run #4；当前
-SUBMISSION_CONFIG 已切换到 BTCS Frame v2，因此 C0 仅为历史对照。
+SUBMISSION_CONFIG 已切换到 contextual reconstruction，因此 C0 仅为历史对照。
 _Avoid_: current、基线(易与 baseline86 混淆)
 
 **精确 G(exact_g)**:

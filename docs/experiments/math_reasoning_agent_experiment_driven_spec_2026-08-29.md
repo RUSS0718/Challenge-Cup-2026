@@ -2,9 +2,11 @@
 
 状态：**FINAL_SPEC / PRE0_EXIT_CONDITIONS_1_5_MET / P0_ROLLBACK_EXECUTED_2026_08_30 /
 P1_BASELINE_COMPLETE_DESCRIPTIVE / FORMAL_WINDOW_001_PASS / P2_GSA_FIDELITY_PASS_LEGACY_NEXT /
-BTCS_FRAME_V2_OFFLINE_ACCEPTED / BTCS_FRAME_V2_RESOURCE_VOID / BTCS_FRAME_V2_DEPLOYED_UNVALIDATED_CANARY /
-CORE_BLOCKED / P3_KCV_DEFAULT_OFF**。（2026-09-02：用户明确授权将默认提交配置切换为
-`btcs_frame_v2` 进行 official trial；该发布不追认资源或能力门通过，回滚锚为 `e9df37e`。）
+BTCS_FRAME_V2_OFFLINE_ACCEPTED / BTCS_FRAME_V2_RESOURCE_VOID /
+CONTEXTUAL_RECONSTRUCTION_DEFAULT_ENABLED / CORE_BLOCKED / P3_KCV_DEFAULT_OFF**。
+（2026-09-03：用户授权将默认提交配置切换为
+`contextual_answer_reconstruction_v1`；该发布尚无真实能力结论，运营参考锚为
+`hetero_k5 @ 25f99b5`。）
 （2026-09-01：BTCS Frame v2 离线结构验收通过，
 但 workers=1 资源资格窗仅 1/3 成功并作废，尚无能力实验结论。）（2026-08-30 深夜：用户决策
 PATH_A_LINEAR_REVERT 已执行——gitcode main 46c08dd→019cc40（fast-forward，无 force），
@@ -636,11 +638,19 @@ GSA `ff040df` 作为 control。它使用单行数值 `FINAL` 帧、证明类 `FI
 - 资源门：`BTCS-FRAME-V2-RESOURCE-001` 使用 workers=1、solver 4096 tokens、retry=1，
   3 个串行请求仅 1/3 成功、2 timeout，处置为 `VOID_RESOURCE_HEALTH`。
 - 实验状态：未启动 fidelity、hard smoke、legacy84、core120 或 confirm30；没有能力
-  结论。2026-09-02 用户授权直接进入 official trial，`SUBMISSION_CONFIG` 已切换为
-  `btcs_frame_v2`，GSA 回滚锚为 `e9df37e`；发布动作不改变历史门判定。
+  结论。2026-09-02 曾授权直接进入 official trial；2026-09-03 已由
+  `contextual_answer_reconstruction_v1`（`gitcode/main` @ `499b0aa`）替换，
+  本节仅保留 BTCS 历史记录。
 - 继续条件：新的健康资源窗必须满足 3/3、0 error、0 deadline、0 orphan；fidelity 少于
   20 个实际 solver responses 时只记 `RAW_SAMPLE_INSUFFICIENT`，不得追加样本或降低门槛。
 
 代码与工件：`reasoning_agent/btcs.py`、`scripts/btcs_*`、`scripts/replay_btcs.py`、
 `tests/test_btcs*.py`、`docs/experiments/BTCS-FRAME-V2-001/` 和
 `docs/experiments/BTCS-FRAME-V2-RESOURCE-001/`。
+
+## 10.3 当前默认路径（2026-09-03）
+
+`contextual_answer_reconstruction_v1` 已替换 BTCS Frame v2 成为远端
+`gitcode/main` 的默认提交路径（commit `499b0aa`）。它先生成最多三路异构候选，
+在无共识或无可判答案时使用一次上下文重构，失败后保留独立候选或返回 `UNKNOWN`。
+该方法尚未完成真实能力验证；RAG、工具、MCP、KCV、PS-C、V5 和旧 BTCS 路径均未启用。

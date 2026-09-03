@@ -1,4 +1,4 @@
-# 分支与发布面地图(2026-09-01 梳理)
+# 分支与发布面地图(2026-09-03 梳理)
 
 > 目的:终结"两个 main"时代的拓扑混乱。此后引用任何分支,以本文件为准。
 
@@ -6,7 +6,7 @@
 
 | ref | tip | 角色 |
 | --- | --- | --- |
-| **gitcode/main** | 本提交（父提交 `e9df37e`） | **唯一官方评测拉取面**；BTCSv2 official trial，GSA 回滚锚为 `e9df37e` |
+| **gitcode/main** | `499b0aa` | **唯一官方评测拉取面**；`contextual_answer_reconstruction_v1` 已开启，尚未完成真实能力验证 |
 | **origin/main**(GitHub) | 未在本次整理同步 | 不作为本次发布面 |
 | **local main** | 未在本次整理切换 | 保留现状，不覆盖本地历史 |
 
