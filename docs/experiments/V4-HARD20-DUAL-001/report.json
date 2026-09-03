@@ -1,0 +1,48 @@
+{
+  "stats": {
+    "kcv": {
+      "n": 20,
+      "native_correct": 2,
+      "native_incorrect": 1,
+      "invalid": 17,
+      "model_error": 0,
+      "mean_calls": 3.5,
+      "mean_duration": 396.87778466939926,
+      "OlymMATH": {
+        "n": 12,
+        "native_correct": 0
+      },
+      "AIME": {
+        "n": 8,
+        "native_correct": 2
+      }
+    },
+    "psc": {
+      "n": 20,
+      "native_correct": 1,
+      "native_incorrect": 2,
+      "invalid": 17,
+      "model_error": 0,
+      "mean_calls": 1.65,
+      "mean_duration": 80.5936591744423,
+      "OlymMATH": {
+        "n": 12,
+        "native_correct": 0
+      },
+      "AIME": {
+        "n": 8,
+        "native_correct": 1
+      }
+    }
+  },
+  "b_kcv_wins": 2,
+  "c_psc_wins": 1,
+  "sign_test_p": 1.0,
+  "delta_correct_kcv_minus_psc": 1,
+  "winner": null,
+  "health_ok": true,
+  "complete": true,
+  "verdict": "EXPLORATORY_NO_WINNER",
+  "elapsed_seconds": 3276.3953762054443,
+  "dataset_sha256": "3cf90e65ef9239a70d9675b3807a01692d19aef27fa7cd1e5ffcefdc70ef12dd"
+}

@@ -97,6 +97,17 @@
 
 关闭或改标签属于外部协作动作，需团队确认；在此之前，本节承担防重复执行的护栏。
 
+## 五点五、V4-HARD20-DUAL-001（2026-09-03）
+
+| 候选 | 实验结果 | 处置 |
+|---|---|---|
+| `condition_checked_selection_v1`（KCV） | official-like hard20，20 题：native 2/1/17，0 model error，平均 3.50 calls | 与 PS-C 配对仅净胜 1 题；exact sign test p=1.0000；成本约为 PS-C 的 2.12×；`EXPLORATORY_NO_WINNER / NO_PROMOTION` |
+| `plan_solve_compact_v1`（PS-C） | official-like hard20，20 题：native 1/2/17，0 model error，平均 1.65 calls | 成本占优但正确数低于 KCV，未满足优先候选净胜 2 题与显著性门；`EXPLORATORY_NO_WINNER / NO_PROMOTION` |
+
+本窗不含官方基线臂，不能产生超过 `hetero_k5 @ 25f99b5` 的因果结论。不得据此进入
+`core120` 或申请 official canary；若重启必须提出实质变化、新 method ID 和新预注册，
+不得追加本窗第二轮追求显著性。
+
 ## 六、当前允许队列
 
 0. `btcs_v1`：真实帧解析 6/7（85.7143%），低于 95% 预注册门，保持

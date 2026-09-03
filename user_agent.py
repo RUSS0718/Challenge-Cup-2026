@@ -103,6 +103,30 @@ STATEFUL_TAIL_CONTINUATION_PROMPT = """你是数学推理续写者。你会看�
 3. 不要复述题目或已有片段。
 4. 完成推理后，另起一行并严格按"最终答案：X"格式单独给出最终答案，X 只含最终结果本身。"""
 
+# ── V4-HARD20-DUAL-001 experimental prompts (default-off paths) ───────────
+KCV_SELECT_PROMPT = """你是关键条件检查员。你只能在已给出的候选中选择，不能创造、改写或从正文猜测新答案。
+只输出下列四行，不要输出 Thinking Process 或其它文字：
+KCV_STATUS: SELECT 或 UNKNOWN
+CANDIDATE_ID: <已有候选编号；无法选择时写 UNKNOWN>
+KEY_CONDITION: <唯一关键条件；无法唯一识别时写 UNKNOWN>
+EVIDENCE: <一句话说明该候选如何满足或违反该条件>
+规则：
+- 若某一候选明确满足题目关键约束，输出 KCV_STATUS: SELECT 并给出其 CANDIDATE_ID。
+- 若证据不足、候选互相矛盾或无法判断，输出 KCV_STATUS: UNKNOWN，CANDIDATE_ID: UNKNOWN。
+- 禁止给出候选列表以外的编号，禁止编造新答案。"""
+
+PLAN_COMPACT_PROMPT = """你是数学规划员。不要解题、不要给出最终答案。只输出不超过 600 token 的结构化计划，包含：
+VARIABLES: <未知量>
+CONSTRAINTS: <题目约束与定义域>
+GOAL: <要求的目标>
+ANSWER_TYPE: <整数/分数/表达式/证明结论等>
+PLAN: <3-8 条最小充分步骤>
+禁止输出“最终答案：”，禁止计算终值。"""
+
+PLAN_SOLVE_PROMPT = """你是数学求解器。按照给定计划完成求解：答案优先，证明/计算保持最小充分。
+不要复述计划全文。最后一行必须且只能使用“最终答案：X”，X 只含最终结果。
+若计划不足以得到明确答案，最后一行写“最终答案：UNKNOWN”。"""
+
 # ── P3: step verification and revision prompts ────────────────────────────
 # InternLM models embed a verbose "Thinking Process" before every response,
 # which consumes tokens and makes structured lemma extraction unreliable.
@@ -287,6 +311,13 @@ class AgentConfig:
     # fidelity and capability gates against the hetero_k5 baseline.
     enable_stateful_tail_completion: bool = False
     stateful_tail_max_chars: int = 8000
+    # V4-HARD20-DUAL-001 experimental methods. Default off; mutually exclusive
+    # with the official hetero_k5 submission path.
+    enable_condition_checked_selection: bool = False
+    enable_plan_solve_compact: bool = False
+    kcv_select_max_tokens: int = 512
+    plan_compact_max_tokens: int = 600
+    plan_solve_max_tokens: int = 3072
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -956,6 +987,13 @@ class ReasoningAgent:
         # P0: classify problem type (universal, text-based)
         problem_type = classify_problem_type(problem)
 
+        if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
+            raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
+        if self.config.enable_condition_checked_selection:
+            return self._solve_condition_checked_selection(problem, problem_type)
+        if self.config.enable_plan_solve_compact:
+            return self._solve_plan_solve_compact(problem, problem_type)
+
         trace, candidates = [], []
         generation_calls, level = self._generation_plan(problem)
         # P0: per-solve budget dict carries time for call isolation (no shared instance field).
@@ -1193,6 +1231,148 @@ class ReasoningAgent:
         self._generate_candidates(problem, alt_calls, candidates, trace, budget,
                                   max_tokens, task_prompt=alt_prompt,
                                   problem_type=problem_type, reasoner="alternative")
+
+    def _unknown_result(self, trace: list[dict[str, Any]], budget: dict[str, Any], reason: str) -> dict[str, Any]:
+        trace.append({
+            "step": "finalize",
+            "status": "unknown",
+            "reason": reason,
+            "model_calls": budget["used"],
+        })
+        return {"final_response": "UNKNOWN", "extracted_answer": "", "trace": trace}
+
+    def _solve_condition_checked_selection(self, problem: str, problem_type: str) -> dict[str, Any]:
+        """condition_checked_selection_v1: ≤3 hetero candidates + optional KCV select."""
+        trace: list[dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
+        budget: dict[str, Any] = {
+            "used": 0,
+            "limit": 4,
+            "diagnostic_reasons": [],
+            "solve_start": time.monotonic() if self.config.enable_time_convergence else None,
+        }
+        trace.append({"step": "route_budget", "method": "condition_checked_selection_v1",
+                      "generation_calls": 3, "max_model_calls": 4, "problem_type": problem_type})
+        self._generate_heterogeneous(problem, 3, "fixed", candidates, trace, budget, problem_type)
+        if not candidates:
+            return self._unknown_result(trace, budget, "no_valid_candidate")
+        top = self._top_clear_group_size(candidates)
+        if top >= 2:
+            best = self._select_candidate(candidates)
+            final_answer = self._format_task_final_response(best, problem_type)
+            extracted = best.get("normalized_answer") or best.get("answer", "")
+            trace.append({"step": "finalize", "status": "consensus_selected",
+                          "candidate_id": best["candidate_id"], "top_group_size": top,
+                          "model_calls": budget["used"]})
+            return {"final_response": final_answer, "extracted_answer": extracted, "trace": trace}
+
+        listing = []
+        for candidate in candidates:
+            listing.append(
+                f"候选 {candidate['candidate_id']}: 答案={candidate.get('answer','')}\n"
+                f"{candidate.get('solution','')[:1200]}"
+            )
+        response, error = self._request(
+            KCV_SELECT_PROMPT,
+            f"题目：\n{problem}\n\n已有候选：\n" + "\n\n".join(listing),
+            0.0,
+            self.config.kcv_select_max_tokens,
+            budget,
+        )
+        parsed = self._parse_kcv_select_response(response, {c["candidate_id"] for c in candidates})
+        trace.append({"step": "kcv_select", "status": parsed["status"],
+                      "candidate_id": parsed.get("candidate_id"),
+                      "schema_valid": parsed["schema_valid"], "reason": error})
+        if parsed["status"] != "SELECT" or parsed.get("candidate_id") is None:
+            return self._unknown_result(trace, budget, parsed.get("reason") or "kcv_unknown")
+        chosen = next(c for c in candidates if c["candidate_id"] == parsed["candidate_id"])
+        final_answer = self._format_task_final_response(chosen, problem_type)
+        extracted = chosen.get("normalized_answer") or chosen.get("answer", "")
+        trace.append({"step": "finalize", "status": "kcv_selected",
+                      "candidate_id": chosen["candidate_id"], "model_calls": budget["used"]})
+        return {"final_response": final_answer, "extracted_answer": extracted, "trace": trace}
+
+    @staticmethod
+    def _parse_kcv_select_response(response: str | None, valid_ids: set[int]) -> dict[str, Any]:
+        if not isinstance(response, str) or not response.strip():
+            return {"status": "UNKNOWN", "schema_valid": False, "candidate_id": None, "reason": "empty"}
+        status_match = re.search(r"^\s*KCV_STATUS\s*:\s*(SELECT|UNKNOWN)\s*$", response, re.IGNORECASE | re.MULTILINE)
+        id_match = re.search(r"^\s*CANDIDATE_ID\s*:\s*(\S+)\s*$", response, re.IGNORECASE | re.MULTILINE)
+        cond_match = re.search(r"^\s*KEY_CONDITION\s*:\s*(.*?)\s*$", response, re.IGNORECASE | re.MULTILINE)
+        evid_match = re.search(r"^\s*EVIDENCE\s*:\s*(.*?)\s*$", response, re.IGNORECASE | re.MULTILINE)
+        if not status_match or not id_match or not cond_match or not evid_match:
+            return {"status": "UNKNOWN", "schema_valid": False, "candidate_id": None, "reason": "schema"}
+        status = status_match.group(1).upper()
+        raw_id = id_match.group(1).strip()
+        if status != "SELECT":
+            return {"status": "UNKNOWN", "schema_valid": True, "candidate_id": None, "reason": "unknown"}
+        try:
+            cid = int(raw_id)
+        except ValueError:
+            return {"status": "UNKNOWN", "schema_valid": False, "candidate_id": None, "reason": "bad_id"}
+        if cid not in valid_ids:
+            return {"status": "UNKNOWN", "schema_valid": False, "candidate_id": None, "reason": "id_not_in_candidates"}
+        return {"status": "SELECT", "schema_valid": True, "candidate_id": cid}
+
+    def _solve_plan_solve_compact(self, problem: str, problem_type: str) -> dict[str, Any]:
+        """plan_solve_compact_v1: 600-token plan then 3072-token solve."""
+        trace: list[dict[str, Any]] = []
+        budget: dict[str, Any] = {
+            "used": 0,
+            "limit": 2,
+            "diagnostic_reasons": [],
+            "solve_start": time.monotonic() if self.config.enable_time_convergence else None,
+        }
+        trace.append({"step": "route_budget", "method": "plan_solve_compact_v1",
+                      "generation_calls": 2, "max_model_calls": 2, "problem_type": problem_type})
+        plan, plan_error = self._request(
+            PLAN_COMPACT_PROMPT,
+            f"题目：\n{problem}\n\n请只输出结构化计划。",
+            self.config.policy_temperature,
+            self.config.plan_compact_max_tokens,
+            budget,
+        )
+        if plan is None or extract_final_answer(plan) or extract_answer_first(plan):
+            trace.append({"step": "plan", "status": "rejected", "reason": plan_error or "plan_contains_answer"})
+            return self._unknown_result(trace, budget, "plan_failed")
+        trace.append({"step": "plan", "status": "ok", "plan_chars": len(plan)})
+        solve_prompt = PLAN_SOLVE_PROMPT
+        extra = self._task_policy_prompt(problem_type)
+        if extra not in (POLICY_PROMPT, CALCULATION_PROMPT):
+            solve_prompt = PLAN_SOLVE_PROMPT + "\n" + extra
+        response, solve_error = self._request(
+            solve_prompt,
+            f"题目：\n{problem}\n\n计划：\n{plan}\n\n请完成求解。",
+            self.config.policy_temperature,
+            self.config.plan_solve_max_tokens,
+            budget,
+        )
+        if response is None:
+            trace.append({"step": "solve", "status": "error", "reason": solve_error})
+            return self._unknown_result(trace, budget, "solve_error")
+        if problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
+            answer = extract_answer_first(response) or extract_final_answer(response)
+        else:
+            answer = extract_final_answer(response)
+        if (not answer) or is_placeholder_answer(answer) or answer.strip().upper() == "UNKNOWN":
+            trace.append({"step": "solve", "status": "unparseable"})
+            return self._unknown_result(trace, budget, "no_explicit_answer")
+        best = {
+            "candidate_id": 0,
+            "answer": answer,
+            "normalized_answer": normalize_answer(answer),
+            "solution": response,
+            "structured": True,
+            "evidence": [],
+            "verification_status": "unverified",
+            "model_calls_used": budget["used"],
+            "problem_type": problem_type,
+            "explicit_answer_conflict": has_conflicting_explicit_answers(response),
+            "selection_basis": "plan_solve",
+        }
+        final_answer = self._format_task_final_response(best, problem_type)
+        trace.append({"step": "finalize", "status": "selected", "model_calls": budget["used"]})
+        return {"final_response": final_answer, "extracted_answer": best["normalized_answer"], "trace": trace}
 
     # ── Model request ────────────────────────────────────────────────────
 

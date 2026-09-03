@@ -1,0 +1,16 @@
+{
+  "run_id": "V4-HARD20-DUAL-001",
+  "dataset_sha256": "3cf90e65ef9239a70d9675b3807a01692d19aef27fa7cd1e5ffcefdc70ef12dd",
+  "seed": 20260903,
+  "workers": 3,
+  "timeout_seconds": 300,
+  "hard_stop_seconds": 10800.0,
+  "arms": [
+    "condition_checked_selection_v1",
+    "plan_solve_compact_v1"
+  ],
+  "n_items": 20,
+  "expected_solves": 40,
+  "git_head": "c97ba19e65f218c4995780f87735724326cd7347",
+  "start_unix": 1788441532.7423494
+}
