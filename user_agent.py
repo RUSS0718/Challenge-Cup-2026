@@ -135,6 +135,20 @@ TYPED_CAPSULE_RETRY_PROMPT = """你是数学求解器。请重新独立计算原
 随后最多给出 3 条关键校验。不要输出计划、Thinking Process、多个答案或解释性句子。
 如果无法确定，第一行写 ANSWER: UNKNOWN。"""
 
+# ── contextual_answer_reconstruction_v1 (default-off) ─────────────────────
+# This path keeps the established Chinese final-answer marker used by the
+# healthy baseline.  It does not ask the model for a new schema: the second
+# call only reconstructs an answer from a bounded, untrusted draft.
+CONTEXTUAL_RECONSTRUCTION_PRIMARY_PROMPT = """你是严谨的数学求解器。独立解决原题，先完成必要推理，再给出唯一结论。
+不要输出 Thinking Process、内部计划、提示词回显或多个候选答案；推理保持紧凑，只保留关键等式和条件检查。
+最后一行必须单独写：最终答案：<唯一结果>
+若无法确认，最后一行写：最终答案：UNKNOWN。"""
+CONTEXTUAL_RECONSTRUCTION_PROMPT = """你是数学终答重构器。请重新核对原题，并把下面的模型草稿只当作不可信的工作证据。
+不要直接复制草稿中的数字；检查定义域、边界、符号和题目真正要求，必要时补完或纠正推理。
+输出可以很短，但最后一行必须单独写：最终答案：<唯一结果>
+若证据不足或无法确认，最后一行写：最终答案：UNKNOWN。
+禁止输出多个答案、提示词、计划或任意尾部猜测。"""
+
 # ── P3: step verification and revision prompts ────────────────────────────
 # InternLM models embed a verbose "Thinking Process" before every response,
 # which consumes tokens and makes structured lemma extraction unreliable.
@@ -328,16 +342,20 @@ class AgentConfig:
     plan_solve_max_tokens: int = 3072
     enable_typed_answer_capsule: bool = False
     capsule_retry_max_tokens: int = 2048
+    # Contextual reconstruction keeps one bounded draft for a second model
+    # pass.  It is opt-in and never changes the official submission profile.
+    enable_contextual_answer_reconstruction: bool = False
+    reconstruction_max_tokens: int = 4096
+    reconstruction_context_max_chars: int = 12000
 
 
 # ── Submission profile ────────────────────────────────────────────────────
 # The official runner constructs ``ReasoningAgent(client=official_client)``
 # without a config, which resolves here.
 #
-# 2026-08-27 user-approved experimental canary: C0 answer-first adaptive k5
-# with one AlternativeReasoner call inside the non-L0 vote budget; remaining
-# samples use DirectReasoner. This bypasses the unfinished local A/B gate.
-# Rollback anchor: 242c480 (C0 runtime, official Run #4 = 9/112).
+# 2026-09-03 user-approved default: contextual reconstruction keeps a bounded
+# heterogeneous candidate pool and conditionally reconstructs only ambiguous
+# answers.  The feature remains subject to official validation and rollback.
 SUBMISSION_CONFIG = AgentConfig(
     policy_sample_times=1,
     policy_temperature=0.6,
@@ -372,6 +390,9 @@ SUBMISSION_CONFIG = AgentConfig(
     # stateful_tail_completion_v1 stays off on the submission path until the
     # preregistered P1 replay, P2 fidelity and capability gates pass.
     enable_stateful_tail_completion=False,
+    enable_contextual_answer_reconstruction=True,
+    reconstruction_max_tokens=4096,
+    reconstruction_context_max_chars=12000,
 )
 
 
@@ -381,17 +402,36 @@ _ANSWER_MARKER_LINE_STRICT_RE = re.compile(
     re.IGNORECASE,
 )
 _TYPED_ANSWER_LINE_RE = re.compile(
-    r"^\s*(?:ANSWER|最终答案|final\\s+answer)\s*[:：]\s*(.*?)\s*$",
+    r"^\s*(?:ANSWER|FINAL|最终答案|final\s+answer)\s*[:：]\s*(.*?)\s*$",
     re.IGNORECASE,
 )
 _TYPED_MATH_TOKEN_RE = re.compile(
-    r"^[\s0-9A-Za-z_+*/^=(){}\[\].,<>≤≥±×÷\\-]+$"
+    r"^[\s0-9A-Za-z_+*/^=(){}\[\].,<>≤≥±×÷\\-|%!]+$"
 )
 _TYPED_SENTENCE_RE = re.compile(
-    r"(?:因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导|therefore|because|the|this|we)"
+    r"(?:因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导|"
+    r"\b(?:therefore|because|the|this|we)\b)"
     r"|[，。；;、？！:：\"“”‘’]",
     re.IGNORECASE,
 )
+_TYPED_TAG_RE = re.compile(r"^</?[A-Za-z][^>]*>$")
+_TYPED_PROSE_WORDS = frozenset({
+    "answer", "result", "the", "is", "are", "this", "that", "because",
+    "therefore", "thus", "we", "need", "find", "calculate", "density",
+    "unknown", "final", "value", "solution",
+})
+_TYPED_MATH_WORDS = frozenset({
+    "sqrt", "frac", "dfrac", "tfrac", "times", "cdot", "pm", "pi",
+    "sin", "cos", "tan", "arcsin", "arccos", "arctan", "log", "ln",
+    "exp", "mod", "lim", "sum", "prod", "min", "max", "gcd", "lcm",
+    "det", "infty", "mathrm", "mathbf", "theta", "alpha", "beta", "gamma",
+    "delta", "lambda", "omega", "phi", "psi", "rho", "sigma", "epsilon",
+    "mu", "nu", "kappa", "binom", "mathbb", "mathcal", "mathsf", "matrix",
+    "pmatrix", "bmatrix", "cases", "pmod", "equiv", "geq", "leq", "neq",
+    "subset", "cup", "cap", "forall", "exists", "operatorname", "begin", "end",
+    "left", "right", "overline", "underline", "vec", "hat", "bar", "angle",
+    "triangle", "circ", "degree", "cdots", "ldots", "quad",
+})
 _CHOICE_LINE_RE = re.compile(r"^(?:选项\s*)?([A-Da-d])(?:[.。)）]?)\s*$")
 # A standalone answer line must be pure math (no CJK prose / sentence punctuation).
 _MATH_ONLY_LINE_RE = re.compile(r"^[\sA-Za-z0-9+\-*/=<>≤≥.,(){}[\]^_'\\|±×÷]+$")
@@ -455,14 +495,38 @@ def extract_typed_answer(response: str) -> str:
         if not match:
             continue
         value = match.group(1).strip()
-        if not value or value.upper() == "UNKNOWN" or is_placeholder_answer(value):
-            continue
-        if len(value) > 80 or _TYPED_SENTENCE_RE.search(value):
-            continue
-        if not _TYPED_MATH_TOKEN_RE.fullmatch(value):
-            continue
-        return value
+        if _is_typed_math_value(value):
+            return value
     return ""
+
+
+def _is_typed_math_value(value: str) -> bool:
+    """Accept a marked scalar without accepting prompt echoes or prose.
+
+    This remains deliberately conservative: a marked value is useful only when
+    it is a compact mathematical token.  In particular, XML-like placeholders
+    (``<result>``) and concatenated English tails are not answers.
+    """
+    if not isinstance(value, str):
+        return False
+    value = value.strip()
+    if not value or value.upper() == "UNKNOWN" or is_placeholder_answer(value):
+        return False
+    if len(value) > 80 or _TYPED_SENTENCE_RE.search(value):
+        return False
+    if _TYPED_TAG_RE.fullmatch(value):
+        return False
+    if not _TYPED_MATH_TOKEN_RE.fullmatch(value):
+        return False
+    for word in re.findall(r"[A-Za-z]+", value):
+        lowered = word.lower()
+        if lowered in _TYPED_PROSE_WORDS:
+            return False
+        # Long alphabetic runs are prose (e.g. ``Weneedtofind...``), while
+        # short variable names and known LaTeX/math functions are allowed.
+        if len(word) > 3 and lowered not in _TYPED_MATH_WORDS:
+            return False
+    return bool(re.search(r"\d|[=<>≤≥]|[A-Za-z]", value))
 
 
 def extract_numeric_answer(response: str) -> str:
@@ -1030,6 +1094,16 @@ class ReasoningAgent:
 
         if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
             raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
+        experimental_paths = sum(bool(flag) for flag in (
+            self.config.enable_typed_answer_capsule,
+            self.config.enable_condition_checked_selection,
+            self.config.enable_plan_solve_compact,
+            self.config.enable_contextual_answer_reconstruction,
+        ))
+        if experimental_paths > 1:
+            raise ValueError("experimental answering paths are mutually exclusive")
+        if self.config.enable_contextual_answer_reconstruction:
+            return self._solve_contextual_answer_reconstruction(problem, problem_type)
         if self.config.enable_typed_answer_capsule:
             return self._solve_typed_answer_capsule(problem, problem_type)
         if self.config.enable_condition_checked_selection:
@@ -1202,6 +1276,12 @@ class ReasoningAgent:
                     # Keep the latest unextractable response as the potential
                     # continuation payload for the stateful fifth slot.
                     budget["stateful_tail_source"] = response
+                if self.config.enable_contextual_answer_reconstruction:
+                    # Keep a bounded number of raw drafts only in solve-local
+                    # memory; they are never emitted in trace or final_response.
+                    rejected = budget.setdefault("contextual_rejected_responses", [])
+                    if len(rejected) < 4:
+                        rejected.append(response)
                 diagnostic_reason = "placeholder" if _has_placeholder_answer(response) else "no_marker"
                 signals = _truncation_signals(response, answer)
                 self._record_failure_notes(
@@ -1249,6 +1329,10 @@ class ReasoningAgent:
 
         # ── Task-aware prompt (preserve format constraints) ──
         task_prompt = self._task_policy_prompt(problem_type)
+        if self.config.enable_contextual_answer_reconstruction and task_prompt == NUMERIC_ANSWER_FIRST_PROMPT:
+            # The reconstruction method owns a last-line frame; do not append
+            # the baseline's contradictory first-line instruction.
+            task_prompt = POLICY_PROMPT
         # Only append task constraint when it differs from the default calculation prompt
         task_extra = ""
         if task_prompt not in (POLICY_PROMPT, CALCULATION_PROMPT):
@@ -1318,6 +1402,249 @@ class ReasoningAgent:
         trace.append({"step": "capsule_retry", "status": "accepted", "typed": True})
         trace.append({"step": "finalize", "status": "selected", "model_calls": budget["used"]})
         return {"final_response": f"ANSWER: {answer}", "extracted_answer": answer, "trace": trace}
+
+    def _solve_contextual_answer_reconstruction(self, problem: str, problem_type: str) -> dict[str, Any]:
+        """Keep a small candidate pool, then reconstruct only on ambiguity.
+
+        This preserves the useful part of the healthy heterogeneous path while
+        giving an unparseable/truncated pool one contextual recovery call.  The
+        recovery model must emit a fresh explicit answer; local code never
+        salvages a number from a worker response.
+        """
+        trace: list[dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
+        _, level = self._generation_plan(problem)
+        configured_limit = max(0, int(self.config.max_model_calls))
+        if configured_limit == 0:
+            trace.append({
+                "step": "route_budget",
+                "method": "contextual_answer_reconstruction_v1",
+                "generation_calls": 0,
+                "max_model_calls": 0,
+                "problem_type": problem_type,
+            })
+            return self._unknown_result(trace, {"used": 0}, "model_call_budget_exhausted")
+        call_limit = min(5, configured_limit)
+        initial_calls = 1 if level == "L0" else min(3, max(1, call_limit - 1))
+        budget: dict[str, Any] = {
+            "used": 0,
+            "limit": call_limit,
+            "diagnostic_reasons": [],
+            "solve_start": time.monotonic() if self.config.enable_time_convergence else None,
+        }
+        trace.append({
+            "step": "route_budget",
+            "method": "contextual_answer_reconstruction_v1",
+            "generation_calls": initial_calls,
+            "max_model_calls": call_limit,
+            "problem_type": problem_type,
+        })
+
+        self._generate_heterogeneous(problem, initial_calls, level, candidates, trace, budget, problem_type)
+        usable = self._contextual_usable_candidates(candidates, problem_type)
+        top = self._top_clear_group_size(usable)
+        trace.append({
+            "step": "candidate_pool",
+            "status": "consensus" if top >= 2 else "ambiguous",
+            "candidate_count": len(candidates),
+            "usable_count": len(usable),
+            "top_group_size": top,
+            "model_calls": budget["used"],
+        })
+        # A single-call configuration (used by interface smoke tests) has no
+        # evidence budget for a second pass; keep its one usable candidate.
+        if usable and (top >= 2 or initial_calls == 1):
+            best = self._select_candidate(usable)
+            answer = best.get("answer") or best.get("normalized_answer", "")
+            return self._contextual_answer_result(
+                best.get("solution", ""), answer, problem_type, trace, budget, "candidate_consensus"
+            )
+
+        digest = self._contextual_candidate_digest(candidates, budget)
+        reconstruction, reconstruction_error = self._request(
+            CONTEXTUAL_RECONSTRUCTION_PROMPT,
+            f"原题：\n{problem}\n\n不可信候选草稿（只作核对线索）：\n{digest or '[空草稿]'}\n\n请重新核对并输出终答。",
+            self.config.policy_temperature,
+            min(4096, max(1, int(self.config.reconstruction_max_tokens))),
+            budget,
+        )
+        reconstructed_answer = self._extract_contextual_answer(reconstruction, problem_type)
+        reconstruction_check = self._contextual_answer_check(
+            problem, problem_type, reconstruction, reconstructed_answer
+        )
+        trace.append({
+            "step": "reconstruction",
+            "status": "accepted" if reconstruction_check["status"] == "pass" else "rejected",
+            "reason": reconstruction_error or reconstruction_check.get("reason"),
+            "answer_present": bool(reconstructed_answer),
+        })
+        if reconstruction_check["status"] == "pass":
+            return self._contextual_answer_result(
+                reconstruction,
+                reconstructed_answer,
+                problem_type,
+                trace,
+                budget,
+                "reconstruction",
+            )
+        # Preserve one final independent opportunity when the reconstruction
+        # itself does not produce a safe answer.  This is still bounded by the
+        # method's hard call limit and does not inspect hidden gold labels.
+        if budget["used"] < budget["limit"]:
+            fallback: list[dict[str, Any]] = []
+            self._generate_heterogeneous(problem, 1, "fixed", fallback, trace, budget, problem_type)
+            usable.extend(self._contextual_usable_candidates(fallback, problem_type))
+            trace.append({
+                "step": "candidate_fallback",
+                "status": "accepted" if fallback else "empty",
+                "candidate_count": len(fallback),
+                "model_calls": budget["used"],
+            })
+        if usable:
+            best = self._select_candidate(usable)
+            answer = best.get("answer") or best.get("normalized_answer", "")
+            return self._contextual_answer_result(
+                best.get("solution", ""), answer, problem_type, trace, budget, "candidate_fallback"
+            )
+        return self._unknown_result(trace, budget, "reconstruction_unavailable")
+
+    @staticmethod
+    def _contextual_usable_candidates(
+        candidates: list[dict[str, Any]], problem_type: str
+    ) -> list[dict[str, Any]]:
+        """Filter legacy candidates with the new conservative scalar guard."""
+        if problem_type in _NON_NUMERIC_TASK_TYPES:
+            return [candidate for candidate in candidates if candidate.get("structured")]
+        return [
+            candidate
+            for candidate in candidates
+            if _is_typed_math_value(str(candidate.get("answer") or ""))
+        ]
+
+    def _contextual_candidate_digest(
+        self, candidates: list[dict[str, Any]], budget: dict[str, Any]
+    ) -> str:
+        """Build a bounded, untrusted evidence view for the recovery call."""
+        entries: list[str] = []
+        for candidate in candidates:
+            solution = self._bounded_reconstruction_context(
+                str(candidate.get("solution") or ""), 3000
+            )
+            entries.append(
+                f"候选 {candidate.get('candidate_id')}: 显式答案={candidate.get('answer', '')}\n"
+                f"工作稿：\n{solution or '[空]'}"
+            )
+        for index, response in enumerate(budget.get("contextual_rejected_responses", [])):
+            entries.append(
+                f"未成帧草稿 {index}:\n"
+                f"{self._bounded_reconstruction_context(str(response), 2000)}"
+            )
+        return self._bounded_reconstruction_context(
+            "\n\n".join(entries),
+            max(0, int(self.config.reconstruction_context_max_chars)),
+        )
+
+    @staticmethod
+    def _bounded_reconstruction_context(response: str, max_chars: int) -> str:
+        """Keep enough prefix and suffix to recover notation and the last step."""
+        text = (response or "").strip()
+        if not text or max_chars <= 0:
+            return ""
+        if len(text) <= max_chars:
+            return text
+        marker = "\n...[中间草稿省略]...\n"
+        if max_chars <= len(marker):
+            return marker[:max_chars]
+        remaining = max_chars - len(marker)
+        prefix = remaining // 2
+        suffix = remaining - prefix
+        return text[:prefix] + marker + text[-suffix:]
+
+    @staticmethod
+    def _extract_contextual_answer(response: str | None, problem_type: str) -> str:
+        if not isinstance(response, str) or not response.strip():
+            return ""
+        if problem_type in _NON_NUMERIC_TASK_TYPES:
+            answer = extract_final_answer(response)
+            return answer if answer and not is_placeholder_answer(answer) else ""
+        answer = extract_typed_answer(response)
+        if answer:
+            return answer
+        # The established baseline also uses the bare Chinese ``答案`` marker;
+        # accept it here only after the same strict scalar validation.
+        marked = extract_answer_first(response)
+        if marked and _is_typed_math_value(marked):
+            return marked
+        # A closed boxed value is an explicit mathematical frame even when the
+        # model omits the marker.  Multiple boxes remain ambiguous and fail.
+        boxed = _extract_boxed_answers(response)
+        if len(boxed) == 1 and _is_typed_math_value(boxed[0]):
+            return boxed[0]
+        return ""
+
+    @staticmethod
+    def _contextual_answer_check(
+        problem: str,
+        problem_type: str,
+        response: str | None,
+        answer: str,
+    ) -> dict[str, Any]:
+        if not answer:
+            return {"status": "fail", "reason": "no_explicit_answer"}
+        if has_conflicting_explicit_answers(response or "") or ReasoningAgent._contextual_conflict(response):
+            return {"status": "fail", "reason": "conflicting_answers"}
+        if problem_type not in _NON_NUMERIC_TASK_TYPES and not _is_typed_math_value(answer):
+            return {"status": "fail", "reason": "not_typed_math"}
+        check = run_answer_checks(problem, problem_type, response or "", answer, True)
+        if check.get("status") != "pass":
+            return {"status": "fail", "reason": check.get("mode") or "answer_check"}
+        return {"status": "pass"}
+
+    @staticmethod
+    def _contextual_conflict(response: str | None) -> bool:
+        """Detect disagreeing ANSWER/FINAL lines, including the new aliases."""
+        values = []
+        for line in (response or "").splitlines():
+            match = _TYPED_ANSWER_LINE_RE.match(line)
+            if not match:
+                continue
+            value = match.group(1).strip()
+            if _is_typed_math_value(value):
+                values.append(value)
+        return any(
+            answer_equivalence(left, right) == "NOT_EQUIVALENT"
+            for index, left in enumerate(values)
+            for right in values[index + 1:]
+        )
+
+    def _contextual_answer_result(
+        self,
+        response: str | None,
+        answer: str,
+        problem_type: str,
+        trace: list[dict[str, Any]],
+        budget: dict[str, Any],
+        source: str,
+    ) -> dict[str, Any]:
+        if problem_type in _NON_NUMERIC_TASK_TYPES:
+            best = {
+                "candidate_id": 0,
+                "answer": answer,
+                "normalized_answer": answer,
+                "solution": response or "",
+            }
+            final_response = self._format_task_final_response(best, problem_type)
+            extracted = answer
+        else:
+            extracted = normalize_answer(answer) or answer
+            final_response = f"最终答案：{extracted}"
+        trace.append({
+            "step": "finalize",
+            "status": "selected",
+            "source": source,
+            "model_calls": budget["used"],
+        })
+        return {"final_response": final_response, "extracted_answer": extracted, "trace": trace}
 
     def _solve_condition_checked_selection(self, problem: str, problem_type: str) -> dict[str, Any]:
         """condition_checked_selection_v1: ≤3 hetero candidates + optional KCV select."""

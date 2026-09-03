@@ -1062,7 +1062,7 @@ class P0StopBleedingTest(unittest.TestCase):
     def test_truncated_response_triggers_at_most_two_calls(self):
         """Truncated main call (no answer marker) → exactly one recovery call, never 7."""
         client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
-        agent = ReasoningAgent(client)  # default stop-bleeding config
+        agent = ReasoningAgent(client, AgentConfig())  # explicit legacy stop-bleeding config
         result = agent.solve("计算 3+4", {})
         self.assertIn("7", result["final_response"])
         self.assertLessEqual(len(client.calls), 2)
@@ -1071,7 +1071,7 @@ class P0StopBleedingTest(unittest.TestCase):
     def test_clear_answer_skips_conditional_retry(self):
         """A clear main answer ends immediately with a single model call."""
         client = FakeClient(["最终答案：7"])
-        agent = ReasoningAgent(client)
+        agent = ReasoningAgent(client, AgentConfig())
         result = agent.solve("计算 3+4", {})
         self.assertEqual("7", result["final_response"])
         self.assertEqual(1, len(client.calls))
@@ -1093,7 +1093,7 @@ class P0StopBleedingTest(unittest.TestCase):
 
     def test_truncation_signals_recorded_on_rejected_candidate(self):
         client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
-        agent = ReasoningAgent(client)
+        agent = ReasoningAgent(client, AgentConfig())
         result = agent.solve("计算 3+4", {})
         rejected = [e for e in result["trace"]
                     if e.get("step") == "generate_candidate" and e.get("status") == "rejected"]
@@ -1123,7 +1123,7 @@ class P0StopBleedingTest(unittest.TestCase):
 
     def test_diagnostic_trace_is_safe_and_reports_fallback_reasons(self):
         client = FakeClient(["最终答案：<答案>", "根据题意，代入公式可得"])
-        result = ReasoningAgent(client).solve("计算 3+4", {})
+        result = ReasoningAgent(client, AgentConfig()).solve("计算 3+4", {})
         finalize = result["trace"][-1]
         self.assertEqual("fallback", finalize["status"])
         self.assertIn("all_candidates_rejected", finalize["diagnostic_reasons"])
@@ -1139,10 +1139,9 @@ class P0StopBleedingTest(unittest.TestCase):
 class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
-    def test_submission_config_is_answer_first_promotion(self):
-        # 2026-08-26 promotion: the exact gate-passed configuration
-        # (legacy 4k+k5 snapshot + numeric answer-first prompt).
-        # Gate evidence: net +9/96 item-rounds, McNemar p=0.0039, c=0.
+    def test_submission_config_keeps_contextual_reconstruction_enabled(self):
+        # The latest release keeps the historical budget/prompt settings and
+        # enables contextual reconstruction as the active default path.
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
@@ -1150,6 +1149,7 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
         self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
+        self.assertTrue(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()
@@ -1162,13 +1162,14 @@ class SubmissionProfileTest(unittest.TestCase):
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
         self.assertEqual(3, len(client.calls))
-        self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
+        self.assertTrue(any(e.get("step") == "candidate_pool" for e in result["trace"]))
+        self.assertFalse(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
         reasoners = [
             entry.get("reasoner")
             for entry in result["trace"]
             if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
         ]
-        self.assertEqual(["direct", "alternative", "direct"], reasoners)
+        self.assertEqual(["direct", "direct", "alternative"], reasoners)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

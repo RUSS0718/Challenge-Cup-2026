@@ -30,6 +30,10 @@ def ok(answer: str) -> str:
     return f"推导略。\n最终答案：{answer}"
 
 
+def experimental_base() -> AgentConfig:
+    return dataclasses.replace(SUBMISSION_CONFIG, enable_contextual_answer_reconstruction=False)
+
+
 class DefaultOffTest(unittest.TestCase):
     def test_submission_keeps_both_flags_off(self):
         self.assertFalse(SUBMISSION_CONFIG.enable_condition_checked_selection)
@@ -37,7 +41,7 @@ class DefaultOffTest(unittest.TestCase):
 
     def test_mutual_exclusion(self):
         cfg = dataclasses.replace(
-            SUBMISSION_CONFIG,
+            experimental_base(),
             enable_condition_checked_selection=True,
             enable_plan_solve_compact=True,
         )
@@ -48,7 +52,7 @@ class DefaultOffTest(unittest.TestCase):
 class KcvSelectTest(unittest.TestCase):
     def test_consensus_skips_kcv_call(self):
         cfg = dataclasses.replace(
-            SUBMISSION_CONFIG,
+            experimental_base(),
             enable_condition_checked_selection=True,
             enable_heterogeneous_reasoners=True,
             enable_adaptive_voting=False,
@@ -62,7 +66,7 @@ class KcvSelectTest(unittest.TestCase):
 
     def test_selects_existing_candidate_only(self):
         cfg = dataclasses.replace(
-            SUBMISSION_CONFIG,
+            experimental_base(),
             enable_condition_checked_selection=True,
             enable_heterogeneous_reasoners=True,
             enable_adaptive_voting=False,
@@ -82,7 +86,7 @@ class KcvSelectTest(unittest.TestCase):
 
     def test_unknown_and_out_of_range_fail_closed(self):
         cfg = dataclasses.replace(
-            SUBMISSION_CONFIG,
+            experimental_base(),
             enable_condition_checked_selection=True,
             enable_heterogeneous_reasoners=True,
             enable_adaptive_voting=False,
@@ -102,7 +106,7 @@ class KcvSelectTest(unittest.TestCase):
 
 class PlanSolveTest(unittest.TestCase):
     def test_plan_then_solve(self):
-        cfg = dataclasses.replace(SUBMISSION_CONFIG, enable_plan_solve_compact=True)
+        cfg = dataclasses.replace(experimental_base(), enable_plan_solve_compact=True)
         client = FakeClient([
             "VARIABLES: a,b\nCONSTRAINTS: a=2,b=3\nGOAL: product\nANSWER_TYPE: integer\nPLAN: multiply",
             ok("6"),
@@ -114,14 +118,14 @@ class PlanSolveTest(unittest.TestCase):
         self.assertIn("6", result["final_response"])
 
     def test_plan_with_answer_is_rejected(self):
-        cfg = dataclasses.replace(SUBMISSION_CONFIG, enable_plan_solve_compact=True)
+        cfg = dataclasses.replace(experimental_base(), enable_plan_solve_compact=True)
         client = FakeClient(["最终答案：6"])
         result = ReasoningAgent(client, config=cfg).solve(PROBLEM, {})
         self.assertEqual(len(client.calls), 1)
         self.assertEqual(result["final_response"], "UNKNOWN")
 
     def test_solve_unknown_fail_closed(self):
-        cfg = dataclasses.replace(SUBMISSION_CONFIG, enable_plan_solve_compact=True)
+        cfg = dataclasses.replace(experimental_base(), enable_plan_solve_compact=True)
         client = FakeClient([
             "VARIABLES: a\nCONSTRAINTS: none\nGOAL: x\nANSWER_TYPE: integer\nPLAN: think",
             "无法完成。\n最终答案：UNKNOWN",

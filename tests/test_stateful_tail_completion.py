@@ -55,12 +55,18 @@ class FakeClient:
 
 
 def baseline_config():
-    return dataclasses.replace(SUBMISSION_CONFIG)
+    return dataclasses.replace(
+        SUBMISSION_CONFIG,
+        enable_contextual_answer_reconstruction=False,
+    )
 
 
 def tail_config(**overrides):
     return dataclasses.replace(
-        SUBMISSION_CONFIG, enable_stateful_tail_completion=True, **overrides
+        SUBMISSION_CONFIG,
+        enable_contextual_answer_reconstruction=False,
+        enable_stateful_tail_completion=True,
+        **overrides
     )
 
 
