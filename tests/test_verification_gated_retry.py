@@ -147,10 +147,12 @@ class GatedRetryFlowTest(unittest.TestCase):
 
 
 class SubmissionConfigTest(unittest.TestCase):
-    def test_official_profile_is_btcs_frame_v2_canary(self):
+    def test_official_profile_is_answer_first_promotion(self):
+        # 2026-08-26 promotion: gate-passed answer_first configuration
+        # (legacy 4k+k5 snapshot + numeric answer-first prompt).
         self.assertEqual(1, SUBMISSION_CONFIG.policy_sample_times)
         self.assertEqual(0.6, SUBMISSION_CONFIG.policy_temperature)
-        self.assertEqual(4, SUBMISSION_CONFIG.max_model_calls)
+        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
         self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
         self.assertEqual(4096, SUBMISSION_CONFIG.l0_max_tokens)
         self.assertEqual(0, SUBMISSION_CONFIG.verifier_voting_times)
@@ -159,16 +161,13 @@ class SubmissionConfigTest(unittest.TestCase):
         self.assertTrue(SUBMISSION_CONFIG.enable_task_aware_prompt)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertFalse(SUBMISSION_CONFIG.enable_truncation_recovery_prompt)
-        self.assertFalse(SUBMISSION_CONFIG.enable_adaptive_voting)
-        self.assertFalse(SUBMISSION_CONFIG.enable_gsa_aggregation)
-        self.assertEqual("btcs_frame_v2", SUBMISSION_CONFIG.protocol_mode)
-        self.assertEqual(3, SUBMISSION_CONFIG.vote_k_max)
+        self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
+        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
         self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
-        self.assertFalse(SUBMISSION_CONFIG.enable_heterogeneous_reasoners)
+        self.assertTrue(SUBMISSION_CONFIG.enable_heterogeneous_reasoners)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_revision)
-        self.assertEqual(3, SUBMISSION_CONFIG.p3_call_boost)
         self.assertFalse(SUBMISSION_CONFIG.enable_conditional_token_retry)
         self.assertFalse(SUBMISSION_CONFIG.enable_explicit_answer_conflict_retry)
 

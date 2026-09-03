@@ -89,6 +89,20 @@ ALTERNATIVE_REASONER_PROMPT = """你是数学推理智能体，使用互补策�
 不要重复标准正向推导的全部步骤，聚焦于不同的推理路径或验证。
 最后一行必须使用"最终答案："明确写出答案。"""
 
+# ── stateful_tail_completion_v1: continuation prompt ────────────────────────
+# Used only by the fifth hetero_k5 slot when the first four calls all failed
+# to yield an extractable answer.  Instead of recomputing from scratch (which
+# re-truncates at a similar position on long problems), the call carries the
+# tail of the 4th unfinished response and asks the model to continue the same
+# reasoning.  Extraction stays on the existing explicit-marker path; no
+# salvage, no short-frame requirement.
+STATEFUL_TAIL_CONTINUATION_PROMPT = """你是数学推理续写者。你会看到一道数学题，以及此前一次解答在中途被截断的末尾片段。
+你的任务是从截断处接着完成同一条推理，而不是重新开始作答：
+1. 保持与已有片段相同的符号、记号和推导方向。
+2. 若已有片段出现错误，可就地修正后继续，但不得整题重做。
+3. 不要复述题目或已有片段。
+4. 完成推理后，另起一行并严格按"最终答案：X"格式单独给出最终答案，X 只含最终结果本身。"""
+
 # ── P3: step verification and revision prompts ────────────────────────────
 # InternLM models embed a verbose "Thinking Process" before every response,
 # which consumes tokens and makes structured lemma extraction unreliable.
@@ -266,6 +280,13 @@ class AgentConfig:
     enable_adaptive_voting: bool = False
     vote_k_max: int = 3
     vote_agree_threshold: int = 2
+    # stateful_tail_completion_v1: single variable on top of hetero_k5.  When
+    # the first four model calls all fail to yield an extractable answer, the
+    # fifth slot continues the 4th (unfinished) response's tail instead of a
+    # fresh recompute.  Default off; promotion requires the preregistered
+    # fidelity and capability gates against the hetero_k5 baseline.
+    enable_stateful_tail_completion: bool = False
+    stateful_tail_max_chars: int = 8000
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -307,6 +328,9 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_local_repair=False,
     enable_uncertain_repair=False,
     enable_sympy_evidence=False,
+    # stateful_tail_completion_v1 stays off on the submission path until the
+    # preregistered P1 replay, P2 fidelity and capability gates pass.
+    enable_stateful_tail_completion=False,
 )
 
 
@@ -1024,6 +1048,7 @@ class ReasoningAgent:
         problem_type: str = TASK_TYPE_CALCULATION,
         reasoner: str | None = None,  # P2: "direct" | "alternative" | None
         instruction: str | None = None,
+        continuation_tail: str | None = None,  # stateful_tail_completion_v1 fifth slot
     ) -> None:
         prompt = task_prompt or self.config.policy_prompt
         if self.config.enable_method_rag:
@@ -1044,11 +1069,23 @@ class ReasoningAgent:
                 trace.append(_tr("skipped", candidate_id + candidate_start, reason="solve_time_convergence_triggered"))
                 continue
             candidate_id += candidate_start
-            user_prompt = f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}"
-            if instruction:
-                user_prompt = f"{instruction}\n\n{user_prompt}"
+            if continuation_tail is not None:
+                user_prompt = (
+                    f"题目：\n{problem}\n\n候选编号：{candidate_id}\n\n"
+                    f"此前一次解答的末尾片段（可能在中途被截断）：\n{continuation_tail}\n\n"
+                    "请从上述片段的截断处继续完成同一条推理，不要从头重新作答；"
+                    "完成后另起一行，严格按“最终答案：X”格式单独给出最终答案，X 只含最终结果。"
+                )
+            else:
+                user_prompt = f"题目：\n{problem}\n\n请给出完整解答。候选编号：{candidate_id}"
+                if instruction:
+                    user_prompt = f"{instruction}\n\n{user_prompt}"
             response, error = self._request(prompt, user_prompt, self.config.policy_temperature, max_tokens, budget)
             if response is None:
+                if self.config.enable_stateful_tail_completion:
+                    # The latest response is not continuable; the tail source
+                    # must never lag behind the most recent call.
+                    budget.pop("stateful_tail_source", None)
                 self._record_diagnostic(budget, "model_error")
                 trace.append(_tr("skipped", candidate_id, reason=error, diagnostic_reason="model_error")); continue
             if (self.config.enable_numeric_answer_first_prompt
@@ -1080,6 +1117,10 @@ class ReasoningAgent:
                     answer = response.strip()
                     structured = False
             elif not answer:
+                if self.config.enable_stateful_tail_completion:
+                    # Keep the latest unextractable response as the potential
+                    # continuation payload for the stateful fifth slot.
+                    budget["stateful_tail_source"] = response
                 diagnostic_reason = "placeholder" if _has_placeholder_answer(response) else "no_marker"
                 signals = _truncation_signals(response, answer)
                 self._record_failure_notes(
@@ -1593,7 +1634,21 @@ class ReasoningAgent:
 
             vote_prompt = task_prompt
             reasoner = None
-            if self.config.enable_heterogeneous_reasoners:
+            continuation_tail = None
+            if (
+                self.config.enable_stateful_tail_completion
+                and budget["used"] == 4
+                and not candidates
+                and budget.get("stateful_tail_source")
+            ):
+                # stateful_tail_completion_v1: the fifth slot continues the
+                # 4th unfinished response instead of recomputing from scratch.
+                # Strict trigger — every condition must hold; otherwise the
+                # slot stays byte-identical to the hetero_k5 baseline.
+                reasoner = "tail_continuation"
+                vote_prompt = STATEFUL_TAIL_CONTINUATION_PROMPT
+                continuation_tail = budget["stateful_tail_source"][-self.config.stateful_tail_max_chars:]
+            elif self.config.enable_heterogeneous_reasoners:
                 constraint = task_prompt or self._task_policy_prompt(problem_type)
                 task_extra = "" if constraint in (POLICY_PROMPT, CALCULATION_PROMPT) else "\n" + constraint
                 alternative_used = any(
@@ -1607,7 +1662,8 @@ class ReasoningAgent:
                 ) + task_extra
             self._generate_candidates(problem, 1, candidates, trace, budget,
                                       max_tokens, task_prompt=vote_prompt,
-                                      problem_type=problem_type, reasoner=reasoner)
+                                      problem_type=problem_type, reasoner=reasoner,
+                                      continuation_tail=continuation_tail)
         trace.append({"step": "adaptive_vote", "status": status,
                       "samples": len(candidates),
                       "top_group_size": self._top_clear_group_size(candidates),

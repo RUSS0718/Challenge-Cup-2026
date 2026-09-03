@@ -1062,9 +1062,7 @@ class P0StopBleedingTest(unittest.TestCase):
     def test_truncated_response_triggers_at_most_two_calls(self):
         """Truncated main call (no answer marker) → exactly one recovery call, never 7."""
         client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
-        # stop-bleeding discipline is profile-independent: pin refine off so
-        # the conditional-retry bound stays exactly 2 calls.
-        agent = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_step_revision=False))
+        agent = ReasoningAgent(client)  # default stop-bleeding config
         result = agent.solve("计算 3+4", {})
         self.assertIn("7", result["final_response"])
         self.assertLessEqual(len(client.calls), 2)
@@ -1073,7 +1071,7 @@ class P0StopBleedingTest(unittest.TestCase):
     def test_clear_answer_skips_conditional_retry(self):
         """A clear main answer ends immediately with a single model call."""
         client = FakeClient(["最终答案：7"])
-        agent = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_step_revision=False))
+        agent = ReasoningAgent(client)
         result = agent.solve("计算 3+4", {})
         self.assertEqual("7", result["final_response"])
         self.assertEqual(1, len(client.calls))
@@ -1095,7 +1093,7 @@ class P0StopBleedingTest(unittest.TestCase):
 
     def test_truncation_signals_recorded_on_rejected_candidate(self):
         client = FakeClient(["根据题意，代入公式可得", "最终答案：7"])
-        agent = ReasoningAgent(client, AgentConfig())
+        agent = ReasoningAgent(client)
         result = agent.solve("计算 3+4", {})
         rejected = [e for e in result["trace"]
                     if e.get("step") == "generate_candidate" and e.get("status") == "rejected"]
@@ -1125,7 +1123,7 @@ class P0StopBleedingTest(unittest.TestCase):
 
     def test_diagnostic_trace_is_safe_and_reports_fallback_reasons(self):
         client = FakeClient(["最终答案：<答案>", "根据题意，代入公式可得"])
-        result = ReasoningAgent(client, AgentConfig()).solve("计算 3+4", {})
+        result = ReasoningAgent(client).solve("计算 3+4", {})
         finalize = result["trace"][-1]
         self.assertEqual("fallback", finalize["status"])
         self.assertIn("all_candidates_rejected", finalize["diagnostic_reasons"])
@@ -1141,29 +1139,36 @@ class P0StopBleedingTest(unittest.TestCase):
 class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
-    def test_submission_config_is_btcs_frame_v2_canary(self):
-        self.assertFalse(SUBMISSION_CONFIG.enable_gsa_aggregation)
-        self.assertEqual("btcs_frame_v2", SUBMISSION_CONFIG.protocol_mode)
-        self.assertFalse(SUBMISSION_CONFIG.enable_adaptive_voting)
+    def test_submission_config_is_answer_first_promotion(self):
+        # 2026-08-26 promotion: the exact gate-passed configuration
+        # (legacy 4k+k5 snapshot + numeric answer-first prompt).
+        # Gate evidence: net +9/96 item-rounds, McNemar p=0.0039, c=0.
+        self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
-        self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
-        self.assertEqual(4, SUBMISSION_CONFIG.max_model_calls)
+        self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
+        self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
+        self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
         self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()
-        self.assertFalse(config.enable_gsa_aggregation)
         self.assertFalse(config.enable_adaptive_voting)
         self.assertEqual(2, config.max_model_calls)
 
     def test_agent_without_config_uses_submission_profile(self):
-        client = FakeClient(["FINAL: 9", "FINAL: 9"])
+        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：7", "最终答案：7"])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
-        self.assertEqual("9", result["extracted_answer"])
-        self.assertEqual(2, len(client.calls))
-        self.assertEqual("btcs_frame_v2", result["trace"][-1]["protocol"])
+        self.assertEqual("7", result["extracted_answer"])
+        self.assertEqual(3, len(client.calls))
+        self.assertTrue(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
+        reasoners = [
+            entry.get("reasoner")
+            for entry in result["trace"]
+            if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
+        ]
+        self.assertEqual(["direct", "alternative", "direct"], reasoners)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1516,26 +1521,3 @@ class F2IntegrationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-class ArhDualFormTest(unittest.TestCase):
-    """ARH 答案表示对齐:numeric 族 final_response 双形态,零新增调用。"""
-
-    def _agent(self, arh):
-        return ReasoningAgent(FakeClient(["推导。\n最终答案：7"]),
-            AgentConfig(policy_sample_times=1, verifier_voting_times=0,
-                        max_model_calls=1, enable_l0_extended_tokens=False,
-                        enable_adaptive_voting=False,
-                        enable_heterogeneous_reasoners=False,
-                        enable_step_verification=False,
-                        enable_answer_dual_form=arh))
-
-    def test_arh_on_numeric_final_response_has_answer_line_and_boxed(self):
-        result = self._agent(True).solve("计算 3+4。", {})
-        self.assertEqual("最终答案：7\n$\\boxed{7}$", result["final_response"])
-        self.assertEqual("7", result["extracted_answer"])
-
-    def test_arh_off_keeps_bare_answer(self):
-        result = self._agent(False).solve("计算 3+4。", {})
-        self.assertEqual("7", result["final_response"])
-
-
