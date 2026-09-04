@@ -147,9 +147,9 @@ class GatedRetryFlowTest(unittest.TestCase):
 
 
 class SubmissionConfigTest(unittest.TestCase):
-    def test_official_profile_is_answer_first_promotion(self):
-        # 2026-08-26 promotion: gate-passed answer_first configuration
-        # (legacy 4k+k5 snapshot + numeric answer-first prompt).
+    def test_official_profile_is_authorized_fsdf_promotion(self):
+        # The legacy budget fields remain as compatibility data; the official
+        # route is now the separately authorized FSDF relay.
         self.assertEqual(1, SUBMISSION_CONFIG.policy_sample_times)
         self.assertEqual(0.6, SUBMISSION_CONFIG.policy_temperature)
         self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
@@ -166,6 +166,8 @@ class SubmissionConfigTest(unittest.TestCase):
         self.assertEqual(3, SUBMISSION_CONFIG.vote_agree_threshold)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
         self.assertTrue(SUBMISSION_CONFIG.enable_heterogeneous_reasoners)
+        self.assertFalse(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_revision)
         self.assertFalse(SUBMISSION_CONFIG.enable_conditional_token_retry)

@@ -137,3 +137,14 @@
 4. 只有独立通过的单方法才可进入融合；优先考虑“能力方法 + 已证明的成本控制”，不融合两个
    尚未验证的能力方法。
 5. 官方候选始终从 `b8b78aa` 对照面构造聚焦单变量 diff；本地 main/实验分支不得直接推送。
+
+## 六点九、FSDF-V1-CODE-ACCEPTANCE-001（2026-09-04）
+
+| 方向 | 结果 | 处置 |
+|---|---|---|
+| `fork_select_deepen_finish_v1` | T01–T37 代码验收通过；BTCS 互斥组合在当前基线不可构造，按 N/A 记录；零真实模型调用 | `CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION` |
+
+该结果只证明 FSDF 的结构、预算、接口、上下文压缩、降级、trace 卫生和并发隔离契约，
+不产生数学能力或正确率结论。代码验收本身不授权默认切换；本轮之后用户已另行授权将
+`SUBMISSION_CONFIG` 切换为 FSDF 默认并发布到 GitCode，仍不得将其表述为能力提升。
+完整工件见 `docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/`。

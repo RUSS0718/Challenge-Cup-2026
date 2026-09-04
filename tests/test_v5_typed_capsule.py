@@ -43,6 +43,7 @@ class CapsuleFlowTest(unittest.TestCase):
             SUBMISSION_CONFIG,
             enable_typed_answer_capsule=True,
             enable_contextual_answer_reconstruction=False,
+            enable_fork_select_deepen_finish=False,
             enable_condition_checked_selection=False,
             enable_plan_solve_compact=False,
             max_tokens=4096,

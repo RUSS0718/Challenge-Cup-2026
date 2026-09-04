@@ -1,0 +1,115 @@
+{
+  "method_id": "fork_select_deepen_finish_v1",
+  "captured_at": "2026-09-04T23:44:44+08:00",
+  "fixed_point": {
+    "base_commit": "ca536cec17b91ae932edb3f5ec3410bd481fabeb",
+    "branch": "codex/fsdf-v1-code-acceptance-001",
+    "remote": "gitcode",
+    "remote_main_tip_before_publish": "ca536cec17b91ae932edb3f5ec3410bd481fabeb",
+    "working_tree_dirty_before_manifest_refresh": true,
+    "remote_published": false
+  },
+  "dirty_state_before_manifest_refresh": {
+    "staged_paths_excluding_manifest": [
+      "CONTEXT.md",
+      "README.md",
+      "docs/branches_map.md",
+      "docs/excluded_approaches.md",
+      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/report.json",
+      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/result.md",
+      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/spec.md",
+      "reasoning_agent/fork_select_deepen_finish.py",
+      "tests/test_btcs.py",
+      "tests/test_btcs_rate_limit.py",
+      "tests/test_contextual_answer_reconstruction.py",
+      "tests/test_fork_select_deepen_finish.py",
+      "tests/test_stateful_tail_completion.py",
+      "tests/test_user_agent.py",
+      "tests/test_v4_hard20_methods.py",
+      "tests/test_v5_typed_capsule.py",
+      "tests/test_verification_gated_retry.py",
+      "user_agent.py"
+    ],
+    "unstaged_tracked_paths": [
+      "CONTEXT.md",
+      "docs/excluded_approaches.md"
+    ],
+    "untracked_unstaged_paths": [
+      "causal_demo/",
+      "causal_lens/",
+      "docs/agent_architecture_technical_proposal_draft_2026-09-04.md",
+      "docs/causal_mcp_upgrade_plan_2026-09-04.md",
+      "docs/experiments/CAUSAL-MCP-ALGO-SMOKE-001/",
+      "docs/experiments/CAUSAL-MCP-ALGO-SMOKE-002/",
+      "docs/experiments/CAUSAL-MCP-ENGINEERING-SMOKE-001/",
+      "docs/research/causal_mcp_integration_research_2026-09-04.md",
+      "scripts/run_causal_mcp_algo_smoke.py",
+      "tests/test_causal_demo.py",
+      "tests/test_causal_lens.py",
+      "tmp/"
+    ],
+    "preexisting_changes_preserved": true,
+    "hash_scope_note": "excluded_approaches.md is hashed from its staged FSDF-only hunk; unrelated dirty paths are not staged. The manifest itself is excluded from artifact hashes to avoid self-reference."
+  },
+  "interpreter": "D:\\Anaconda\\envs\\CA-py310\\python.exe",
+  "commands": [
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest tests.test_fork_select_deepen_finish -q",
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m py_compile user_agent.py reasoning_agent/fork_select_deepen_finish.py tests/test_fork_select_deepen_finish.py tests/test_btcs.py tests/test_btcs_rate_limit.py",
+    "git diff --check",
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest discover -s tests -q"
+  ],
+  "model_calls": {
+    "zero_real_model_calls": true,
+    "target_client": "ScriptedClient",
+    "max_logical_calls_observed": 5,
+    "observed_token_sequence": [
+      2048,
+      2048,
+      2048,
+      8192,
+      4096
+    ],
+    "token_cap_sum": 18432
+  },
+  "verification": {
+    "target_tests": {
+      "passed": 37,
+      "failed": 0,
+      "na": {
+        "T02_BTCS": "current baseline lacks reasoning_agent.btcs and AgentConfig.protocol_mode"
+      }
+    },
+    "full_discover": {
+      "tests": 498,
+      "passed": 494,
+      "skipped": 4,
+      "errors": 0,
+      "failures": 0
+    },
+    "py_compile": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "artifact_hashes": {
+    "algorithm": "SHA-256",
+    "source": "staged index content",
+    "scope": "Required FSDF artifacts plus in-scope integration, archived-test skip, and disposition files; run_manifest.json is excluded to avoid self-reference.",
+    "files": {
+      "reasoning_agent/fork_select_deepen_finish.py": "1f8516baf2331ed92739a6245614c14b4a6caca6d001b47a8b6538f2b6aa5b33",
+      "user_agent.py": "2b00a88c3230deb3cad6903fbaab394e82f387b298ea61f4b1ef610251910eba",
+      "tests/test_fork_select_deepen_finish.py": "0bcd262b12b6c3293729a39c898ec460486e6866db64c8ef518876538724795c",
+      "tests/test_btcs.py": "7dec2233dacb98f02d69ecde23c3c3d5d1148ca5166643f82d3214f4b60f7556",
+      "tests/test_btcs_rate_limit.py": "c363ac17f6580ed3348d707d842363050ab74e48a2501f22f570175e32cb1642",
+      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/spec.md": "9d6f4305b85d72c3f91f3ca4c5e0c497cbed9c6318675379a852c25e9a71e1da",
+      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/result.md": "8f9ef9e35048b1335e9945cb79527c32a91e74fd1caf96030c01d7f859bd1907",
+      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/report.json": "c1cb5141b4f1c1b12a5921b86bee43dc59d1564bce29886cc2e7aede7be08156",
+      "docs/excluded_approaches.md": "9dd129d3ee87d2d5dcf927e857177b21b31fcb81257d696b780dbda4410282e7"
+    }
+  },
+  "disposition": "CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION",
+  "authorized_default_promotion": true,
+  "current_submission_profile": {
+    "enable_fork_select_deepen_finish": true,
+    "enable_contextual_answer_reconstruction": false
+  },
+  "submission_status": "PENDING_GITCODE_PUBLISH"
+}

@@ -1,0 +1,48 @@
+{
+  "method_id": "fork_select_deepen_finish_v1",
+  "zero_model_calls": true,
+  "target_tests_passed": 37,
+  "target_tests_failed": 0,
+  "target_tests_na": {
+    "T02_BTCS": "N/A: current baseline lacks reasoning_agent.btcs and AgentConfig.protocol_mode"
+  },
+  "max_logical_calls_observed": 5,
+  "max_token_cap_sum_observed": 18432,
+  "observed_hard_token_sequence": [
+    2048,
+    2048,
+    2048,
+    8192,
+    4096
+  ],
+  "l0_calls_observed": 1,
+  "selected_branch_only_passed": true,
+  "finish_excludes_rejected_branch": true,
+  "three_solve_isolation_passed": true,
+  "trace_hygiene_passed": true,
+  "submission_config_unchanged": true,
+  "invalid_d_protocol_trace_passed": true,
+  "d_raw_excluded_from_finish": true,
+  "incomplete_handoff_marker_passed": true,
+  "finish_handoff_reserve_chars": 2000,
+  "submission_status": "NOT_SUBMITTED",
+  "capability_conclusion": "NONE",
+  "validation": {
+    "target_command": "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest tests.test_fork_select_deepen_finish -q",
+    "py_compile": "PASS",
+    "git_diff_check": "PASS",
+    "full_discover_tests": 498,
+    "full_discover_passed": 494,
+    "full_discover_failures": 0,
+    "full_discover_errors": 0,
+    "full_discover_skipped": 4,
+    "full_discover_skip_scope": "archived BTCS import/configuration tests"
+  },
+  "authorized_default_promotion": true,
+  "current_submission_profile": {
+    "enable_fork_select_deepen_finish": true,
+    "enable_contextual_answer_reconstruction": false
+  },
+  "release_status": "PENDING_GITCODE_PUBLISH",
+  "verdict": "CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION"
+}

@@ -1139,9 +1139,9 @@ class P0StopBleedingTest(unittest.TestCase):
 class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
-    def test_submission_config_keeps_contextual_reconstruction_enabled(self):
-        # The latest release keeps the historical budget/prompt settings and
-        # enables contextual reconstruction as the active default path.
+    def test_submission_config_uses_authorized_fsdf_default(self):
+        # The code-acceptance snapshot stays default-off; the separately
+        # authorized submission profile now selects FSDF explicitly.
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
@@ -1149,7 +1149,8 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(5, SUBMISSION_CONFIG.max_model_calls)
         self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
-        self.assertTrue(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
+        self.assertFalse(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()
@@ -1157,19 +1158,22 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(2, config.max_model_calls)
 
     def test_agent_without_config_uses_submission_profile(self):
-        client = FakeClient(["最终答案：7", "最终答案：7", "最终答案：7", "最终答案：7"])
+        client = FakeClient([
+            "GOAL: 求唯一答案\nANSWER_TYPE: 整数\nCONSTRAINTS: 定义域\nSTRUCTURE: 代数\nBOTTLENECK: 等式",
+            "BRANCH: B\nMETHOD: 标准正向构造\nKEY_LEMMA: 引理\nPLAN: 1.推导\nEXPECTED_FORM: 整数\nRISK: 边界",
+            "BRANCH: C\nMETHOD: 反推不变量\nKEY_LEMMA: 引理\nPLAN: 1.反推\nEXPECTED_FORM: 整数\nRISK: 边界",
+            "SELECTED_BRANCH: B\nCANDIDATE_D: 7\nDERIVED: x=7\nOPEN: 无\nCHECKS: ok\nRISK: 无",
+            "CANDIDATE_E: 7\nFINAL: 7",
+        ])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
-        self.assertEqual(3, len(client.calls))
-        self.assertTrue(any(e.get("step") == "candidate_pool" for e in result["trace"]))
-        self.assertFalse(any(e.get("step") == "adaptive_vote" for e in result["trace"]))
-        reasoners = [
-            entry.get("reasoner")
-            for entry in result["trace"]
-            if entry.get("step") == "generate_candidate" and entry.get("status") == "ok"
-        ]
-        self.assertEqual(["direct", "direct", "alternative"], reasoners)
+        self.assertEqual(5, len(client.calls))
+        self.assertEqual("finalize", result["trace"][-1]["stage"])
+        self.assertEqual(
+            ["analyze", "fork_b", "fork_c", "fork", "deepen", "finish", "finalize"],
+            [entry["stage"] for entry in result["trace"]],
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

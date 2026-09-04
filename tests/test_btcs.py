@@ -2,7 +2,16 @@ import json
 import unittest
 from pathlib import Path
 
-from reasoning_agent.btcs import PacketParser
+try:
+    from reasoning_agent.btcs import PacketParser
+except ModuleNotFoundError as _btcs_exc:
+    if _btcs_exc.name != "reasoning_agent.btcs":
+        raise
+    # BTCS 已归档（excluded_approaches 六.0/0a：ARCHIVED_VOID / VOID_RESOURCE_HEALTH）。
+    # 基线不含 reasoning_agent.btcs，归档测试整体明确跳过，不再作为全量 error 报告。
+    raise unittest.SkipTest(
+        f"BTCS archived (excluded_approaches 六.0/0a); baseline lacks reasoning_agent.btcs: {_btcs_exc}"
+    ) from _btcs_exc
 from user_agent import (
     AgentConfig,
     ReasoningAgent,

@@ -17,6 +17,11 @@ def make_agent(client):
     )
 
 
+@unittest.skip(
+    "BTCS archived (excluded_approaches 六.0/0a); baseline AgentConfig lacks "
+    "protocol_mode / btcs_retry_base_delay_seconds, so these archived tests are "
+    "explicitly skipped instead of reporting errors."
+)
 class BtcsRateLimitTest(unittest.TestCase):
     def test_one_rate_limit_is_retried_once_and_counts_separately(self):
         client = ReplayClient(

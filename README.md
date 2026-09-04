@@ -1,13 +1,13 @@
 # Challenge Cup 2026 数学推理智能体
 
 本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现:一个受调用预算约束的数学
-推理智能体。当前默认流水线为题型识别 → 异构候选求解 → 条件性上下文重构 →
+推理智能体。当前默认流水线为题型识别 → FSDF（Analyze–Fork–Select/Deepen–Finish）→
 规范化输出，同时保持赛事规定的单文件入口与公开
 client 契约。
 
-> 当前状态（2026-09-03）：默认提交路径已切换为
-> `contextual_answer_reconstruction_v1`。该方法尚未完成真实能力验证；
-> `SUBMISSION_CONFIG` 已开启，RAG、工具、MCP、旧 BTCS/KCV/PS-C/V5 路径保持关闭。
+> 当前状态（2026-09-04）：经用户单独授权，默认提交路径已切换为
+> `fork_select_deepen_finish_v1`。该方法仅完成零模型代码验收，尚无数学能力结论；
+> contextual、RAG、工具、MCP、旧 BTCS/KCV/PS-C/V5 路径保持关闭。
 
 ## 当前 Agent 架构
 
@@ -17,29 +17,26 @@ client 契约。
 ```mermaid
 flowchart TD
     entry["ReasoningAgent.solve(problem, metadata)"] --> classify["P0 题型识别(纯文本,六类)"]
-    classify --> solvers["最多三路异构候选"]
-    solvers --> consensus{"本地等价共识"}
-    consensus -->|"一致"| finalize["final_response 组装"]
-    consensus -->|"无共识/无答案"| reconstruct["上下文重构（一次）"]
-    reconstruct --> fallback["独立候选兜底或 UNKNOWN"]
-    fallback --> finalize
+    classify --> analyze["A Analyze"]
+    analyze --> fork["B/C Fork"]
+    fork --> deepen["D Select/Deepen"]
+    deepen --> finish["E Finish"]
+    finish --> finalize["final_response 组装"]
     finalize --> out["final_response + extracted_answer + trace"]
 ```
 
 | 层 | 在役实现 | 备注 |
 | --- | --- | --- |
 | 题型识别 | 纯文本规则六分类,不读 metadata | 常开 |
-| 生成 | 异构 Direct/Alternative 候选 | 复杂题最多3个候选 |
-| 选择 | 本地等价共识；无共识时上下文重构 | 重构响应必须重新显式给答案 |
-| 预算 | 每题最多5次模型调用 | 候选4096，重构≤4096 tokens |
-| 表示 | numeric 规范化；非数值正文重建 | `UNKNOWN` fail-closed |
+| 生成 | A 分析、B/C 双思路、D 深推、E 收尾 | 难题固定五阶段 |
+| 选择 | D 只能选择一个可用分支 | 非法/不可用选择 fail-closed 降级 |
+| 预算 | 每题最多5次模型调用 | `[2048,2048,2048,8192,4096]`，合计18432 |
+| 表示 | 允许 handoff 字段 + `HANDOFF_INCOMPLETE` | `UNKNOWN` fail-closed |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
 
-### Contextual Answer Reconstruction 默认路径
+### Contextual Answer Reconstruction 历史实验路径
 
-官方无参构造现在使用最多三路异构候选；只有候选无共识或无法解析时，
-才把受限草稿交给一次上下文重构。重构失败后保留最后一条独立候选，
-否则 `UNKNOWN` fail-closed。
+该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用 FSDF。
 
 ## 项目架构与发布流
 
@@ -94,12 +91,13 @@ flowchart LR
 ## 提交配置与实验开关板
 
 官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到
-`SUBMISSION_CONFIG`：`contextual_answer_reconstruction_v1`，最多5次调用、
-4096 token候选/重构；RAG、工具、MCP、refine、salvage 和 SymPy 保持关闭。
+`SUBMISSION_CONFIG`：`fork_select_deepen_finish_v1`，最多5次调用、合计18432 token；
+RAG、工具、MCP、contextual、refine、salvage 和 SymPy 保持关闭。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
-| `enable_contextual_answer_reconstruction` | ✅ | 当前默认路径，尚未能力验证 |
+| `enable_fork_select_deepen_finish` | ✅ | 当前默认路径，仅完成代码验收 |
+| `enable_contextual_answer_reconstruction` | ⬜ | 历史实验路径 |
 | `enable_adaptive_voting`(k5/threshold3) | ⬜ | 被新路径替代 |
 | `enable_heterogeneous_reasoners` | ✅ | 新路径候选生成 |
 | `enable_step_verification` / `enable_step_revision` | ⬜ | refine 已撤下 |
@@ -174,9 +172,9 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 ## 当前路线
 
-- **在役**：`contextual_answer_reconstruction_v1`；尚无真实能力结论。
+- **在役**：`fork_select_deepen_finish_v1`；仅有代码验收结论，尚无真实能力结论。
 - **运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`）。
-- **下一步**：完成用户审阅后再决定是否申请官方评测。
+- **发布状态**：用户已授权默认切换并合并 GitCode；官方结果仍需单独核验。
 - **已淘汰**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
   P1 salvage、G 门控、TIR/回代验证、32k 天花板。
 - **暂不引入**:LLM-as-judge 本地判分、PRM 组件、LangGraph/AgentScope、

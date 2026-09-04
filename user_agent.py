@@ -7,6 +7,11 @@ from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from typing import Any
 
+from reasoning_agent.fork_select_deepen_finish import (
+    ForkSelectDeepenFinishRelay,
+    match_simple_arithmetic_expression,
+)
+
 # ── Task-type constants (universal, problem-text based) ────────────────────
 TASK_TYPE_CHOICE = "choice"
 TASK_TYPE_FILL_BLANK = "fill_blank"
@@ -347,15 +352,15 @@ class AgentConfig:
     enable_contextual_answer_reconstruction: bool = False
     reconstruction_max_tokens: int = 4096
     reconstruction_context_max_chars: int = 12000
+    enable_fork_select_deepen_finish: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
 # The official runner constructs ``ReasoningAgent(client=official_client)``
 # without a config, which resolves here.
 #
-# 2026-09-03 user-approved default: contextual reconstruction keeps a bounded
-# heterogeneous candidate pool and conditionally reconstructs only ambiguous
-# answers.  The feature remains subject to official validation and rollback.
+# 2026-09-04 user-authorized default: FSDF owns the official solve path.
+# Code acceptance remains separate from any mathematical capability conclusion.
 SUBMISSION_CONFIG = AgentConfig(
     policy_sample_times=1,
     policy_temperature=0.6,
@@ -390,9 +395,10 @@ SUBMISSION_CONFIG = AgentConfig(
     # stateful_tail_completion_v1 stays off on the submission path until the
     # preregistered P1 replay, P2 fidelity and capability gates pass.
     enable_stateful_tail_completion=False,
-    enable_contextual_answer_reconstruction=True,
+    enable_contextual_answer_reconstruction=False,
     reconstruction_max_tokens=4096,
     reconstruction_context_max_chars=12000,
+    enable_fork_select_deepen_finish=True,
 )
 
 
@@ -1099,9 +1105,12 @@ class ReasoningAgent:
             self.config.enable_condition_checked_selection,
             self.config.enable_plan_solve_compact,
             self.config.enable_contextual_answer_reconstruction,
+            self.config.enable_fork_select_deepen_finish,
         ))
         if experimental_paths > 1:
             raise ValueError("experimental answering paths are mutually exclusive")
+        if self.config.enable_fork_select_deepen_finish:
+            return ForkSelectDeepenFinishRelay(self.client).solve(problem, problem_type).as_dict()
         if self.config.enable_contextual_answer_reconstruction:
             return self._solve_contextual_answer_reconstruction(problem, problem_type)
         if self.config.enable_typed_answer_capsule:
@@ -2157,8 +2166,8 @@ class ReasoningAgent:
 
     @staticmethod
     def _extract_simple_arithmetic_expression(problem: str) -> str | None:
-        match = re.fullmatch(r"\s*(?:计算|求值|calculate|evaluate)?\s*([0-9+\-*/().\s]+)\s*[?？]?\s*", problem, re.IGNORECASE)
-        return match.group(1).strip() if match else None
+        # L0 识别器单一来源：与 FSDF relay 共用同一实现，防止两条路径路由漂移。
+        return match_simple_arithmetic_expression(problem)
     @staticmethod
     def _is_clear_candidate(candidate: dict[str, Any]) -> bool:
         if candidate.get("problem_type") in _NON_NUMERIC_TASK_TYPES:

@@ -31,7 +31,11 @@ def ok(answer: str) -> str:
 
 
 def experimental_base() -> AgentConfig:
-    return dataclasses.replace(SUBMISSION_CONFIG, enable_contextual_answer_reconstruction=False)
+    return dataclasses.replace(
+        SUBMISSION_CONFIG,
+        enable_contextual_answer_reconstruction=False,
+        enable_fork_select_deepen_finish=False,
+    )
 
 
 class DefaultOffTest(unittest.TestCase):

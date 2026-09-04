@@ -1,4 +1,4 @@
-# 分支与发布面地图(2026-09-03 梳理)
+# 分支与发布面地图(2026-09-04 梳理)
 
 > 目的:终结"两个 main"时代的拓扑混乱。此后引用任何分支,以本文件为准。
 
@@ -6,7 +6,7 @@
 
 | ref | tip | 角色 |
 | --- | --- | --- |
-| **gitcode/main** | `499b0aa` | **唯一官方评测拉取面**；`contextual_answer_reconstruction_v1` 已开启，尚未完成真实能力验证 |
+| **gitcode/main** | FSDF release commit（本次发布） | **唯一官方评测拉取面**；用户已授权切换为 `fork_select_deepen_finish_v1`，尚未完成真实能力验证 |
 | **origin/main**(GitHub) | 未在本次整理同步 | 不作为本次发布面 |
 | **local main** | 未在本次整理切换 | 保留现状，不覆盖本地历史 |
 
@@ -17,6 +17,7 @@
 | **codex/btcs-v1** | `30f3aeb` | BTCSv2 模块化开发提交；已推 GitCode，资源窗作废 |
 | **codex/b1-4k-canary** | `b2f01ec` | 已推 GitHub 的实验/证据分支；包含 GSA/ARH 工件与最新研究文档 |
 | **codex/main-integration-20260829** | `d84be6e` | 集成历史分支；内容已快进到 local main，当前无工作树 |
+| **codex/fsdf-v1-code-acceptance-001** | FSDF release commit（本次发布） | FSDF 代码验收修复、默认切换与发布候选 |
 | codex/c0-evidence-release-20260827 | `0409103` | 历史发布工作树注册；当前本地路径已失效,不得作为发布面 |
 | codex/cod-numeric-candidate-20260827 | `25f99b5`+未提交 CoD | CoD 原始实现存档(实现已移植主线);CoD 线 ARCHIVED |
 
