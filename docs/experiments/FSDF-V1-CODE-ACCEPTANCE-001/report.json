@@ -43,6 +43,7 @@
     "enable_fork_select_deepen_finish": true,
     "enable_contextual_answer_reconstruction": false
   },
-  "release_status": "PENDING_GITCODE_PUBLISH",
+  "release_status": "PUBLISHED_TO_GITCODE_MAIN",
+  "published_payload_commit": "1afdbe749f5dfa387bd5ae1de28405a0861f849b",
   "verdict": "CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION"
 }
