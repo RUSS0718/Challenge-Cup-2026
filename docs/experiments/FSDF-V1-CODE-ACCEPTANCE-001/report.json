@@ -25,7 +25,7 @@
   "d_raw_excluded_from_finish": true,
   "incomplete_handoff_marker_passed": true,
   "finish_handoff_reserve_chars": 2000,
-  "submission_status": "NOT_SUBMITTED",
+  "submission_status": "PUBLISHED_TO_GITCODE_MAIN",
   "capability_conclusion": "NONE",
   "validation": {
     "target_command": "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest tests.test_fork_select_deepen_finish -q",
@@ -45,5 +45,6 @@
   },
   "release_status": "PUBLISHED_TO_GITCODE_MAIN",
   "published_payload_commit": "1afdbe749f5dfa387bd5ae1de28405a0861f849b",
+  "publication_metadata_commit": "e255f6612dd0d9da156718d5f173b39eaa65de4a",
   "verdict": "CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION"
 }

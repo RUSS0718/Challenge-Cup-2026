@@ -17,4 +17,4 @@
 
 全量回归 `python -m unittest discover -s tests -q`：498 项，494 项通过，4 项明确跳过，0 项 error/failure。4 项是已归档 BTCS 测试：当前基线缺少 `reasoning_agent.btcs` 或 `AgentConfig.protocol_mode`，已在测试入口明确 skip，未涉及 FSDF 文件或路由。
 
-本结果只证明代码结构、预算、接口和隔离契约满足本 spec，不产生数学能力或正确率结论；D 失败且两支均可用时固定回退 B。默认切换是用户单独授权的发布动作，不等于能力结论；GitCode `main` 已快进至 payload commit `1afdbe7`，后续仍需单独核验官方结果。
+本结果只证明代码结构、预算、接口和隔离契约满足本 spec，不产生数学能力或正确率结论；D 失败且两支均可用时固定回退 B。默认切换是用户单独授权的发布动作，不等于能力结论；GitCode `main` 已包含 payload commit `1afdbe7` 和发布元数据 commit `e255f66`，后续仍需单独核验官方结果。

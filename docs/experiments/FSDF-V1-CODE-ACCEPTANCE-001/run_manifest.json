@@ -1,6 +1,6 @@
 {
   "method_id": "fork_select_deepen_finish_v1",
-  "captured_at": "2026-09-04T23:49:16+08:00",
+  "captured_at": "2026-09-04T23:51:37+08:00",
   "fixed_point": {
     "base_commit": "ca536cec17b91ae932edb3f5ec3410bd481fabeb",
     "branch": "codex/fsdf-v1-code-acceptance-001",
@@ -9,7 +9,8 @@
     "working_tree_dirty_before_manifest_refresh": true,
     "remote_published": true,
     "published_payload_commit": "1afdbe749f5dfa387bd5ae1de28405a0861f849b",
-    "remote_main_tip_after_publish": "1afdbe749f5dfa387bd5ae1de28405a0861f849b"
+    "remote_main_tip_after_payload_publish": "1afdbe749f5dfa387bd5ae1de28405a0861f849b",
+    "publication_metadata_commit": "e255f6612dd0d9da156718d5f173b39eaa65de4a"
   },
   "dirty_state_before_manifest_refresh": {
     "staged_paths_excluding_manifest": [
@@ -102,8 +103,8 @@
       "tests/test_btcs.py": "7dec2233dacb98f02d69ecde23c3c3d5d1148ca5166643f82d3214f4b60f7556",
       "tests/test_btcs_rate_limit.py": "c363ac17f6580ed3348d707d842363050ab74e48a2501f22f570175e32cb1642",
       "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/spec.md": "9d6f4305b85d72c3f91f3ca4c5e0c497cbed9c6318675379a852c25e9a71e1da",
-      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/result.md": "76804c6677b395d710e9647068a261c80437b432d46751a69ab3c729a62f95f3",
-      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/report.json": "8ba4de7a1affde04b227732b6dbdc264cecdc1c9b83d3b1977033d5a384eb2b8",
+      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/result.md": "88be85b90fd7c11cf010f3a01b35556687b43826447b563d08921a2ef7721574",
+      "docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/report.json": "65998c72c64c1f065865b5b51941212e2eea13240d1d8141952f433d51911f46",
       "docs/excluded_approaches.md": "9dd129d3ee87d2d5dcf927e857177b21b31fcb81257d696b780dbda4410282e7"
     }
   },
