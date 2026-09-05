@@ -249,6 +249,35 @@ def client_diagnostics(client: Any) -> dict[str, list[Any]]:
     }
 
 
+# ── Dual-arm support: same-window interleaved arms on the frozen pools ──
+# `v1` is the untouched submission profile (FSDF v1 anchor).  `v2` turns on the
+# four FSDF-RELIABILITY-V2 candidate flags on top of the same profile.  This is
+# an exploratory diagnostic arm; the combined v2 arm is NOT attributable per
+# variable and produces no capability conclusion by itself.
+FSDF_V2_FLAGS = (
+    "enable_fsdf_diagnostics_v2",
+    "enable_fsdf_multiline_handoff_v2",
+    "enable_fsdf_final_confirmation_v2",
+    "enable_fsdf_finish_prompt_v2",
+)
+
+
+def arm_config(arm: str) -> Any:
+    if arm == "v1":
+        return dataclasses.replace(SUBMISSION_CONFIG)
+    if arm == "v2":
+        return dataclasses.replace(SUBMISSION_CONFIG, **{flag: True for flag in FSDF_V2_FLAGS})
+    raise ValueError(f"unknown arm: {arm}")
+
+
+def assign_arms(tasks: list[dict[str, Any]], arms: list[str]) -> None:
+    """Deterministically interleave arms over the seeded-shuffled task list."""
+    if not arms:
+        raise ValueError("arms must not be empty")
+    for index, task in enumerate(tasks):
+        task["arm"] = arms[index % len(arms)]
+
+
 def extract_for_judge(result: dict[str, Any]) -> str:
     extracted = str(result.get("extracted_answer") or "").strip()
     final = str(result.get("final_response") or "").strip()
@@ -259,8 +288,10 @@ def extract_for_judge(result: dict[str, Any]) -> str:
 
 def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any]:
     item = task["item"]
+    arm = task.get("arm", "v1")
+    config = arm_config(arm)
     client = InternChatClient(timeout=timeout)
-    agent = ReasoningAgent(client=client, config=dataclasses.replace(SUBMISSION_CONFIG))
+    agent = ReasoningAgent(client=client, config=config)
     status = "ok"
     t0 = time.time()
     try:
@@ -296,6 +327,7 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     return {
         "set_id": task["set_id"],
         "item_id": item["item_id"],
+        "arm": arm,
         "problem_group_id": item.get("problem_group_id", ""),
         "language": item.get("language", ""),
         "domain": item["domain"],
@@ -393,6 +425,9 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "native 与 contract 均为本地近似判定（AIME 整数精确 / Math-Verify / 归一化字符串 / "
         "answer_equivalence / 严格抽取契约），不是真实官方 judger 的等价实现。"
     )
+    arms = sorted({str(r.get("arm", "")) for r in rows} - {""})
+    if arms:
+        out["by_arm"] = {arm: stats([r for r in rows if str(r.get("arm")) == arm]) for arm in arms}
     by_domain: dict[str, dict[str, Any]] = {}
     for domain in sorted({r["domain"] for r in rows}):
         by_domain[domain] = stats([r for r in rows if r["domain"] == domain])
@@ -410,7 +445,11 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
-        sample_size: int, sets: list[str]) -> None:
+        sample_size: int, sets: list[str], arms: list[str] | None = None,
+        run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001") -> None:
+    arms = arms or ["v1"]
+    for arm in arms:
+        arm_config(arm)  # validate early
     output_dir.mkdir(parents=True, exist_ok=True)
     api_key = os.environ.get("INTERN_API_KEY", "")
     all_tasks: list[dict[str, Any]] = []
@@ -426,16 +465,20 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
             all_tasks.append({"set_id": set_id, "item": item, "seed": seed, "task_idx": f"{set_id}-{i}"})
     rng = random.Random(seed)
     rng.shuffle(all_tasks)
+    assign_arms(all_tasks, arms)
 
     answers_path = output_dir / "answers.jsonl"
-    done_keys: set[tuple[str, str]] = set()
+    done_keys: set[tuple[str, str, str]] = set()
     if answers_path.exists():
         for row in load_jsonl(answers_path):
-            done_keys.add((row["set_id"], row["item_id"]))
-    pending = [t for t in all_tasks if (t["set_id"], t["item"]["item_id"]) not in done_keys]
+            done_keys.add((row["set_id"], row["item_id"], str(row.get("arm", ""))))
+    pending = [
+        t for t in all_tasks
+        if (t["set_id"], t["item"]["item_id"], t["arm"]) not in done_keys
+    ]
 
     manifest = {
-        "run_id": "EXTERNAL-HARD-SETS-SMOKE-001",
+        "run_id": run_id,
         "pools_dir": str(POOLS_DIR.relative_to(ROOT)).replace("\\", "/"),
         "pool_sha256": {p.name: sha256_file(p) for p in sorted(POOLS_DIR.glob("*.jsonl"))},
         "seed": seed,
@@ -444,14 +487,24 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "hard_stop_minutes": hard_stop_minutes,
         "sample_size_per_set": sample_size,
         "sampled_items": sampled_manifest,
-        "method": "SUBMISSION_CONFIG (fork_select_deepen_finish_v1), official solve path unchanged",
+        "arms": arms,
+        "arm_assignment": "round_robin_over_seeded_shuffle",
+        "arm_flags": {
+            arm: {flag: (flag in FSDF_V2_FLAGS and arm == "v2") for flag in FSDF_V2_FLAGS}
+            for arm in arms
+        },
+        "method": (
+            "SUBMISSION_CONFIG base (fork_select_deepen_finish_v1); arm v2 = base + "
+            "FSDF-RELIABILITY-V2 combined candidate flags (exploratory diagnostic, "
+            "not per-variable attributable, no capability conclusion)"
+        ),
         "git_head": os.popen("git rev-parse HEAD").read().strip(),
         "start_unix": time.time(),
         "n_tasks": len(all_tasks),
         "n_pending": len(pending),
     }
     (output_dir / "run_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"[EXT-SMOKE] pending={len(pending)} workers={workers} seed={seed}", flush=True)
+    print(f"[EXT-SMOKE] run_id={run_id} pending={len(pending)} workers={workers} seed={seed} arms={','.join(arms)}", flush=True)
 
     start = time.time()
 
@@ -464,7 +517,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
                 handle.flush()
         print(
-            f"[{task['set_id'][:10]}] {record['item_id']} {record['native']['verdict']}"
+            f"[{task['set_id'][:10]}][{record['arm']}] {record['item_id']} {record['native']['verdict']}"
             f" calls={record['model_calls']} dur={record['duration_seconds']:.0f}s"
             f" status={record['status']}",
             flush=True,
@@ -484,8 +537,12 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     summary = analyze(rows)
     summary["elapsed_seconds"] = round(time.time() - start, 1)
     summary["dataset_info"] = {"pools_dir": str(POOLS_DIR), "seed": seed, "sample_size_per_set": sample_size}
+    summary["window_note"] = (
+        "diagnostic window; thresholds unfrozen; combined v2 arm is exploratory "
+        "and supports no capability conclusion or promotion"
+    )
     (output_dir / "report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(summary["by_set"], ensure_ascii=False, indent=2), flush=True)
+    print(json.dumps(summary.get("by_arm", summary["by_set"]), ensure_ascii=False, indent=2), flush=True)
 
 
 if __name__ == "__main__":
@@ -497,9 +554,13 @@ if __name__ == "__main__":
     parser.add_argument("--hard-stop-minutes", type=float, default=300.0)
     parser.add_argument("--sample-size", type=int, default=SAMPLE_SIZE)
     parser.add_argument("--sets", default="set_a_olymmath_hard,set_b_aime,set_c_hle_math")
+    parser.add_argument("--arms", default="v1", help="comma list from: v1,v2 (interleaved round-robin)")
+    parser.add_argument("--run-id", default="EXTERNAL-HARD-SETS-SMOKE-001")
     args = parser.parse_args()
     run(
         Path(args.output_dir), args.timeout, args.workers, args.seed,
         args.hard_stop_minutes, args.sample_size,
         [s.strip() for s in args.sets.split(",") if s.strip()],
+        arms=[a.strip() for a in args.arms.split(",") if a.strip()],
+        run_id=args.run_id,
     )

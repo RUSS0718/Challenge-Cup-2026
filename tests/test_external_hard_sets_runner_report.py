@@ -4,9 +4,13 @@ fixed synthetic rows and stage events, never touching a real model.
 """
 import json
 import unittest
+from dataclasses import asdict
 
 from scripts.run_external_hard_sets_smoke import (
+    FSDF_V2_FLAGS,
     analyze,
+    arm_config,
+    assign_arms,
     client_diagnostics,
     compact_trace,
     stage_health,
@@ -201,6 +205,48 @@ class ClientDiagnosticsTest(unittest.TestCase):
 
         self.assertEqual([], client_diagnostics(BareClient())["finish_reasons"])
         self.assertEqual([], client_diagnostics(BareClient())["completion_tokens"])
+
+
+class ArmSupportTest(unittest.TestCase):
+    def test_arm_configs_differ_only_in_v2_flags(self):
+        v1 = asdict(arm_config("v1"))
+        v2 = asdict(arm_config("v2"))
+        for flag in FSDF_V2_FLAGS:
+            self.assertFalse(v1[flag])
+            self.assertTrue(v2[flag])
+            del v1[flag], v2[flag]
+        self.assertEqual(v1, v2)
+        with self.assertRaises(ValueError):
+            arm_config("v3")
+
+    def test_assign_arms_is_deterministic_and_balanced(self):
+        tasks = [{"i": i} for i in range(7)]
+        assign_arms(tasks, ["v1", "v2"])
+        self.assertEqual(["v1", "v2"] * 3 + ["v1"], [t["arm"] for t in tasks])
+        tasks2 = [{"i": i} for i in range(7)]
+        assign_arms(tasks2, ["v1", "v2"])
+        self.assertEqual([t["arm"] for t in tasks], [t["arm"] for t in tasks2])
+        with self.assertRaises(ValueError):
+            assign_arms([], [])
+
+    def test_by_arm_report_grouping(self):
+        def row(rid, arm, verdict):
+            base = make_row(row_id=rid, native=verdict, contract=verdict)
+            base["arm"] = arm
+            return base
+
+        rows = [
+            row("a1", "v1", "correct"),
+            row("a2", "v1", "incorrect"),
+            row("b1", "v2", "correct"),
+            row("b2", "v2", "correct"),
+        ]
+        report = analyze(rows)
+        self.assertEqual({"v1", "v2"}, set(report["by_arm"]))
+        self.assertEqual(1, report["by_arm"]["v1"]["native_correct"])
+        self.assertEqual(2, report["by_arm"]["v2"]["native_correct"])
+        self.assertEqual(2, report["by_arm"]["v1"]["n"])
+        self.assertEqual(2, report["by_arm"]["v2"]["n"])
 
 
 if __name__ == "__main__":
