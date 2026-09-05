@@ -176,3 +176,16 @@
 须按 [`experiments/FSDF-RELIABILITY-V2-SPEC/preregistration_draft.md`](experiments/FSDF-RELIABILITY-V2-SPEC/preregistration_draft.md)
 独立臂执行；本窗口不修改 `SUBMISSION_CONFIG`、不发布。完整工件：
 `docs/experiments/FSDF-V2-DIAG-SMOKE-001/`。
+
+## 六点十二、FSDF-HANDOFF-FIRST-D-DIAG-001（2026-09-05）
+
+| 臂（n=15/臂，唯一变量=D 阶段提示词） | 结果 | 处置 |
+|---|---|---|
+| `v2`（合并栈，旧 DEEPEN_PROMPT） | 交接完整率 9/15；不完整时整段缺席（每题平均缺 4.5 字段，27 实例）；correct 2（均 deep_final） | 同窗诊断锚 |
+| `v2hd`（同栈 + `fsdf_handoff_first_d_v1`） | 交接完整率 9/15；失效限制为单字段（仅 6 实例，管理字段全存活）；correct 2（均 E 自产 finish_final）+ incorrect 2（deep_final） | `DIAGNOSTIC_ONLY / NO_CAPABILITY_CONCLUSION / NO_PROMOTION` |
+
+核心观察：完整率持平但失败形态改变——旧提示"深推后总结"被尾部截断整段吞掉，新提示
+管理字段前置使 E 在失败场景仍拿到剩余步骤/前提；E 直接形成确认终答的信号首次出现
+（2/15，n 太小仅方向性）。正确数打平，成本不变（5.0 calls）。测量口径待细化（trace 不
+区分字段缺席与 UNKNOWN 合规弃答）。门槛 UNFROZEN；不修改 `SUBMISSION_CONFIG`、
+不发布。工件：`docs/experiments/FSDF-HANDOFF-FIRST-D-DIAG-001/`。
