@@ -369,6 +369,9 @@ class AgentConfig:
     # conflict-free FINAL_D to E as a to-be-checked candidate; selection
     # rules, prompts and budgets unchanged.
     enable_fsdf_d_result_to_e: bool = False
+    # fsdf_de_budget_swap_v1 (iteration loop, Issue #16 step 3): D/E stage
+    # budget swap 8192/4096 -> 4096/8192; total and call cap unchanged.
+    enable_fsdf_de_budget_swap: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1144,6 +1147,7 @@ class ReasoningAgent:
                 finish_prompt_v2=self.config.enable_fsdf_finish_prompt_v2,
                 handoff_first_d=self.config.enable_fsdf_handoff_first_d,
                 d_result_to_e=self.config.enable_fsdf_d_result_to_e,
+                de_budget_swap=self.config.enable_fsdf_de_budget_swap,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

@@ -13,6 +13,10 @@ from typing import Any, Callable
 
 METHOD_ID = "fork_select_deepen_finish_v1"
 STAGE_TOKEN_SEQUENCE = (2048, 2048, 2048, 8192, 4096)
+# fsdf_de_budget_swap_v1：D/E 预算对调（总数与调用数不变）。依据：E 截断近饱和
+# （length 11-13/15）而 D 常见 stop（10/14），D 有安全捐出空间；交接-first 条目
+# 增量自含且 P1 裁掉未闭合尾部，4096 的 D 仍产出可用部分交接。
+STAGE_TOKEN_SEQUENCE_DE_SWAP = (2048, 2048, 2048, 4096, 8192)
 L0_TOKEN_SEQUENCE = (4096,)
 SOFT_DEADLINE_SECONDS = 900.0
 HARD_DEADLINE_SECONDS = 1080.0
@@ -139,6 +143,10 @@ class RelayOptions:
     # fsdf_d_result_to_e_v1: inject the protocol-valid, conflict-free FINAL_D
     # into E's input as a to-be-checked candidate; selection rules unchanged.
     d_result_to_e: bool = False
+    # fsdf_de_budget_swap_v1: reallocate D/E stage budgets (8192/4096 ->
+    # 4096/8192); total 18432 and the 5-call cap unchanged. Targets the
+    # confirmed E-truncation bottleneck (E finish_reason=length 11-13/15).
+    de_budget_swap: bool = False
 
 
 @dataclass
@@ -631,8 +639,9 @@ class ForkSelectDeepenFinishRelay:
         if state.idea_packet_b and state.idea_packet_c:
             self._event(trace, state, "fork", "ok", 0, ideas_not_diverse=methods_equal)
 
+        deepen_max_tokens = 4096 if self.options.de_budget_swap else 8192
         response_d = ""
-        if self._stage_allowed(state, trace, "deepen", 8192):
+        if self._stage_allowed(state, trace, "deepen", deepen_max_tokens):
             deepen_prompt = DEEPEN_PROMPT_V2 if self.options.handoff_first_d else DEEPEN_PROMPT
             response_d = self._call(
                 state,
@@ -641,7 +650,7 @@ class ForkSelectDeepenFinishRelay:
                 deepen_prompt,
                 self._deepen_user_prompt(problem_text, state),
                 0.2,
-                8192,
+                deepen_max_tokens,
             ) or ""
         if response_d:
             branch = self._selected_branch(response_d, bool(state.idea_packet_b), bool(state.idea_packet_c))
@@ -664,7 +673,7 @@ class ForkSelectDeepenFinishRelay:
                 state.sanitized_errors.append("invalid_response")
                 state.selected_branch = self._available_branch(state)
                 state.deep_handoff_d = self._incomplete_handoff(state.selected_branch)
-                self._mark_protocol_failure(trace, state, "deepen", state.selected_branch)
+                self._mark_protocol_failure(trace, state, "deepen", state.selected_branch, deepen_max_tokens)
         else:
             state.stage_status["deepen"] = "failed"
             state.selected_branch = self._available_branch(state)
@@ -683,8 +692,9 @@ class ForkSelectDeepenFinishRelay:
                 state.d_candidate_for_check = _clip(final_d_distinct[0], 500)
         state.diagnostics["d_candidate_visible_to_e"] = bool(state.d_candidate_for_check)
 
+        finish_max_tokens = 8192 if self.options.de_budget_swap else 4096
         response_e = ""
-        if self._stage_allowed(state, trace, "finish", 4096):
+        if self._stage_allowed(state, trace, "finish", finish_max_tokens):
             finish_prompt = FINISH_PROMPT_V2 if self.options.finish_prompt_v2 else FINISH_PROMPT
             response_e = self._call(
                 state,
@@ -693,7 +703,7 @@ class ForkSelectDeepenFinishRelay:
                 finish_prompt,
                 self._finish_user_prompt(problem_text, state),
                 0.0,
-                4096,
+                finish_max_tokens,
             ) or ""
         if response_e:
             state.stage_status["finish"] = "ok"
@@ -990,6 +1000,7 @@ class ForkSelectDeepenFinishRelay:
         state: _SolveState,
         stage: str,
         selected_branch: str,
+        max_tokens: int = 8192,
     ) -> None:
         for event in reversed(trace):
             if event.get("stage") == stage:
@@ -1003,7 +1014,7 @@ class ForkSelectDeepenFinishRelay:
             state,
             stage,
             "protocol_failed",
-            8192,
+            max_tokens,
             error_category="invalid_response",
             packet_present=False,
             selected_branch=selected_branch or "UNKNOWN",
@@ -1247,6 +1258,7 @@ __all__ = [
     "RelayOptions",
     "METHOD_ID",
     "STAGE_TOKEN_SEQUENCE",
+    "STAGE_TOKEN_SEQUENCE_DE_SWAP",
     "L0_TOKEN_SEQUENCE",
     "SOFT_DEADLINE_SECONDS",
     "HARD_DEADLINE_SECONDS",

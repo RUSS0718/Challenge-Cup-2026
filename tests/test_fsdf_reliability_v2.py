@@ -16,6 +16,7 @@ from reasoning_agent.fork_select_deepen_finish import (
     FINISH_PROMPT_V2,
     L0_TOKEN_SEQUENCE,
     STAGE_TOKEN_SEQUENCE,
+    STAGE_TOKEN_SEQUENCE_DE_SWAP,
     ForkSelectDeepenFinishRelay,
     RelayOptions,
 )
@@ -864,6 +865,67 @@ class F2DResultToETest(unittest.TestCase):
         event = finalize_event(result.trace)
         self.assertTrue(event["d_candidate_visible_to_e"])
         self.assertTrue(event["e_final_equals_d_candidate"])
+
+
+class F2DeBudgetSwapTest(unittest.TestCase):
+    """fsdf_de_budget_swap_v1：D/E 预算对调（4096/8192），总数与调用数不变。"""
+
+    def test_dbs_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_de_budget_swap)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_de_budget_swap)
+        self.assertFalse(RelayOptions().de_budget_swap)
+
+    def test_dbs_02_off_keeps_v1_sequence(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True),
+        )
+        self.assertEqual(STAGE_TOKEN_SEQUENCE, tuple(call[2] for call in client.calls))
+        self.assertEqual("7", result.final_response)
+
+    def test_dbs_03_swap_only_changes_stage_max_tokens(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish("7", "7")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                de_budget_swap=True,
+            ),
+        )
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client.calls))
+        self.assertEqual(18432, sum(call[2] for call in client.calls))
+        self.assertEqual(5, len(client.calls))
+        # 提示词与温度不受影响。
+        self.assertEqual(DEEPEN_PROMPT, client.calls[3][0][0]["content"])
+        self.assertEqual(0.0, client.calls[4][1])
+        self.assertEqual("7", result.final_response)
+        self.assertEqual("finish_final", result.trace[-1]["fallback_source"])
+
+    def test_dbs_04_swap_with_handoff_first_combo(self):
+        # 与交接产物优先组合（迭代窗实际配置）：预算交换仍精确生效。
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                finish_prompt_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+            ),
+        )
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client.calls))
+        self.assertEqual("7", result.final_response)
+
+    def test_dbs_05_protocol_failure_reports_swapped_tokens(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), "SELECTED_BRANCH: 大概是B吧", RuntimeError("e")],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, de_budget_swap=True),
+        )
+        deepen = [e for e in result.trace if e["stage"] == "deepen"][-1]
+        self.assertEqual("protocol_failed", deepen["status"])
+        self.assertEqual(4096, deepen["max_tokens"])
+        self.assertEqual("UNKNOWN", result.final_response)
 
 
 if __name__ == "__main__":

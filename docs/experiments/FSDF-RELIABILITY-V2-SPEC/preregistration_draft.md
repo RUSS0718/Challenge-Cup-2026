@@ -157,3 +157,17 @@
   字段状态未分离）与下一候选 `fsdf_d_result_to_e_v1`（协议有效无冲突的 FINAL_D
   作为"待核查候选"进入 E 输入，单变量）及同题配对窗口已在
   [Issue #16](https://github.com/RUSS0718/Challenge-Cup-2026/issues/16) 规格化。
+
+## 7. 迭代循环授权（2026-09-06 用户指示）
+
+- 用户指示：以 FSDF-D-RESULT-TO-E-PAIRED-001 为底座（15 题、同题配对、先臂逐题轮换、
+  workers=3、hard-stop 75 min），持续跑 15 题配对 A/B 回归；每轮结束后由子智能体
+  分析结果并设计下一个方法；尝试不同方法反复迭代，直到用户干预。
+- 规则：每轮恰一个单变量（前沿臂 vs 前沿+候选）；前沿仅在配对证据支持（correct 净增、
+  无 correct→incorrect 反转、无卫生回退）时前移；失败候选记入排除表；每轮归档
+  report/result 并写回排除表；总 token 18432 与 5 次调用上限不放宽（阶段内预算
+  重分配允许，如 `fsdf_de_budget_swap_v1`）；不引入 RAG/文件记忆/额外 agent；
+  全程在 `codex/fsdf-iterative-ab-001` 分支，不自动改 `SUBMISSION_CONFIG`/gitcode main。
+- 已登记候选：迭代 0 `fsdf_d_result_to_e_v1`（配对窗 FSDF-D-RESULT-TO-E-PAIRED-001：
+  机制未激活，D 14/14 未产出有效 FINAL_D，前沿不变）；迭代 1 `fsdf_de_budget_swap_v1`
+  （D/E 预算对调 8192/4096→4096/8192，针对 E 截断近饱和 11-13/15 length）。
