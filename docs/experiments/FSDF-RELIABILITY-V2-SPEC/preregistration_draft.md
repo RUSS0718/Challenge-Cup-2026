@@ -196,3 +196,7 @@
   net ≥0 且零反转；net ≥ +1 且 M1+M2 → 前移；M1+M2 但 net ≤0 → 复跑一次。
   反斥：deep_final 激活 <5/15（机制再死）或 D handoff conflict+absent 恶化 ≥50%。
   臂 `v2hd_bs_mfd` = v2hd_bs + 该开关。
+- 迭代 3 结果（FSDF-ITER-AB-003，15/15 对）：`fsdf_mandatory_final_d_v1` 机制激活门
+  失败（deep_final 有值 1/15 < 门槛 5）——候选被反斥，前沿不变。新发现：强制输出
+  字段使 D 截断 15/15、交接 absent 实例 42（vs 34）——D=4096 下"要求更多字段"与
+  "预算约束"不可兼得；前沿 v2hd_bs 跨三窗 correct 3/2/4，方差观察确认。
