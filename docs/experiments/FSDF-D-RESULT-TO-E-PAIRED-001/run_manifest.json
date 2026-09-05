@@ -1,0 +1,65 @@
+{
+  "run_id": "FSDF-D-RESULT-TO-E-PAIRED-001",
+  "pools_dir": "sample_data/external_hard_sets",
+  "pool_sha256": {
+    "set_a_olymmath_hard.jsonl": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+    "set_b_aime.jsonl": "e39108744b5b0548fccfc28a089ddd1cccd0821e7235a6f2e18fa74449cd8315",
+    "set_c_hle_math.jsonl": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8"
+  },
+  "seed": 20260905,
+  "workers": 3,
+  "request_timeout_seconds": 300,
+  "hard_stop_minutes": 75.0,
+  "sample_size_per_set": 5,
+  "sampled_items": {
+    "set_a_olymmath_hard": [
+      "OlymMATH-HARD-61-EN",
+      "OlymMATH-HARD-74-EN",
+      "OlymMATH-HARD-58-ZH",
+      "OlymMATH-HARD-60-EN",
+      "OlymMATH-HARD-75-ZH"
+    ],
+    "set_b_aime": [
+      "aime-2024-II-1",
+      "aime-9",
+      "aime-2024-I-8",
+      "aime-8",
+      "aime-29"
+    ],
+    "set_c_hle_math": [
+      "hle-6736cea8134f03c3c61391e9",
+      "hle-6720f01e936e8e4575f4f3f4",
+      "hle-6721154d5968ddcc0df3a25c",
+      "hle-671641166bc44542da778ccf",
+      "hle-6700aa576c5c0e0d48330ad1"
+    ]
+  },
+  "arms": [
+    "v2hd",
+    "v2hd_dre"
+  ],
+  "arm_assignment": "round_robin_over_seeded_shuffle",
+  "pairing": "paired",
+  "arm_flags": {
+    "v2hd": {
+      "enable_fsdf_diagnostics_v2": true,
+      "enable_fsdf_multiline_handoff_v2": true,
+      "enable_fsdf_final_confirmation_v2": true,
+      "enable_fsdf_finish_prompt_v2": true,
+      "enable_fsdf_handoff_first_d": true
+    },
+    "v2hd_dre": {
+      "enable_fsdf_diagnostics_v2": true,
+      "enable_fsdf_multiline_handoff_v2": true,
+      "enable_fsdf_final_confirmation_v2": true,
+      "enable_fsdf_finish_prompt_v2": true,
+      "enable_fsdf_handoff_first_d": true,
+      "enable_fsdf_d_result_to_e": true
+    }
+  },
+  "method": "SUBMISSION_CONFIG base (fork_select_deepen_finish_v1); arms add FSDF-RELIABILITY-V2 candidate flags (exploratory diagnostic, not per-variable attributable, no capability conclusion)",
+  "git_head": "fed409759c0730cba8bc0667f1cb69df0f7ea903",
+  "start_unix": 1788624321.4684463,
+  "n_tasks": 30,
+  "n_pending": 30
+}
