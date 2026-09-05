@@ -378,6 +378,9 @@ class AgentConfig:
     # fsdf_mandatory_final_d_v1 (iteration 3): D must emit FINAL_D immediately
     # after CANDIDATE_D; activates the deep_final fallback for E-failed runs.
     enable_fsdf_mandatory_final_d: bool = False
+    # fsdf_finish_handoff_share_v1 (iteration 4): E-input composition — drop
+    # the selected-idea block, raise handoff reserve 3000 -> 4600.
+    enable_fsdf_finish_handoff_share: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1156,6 +1159,7 @@ class ReasoningAgent:
                 de_budget_swap=self.config.enable_fsdf_de_budget_swap,
                 finish_compact_final=self.config.enable_fsdf_finish_compact_final,
                 mandatory_final_d=self.config.enable_fsdf_mandatory_final_d,
+                finish_handoff_share=self.config.enable_fsdf_finish_handoff_share,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

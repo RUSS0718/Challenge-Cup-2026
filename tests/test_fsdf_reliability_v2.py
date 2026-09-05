@@ -1078,5 +1078,71 @@ class F2MandatoryFinalDTest(unittest.TestCase):
         self.assertEqual("finish_final", result.trace[-1]["fallback_source"])
 
 
+class F2FinishHandoffShareTest(unittest.TestCase):
+    """fsdf_finish_handoff_share_v1（迭代 4）：E 输入构成重分配——删除"选中思路"块，
+    handoff 装配上限 3000→4600（P1 多行装配下），总上下文 6500 不变。"""
+
+    def big_derived(self, lines=40):
+        return "DERIVED: " + "\n".join(
+            f"第{i}步: 完整中间推导条目记录 x_{i} = {i} * 13 + 7 与边界条件核对说明" for i in range(1, lines + 1)
+        )
+
+    def test_fhs_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_finish_handoff_share)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_finish_handoff_share)
+        self.assertFalse(RelayOptions().finish_handoff_share)
+
+    def test_fhs_02_off_keeps_selected_idea_block(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B", secret="IDEA_SECRET"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, handoff_first_d=True, de_budget_swap=True),
+        )
+        e_prompt = client.calls[4][0][1]["content"]
+        self.assertIn("选中思路：", e_prompt)
+        self.assertIn("IDEA_SECRET", e_prompt)
+
+    def test_fhs_03_on_drops_idea_block_and_enlarges_handoff(self):
+        d_response = f"SELECTED_BRANCH: B\nCANDIDATE_D: 42\n{self.big_derived(90)}\nOPEN: 无\nCHECKS: ok\nRISK: 无"
+        client_off, _ = solve_v2(
+            [analysis(), idea("B", secret="IDEA_SECRET"), idea("C"), d_response, finish()],
+            RelayOptions(multiline_handoff_v2=True, handoff_first_d=True, de_budget_swap=True),
+        )
+        client_on, result = solve_v2(
+            [analysis(), idea("B", secret="IDEA_SECRET"), idea("C"), d_response, finish()],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                finish_handoff_share=True,
+            ),
+        )
+        section_off = handoff_section(client_off.calls[4][0][1]["content"])
+        section_on = handoff_section(client_on.calls[4][0][1]["content"])
+        # 选中思路块消失；交接条目变多（更大的装配上限）。
+        self.assertNotIn("选中思路：", client_on.calls[4][0][1]["content"])
+        self.assertNotIn("IDEA_SECRET", client_on.calls[4][0][1]["content"])
+        self.assertGreater(len(section_on), len(section_off))
+        # 90 行条目（约 3800 字符）在 4600 上限下完整保留，3000 上限下被部分裁剪。
+        self.assertIn("第90步", section_on)
+        self.assertNotIn("HANDOFF_DROPPED", section_on)
+        self.assertIn("HANDOFF_PARTIAL", section_off)
+        self.assertNotIn("HANDOFF_PARTIAL", section_on)
+        # 总上下文上限保持。
+        e_prompt = client_on.calls[4][0][1]["content"]
+        context = e_prompt.split("求一个非平凡整数 n。\n\n", 1)[1]
+        self.assertLessEqual(len(context), 6500)
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client_on.calls))
+        self.assertEqual("7", result.final_response)
+
+    def test_fhs_04_no_branch_fallback_line_kept(self):
+        client, _ = solve_v2(
+            [analysis(), RuntimeError("b"), RuntimeError("c"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, finish_handoff_share=True),
+        )
+        e_prompt = client.calls[4][0][1]["content"]
+        self.assertIn("没有可用分支", e_prompt)
+        self.assertNotIn("选中思路：", e_prompt)
+
+
 if __name__ == "__main__":
     unittest.main()

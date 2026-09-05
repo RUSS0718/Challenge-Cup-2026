@@ -272,6 +272,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_de_budget_swap",
     "enable_fsdf_finish_compact_final",
     "enable_fsdf_mandatory_final_d",
+    "enable_fsdf_finish_handoff_share",
 )
 
 
@@ -305,6 +306,12 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     "v2hd_bs_mfd": _arm_overrides((
         *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
         "enable_fsdf_de_budget_swap", "enable_fsdf_mandatory_final_d",
+    )),
+    # v2hd_bs + fsdf_finish_handoff_share_v1: single variable = E-input
+    # composition (drop selected-idea block, handoff reserve 3000 -> 4600).
+    "v2hd_bs_hs": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
     )),
 }
 
