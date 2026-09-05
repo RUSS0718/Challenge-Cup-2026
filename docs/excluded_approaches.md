@@ -163,3 +163,16 @@
 上述候选的运行门槛全部未冻结（对照面口径冲突、样本量、各门阈值见
 `docs/experiments/FSDF-RELIABILITY-V2-SPEC/preregistration_draft.md`），在用户
 确认前不得运行真实模型实验、不得合并为组合臂、不得修改 `SUBMISSION_CONFIG`。
+
+## 六点十一、FSDF-V2-DIAG-SMOKE-001（2026-09-05）
+
+| 臂 | 结果（本地 native，n=30/臂） | 处置 |
+|---|---|---|
+| `v1`（FSDF v1 锚点） | 7 correct / 18 incorrect / 5 invalid；错误答案主要来自未确认候选回退（deep_candidate 16 题中 12 错 3 对）；native↔contract 不一致 11/30 | 同窗口诊断锚，无新处置 |
+| `v2`（FSDF-RELIABILITY-V2 合并探索臂 P0+P1+P2a+P2b） | 4 correct / 2 incorrect / 24 UNKNOWN；全部 correct/incorrect 均来自显式确认来源；native↔contract 不一致 1/30；成本不变（5.0 calls） | `DIAGNOSTIC_ONLY / NO_CAPABILITY_CONCLUSION / NO_PROMOTION`；合并臂不可单变量归因，正确数 7→4 与 UNKNOWN 上升均为预期交换，不判定任何门 |
+
+60 题（冻结池 ×20/集，种子 20260905）同窗交错、workers=3、128 分钟全部完成、0 顶层
+错误。跨窗口对照 SMOKE-001（v1@150 题）仅作分布参考。门槛仍未冻结，正式双轮 A/B
+须按 [`experiments/FSDF-RELIABILITY-V2-SPEC/preregistration_draft.md`](experiments/FSDF-RELIABILITY-V2-SPEC/preregistration_draft.md)
+独立臂执行；本窗口不修改 `SUBMISSION_CONFIG`、不发布。完整工件：
+`docs/experiments/FSDF-V2-DIAG-SMOKE-001/`。

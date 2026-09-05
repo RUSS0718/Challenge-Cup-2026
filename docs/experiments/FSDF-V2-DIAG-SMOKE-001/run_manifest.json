@@ -1,0 +1,106 @@
+{
+  "run_id": "FSDF-V2-DIAG-SMOKE-001",
+  "pools_dir": "sample_data/external_hard_sets",
+  "pool_sha256": {
+    "set_a_olymmath_hard.jsonl": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+    "set_b_aime.jsonl": "e39108744b5b0548fccfc28a089ddd1cccd0821e7235a6f2e18fa74449cd8315",
+    "set_c_hle_math.jsonl": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8"
+  },
+  "seed": 20260905,
+  "workers": 3,
+  "request_timeout_seconds": 300,
+  "hard_stop_minutes": 160.0,
+  "sample_size_per_set": 20,
+  "sampled_items": {
+    "set_a_olymmath_hard": [
+      "OlymMATH-HARD-51-ZH",
+      "OlymMATH-HARD-99-ZH",
+      "OlymMATH-HARD-31-ZH",
+      "OlymMATH-HARD-42-EN",
+      "OlymMATH-HARD-61-EN",
+      "OlymMATH-HARD-75-ZH",
+      "OlymMATH-HARD-60-EN",
+      "OlymMATH-HARD-50-ZH",
+      "OlymMATH-HARD-68-EN",
+      "OlymMATH-HARD-27-EN",
+      "OlymMATH-HARD-58-ZH",
+      "OlymMATH-HARD-6-ZH",
+      "OlymMATH-HARD-73-EN",
+      "OlymMATH-HARD-20-ZH",
+      "OlymMATH-HARD-72-EN",
+      "OlymMATH-HARD-74-ZH",
+      "OlymMATH-HARD-19-EN",
+      "OlymMATH-HARD-91-EN",
+      "OlymMATH-HARD-97-ZH",
+      "OlymMATH-HARD-21-EN"
+    ],
+    "set_b_aime": [
+      "aime-2024-II-1",
+      "aime-9",
+      "aime-4",
+      "aime-2",
+      "aime-2024-II-3",
+      "aime-2024-I-8",
+      "aime-8",
+      "aime-28",
+      "aime-5",
+      "aime-2024-II-10",
+      "aime-29",
+      "aime-10",
+      "aime-2024-II-13",
+      "aime-2024-I-12",
+      "aime-23",
+      "aime-2024-II-6",
+      "aime-0",
+      "aime-2024-II-7",
+      "aime-3",
+      "aime-14"
+    ],
+    "set_c_hle_math": [
+      "hle-6736cea8134f03c3c61391e9",
+      "hle-6720f01e936e8e4575f4f3f4",
+      "hle-6778bdd88f6679541aac6b6a",
+      "hle-67486cd4501c568127ed52d4",
+      "hle-673b5fdff0294e2cbdb5bebb",
+      "hle-6721154d5968ddcc0df3a25c",
+      "hle-671641166bc44542da778ccf",
+      "hle-671800b68b88f01935b5824f",
+      "hle-66fc633698a7264ef58309c0",
+      "hle-6703a3c04a760324b0e15a30",
+      "hle-6700aa576c5c0e0d48330ad1",
+      "hle-673d70ca1b7b41a118b4b786",
+      "hle-6739ec066a53385958bca5e8",
+      "hle-675853c6101f66905f003073",
+      "hle-6720c324083a628a849fcb53",
+      "hle-670df2e172288739ca35e0e1",
+      "hle-671922c9897dbe5d706dc802",
+      "hle-670c2d61886695e43e7c18b3",
+      "hle-673b192f331c2eeff8631ccf",
+      "hle-672068b61177432c7e500289"
+    ]
+  },
+  "arms": [
+    "v1",
+    "v2"
+  ],
+  "arm_assignment": "round_robin_over_seeded_shuffle",
+  "arm_flags": {
+    "v1": {
+      "enable_fsdf_diagnostics_v2": false,
+      "enable_fsdf_multiline_handoff_v2": false,
+      "enable_fsdf_final_confirmation_v2": false,
+      "enable_fsdf_finish_prompt_v2": false
+    },
+    "v2": {
+      "enable_fsdf_diagnostics_v2": true,
+      "enable_fsdf_multiline_handoff_v2": true,
+      "enable_fsdf_final_confirmation_v2": true,
+      "enable_fsdf_finish_prompt_v2": true
+    }
+  },
+  "method": "SUBMISSION_CONFIG base (fork_select_deepen_finish_v1); arm v2 = base + FSDF-RELIABILITY-V2 combined candidate flags (exploratory diagnostic, not per-variable attributable, no capability conclusion)",
+  "git_head": "b95bbf1263d2aa1ad24a1e4fa5818c01237176df",
+  "start_unix": 1788608539.941642,
+  "n_tasks": 60,
+  "n_pending": 60
+}
