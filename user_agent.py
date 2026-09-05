@@ -365,6 +365,10 @@ class AgentConfig:
     # fsdf_handoff_first_d_v1 (post-Issue-#15 candidate, user-authorized quick
     # diagnostic): D-stage handoff-product-first prompt variant only.
     enable_fsdf_handoff_first_d: bool = False
+    # fsdf_d_result_to_e_v1 (Issue #16 step 2): show D's protocol-valid,
+    # conflict-free FINAL_D to E as a to-be-checked candidate; selection
+    # rules, prompts and budgets unchanged.
+    enable_fsdf_d_result_to_e: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1128,6 +1132,7 @@ class ReasoningAgent:
                 final_confirmation_v2=self.config.enable_fsdf_final_confirmation_v2,
                 finish_prompt_v2=self.config.enable_fsdf_finish_prompt_v2,
                 handoff_first_d=self.config.enable_fsdf_handoff_first_d,
+                d_result_to_e=self.config.enable_fsdf_d_result_to_e,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

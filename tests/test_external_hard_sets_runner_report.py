@@ -11,6 +11,7 @@ from scripts.run_external_hard_sets_smoke import (
     analyze,
     arm_config,
     assign_arms,
+    assign_arms_paired,
     client_diagnostics,
     compact_trace,
     stage_health,
@@ -81,6 +82,13 @@ class CompactTraceTest(unittest.TestCase):
                 fallback_source="finish_unknown",
                 handoff_missing_fields=["CANDIDATE_D"],
                 handoff_clipped=True,
+                handoff_unknown_fields=["DERIVED"],
+                handoff_unclosed_fields=["RISK"],
+                handoff_field_states={"CANDIDATE_D": "absent", "DERIVED": "unknown"},
+                handoff_all_fields_present=False,
+                handoff_has_derived_content=False,
+                handoff_has_candidate_result=False,
+                d_candidate_visible_to_e=False,
                 token_usage="unavailable",
             ),
         ]
@@ -92,6 +100,9 @@ class CompactTraceTest(unittest.TestCase):
         self.assertEqual("finish_unknown", compact[1]["fallback_source"])
         self.assertEqual(["CANDIDATE_D"], compact[1]["handoff_missing_fields"])
         self.assertTrue(compact[1]["handoff_clipped"])
+        self.assertEqual({"CANDIDATE_D": "absent", "DERIVED": "unknown"}, compact[1]["handoff_field_states"])
+        self.assertEqual(["RISK"], compact[1]["handoff_unclosed_fields"])
+        self.assertFalse(compact[1]["handoff_all_fields_present"])
         self.assertNotIn("private_model_text", compact[0])
 
     def test_baseline_traces_without_stage_fields_compact_unchanged(self):
@@ -226,6 +237,34 @@ class ArmSupportTest(unittest.TestCase):
         self.assertTrue(v2hd["enable_fsdf_handoff_first_d"])
         del v2["enable_fsdf_handoff_first_d"], v2hd["enable_fsdf_handoff_first_d"]
         self.assertEqual(v2, v2hd)
+
+    def test_v2hd_dre_arm_differs_from_v2hd_only_in_d_result_to_e(self):
+        v2hd = asdict(arm_config("v2hd"))
+        dre = asdict(arm_config("v2hd_dre"))
+        self.assertFalse(v2hd["enable_fsdf_d_result_to_e"])
+        self.assertTrue(dre["enable_fsdf_d_result_to_e"])
+        del v2hd["enable_fsdf_d_result_to_e"], dre["enable_fsdf_d_result_to_e"]
+        self.assertEqual(v2hd, dre)
+
+    def test_paired_assignment_covers_every_arm_with_rotation(self):
+        tasks = [{"i": i} for i in range(3)]
+        paired = assign_arms_paired(tasks, ["v2", "v2hd"])
+        self.assertEqual(6, len(paired))
+        by_item = {}
+        for entry in paired:
+            by_item.setdefault(entry["i"], []).append((entry["arm"], entry["pair_order"]))
+        # 每道题两臂各一次
+        for item_id, entries in by_item.items():
+            self.assertEqual({"v2", "v2hd"}, {arm for arm, _ in entries})
+            self.assertEqual({0, 1}, {order for _, order in entries})
+        # 先臂逐题轮换（按 pair_order==0 取先跑的臂）
+        first_arm = {item_id: next(arm for arm, order in entries if order == 0)
+                     for item_id, entries in by_item.items()}
+        self.assertEqual({0: "v2", 1: "v2hd", 2: "v2"}, first_arm)
+        self.assertEqual(assign_arms_paired([{"i": 0}], ["v2", "v2hd"]),
+                         assign_arms_paired([{"i": 0}], ["v2", "v2hd"]))
+        with self.assertRaises(ValueError):
+            assign_arms_paired([], [])
 
     def test_assign_arms_is_deterministic_and_balanced(self):
         tasks = [{"i": i} for i in range(7)]

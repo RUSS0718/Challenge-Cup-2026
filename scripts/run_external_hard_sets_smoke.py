@@ -218,6 +218,9 @@ TRACE_KEEP = frozenset({
     "elapsed_bucket", "packet_present", "candidate_present", "final_present",
     "ideas_not_diverse", "handoff_missing_fields", "handoff_conflict_fields",
     "handoff_clipped", "finish_context_clipped", "token_usage", "finish_reason",
+    "handoff_unknown_fields", "handoff_unclosed_fields", "handoff_field_states",
+    "handoff_all_fields_present", "handoff_has_derived_content",
+    "handoff_has_candidate_result", "d_candidate_visible_to_e",
 })
 
 _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
@@ -268,6 +271,12 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
         **{flag: True for flag in FSDF_V2_FLAGS},
         "enable_fsdf_handoff_first_d": True,
     },
+    # v2hd + fsdf_d_result_to_e_v1: single variable = FINAL_D visible to E.
+    "v2hd_dre": {
+        **{flag: True for flag in FSDF_V2_FLAGS},
+        "enable_fsdf_handoff_first_d": True,
+        "enable_fsdf_d_result_to_e": True,
+    },
 }
 
 
@@ -283,6 +292,26 @@ def assign_arms(tasks: list[dict[str, Any]], arms: list[str]) -> None:
         raise ValueError("arms must not be empty")
     for index, task in enumerate(tasks):
         task["arm"] = arms[index % len(arms)]
+
+
+def assign_arms_paired(tasks: list[dict[str, Any]], arms: list[str]) -> list[dict[str, Any]]:
+    """Same-question pairing: every task runs once per arm.
+
+    The first arm rotates per item (item i starts with ``arms[i % k]``) so
+    neither arm systematically runs first.  Resume keys already include the
+    arm, so partial windows resume cleanly.
+    """
+    if not arms:
+        raise ValueError("arms must not be empty")
+    paired: list[dict[str, Any]] = []
+    for index, task in enumerate(tasks):
+        rotation = index % len(arms)
+        for offset, arm in enumerate(arms):
+            entry = dict(task)
+            entry["arm"] = arm
+            entry["pair_order"] = (offset - rotation) % len(arms)
+            paired.append(entry)
+    return paired
 
 
 def extract_for_judge(result: dict[str, Any]) -> str:
@@ -335,6 +364,7 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "set_id": task["set_id"],
         "item_id": item["item_id"],
         "arm": arm,
+        "pair_order": task.get("pair_order", ""),
         "problem_group_id": item.get("problem_group_id", ""),
         "language": item.get("language", ""),
         "domain": item["domain"],
@@ -453,10 +483,12 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
         sample_size: int, sets: list[str], arms: list[str] | None = None,
-        run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001") -> None:
+        run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001", pairing: str = "independent") -> None:
     arms = arms or ["v1"]
     for arm in arms:
         arm_config(arm)  # validate early
+    if pairing not in ("independent", "paired"):
+        raise SystemExit(f"unknown pairing mode: {pairing}")
     output_dir.mkdir(parents=True, exist_ok=True)
     api_key = os.environ.get("INTERN_API_KEY", "")
     all_tasks: list[dict[str, Any]] = []
@@ -472,7 +504,10 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
             all_tasks.append({"set_id": set_id, "item": item, "seed": seed, "task_idx": f"{set_id}-{i}"})
     rng = random.Random(seed)
     rng.shuffle(all_tasks)
-    assign_arms(all_tasks, arms)
+    if pairing == "paired":
+        all_tasks = assign_arms_paired(all_tasks, arms)
+    else:
+        assign_arms(all_tasks, arms)
 
     answers_path = output_dir / "answers.jsonl"
     done_keys: set[tuple[str, str, str]] = set()
@@ -496,6 +531,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "sampled_items": sampled_manifest,
         "arms": arms,
         "arm_assignment": "round_robin_over_seeded_shuffle",
+        "pairing": pairing,
         "arm_flags": {arm: dict(ARM_DEFINITIONS[arm]) for arm in arms},
         "method": (
             "SUBMISSION_CONFIG base (fork_select_deepen_finish_v1); arms add "
@@ -558,7 +594,9 @@ if __name__ == "__main__":
     parser.add_argument("--hard-stop-minutes", type=float, default=300.0)
     parser.add_argument("--sample-size", type=int, default=SAMPLE_SIZE)
     parser.add_argument("--sets", default="set_a_olymmath_hard,set_b_aime,set_c_hle_math")
-    parser.add_argument("--arms", default="v1", help="comma list from: v1,v2 (interleaved round-robin)")
+    parser.add_argument("--arms", default="v1", help="comma list from: v1,v2,v2hd,v2hd_dre (interleaved round-robin)")
+    parser.add_argument("--pairing", default="independent", choices=["independent", "paired"],
+                        help="paired: every sampled item runs once per arm with rotated first arm")
     parser.add_argument("--run-id", default="EXTERNAL-HARD-SETS-SMOKE-001")
     args = parser.parse_args()
     run(
@@ -567,4 +605,5 @@ if __name__ == "__main__":
         [s.strip() for s in args.sets.split(",") if s.strip()],
         arms=[a.strip() for a in args.arms.split(",") if a.strip()],
         run_id=args.run_id,
+        pairing=args.pairing,
     )

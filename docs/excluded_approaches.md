@@ -184,8 +184,13 @@
 | `v2`（合并栈，旧 DEEPEN_PROMPT） | 交接完整率 9/15；不完整时整段缺席（每题平均缺 4.5 字段，27 实例）；correct 2（均 deep_final） | 同窗诊断锚 |
 | `v2hd`（同栈 + `fsdf_handoff_first_d_v1`） | 交接完整率 9/15；失效限制为单字段（仅 6 实例，管理字段全存活）；correct 2（均 E 自产 finish_final）+ incorrect 2（deep_final） | `DIAGNOSTIC_ONLY / NO_CAPABILITY_CONCLUSION / NO_PROMOTION` |
 
-核心观察：完整率持平但失败形态改变——旧提示"深推后总结"被尾部截断整段吞掉，新提示
-管理字段前置使 E 在失败场景仍拿到剩余步骤/前提；E 直接形成确认终答的信号首次出现
-（2/15，n 太小仅方向性）。正确数打平，成本不变（5.0 calls）。测量口径待细化（trace 不
-区分字段缺席与 UNKNOWN 合规弃答）。门槛 UNFROZEN；不修改 `SUBMISSION_CONFIG`、
-不发布。工件：`docs/experiments/FSDF-HANDOFF-FIRST-D-DIAG-001/`。
+核心观察（v2 按审核修正）：完整率持平但失败形态改变——旧提示"深推后总结"的不完整
+样本（6 个，其中 2 个 D 正常结束 stop、4 个截断 length）整段缺席字段更严重，新提示
+管理字段前置使不完整样本每题仅缺 1 个字段（含 4 个 CANDIDATE_D UNKNOWN 诚实弃答
+被过滤计入）；缺字段归因（截断 vs 未输出 vs 弃答）待同题配对窗口验证。E 直接形成
+确认终答的信号首次出现（2/15，仅证明终答来源于 E，n 太小仅方向性）。正确数打平，
+成本口径为预算不变（nearest-rank P95：504s vs 551s，n=15 等于最大值）。E 截断近
+饱和（13/15 length；v2hd 11 个 UNKNOWN 中 10 个对应 E length）是更明确的瓶颈。
+测量口径待细化（trace 不区分字段缺席与 UNKNOWN 合规弃答，Issue #16 已登记）。
+门槛 UNFROZEN；不修改 `SUBMISSION_CONFIG`、不发布。工件：
+`docs/experiments/FSDF-HANDOFF-FIRST-D-DIAG-001/`。

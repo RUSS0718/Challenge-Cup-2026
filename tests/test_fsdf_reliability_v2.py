@@ -637,5 +637,205 @@ class F2HandoffFirstDTest(unittest.TestCase):
         self.assertEqual([], event["handoff_missing_fields"])
 
 
+class F2HandoffDiagnosticsTest(unittest.TestCase):
+    """Issue #16 第一步：字段五状态诊断 + 三项汇总计数。"""
+
+    def states_event(self, d_response):
+        _, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_response, finish()],
+            RelayOptions(multiline_handoff_v2=True, diagnostics_v2=True),
+        )
+        return finalize_event(result.trace)
+
+    def test_hdiag_01_five_field_states_are_separated(self):
+        d_response = (
+            "SELECTED_BRANCH: B\n"
+            "CANDIDATE_D: UNKNOWN\n"
+            "DERIVED: 第1步: 已将原问题化为方程 f(t)=0\n"
+            # OPEN 整段缺席
+            "CHECKS: 代入 t=5\nCHECKS: 代入 t=3\n"
+            "RISK: 代回可得 t=\\frac{5\n"
+        )
+        event = self.states_event(d_response)
+        self.assertEqual(
+            {
+                "CANDIDATE_D": "unknown",
+                "DERIVED": "content",
+                "OPEN": "absent",
+                "CHECKS": "conflict",
+                "RISK": "unclosed",
+            },
+            event["handoff_field_states"],
+        )
+        self.assertEqual(["OPEN"], event["handoff_missing_fields"])
+        self.assertEqual(["CANDIDATE_D"], event["handoff_unknown_fields"])
+        self.assertEqual(["CHECKS"], event["handoff_conflict_fields"])
+        self.assertEqual(["RISK"], event["handoff_unclosed_fields"])
+        self.assertFalse(event["handoff_all_fields_present"])
+        self.assertTrue(event["handoff_has_derived_content"])
+        self.assertFalse(event["handoff_has_candidate_result"])
+
+    def test_hdiag_02_complete_handoff_counts(self):
+        event = self.states_event(deep())
+        self.assertTrue(event["handoff_all_fields_present"])
+        self.assertTrue(event["handoff_has_derived_content"])
+        self.assertTrue(event["handoff_has_candidate_result"])
+        self.assertEqual([], event["handoff_missing_fields"])
+
+    def test_hdiag_03_candidate_result_via_final_d(self):
+        # CANDIDATE_D 与 DERIVED 均为诚实 UNKNOWN：字段齐全但无可用推导，
+        # 三项计数必须分开——这正是"管理字段全在不代表有数学进展"。
+        d_response = (
+            "SELECTED_BRANCH: B\n"
+            "CANDIDATE_D: UNKNOWN\n"
+            "DERIVED: UNKNOWN\n"
+            "OPEN: 求根并代回检验\n"
+            "CHECKS: 未完成代回检验\n"
+            "RISK: 代换要求 t>0\n"
+            "FINAL_D: 42"
+        )
+        event = self.states_event(d_response)
+        self.assertTrue(event["handoff_has_candidate_result"])
+        self.assertTrue(event["handoff_all_fields_present"])
+        self.assertFalse(event["handoff_has_derived_content"])
+        self.assertEqual(["CANDIDATE_D", "DERIVED"], event["handoff_unknown_fields"])
+        self.assertEqual([], event["handoff_missing_fields"])
+
+    def test_hdiag_04_mid_formula_truncation_never_reaches_e(self):
+        # 审核复现用例：条目在公式中间截断，半截内容不得作为完整证据进入 E。
+        d_response = (
+            "SELECTED_BRANCH: B\nCANDIDATE_D: UNKNOWN\n"
+            "DERIVED: 第1步: 已化简为 x=5\n第2步: 整理得 (t-5)(t+1)=0\n"
+            "第3步: 代回可得 t=\\frac{5"
+        )
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_response, finish()],
+            RelayOptions(multiline_handoff_v2=True, diagnostics_v2=True),
+        )
+        section = handoff_section(client.calls[4][0][1]["content"])
+        self.assertNotIn("\\frac{5", section)
+        self.assertIn("第1步: 已化简为 x=5", section)
+        self.assertIn("第2步: 整理得 (t-5)(t+1)=0", section)
+        self.assertIn("HANDOFF_UNCLOSED: DERIVED", section)
+        self.assertIn("HANDOFF_INCOMPLETE: true", section)
+        event = finalize_event(result.trace)
+        self.assertEqual(["DERIVED"], event["handoff_unclosed_fields"])
+
+    def test_hdiag_05_single_line_unclosed_value_is_dropped(self):
+        d_response = "SELECTED_BRANCH: B\nCANDIDATE_D: 42\nDERIVED: \\frac{5\nOPEN: 无\nCHECKS: ok\nRISK: 无"
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_response, finish()],
+            RelayOptions(multiline_handoff_v2=True, diagnostics_v2=True),
+        )
+        section = handoff_section(client.calls[4][0][1]["content"])
+        self.assertNotIn("\\frac{5", section)
+        self.assertIn("HANDOFF_UNCLOSED: DERIVED", section)
+        event = finalize_event(result.trace)
+        self.assertEqual(["DERIVED"], event["handoff_unclosed_fields"])
+
+    def test_hdiag_06_parity_holds_with_state_diagnostics(self):
+        # 新诊断键不得改变行为：同一序列（含 UNKNOWN/冲突/未闭合字段）开关前后
+        # 请求与终答完全一致。
+        scripted = [
+            analysis(),
+            idea("B"),
+            idea("C"),
+            "SELECTED_BRANCH: B\nCANDIDATE_D: UNKNOWN\nCHECKS: a\nCHECKS: b\n"
+            "RISK: t=\\frac{5\nDERIVED: 第1步: x=5",
+            finish(),
+        ]
+        client_off, result_off = solve_v2(list(scripted), RelayOptions())
+        client_on, result_on = solve_v2(list(scripted), P0_ONLY)
+        self.assertEqual(client_off.calls, client_on.calls)
+        self.assertEqual(result_off.final_response, result_on.final_response)
+
+
+class F2DResultToETest(unittest.TestCase):
+    """Issue #16 第二步：fsdf_d_result_to_e_v1（待核查候选对 E 可见）。"""
+
+    def synthetic_d(self):
+        return (
+            "SELECTED_BRANCH: B\n"
+            "CANDIDATE_D: UNKNOWN\n"
+            "DERIVED: 已化为一个待求解方程\n"
+            "FINAL_D: 314159"
+        )
+
+    def test_dre_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_d_result_to_e)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_d_result_to_e)
+        self.assertFalse(RelayOptions().d_result_to_e)
+
+    def test_dre_02_candidate_visible_to_e_and_fallback_intact(self):
+        # 审核复现：E 输入此前看不到 FINAL_D；开启后作为待核查候选可见，
+        # E 未产出终答时回退链不变。
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.synthetic_d(), RuntimeError("e")],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, d_result_to_e=True),
+        )
+        e_prompt = client.calls[4][0][1]["content"]
+        self.assertIn("FINAL_D_FOR_CHECK: 314159", e_prompt)
+        self.assertNotIn("CANDIDATE_D: UNKNOWN", e_prompt)
+        self.assertEqual("314159", result.final_response)
+        self.assertEqual("deep_final", result.trace[-1]["fallback_source"])
+
+    def test_dre_03_off_has_no_injection(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.synthetic_d(), finish()],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True),
+        )
+        self.assertNotIn("FINAL_D_FOR_CHECK", client.calls[4][0][1]["content"])
+
+    def test_dre_04_conflicting_final_d_not_injected(self):
+        d_response = self.synthetic_d() + "\nFINAL_D: 271828"
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_response, RuntimeError("e")],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, d_result_to_e=True),
+        )
+        self.assertNotIn("FINAL_D_FOR_CHECK", client.calls[4][0][1]["content"])
+        self.assertEqual("UNKNOWN", result.final_response)
+        self.assertEqual("deep_final_conflict", result.trace[-1]["fallback_source"])
+
+    def test_dre_05_unknown_and_protocol_failed_d_not_injected(self):
+        d_unknown = "SELECTED_BRANCH: B\nCANDIDATE_D: 42\nFINAL_D: UNKNOWN"
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_unknown, finish()],
+            RelayOptions(multiline_handoff_v2=True, d_result_to_e=True),
+        )
+        self.assertNotIn("FINAL_D_FOR_CHECK", client.calls[4][0][1]["content"])
+        d_failed = "SELECTED_BRANCH: 大概是B吧\nFINAL_D: 42"
+        client2, result2 = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_failed, RuntimeError("e")],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, d_result_to_e=True),
+        )
+        self.assertNotIn("FINAL_D_FOR_CHECK", client2.calls[4][0][1]["content"])
+        self.assertEqual("UNKNOWN", result2.final_response)
+
+    def test_dre_06_selection_rules_unchanged(self):
+        # E 看到候选后明确弃答 → 最终仍是 UNKNOWN（可见性不改变选择链）。
+        _, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.synthetic_d(), "FINAL: UNKNOWN"],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, d_result_to_e=True),
+        )
+        self.assertEqual("UNKNOWN", result.final_response)
+        self.assertEqual("finish_unknown", result.trace[-1]["fallback_source"])
+
+    def test_dre_07_budget_and_diag_flag(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.synthetic_d(), finish("7", "7")],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                d_result_to_e=True,
+            ),
+        )
+        self.assertEqual(STAGE_TOKEN_SEQUENCE, tuple(call[2] for call in client.calls))
+        self.assertEqual(5, len(client.calls))
+        event = finalize_event(result.trace)
+        self.assertTrue(event["d_candidate_visible_to_e"])
+        json.dumps(result.as_dict(), ensure_ascii=False)
+
+
 if __name__ == "__main__":
     unittest.main()

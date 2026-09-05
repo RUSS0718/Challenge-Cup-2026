@@ -127,6 +127,9 @@ class RelayOptions:
     # fsdf_handoff_first_d_v1: D-stage "handoff product first" prompt variant
     # only; parsing, call count and budgets unchanged.
     handoff_first_d: bool = False
+    # fsdf_d_result_to_e_v1: inject the protocol-valid, conflict-free FINAL_D
+    # into E's input as a to-be-checked candidate; selection rules unchanged.
+    d_result_to_e: bool = False
 
 
 @dataclass
@@ -146,6 +149,9 @@ class _SolveState:
     # diagnostics increment is enabled. Values come from a fixed vocabulary
     # (field names / booleans / "unavailable") and never contain model text.
     diagnostics: dict[str, Any] = field(default_factory=dict)
+    # fsdf_d_result_to_e_v1: D's explicit final result, shown to E for checking
+    # (never auto-promoted; selection rules unchanged).
+    d_candidate_for_check: str = ""
 
 
 def _clip(text: str | None, limit: int) -> str:
@@ -374,6 +380,34 @@ def _confirmed_marker_values(values: list[str]) -> tuple[bool, list[str]]:
         return True, []
     real = [v for v in values if not _is_invalid_final_value(v)]
     return False, list(dict.fromkeys(real))
+
+
+def _has_unclosed_math(value: str | None) -> bool:
+    """Conservative program-side check for visibly truncated math tails.
+
+    Heuristic only (no protocol end-marker): unbalanced curly braces or a
+    trailing backslash mark a value that must not reach E as complete
+    evidence.  Balanced content and stray close braces are not flagged.
+    """
+    if not isinstance(value, str) or not value:
+        return False
+    depth = 0
+    for ch in value:
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+    if depth != 0:
+        return True
+    return value.rstrip().endswith("\\")
+
+
+def _trim_unclosed_tail(value: str) -> str:
+    """Drop trailing lines until the remaining value is closed (or empty)."""
+    lines = value.split("\n")
+    while lines and _has_unclosed_math("\n".join(lines)):
+        lines.pop()
+    return "\n".join(lines).strip()
 
 
 def _is_placeholder(value: str | None) -> bool:
@@ -608,15 +642,10 @@ class ForkSelectDeepenFinishRelay:
                 if self.options.multiline_handoff_v2:
                     handoff_text, handoff_meta = self._handoff_v2(response_d, state)
                     state.deep_handoff_d = handoff_text
-                    state.diagnostics["handoff_missing_fields"] = handoff_meta["missing"]
-                    state.diagnostics["handoff_conflict_fields"] = handoff_meta["conflicts"]
                     if handoff_meta["clipped"]:
                         state.diagnostics["handoff_clipped"] = True
                 else:
                     state.deep_handoff_d = self._handoff(response_d, state)
-                    missing, conflicts = self._handoff_block_diagnostics(response_d)
-                    state.diagnostics["handoff_missing_fields"] = missing
-                    state.diagnostics["handoff_conflict_fields"] = conflicts
                 state.candidate_history.append("D:" + branch)
             else:
                 # D 协议失败：响应存在但没有可解析的 SELECTED_BRANCH。按 D 失败处置
@@ -626,14 +655,24 @@ class ForkSelectDeepenFinishRelay:
                 state.sanitized_errors.append("invalid_response")
                 state.selected_branch = self._available_branch(state)
                 state.deep_handoff_d = self._incomplete_handoff(state.selected_branch)
-                missing, conflicts = self._handoff_block_diagnostics(response_d)
-                state.diagnostics["handoff_missing_fields"] = missing
-                state.diagnostics["handoff_conflict_fields"] = conflicts
                 self._mark_protocol_failure(trace, state, "deepen", state.selected_branch)
         else:
             state.stage_status["deepen"] = "failed"
             state.selected_branch = self._available_branch(state)
             state.deep_handoff_d = self._incomplete_handoff(state.selected_branch)
+
+        # P0 有界诊断（单一来源：协议字段状态机，缺字段/UNKNOWN/冲突/未闭合分开统计）。
+        state.diagnostics.update(self._handoff_diagnostics(response_d))
+
+        # fsdf_d_result_to_e_v1：把协议成功且唯一有效的 FINAL_D 作为"D 给出的
+        # 待核查候选"供 E 查看；不改变答案选择链，不覆盖 CANDIDATE_D。
+        if self.options.d_result_to_e and state.stage_status.get("deepen") == "ok" and response_d:
+            _, final_d_distinct = _confirmed_marker_values(
+                _marker_occurrences(response_d, ("FINAL_D",))
+            )
+            if len(final_d_distinct) == 1:
+                state.d_candidate_for_check = _clip(final_d_distinct[0], 500)
+        state.diagnostics["d_candidate_visible_to_e"] = bool(state.d_candidate_for_check)
 
         response_e = ""
         if self._stage_allowed(state, trace, "finish", 4096):
@@ -706,6 +745,10 @@ class ForkSelectDeepenFinishRelay:
             handoff = _clip(raw_handoff, _FINISH_HANDOFF_RESERVE)
             if len(handoff) < len(raw_handoff):
                 state.diagnostics["handoff_clipped"] = True
+        if self.options.d_result_to_e and state.d_candidate_for_check:
+            # 待核查候选作为独立标注行加入 E 输入；不覆盖 CANDIDATE_D，
+            # 不改变答案选择链，只扩大 E 的可见信息。
+            handoff = f"{handoff}\nFINAL_D_FOR_CHECK: {state.d_candidate_for_check}"
         budget = _FINISH_CONTEXT_LIMIT - _FINISH_LABEL_BUDGET - len(handoff)
         raw_selected = selected_idea or "不可用"
         selected = _clip(raw_selected, min(_IDEA_LIMIT, max(0, budget)))
@@ -775,12 +818,15 @@ class ForkSelectDeepenFinishRelay:
 
     @staticmethod
     def _resolve_handoff_blocks(response_d: str) -> dict[str, dict[str, Any]]:
-        """Resolve every handoff field to a deduplicated value or a conflict.
+        """Resolve every handoff field to a deduplicated value plus a state.
 
-        Repeated identical values dedupe; distinct values mark a conflict
-        instead of silently picking the first or last occurrence.  Placeholder
-        occurrences carry no candidate semantics and are filtered before the
-        conflict decision (so ``UNKNOWN → 42`` is an update, not a conflict).
+        States (fixed vocabulary, one per field): ``absent`` (no occurrence),
+        ``unknown`` (occurred but every occurrence was a filtered placeholder,
+        e.g. an honest CANDIDATE_D: UNKNOWN), ``conflict`` (>=2 distinct
+        values), ``unclosed`` (single value with a program-detectably
+        truncated math tail), ``content`` (single closed value).  Repeated
+        identical values dedupe; placeholder occurrences carry no candidate
+        semantics (so ``UNKNOWN → 42`` is an update, not a conflict).
         """
         blocks = _parse_handoff_blocks(response_d)
         resolved: dict[str, dict[str, Any]] = {}
@@ -791,36 +837,64 @@ class ForkSelectDeepenFinishRelay:
             else:
                 real = [v for v in entries if not _is_placeholder(v)]
             distinct = list(dict.fromkeys(real))
-            if len(distinct) >= 2:
-                resolved[field] = {"value": "", "conflict": True}
-            elif len(distinct) == 1:
-                resolved[field] = {"value": distinct[0], "conflict": False}
+            if not entries:
+                state, value = "absent", ""
+            elif not distinct:
+                state, value = "unknown", ""
+            elif len(distinct) >= 2:
+                state, value = "conflict", ""
+            elif _has_unclosed_math(distinct[0]):
+                state, value = "unclosed", distinct[0]
             else:
-                resolved[field] = {"value": "", "conflict": False}
+                state, value = "content", distinct[0]
+            resolved[field] = {"state": state, "value": value}
         return resolved
 
-    def _handoff_block_diagnostics(self, response_d: str) -> tuple[list[str], list[str]]:
-        """Bounded P0 summary: which handoff fields are missing or conflicted."""
+    def _handoff_diagnostics(self, response_d: str) -> dict[str, Any]:
+        """Bounded P0 summary: per-field states plus the rollup counts.
+
+        "Fields present", "usable derivation" and "explicit candidate result"
+        are counted separately: management fields being present does not mean
+        E received real mathematical progress.  Values are field names,
+        enums, booleans only — never model text.
+        """
         resolved = self._resolve_handoff_blocks(_strip_idea_packet_text(response_d))
-        conflicts = [f for f in _HANDOFF_VALUE_FIELDS if resolved[f]["conflict"]]
-        conflict_set = set(conflicts)
-        missing = [
-            f for f in _HANDOFF_VALUE_FIELDS
-            if not resolved[f]["value"] and f not in conflict_set
-        ]
-        return missing, conflicts
+        states = {f: resolved[f]["state"] for f in _HANDOFF_VALUE_FIELDS}
+        missing = [f for f in _HANDOFF_VALUE_FIELDS if states[f] == "absent"]
+        _, final_d_distinct = _confirmed_marker_values(
+            _marker_occurrences(response_d, ("FINAL_D",))
+        )
+        return {
+            "handoff_missing_fields": missing,
+            "handoff_unknown_fields": [
+                f for f in _HANDOFF_VALUE_FIELDS if states[f] == "unknown"
+            ],
+            "handoff_conflict_fields": [
+                f for f in _HANDOFF_VALUE_FIELDS if states[f] == "conflict"
+            ],
+            "handoff_unclosed_fields": [
+                f for f in _HANDOFF_VALUE_FIELDS if states[f] == "unclosed"
+            ],
+            "handoff_field_states": states,
+            "handoff_all_fields_present": not missing,
+            "handoff_has_derived_content": states["DERIVED"] == "content",
+            "handoff_has_candidate_result": (
+                states["CANDIDATE_D"] == "content" or len(final_d_distinct) == 1
+            ),
+        }
 
     def _handoff_v2(self, response_d: str, state: _SolveState) -> tuple[str, dict[str, Any]]:
         """Marker-bounded multi-line handoff with whole-field/whole-item clipping.
 
-        Clipping only ever drops complete fields or complete derivation items;
-        a truncated fragment is never passed to E as complete evidence, and
+        Clipping only ever drops complete fields or complete derivation items
+        — including model-side truncated tails the program can detect — and
         every loss stays visible to E through the bounded trailer markers.
         """
         resolved = self._resolve_handoff_blocks(_strip_idea_packet_text(response_d))
-        conflicts = [f for f in _HANDOFF_VALUE_FIELDS if resolved[f]["conflict"]]
+        conflicts = [f for f in _HANDOFF_VALUE_FIELDS if resolved[f]["state"] == "conflict"]
         conflict_set = set(conflicts)
-        missing = [f for f in _HANDOFF_VALUE_FIELDS if not resolved[f]["value"] and f not in conflict_set]
+        missing = [f for f in _HANDOFF_VALUE_FIELDS if resolved[f]["state"] == "absent"]
+        unclosed_trimmed: list[str] = []
         header = f"SELECTED_BRANCH: {state.selected_branch or 'UNKNOWN'}"
         budget = _FINISH_HANDOFF_RESERVE_V2 - len(header) - 1 - _HANDOFF_TRAILER_HEADROOM
         placed: dict[str, list[str]] = {}
@@ -841,6 +915,13 @@ class ForkSelectDeepenFinishRelay:
                     dropped.append(field)
                 continue
             value = resolved[field]["value"]
+            if resolved[field]["state"] == "unclosed":
+                trimmed = _trim_unclosed_tail(value)
+                if trimmed != value.strip():
+                    unclosed_trimmed.append(field)
+                value = trimmed
+                if not value:
+                    continue
             if not value:
                 continue
             lines = value.split("\n")
@@ -866,7 +947,7 @@ class ForkSelectDeepenFinishRelay:
         parts = [header]
         for field in _HANDOFF_DISPLAY_ORDER:
             parts.extend(placed.get(field, []))
-        incomplete = bool(missing or dropped or partial)
+        incomplete = bool(missing or dropped or partial or unclosed_trimmed)
         if incomplete:
             parts.append("HANDOFF_INCOMPLETE: true")
         if conflicts:
@@ -875,13 +956,16 @@ class ForkSelectDeepenFinishRelay:
             parts.append("HANDOFF_DROPPED: " + ",".join(dropped))
         if partial:
             parts.append("HANDOFF_PARTIAL: " + ",".join(partial))
+        if unclosed_trimmed:
+            parts.append("HANDOFF_UNCLOSED: " + ",".join(unclosed_trimmed))
         text = "\n".join(parts)
         meta = {
             "missing": missing,
             "conflicts": conflicts,
             "dropped": dropped,
             "partial": partial,
-            "clipped": bool(dropped or partial),
+            "unclosed": unclosed_trimmed,
+            "clipped": bool(dropped or partial or unclosed_trimmed),
         }
         return text, meta
 
@@ -1000,9 +1084,16 @@ class ForkSelectDeepenFinishRelay:
             "error_category",
             "ideas_not_diverse",
             "handoff_missing_fields",
+            "handoff_unknown_fields",
             "handoff_conflict_fields",
+            "handoff_unclosed_fields",
+            "handoff_field_states",
+            "handoff_all_fields_present",
+            "handoff_has_derived_content",
+            "handoff_has_candidate_result",
             "handoff_clipped",
             "finish_context_clipped",
+            "d_candidate_visible_to_e",
             "token_usage",
             "finish_reason",
         }})
@@ -1101,14 +1192,21 @@ class ForkSelectDeepenFinishRelay:
             final, fallback_source = "UNKNOWN", "unknown"
         extras: dict[str, Any] = {}
         if self.options.diagnostics_v2:
-            # P0 有界诊断摘要：只含字段名/布尔/unavailable 标记，不含模型原文。
+            # P0 有界诊断摘要：只含字段名/枚举/布尔/unavailable 标记，不含模型原文。
             # 公开 client 契约不暴露 token/finish_reason，无法获得时显式标记。
             extras = {
                 "handoff_missing_fields": list(state.diagnostics.get("handoff_missing_fields", [])),
+                "handoff_unknown_fields": list(state.diagnostics.get("handoff_unknown_fields", [])),
                 "handoff_conflict_fields": list(state.diagnostics.get("handoff_conflict_fields", [])),
+                "handoff_unclosed_fields": list(state.diagnostics.get("handoff_unclosed_fields", [])),
+                "handoff_field_states": dict(state.diagnostics.get("handoff_field_states", {})),
+                "handoff_all_fields_present": bool(state.diagnostics.get("handoff_all_fields_present", False)),
+                "handoff_has_derived_content": bool(state.diagnostics.get("handoff_has_derived_content", False)),
+                "handoff_has_candidate_result": bool(state.diagnostics.get("handoff_has_candidate_result", False)),
                 "handoff_clipped": bool(state.diagnostics.get("handoff_clipped", False)),
                 "finish_context_clipped": bool(state.diagnostics.get("finish_context_clipped", False)),
                 "candidate_present": bool(state.diagnostics.get("candidate_present", False)),
+                "d_candidate_visible_to_e": bool(state.diagnostics.get("d_candidate_visible_to_e", False)),
                 "token_usage": "unavailable",
                 "finish_reason": "unavailable",
             }
