@@ -76,6 +76,22 @@ RISK: <当前推导依赖的前提与可能失效之处>
 DERIVED: <已完成推导，每条单独一行并以“第N步:”开头；每条自含完整公式与结论，宁短勿断；随推导持续补入新条目，被截断时前面的条目仍可用>
 DERIVED 是本阶段主要产物，优先保证每条完整；可以输出 FINAL_D；不要把未选分支全文复制进 handoff。"""
 
+# fsdf_mandatory_final_d_v1（迭代 3）：DEEPEN_PROMPT_V2 的两处编辑——CANDIDATE_D
+# 之后立即强制输出 FINAL_D（置于 DERIVED 之前，D 在 4096 截断下也能存活），
+# 并删除可选 FINAL_D 尾句。机制：激活休眠的 deep_final 回退（P2a 在 E 未形成
+# 有效终答时采纳），结构性单调——只可能影响 E 失败的 run，不会改写已确认终答。
+DEEPEN_PROMPT_MFD = """你负责 Select/Deepen 阶段。先明确选择 B 或 C 中恰好一条，不得把两条方法融合成第三条。
+随后按固定顺序输出交接字段，交接产物优先，不要等完整深推之后再总结；每个字段只出现一次：
+SELECTED_BRANCH: B 或 C
+SELECTION_REASON: <一句话>
+CANDIDATE_D: <当前候选；无法确定写 UNKNOWN>
+FINAL_D: <在此立即输出你认为最可能正确的唯一最终答案，只写答案本身（数值/表达式/集合）一行，字段名后直接跟值，不加解释；确实给不出任何具体答案时才写 UNKNOWN；此后即使推导有进展也不再输出 FINAL_D>
+OPEN: <下一步具体做什么：按顺序列出剩余待解步骤>
+CHECKS: <已做检查及结论；未确认的检查必须写明未确认>
+RISK: <当前推导依赖的前提与可能失效之处>
+DERIVED: <已完成推导，每条单独一行并以“第N步:”开头；每条自含完整公式与结论，宁短勿断；随推导持续补入新条目，被截断时前面的条目仍可用>
+DERIVED 是本阶段主要产物，优先保证每条完整；不要把未选分支全文复制进 handoff。"""
+
 FINISH_PROMPT = """你负责 Finish 阶段。只沿已选分支和 D 的 handoff 收尾，不重新进行方法选择，
 只修复选定链路的局部错误。第一项输出 CANDIDATE_E，末尾另起一行输出唯一 FINAL。
 不要输出未选分支、多个答案或格式示例；无法确认时输出 FINAL: UNKNOWN。"""
@@ -163,6 +179,11 @@ class RelayOptions:
     # an explicit stop-after-FINAL rule so the final lands before truncation;
     # parsing, calls and budgets unchanged.
     finish_compact_final: bool = False
+    # fsdf_mandatory_final_d_v1 (iteration 3): D must emit FINAL_D immediately
+    # after CANDIDATE_D (survives truncation), activating the dormant
+    # deep_final fallback for E-failed runs. Structurally monotone: runs where
+    # E formed a final are untouched.
+    mandatory_final_d: bool = False
 
 
 @dataclass
@@ -658,7 +679,12 @@ class ForkSelectDeepenFinishRelay:
         deepen_max_tokens = 4096 if self.options.de_budget_swap else 8192
         response_d = ""
         if self._stage_allowed(state, trace, "deepen", deepen_max_tokens):
-            deepen_prompt = DEEPEN_PROMPT_V2 if self.options.handoff_first_d else DEEPEN_PROMPT
+            if self.options.mandatory_final_d:
+                deepen_prompt = DEEPEN_PROMPT_MFD
+            elif self.options.handoff_first_d:
+                deepen_prompt = DEEPEN_PROMPT_V2
+            else:
+                deepen_prompt = DEEPEN_PROMPT
             response_d = self._call(
                 state,
                 trace,
@@ -1288,5 +1314,6 @@ __all__ = [
     "FINISH_PROMPT_COMPACT_V2",
     "DEEPEN_PROMPT",
     "DEEPEN_PROMPT_V2",
+    "DEEPEN_PROMPT_MFD",
     "match_simple_arithmetic_expression",
 ]

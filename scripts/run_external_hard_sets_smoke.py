@@ -271,6 +271,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_d_result_to_e",
     "enable_fsdf_de_budget_swap",
     "enable_fsdf_finish_compact_final",
+    "enable_fsdf_mandatory_final_d",
 )
 
 
@@ -298,6 +299,12 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     "v2hd_bs_cf": _arm_overrides((
         *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
         "enable_fsdf_de_budget_swap", "enable_fsdf_finish_compact_final",
+    )),
+    # v2hd_bs + fsdf_mandatory_final_d_v1: single variable = mandatory early
+    # FINAL_D in D (activates the deep_final fallback for E-failed runs).
+    "v2hd_bs_mfd": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_mandatory_final_d",
     )),
 }
 

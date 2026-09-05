@@ -11,6 +11,7 @@ import unittest
 from reasoning_agent.fork_select_deepen_finish import (
     ANALYZE_PROMPT,
     DEEPEN_PROMPT,
+    DEEPEN_PROMPT_MFD,
     DEEPEN_PROMPT_V2,
     FINISH_PROMPT,
     FINISH_PROMPT_V2,
@@ -982,6 +983,99 @@ class F2FinishCompactFinalTest(unittest.TestCase):
         )
         self.assertEqual("UNKNOWN", result.final_response)
         self.assertEqual("final_conflict", result.trace[-1]["fallback_source"])
+
+
+class F2MandatoryFinalDTest(unittest.TestCase):
+    """fsdf_mandatory_final_d_v1（迭代 3）：D 强制前置 FINAL_D，激活 deep_final 回退。"""
+
+    def mfd_deep(self, final="42"):
+        return (
+            "SELECTED_BRANCH: B\n"
+            "SELECTION_REASON: 覆盖约束且闭环最短\n"
+            "CANDIDATE_D: UNKNOWN\n"
+            f"FINAL_D: {final}\n"
+            "OPEN: 求根并检查 t>0\n"
+            "DERIVED: 第1步: 已化简为 (t-5)(t+1)=0\n"
+            "第2步: 候选根 t=5 与 t=-1"
+        )
+
+    def test_mfd_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_mandatory_final_d)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_mandatory_final_d)
+        self.assertFalse(RelayOptions().mandatory_final_d)
+
+    def test_mfd_02_off_uses_frontier_prompt(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, handoff_first_d=True, de_budget_swap=True),
+        )
+        self.assertEqual(DEEPEN_PROMPT_V2, client.calls[3][0][0]["content"])
+
+    def test_mfd_03_on_uses_mfd_prompt_only(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.mfd_deep(), finish("42", "42")],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                mandatory_final_d=True,
+            ),
+        )
+        self.assertEqual(DEEPEN_PROMPT_MFD, client.calls[3][0][0]["content"])
+        self.assertIn("立即输出你认为最可能正确的唯一最终答案", client.calls[3][0][0]["content"])
+        self.assertNotIn("可以输出 FINAL_D", client.calls[3][0][0]["content"])
+        # 预算与调用不变（迭代 1 前沿的交换保持）。
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client.calls))
+        self.assertEqual(5, len(client.calls))
+        self.assertEqual("42", result.final_response)
+
+    def test_mfd_04_early_final_d_survives_and_falls_back(self):
+        # E 失败时，前置 FINAL_D 经 deep_final 被采纳（激活休眠回退）。
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.mfd_deep(), RuntimeError("e")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                mandatory_final_d=True,
+            ),
+        )
+        e_prompt = client.calls[4][0][1]["content"]
+        self.assertIn("第1步: 已化简为 (t-5)(t+1)=0", e_prompt)
+        self.assertEqual("42", result.final_response)
+        self.assertEqual("deep_final", result.trace[-1]["fallback_source"])
+
+    def test_mfd_05_d_abstention_stays_unknown(self):
+        # 强制 FINAL_D 但 D 明确弃答 → 不激活回退，最终 UNKNOWN。
+        _, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.mfd_deep(final="UNKNOWN"), RuntimeError("e")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                mandatory_final_d=True,
+            ),
+        )
+        self.assertEqual("UNKNOWN", result.final_response)
+
+    def test_mfd_06_e_confirmed_final_still_wins(self):
+        # 结构单调性：E 自行形成终答时，前置 FINAL_D 不改变结果来源。
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.mfd_deep(final="99"), finish("7", "7")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                mandatory_final_d=True,
+            ),
+        )
+        self.assertEqual("7", result.final_response)
+        self.assertEqual("finish_final", result.trace[-1]["fallback_source"])
 
 
 if __name__ == "__main__":

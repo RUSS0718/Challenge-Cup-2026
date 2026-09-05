@@ -188,3 +188,11 @@
   （保持 v2hd_bs）。方法学发现：同配置跨窗方差 ±1-2（v2hd_bs 两窗 3 vs 2 correct；
   aime-2024-I-8 / aime-9 摇摆题反复翻转），单窗净增 ±1 不足以稳健前移，后续前沿
   前移需跨窗复现或更大净增。
+- 迭代 3 候选登记：`fsdf_mandatory_final_d_v1`（DEEPEN_PROMPT_MFD：CANDIDATE_D 后
+  立即强制 FINAL_D、置于 DERIVED 之前以在 4096 截断下存活；删除可选 FINAL_D 尾句）。
+  假设：激活休眠 deep_final 回退，把 E 失败的 ~11/15 invalid 池中"答对的 run"从 0
+  变为可见；结构性单调（不影响 E 已形成终答的 run）。验收主门为机制激活
+  （deep_final 有值 ≥5/15 候选 run 且 FINAL_D 具体值 ≥60% D-ok run），安全门为
+  net ≥0 且零反转；net ≥ +1 且 M1+M2 → 前移；M1+M2 但 net ≤0 → 复跑一次。
+  反斥：deep_final 激活 <5/15（机制再死）或 D handoff conflict+absent 恶化 ≥50%。
+  臂 `v2hd_bs_mfd` = v2hd_bs + 该开关。

@@ -375,6 +375,9 @@ class AgentConfig:
     # fsdf_finish_compact_final_v1 (iteration 2): E compact-output prompt with
     # stop-after-FINAL; parsing, calls and budgets unchanged.
     enable_fsdf_finish_compact_final: bool = False
+    # fsdf_mandatory_final_d_v1 (iteration 3): D must emit FINAL_D immediately
+    # after CANDIDATE_D; activates the deep_final fallback for E-failed runs.
+    enable_fsdf_mandatory_final_d: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1152,6 +1155,7 @@ class ReasoningAgent:
                 d_result_to_e=self.config.enable_fsdf_d_result_to_e,
                 de_budget_swap=self.config.enable_fsdf_de_budget_swap,
                 finish_compact_final=self.config.enable_fsdf_finish_compact_final,
+                mandatory_final_d=self.config.enable_fsdf_mandatory_final_d,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type
