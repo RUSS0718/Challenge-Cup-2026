@@ -130,3 +130,23 @@
   分支搜索、不引入动态预算路由。
 - **状态**：`REGISTERED_NOT_IMPLEMENTED`。本规格不实现、不运行；任何启动都
   需要新的 method ID、新预注册与用户授权。
+
+## 6. 快速诊断实验登记：`fsdf_handoff_first_d_v1`（2026-09-05 用户授权）
+
+- **假设**：D 阶段"交接产物优先"提示（SELECTED_BRANCH/CANDIDATE_D/OPEN/CHECKS/RISK
+  在前、DERIVED 以"第N步:"完整条目持续交付、各字段只出现一次）在不增加调用与 token
+  预算的前提下，提高 D→E 交接完整率与 E 终答形成率；正确数方向未知。交接可靠性由
+  程序承担（保存/传递/完整性标记），提示词只是阶段约定，不是保证。
+- **唯一变化**：仅 D 阶段 system prompt 替换为 `DEEPEN_PROMPT_V2`。用户建议的
+  RESULT/PREMISES/NEXT 三问映射到现有协议字段（RESULT→DERIVED、PREMISES→RISK、
+  NEXT→OPEN），不新增协议字段，不改解析、调用数与预算。
+- **协议快照**：`RelayOptions.handoff_first_d=True`，其余为 v2 合并栈
+  （P0+P1+P2a+P2b）；对照臂 `v2` 用旧 DEEPEN_PROMPT，唯一差异即 D 提示文本。
+- **窗口设计**：同窗交错双臂 `v2` vs `v2hd`，冻结池 ×10/集（30 题，种子 20260905），
+  workers=3，hard-stop 75 min。n=15/臂，仅支持方向性诊断，无统计功效。
+- **验收观测**（不以格式通过率为唯一标准）：交接完整率（`handoff_missing_fields`
+  为空的 finalize 占比 + 按字段分解）、E 终答形成率（`unknown_final` 与 finalize
+  来源构成）、native correct 数、协议失败率、时长/调用分布。
+- **边界**：门槛 UNFROZEN；诊断窗口不判定能力门、不修改 `SUBMISSION_CONFIG`、
+  不推送、不发布；逐条目增量交付（长推导每完成一个局部步骤交付一个完整条目）的
+  进一步协议改造不在本实验内，须独立预注册。

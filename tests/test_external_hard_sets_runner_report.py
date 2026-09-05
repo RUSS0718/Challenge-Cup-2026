@@ -219,6 +219,14 @@ class ArmSupportTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             arm_config("v3")
 
+    def test_v2hd_arm_differs_from_v2_only_in_handoff_first_d(self):
+        v2 = asdict(arm_config("v2"))
+        v2hd = asdict(arm_config("v2hd"))
+        self.assertFalse(v2["enable_fsdf_handoff_first_d"])
+        self.assertTrue(v2hd["enable_fsdf_handoff_first_d"])
+        del v2["enable_fsdf_handoff_first_d"], v2hd["enable_fsdf_handoff_first_d"]
+        self.assertEqual(v2, v2hd)
+
     def test_assign_arms_is_deterministic_and_balanced(self):
         tasks = [{"i": i} for i in range(7)]
         assign_arms(tasks, ["v1", "v2"])

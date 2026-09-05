@@ -58,6 +58,20 @@ DEEPEN_PROMPT = """你负责 Select/Deepen 阶段。先明确选择 B 或 C 中�
 CANDIDATE_D。随后输出 handoff 字段：SELECTED_BRANCH、CANDIDATE_D、DERIVED、OPEN、CHECKS、RISK。
 可以输出 FINAL_D，但不要把未选分支全文复制进 handoff。"""
 
+# fsdf_handoff_first_d_v1：仅改变 D 的职责表达（交接产物优先），解析、调用数与预算不变。
+# 交接的可靠性由程序承担（保存/传递/完整性标记）；提示词只承载阶段约定，不是可靠保证。
+# 字段沿用现有协议（DERIVED≈RESULT、RISK≈PREMISES、OPEN≈NEXT），不新增解析边界。
+DEEPEN_PROMPT_V2 = """你负责 Select/Deepen 阶段。先明确选择 B 或 C 中恰好一条，不得把两条方法融合成第三条。
+随后按固定顺序输出交接字段，交接产物优先，不要等完整深推之后再总结；每个字段只出现一次：
+SELECTED_BRANCH: B 或 C
+SELECTION_REASON: <一句话>
+CANDIDATE_D: <当前候选；无法确定写 UNKNOWN>
+OPEN: <下一步具体做什么：按顺序列出剩余待解步骤>
+CHECKS: <已做检查及结论；未确认的检查必须写明未确认>
+RISK: <当前推导依赖的前提与可能失效之处>
+DERIVED: <已完成推导，每条单独一行并以“第N步:”开头；每条自含完整公式与结论，宁短勿断；随推导持续补入新条目，被截断时前面的条目仍可用>
+DERIVED 是本阶段主要产物，优先保证每条完整；可以输出 FINAL_D；不要把未选分支全文复制进 handoff。"""
+
 FINISH_PROMPT = """你负责 Finish 阶段。只沿已选分支和 D 的 handoff 收尾，不重新进行方法选择，
 只修复选定链路的局部错误。第一项输出 CANDIDATE_E，末尾另起一行输出唯一 FINAL。
 不要输出未选分支、多个答案或格式示例；无法确认时输出 FINAL: UNKNOWN。"""
@@ -110,6 +124,9 @@ class RelayOptions:
     final_confirmation_v2: bool = False
     # P2b: E finishing-responsibility prompt variant (parsing/budget unchanged).
     finish_prompt_v2: bool = False
+    # fsdf_handoff_first_d_v1: D-stage "handoff product first" prompt variant
+    # only; parsing, call count and budgets unchanged.
+    handoff_first_d: bool = False
 
 
 @dataclass
@@ -573,11 +590,12 @@ class ForkSelectDeepenFinishRelay:
 
         response_d = ""
         if self._stage_allowed(state, trace, "deepen", 8192):
+            deepen_prompt = DEEPEN_PROMPT_V2 if self.options.handoff_first_d else DEEPEN_PROMPT
             response_d = self._call(
                 state,
                 trace,
                 "deepen",
-                DEEPEN_PROMPT,
+                deepen_prompt,
                 self._deepen_user_prompt(problem_text, state),
                 0.2,
                 8192,
@@ -1119,5 +1137,7 @@ __all__ = [
     "HARD_DEADLINE_SECONDS",
     "FINISH_PROMPT",
     "FINISH_PROMPT_V2",
+    "DEEPEN_PROMPT",
+    "DEEPEN_PROMPT_V2",
     "match_simple_arithmetic_expression",
 ]

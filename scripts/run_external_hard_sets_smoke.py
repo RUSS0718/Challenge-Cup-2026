@@ -251,23 +251,30 @@ def client_diagnostics(client: Any) -> dict[str, list[Any]]:
 
 # ── Dual-arm support: same-window interleaved arms on the frozen pools ──
 # `v1` is the untouched submission profile (FSDF v1 anchor).  `v2` turns on the
-# four FSDF-RELIABILITY-V2 candidate flags on top of the same profile.  This is
-# an exploratory diagnostic arm; the combined v2 arm is NOT attributable per
-# variable and produces no capability conclusion by itself.
+# four FSDF-RELIABILITY-V2 candidate flags on top of the same profile.  `v2hd`
+# additionally turns on fsdf_handoff_first_d_v1 (D prompt only).  These are
+# exploratory diagnostic arms; combined arms are NOT attributable per variable
+# and produce no capability conclusion by themselves.
 FSDF_V2_FLAGS = (
     "enable_fsdf_diagnostics_v2",
     "enable_fsdf_multiline_handoff_v2",
     "enable_fsdf_final_confirmation_v2",
     "enable_fsdf_finish_prompt_v2",
 )
+ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
+    "v1": {},
+    "v2": {flag: True for flag in FSDF_V2_FLAGS},
+    "v2hd": {
+        **{flag: True for flag in FSDF_V2_FLAGS},
+        "enable_fsdf_handoff_first_d": True,
+    },
+}
 
 
 def arm_config(arm: str) -> Any:
-    if arm == "v1":
-        return dataclasses.replace(SUBMISSION_CONFIG)
-    if arm == "v2":
-        return dataclasses.replace(SUBMISSION_CONFIG, **{flag: True for flag in FSDF_V2_FLAGS})
-    raise ValueError(f"unknown arm: {arm}")
+    if arm not in ARM_DEFINITIONS:
+        raise ValueError(f"unknown arm: {arm}")
+    return dataclasses.replace(SUBMISSION_CONFIG, **ARM_DEFINITIONS[arm])
 
 
 def assign_arms(tasks: list[dict[str, Any]], arms: list[str]) -> None:
@@ -489,13 +496,10 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "sampled_items": sampled_manifest,
         "arms": arms,
         "arm_assignment": "round_robin_over_seeded_shuffle",
-        "arm_flags": {
-            arm: {flag: (flag in FSDF_V2_FLAGS and arm == "v2") for flag in FSDF_V2_FLAGS}
-            for arm in arms
-        },
+        "arm_flags": {arm: dict(ARM_DEFINITIONS[arm]) for arm in arms},
         "method": (
-            "SUBMISSION_CONFIG base (fork_select_deepen_finish_v1); arm v2 = base + "
-            "FSDF-RELIABILITY-V2 combined candidate flags (exploratory diagnostic, "
+            "SUBMISSION_CONFIG base (fork_select_deepen_finish_v1); arms add "
+            "FSDF-RELIABILITY-V2 candidate flags (exploratory diagnostic, "
             "not per-variable attributable, no capability conclusion)"
         ),
         "git_head": os.popen("git rev-parse HEAD").read().strip(),

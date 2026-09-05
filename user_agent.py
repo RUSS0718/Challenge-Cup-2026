@@ -362,6 +362,9 @@ class AgentConfig:
     enable_fsdf_multiline_handoff_v2: bool = False
     enable_fsdf_final_confirmation_v2: bool = False
     enable_fsdf_finish_prompt_v2: bool = False
+    # fsdf_handoff_first_d_v1 (post-Issue-#15 candidate, user-authorized quick
+    # diagnostic): D-stage handoff-product-first prompt variant only.
+    enable_fsdf_handoff_first_d: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1124,6 +1127,7 @@ class ReasoningAgent:
                 multiline_handoff_v2=self.config.enable_fsdf_multiline_handoff_v2,
                 final_confirmation_v2=self.config.enable_fsdf_final_confirmation_v2,
                 finish_prompt_v2=self.config.enable_fsdf_finish_prompt_v2,
+                handoff_first_d=self.config.enable_fsdf_handoff_first_d,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

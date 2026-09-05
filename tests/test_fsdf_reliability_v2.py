@@ -10,6 +10,8 @@ import unittest
 
 from reasoning_agent.fork_select_deepen_finish import (
     ANALYZE_PROMPT,
+    DEEPEN_PROMPT,
+    DEEPEN_PROMPT_V2,
     FINISH_PROMPT,
     FINISH_PROMPT_V2,
     L0_TOKEN_SEQUENCE,
@@ -543,6 +545,96 @@ class F2RegressionGuardsTest(unittest.TestCase):
         self.assertTrue(finalize_event(result["trace"])["token_usage"] == "unavailable")
         self.assertEqual("7", result["final_response"])
         json.dumps(result, ensure_ascii=False)
+
+
+class F2HandoffFirstDTest(unittest.TestCase):
+    """fsdf_handoff_first_d_v1：仅 D 阶段提示词变化；解析、调用数与预算不变。"""
+
+    def handoff_first_deep(self, candidate="42"):
+        # 新协议的 D 输出：管理字段在前、DERIVED 完整条目持续交付在后。
+        return (
+            "SELECTED_BRANCH: B\n"
+            "SELECTION_REASON: 覆盖约束且闭环最短\n"
+            f"CANDIDATE_D: {candidate}\n"
+            "OPEN: 第1步求根，第2步检查 t>0 且 t≠1，第3步代回排除增根\n"
+            "CHECKS: 尚未完成代回检查\n"
+            "RISK: 代换要求 t>0；乘去分母时假设 t≠1\n"
+            "DERIVED: 第1步: 已将原问题化为方程 f(t)=0\n"
+            "第2步: 整理得 (t-5)(t+1)=0\n"
+            "第3步: 候选根 t=5 与 t=-1\n"
+            "FINAL_D: 5"
+        )
+
+    def test_hfd_01_flag_defaults_off_everywhere(self):
+        self.assertFalse(AgentConfig().enable_fsdf_handoff_first_d)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_handoff_first_d)
+        self.assertFalse(RelayOptions().handoff_first_d)
+
+    def test_hfd_02_off_uses_v1_deepen_prompt(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                finish_prompt_v2=True,
+            ),
+        )
+        self.assertEqual(DEEPEN_PROMPT, client.calls[3][0][0]["content"])
+
+    def test_hfd_03_on_changes_only_deepen_prompt_and_keeps_budget(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.handoff_first_deep(), finish("5", "5")],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                finish_prompt_v2=True,
+                handoff_first_d=True,
+            ),
+        )
+        self.assertEqual(DEEPEN_PROMPT_V2, client.calls[3][0][0]["content"])
+        self.assertEqual(ANALYZE_PROMPT, client.calls[0][0][0]["content"])
+        self.assertEqual(FINISH_PROMPT_V2, client.calls[4][0][0]["content"])
+        self.assertEqual(STAGE_TOKEN_SEQUENCE, tuple(call[2] for call in client.calls))
+        self.assertEqual(5, len(client.calls))
+        self.assertEqual("5", result.final_response)
+        self.assertEqual("finish_final", result.trace[-1]["fallback_source"])
+
+    def test_hfd_04_existing_parsing_handles_new_protocol_output(self):
+        # 程序侧设施不变：新协议输出走既有解析，E 收到完整条目与剩余步骤。
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.handoff_first_deep(), finish("5", "5")],
+            RelayOptions(multiline_handoff_v2=True, handoff_first_d=True),
+        )
+        e_prompt = client.calls[4][0][1]["content"]
+        self.assertIn("第1步: 已将原问题化为方程 f(t)=0", e_prompt)
+        self.assertIn("第3步: 候选根 t=5 与 t=-1", e_prompt)
+        self.assertIn("OPEN: 第1步求根", e_prompt)
+        self.assertIn("RISK: 代换要求 t>0", e_prompt)
+        self.assertNotIn("HANDOFF_INCOMPLETE", e_prompt)
+        self.assertEqual("5", result.final_response)
+
+    def test_hfd_05_truncated_tail_keeps_earlier_items_visible(self):
+        # DERIVED 之后的 FINAL_D 被截掉时，前面完整条目仍进入 E，且终答 fail-closed。
+        truncated = self.handoff_first_deep().split("FINAL_D:")[0]
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), truncated, RuntimeError("e")],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+            ),
+        )
+        e_prompt = client.calls[4][0][1]["content"]
+        self.assertIn("第2步: 整理得 (t-5)(t+1)=0", e_prompt)
+        self.assertIn("OPEN: 第1步求根", e_prompt)
+        self.assertEqual("UNKNOWN", result.final_response)
+        self.assertEqual("unknown", result.trace[-1]["fallback_source"])
+        # 五个值字段齐全：截断只影响答案确认（无 FINAL_D → UNKNOWN），不影响交接。
+        event = finalize_event(result.trace)
+        self.assertEqual([], event["handoff_missing_fields"])
 
 
 if __name__ == "__main__":
