@@ -381,6 +381,9 @@ class AgentConfig:
     # fsdf_finish_handoff_share_v1 (iteration 4): E-input composition — drop
     # the selected-idea block, raise handoff reserve 3000 -> 4600.
     enable_fsdf_finish_handoff_share: bool = False
+    # fsdf_handoff_open_first_e_v1 (iteration 5): E-side handoff rendering
+    # order — OPEN before DERIVED; assembly priority and budgets unchanged.
+    enable_fsdf_handoff_open_first_e: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1160,6 +1163,7 @@ class ReasoningAgent:
                 finish_compact_final=self.config.enable_fsdf_finish_compact_final,
                 mandatory_final_d=self.config.enable_fsdf_mandatory_final_d,
                 finish_handoff_share=self.config.enable_fsdf_finish_handoff_share,
+                handoff_open_first_e=self.config.enable_fsdf_handoff_open_first_e,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

@@ -273,6 +273,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_finish_compact_final",
     "enable_fsdf_mandatory_final_d",
     "enable_fsdf_finish_handoff_share",
+    "enable_fsdf_handoff_open_first_e",
 )
 
 
@@ -312,6 +313,13 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     "v2hd_bs_hs": _arm_overrides((
         *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
         "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
+    )),
+    # v2hd_bs_hs + fsdf_handoff_open_first_e_v1: single variable = E-side
+    # handoff rendering order (OPEN before DERIVED).
+    "v2hd_hs_of": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
+        "enable_fsdf_handoff_open_first_e",
     )),
 }
 

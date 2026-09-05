@@ -1144,5 +1144,78 @@ class F2FinishHandoffShareTest(unittest.TestCase):
         self.assertNotIn("选中思路：", e_prompt)
 
 
+class F2HandoffOpenFirstETest(unittest.TestCase):
+    """fsdf_handoff_open_first_e_v1（迭代 5）：仅 E 侧渲染顺序——OPEN 提到 DERIVED 前。"""
+
+    def test_ofe_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_handoff_open_first_e)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_handoff_open_first_e)
+        self.assertFalse(RelayOptions().handoff_open_first_e)
+
+    def test_ofe_02_off_keeps_derived_before_open(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, handoff_first_d=True, de_budget_swap=True,
+                         finish_handoff_share=True),
+        )
+        section = handoff_section(client.calls[4][0][1]["content"])
+        self.assertLess(section.index("DERIVED:"), section.index("OPEN:"))
+
+    def test_ofe_03_on_renders_open_before_derived(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish("7", "7")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                finish_handoff_share=True,
+                handoff_open_first_e=True,
+            ),
+        )
+        section = handoff_section(client.calls[4][0][1]["content"])
+        self.assertLess(section.index("OPEN:"), section.index("DERIVED:"))
+        self.assertLess(section.index("CANDIDATE_D:"), section.index("OPEN:"))
+        # 装配保留优先级不变：内容完整、预算不变。
+        self.assertNotIn("HANDOFF_DROPPED", section)
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client.calls))
+        self.assertEqual(5, len(client.calls))
+        self.assertEqual("7", result.final_response)
+
+    def test_ofe_04_assembly_priority_unchanged_under_budget(self):
+        # 渲染顺序改变不得影响装配裁剪（同样的条目被保留）。
+        derived_lines = [
+            f"第{i}步: 完整中间推导条目记录 x_{i} = {i} * 13 + 7 与边界条件核对说明"
+            for i in range(1, 141)
+        ]
+        d_response = (
+            "SELECTED_BRANCH: B\nCANDIDATE_D: 42\n"
+            "DERIVED: " + "\n".join(derived_lines) + "\n"
+            "OPEN: 剩余步骤\nCHECKS: 检查结果\nRISK: 风险"
+        )
+        sections = {}
+        for flag in (False, True):
+            client, _ = solve_v2(
+                [analysis(), idea("B"), idea("C"), d_response, finish()],
+                RelayOptions(
+                    multiline_handoff_v2=True,
+                    handoff_first_d=True,
+                    de_budget_swap=True,
+                    finish_handoff_share=True,
+                    handoff_open_first_e=flag,
+                ),
+            )
+            sections[flag] = handoff_section(client.calls[4][0][1]["content"])
+        for flag, section in sections.items():
+            self.assertIn("HANDOFF_PARTIAL: DERIVED", section)
+            self.assertIn("第1步", section)
+            self.assertNotIn("第140步", section)
+            self.assertNotIn("…[省略]…", section)
+        # 仅顺序不同：两臂保留的 DERIVED 行集合一致。
+        def derived_lines_in(section):
+            return [line for line in section.splitlines() if line.startswith(("DERIVED: ", "第"))]
+        self.assertEqual(derived_lines_in(sections[False]), derived_lines_in(sections[True]))
+
+
 if __name__ == "__main__":
     unittest.main()

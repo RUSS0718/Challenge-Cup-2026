@@ -47,6 +47,10 @@ _HANDOFF_VALUE_FIELDS = ("CANDIDATE_D", "DERIVED", "OPEN", "CHECKS", "RISK")
 # 保留优先级（高→低）：裁剪时先丢 RISK，最后保留已完成推导。
 _HANDOFF_KEEP_PRIORITY = ("DERIVED", "OPEN", "CHECKS", "CANDIDATE_D", "RISK")
 _HANDOFF_DISPLAY_ORDER = ("CANDIDATE_D", "DERIVED", "OPEN", "CHECKS", "RISK")
+# fsdf_handoff_open_first_e_v1（迭代 5）：仅改 E 侧渲染顺序——OPEN 提到 DERIVED
+# 之前，让 E 先读"剩余步骤"再读推导墙（E 自顶向下读输入且截断丢尾部）。
+# 装配保留优先级不变；解析与预算不变。
+_HANDOFF_DISPLAY_ORDER_OPEN_FIRST = ("CANDIDATE_D", "OPEN", "DERIVED", "CHECKS", "RISK")
 
 ANALYZE_PROMPT = """你负责 Analyze 阶段。只拆解题目，不完成整题，不输出 FINAL。
 严格输出五个字段：GOAL、ANSWER_TYPE、CONSTRAINTS、STRUCTURE、BOTTLENECK。
@@ -191,6 +195,10 @@ class RelayOptions:
     # the selected-idea block (its PLAN invites re-derivation) and raise the
     # handoff assembly reserve 3000 -> 4600 within the same 6500 context cap.
     finish_handoff_share: bool = False
+    # fsdf_handoff_open_first_e_v1 (iteration 5): E-side handoff rendering
+    # order only — OPEN rendered before DERIVED so E reads the remaining steps
+    # first; assembly priority, parsing and budgets unchanged.
+    handoff_open_first_e: bool = False
 
 
 @dataclass
@@ -1038,7 +1046,12 @@ class ForkSelectDeepenFinishRelay:
                 dropped.append(field)
 
         parts = [header]
-        for field in _HANDOFF_DISPLAY_ORDER:
+        display_order = (
+            _HANDOFF_DISPLAY_ORDER_OPEN_FIRST
+            if self.options.handoff_open_first_e
+            else _HANDOFF_DISPLAY_ORDER
+        )
+        for field in display_order:
             parts.extend(placed.get(field, []))
         incomplete = bool(missing or dropped or partial or unclosed_trimmed)
         if incomplete:
