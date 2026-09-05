@@ -845,7 +845,25 @@ class F2DResultToETest(unittest.TestCase):
         self.assertEqual(5, len(client.calls))
         event = finalize_event(result.trace)
         self.assertTrue(event["d_candidate_visible_to_e"])
+        self.assertFalse(event["e_final_equals_d_candidate"])
         json.dumps(result.as_dict(), ensure_ascii=False)
+
+    def test_dre_08_anchoring_copy_is_observed_not_promoted(self):
+        # E 照抄注入候选时终答仍走正常选择链；布尔诊断只记录行为不改变行为。
+        _, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), self.synthetic_d(), "FINAL: 314159"],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                d_result_to_e=True,
+            ),
+        )
+        self.assertEqual("314159", result.final_response)
+        self.assertEqual("finish_final", result.trace[-1]["fallback_source"])
+        event = finalize_event(result.trace)
+        self.assertTrue(event["d_candidate_visible_to_e"])
+        self.assertTrue(event["e_final_equals_d_candidate"])
 
 
 if __name__ == "__main__":

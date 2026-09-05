@@ -85,6 +85,15 @@ FINISH_PROMPT_V2 = """你负责 Finish 阶段。只沿已选分支和 D 的 hand
 不要把未确认的候选或中间结果直接当作 FINAL；不要用“已检查”之类的自述替代实际完成最后一步；
 不要输出未选分支、多个答案或格式示例。"""
 
+# fsdf_finish_compact_final_v1（配对 A/B 迭代候选 1）：只改 E 的职责表达，
+# 针对 E 截断近饱和（13/15 length）的瓶颈——推导紧凑化 + 尽早确认 FINAL。
+# 答案解析、调用数与预算不变。
+FINISH_PROMPT_COMPACT = """你负责 Finish 阶段。只沿已选分支和 D 的 handoff 收尾，不重新进行方法选择，不引入新分支。
+推导保持紧凑：只写关键等式与结论行，不展开长段叙述；OPEN 项未解步骤先补完。
+若 handoff 中有 FINAL_D_FOR_CHECK 候选，先核查再使用：正确则沿用并给出依据，错误则修正。
+一旦得到可确认的答案，立即末尾另起一行输出唯一 FINAL: <答案>，不要继续多余推导；
+无法确认时输出 FINAL: UNKNOWN。不要输出未选分支、多个答案或格式示例。"""
+
 L0_PROMPT = """这是一个已由确定性简单算式识别器命中的 L0 题。直接计算并只输出一行 FINAL: <答案>。
 不要输出推理、多个答案或占位符。"""
 
@@ -707,6 +716,12 @@ class ForkSelectDeepenFinishRelay:
             final_response, source = self._select_answer_v2(response_e, response_d, state)
         else:
             final_response, source = self._select_answer(response_e, response_d)
+        # fsdf_d_result_to_e_v1 锚定观测：E 的终答是否照抄注入候选（只记布尔，不记文本）。
+        if state.d_candidate_for_check:
+            final_text = final_response.strip() if isinstance(final_response, str) else ""
+            state.diagnostics["e_final_equals_d_candidate"] = (
+                bool(final_text) and final_text == state.d_candidate_for_check
+            )
         return self._result(state, trace, final_response, source)
 
     @staticmethod
@@ -1094,6 +1109,7 @@ class ForkSelectDeepenFinishRelay:
             "handoff_clipped",
             "finish_context_clipped",
             "d_candidate_visible_to_e",
+            "e_final_equals_d_candidate",
             "token_usage",
             "finish_reason",
         }})
@@ -1207,6 +1223,7 @@ class ForkSelectDeepenFinishRelay:
                 "finish_context_clipped": bool(state.diagnostics.get("finish_context_clipped", False)),
                 "candidate_present": bool(state.diagnostics.get("candidate_present", False)),
                 "d_candidate_visible_to_e": bool(state.diagnostics.get("d_candidate_visible_to_e", False)),
+                "e_final_equals_d_candidate": bool(state.diagnostics.get("e_final_equals_d_candidate", False)),
                 "token_usage": "unavailable",
                 "finish_reason": "unavailable",
             }

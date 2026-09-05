@@ -221,6 +221,7 @@ TRACE_KEEP = frozenset({
     "handoff_unknown_fields", "handoff_unclosed_fields", "handoff_field_states",
     "handoff_all_fields_present", "handoff_has_derived_content",
     "handoff_has_candidate_result", "d_candidate_visible_to_e",
+    "e_final_equals_d_candidate",
 })
 
 _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
