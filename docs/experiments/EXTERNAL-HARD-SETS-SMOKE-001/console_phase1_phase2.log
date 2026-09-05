@@ -1,0 +1,395 @@
+[EXT-SMOKE] pending=150 workers=3 seed=20260905
+[set_b_aime] aime-2024-I-6 correct calls=5 dur=358s status=ok
+[set_c_hle_] hle-6733e070361b540695504b86 incorrect calls=5 dur=551s status=ok
+[set_c_hle_] hle-671bdb372bb31d345b269f7d incorrect calls=5 dur=571s status=ok
+[set_b_aime] aime-2024-I-2 correct calls=5 dur=273s status=ok
+[set_a_olym] OlymMATH-HARD-45-EN invalid calls=5 dur=564s status=ok
+[set_b_aime] aime-2024-I-12 incorrect calls=5 dur=405s status=ok
+[set_a_olym] OlymMATH-HARD-35-ZH correct calls=5 dur=388s status=ok
+[set_c_hle_] hle-66ea542e4509a12ed7db1d7b invalid calls=5 dur=493s status=ok
+[set_c_hle_] hle-671f8a4e7e8f160452726c81 incorrect calls=5 dur=598s status=ok
+[set_a_olym] OlymMATH-HARD-89-EN incorrect calls=5 dur=490s status=ok
+[set_a_olym] OlymMATH-HARD-94-ZH incorrect calls=5 dur=470s status=ok
+[set_a_olym] OlymMATH-HARD-50-ZH incorrect calls=5 dur=481s status=ok
+[set_c_hle_] hle-670c2d61886695e43e7c18b3 invalid calls=5 dur=555s status=ok
+[set_a_olym] OlymMATH-HARD-99-ZH incorrect calls=5 dur=420s status=ok
+[set_a_olym] OlymMATH-HARD-0-ZH incorrect calls=5 dur=442s status=ok
+[set_c_hle_] hle-6734b2fec14270a5b42323f5 incorrect calls=5 dur=407s status=ok
+[set_c_hle_] hle-673d70ca1b7b41a118b4b786 incorrect calls=5 dur=458s status=ok
+[set_c_hle_] hle-673b192f331c2eeff8631ccf incorrect calls=5 dur=445s status=ok
+[set_c_hle_] hle-6722815c3c4f6785b07a6f49 incorrect calls=5 dur=478s status=ok
+[set_b_aime] aime-1 correct calls=5 dur=497s status=ok
+[set_b_aime] aime-27 incorrect calls=5 dur=323s status=ok
+[set_b_aime] aime-2024-I-3 correct calls=5 dur=378s status=ok
+[set_c_hle_] hle-673940404b79755e8fd591dc incorrect calls=5 dur=474s status=ok
+[set_c_hle_] hle-66ef98088171e6ed71be1454 incorrect calls=5 dur=472s status=ok
+[set_c_hle_] hle-6720c324083a628a849fcb53 incorrect calls=5 dur=440s status=ok
+[set_a_olym] OlymMATH-HARD-46-EN incorrect calls=5 dur=513s status=ok
+[set_a_olym] OlymMATH-HARD-48-ZH incorrect calls=5 dur=473s status=ok
+[set_c_hle_] hle-67259a76e7601df8b19a9e2a incorrect calls=5 dur=273s status=ok
+[set_b_aime] aime-3 correct calls=5 dur=355s status=ok
+[set_a_olym] OlymMATH-HARD-86-EN incorrect calls=5 dur=438s status=ok
+[set_a_olym] OlymMATH-HARD-44-ZH correct calls=5 dur=380s status=ok
+[set_c_hle_] hle-6725716480b9caf2f8f62d01 incorrect calls=5 dur=357s status=ok
+[set_a_olym] OlymMATH-HARD-66-ZH incorrect calls=5 dur=378s status=ok
+[set_a_olym] OlymMATH-HARD-2-EN correct calls=5 dur=330s status=ok
+[set_b_aime] aime-2024-II-6 correct calls=5 dur=326s status=ok
+[set_a_olym] OlymMATH-HARD-92-EN invalid calls=5 dur=470s status=ok
+[set_b_aime] aime-0 correct calls=5 dur=336s status=ok
+[set_c_hle_] hle-67400254c0ce9147b46fadfb incorrect calls=5 dur=477s status=ok
+[set_b_aime] aime-23 incorrect calls=5 dur=463s status=ok
+[set_c_hle_] hle-67486cd4501c568127ed52d4 incorrect calls=5 dur=399s status=ok
+[set_c_hle_] hle-6721154d5968ddcc0df3a25c incorrect calls=5 dur=501s status=ok
+[set_c_hle_] hle-66fea0c4cb66b0e85c55ee52 incorrect calls=5 dur=386s status=ok
+[set_c_hle_] hle-673b7ee0b22ebd24e26d4ece incorrect calls=5 dur=414s status=ok
+[set_a_olym] OlymMATH-HARD-93-EN incorrect calls=5 dur=422s status=ok
+[set_c_hle_] hle-66f454d18ab578bcbb18387c incorrect calls=5 dur=351s status=ok
+[set_b_aime] aime-11 incorrect calls=5 dur=442s status=ok
+[set_b_aime] aime-15 correct calls=5 dur=411s status=ok
+[set_a_olym] OlymMATH-HARD-37-EN incorrect calls=5 dur=456s status=ok
+[set_a_olym] OlymMATH-HARD-20-ZH incorrect calls=5 dur=412s status=ok
+[set_c_hle_] hle-66eb1d84ca5fb5434978190f invalid calls=5 dur=449s status=ok
+[set_b_aime] aime-14 incorrect calls=5 dur=389s status=ok
+[set_c_hle_] hle-671641166bc44542da778ccf incorrect calls=5 dur=412s status=ok
+[set_c_hle_] hle-671922c9897dbe5d706dc802 invalid calls=5 dur=421s status=ok
+[set_c_hle_] hle-66f2e9b4d18ac34db32642b7 incorrect calls=5 dur=418s status=ok
+[set_c_hle_] hle-673b5fdff0294e2cbdb5bebb correct calls=5 dur=367s status=ok
+[set_b_aime] aime-2024-I-11 invalid calls=5 dur=445s status=ok
+[set_c_hle_] hle-6754baec618d187bb3362936 incorrect calls=5 dur=416s status=ok
+[set_c_hle_] hle-670df2e172288739ca35e0e1 incorrect calls=5 dur=316s status=ok
+[set_b_aime] aime-25 correct calls=5 dur=404s status=ok
+[set_a_olym] OlymMATH-HARD-60-ZH incorrect calls=5 dur=371s status=ok
+[set_b_aime] aime-2024-II-7 invalid calls=5 dur=426s status=ok
+[set_b_aime] aime-6 incorrect calls=5 dur=402s status=ok
+[set_b_aime] aime-2024-II-13 incorrect calls=5 dur=362s status=ok
+[set_b_aime] aime-4 incorrect calls=5 dur=380s status=ok
+[set_c_hle_] hle-66ecd3c6e8b95a8f971fb485 invalid calls=5 dur=353s status=ok
+[set_b_aime] aime-2024-I-4 correct calls=5 dur=400s status=ok
+[set_b_aime] aime-2024-II-15 invalid calls=5 dur=433s status=ok
+[set_c_hle_] hle-670205330fb89862bc1d87d2 incorrect calls=5 dur=338s status=ok
+[set_b_aime] aime-2024-I-14 incorrect calls=5 dur=367s status=ok
+[set_a_olym] OlymMATH-HARD-42-EN invalid calls=5 dur=528s status=ok
+[set_c_hle_] hle-671800b68b88f01935b5824f invalid calls=5 dur=566s status=ok
+[set_c_hle_] hle-672656a3fd560b1526278952 incorrect calls=5 dur=549s status=ok
+[set_a_olym] OlymMATH-HARD-88-ZH incorrect calls=5 dur=425s status=ok
+[set_c_hle_] hle-66f9a1ed4f798b651f6d3c8e incorrect calls=5 dur=500s status=ok
+[set_b_aime] aime-22 incorrect calls=5 dur=538s status=ok
+[EXT-SMOKE] pending=75 workers=6 seed=20260905
+[set_a_olym] OlymMATH-HARD-10-ZH incorrect calls=5 dur=442s status=ok
+[set_b_aime] aime-2024-I-8 correct calls=5 dur=464s status=ok
+[set_b_aime] aime-2024-II-9 invalid calls=5 dur=521s status=ok
+[set_b_aime] aime-2024-II-2 correct calls=5 dur=541s status=ok
+[set_b_aime] aime-21 correct calls=5 dur=547s status=ok
+[set_c_hle_] hle-672068b61177432c7e500289 invalid calls=5 dur=570s status=ok
+[set_c_hle_] hle-675853c6101f66905f003073 incorrect calls=5 dur=363s status=ok
+[set_c_hle_] hle-66fc633698a7264ef58309c0 incorrect calls=5 dur=405s status=ok
+[set_a_olym] OlymMATH-HARD-97-ZH incorrect calls=5 dur=521s status=ok
+[set_b_aime] aime-5 invalid calls=5 dur=459s status=ok
+[set_b_aime] aime-8 incorrect calls=5 dur=550s status=ok
+[set_b_aime] aime-18 correct calls=5 dur=477s status=ok
+[set_c_hle_] hle-67278a07f6750868800d5801 incorrect calls=5 dur=430s status=ok
+[set_c_hle_] hle-6739ec066a53385958bca5e8 incorrect calls=5 dur=519s status=ok
+[set_a_olym] OlymMATH-HARD-68-EN incorrect calls=5 dur=550s status=ok
+[set_a_olym] OlymMATH-HARD-76-EN incorrect calls=5 dur=526s status=ok
+[set_b_aime] aime-2024-II-1 correct calls=5 dur=498s status=ok
+[set_c_hle_] hle-6736cea8134f03c3c61391e9 invalid calls=5 dur=684s status=ok
+[set_a_olym] OlymMATH-HARD-17-ZH correct calls=5 dur=381s status=ok
+[set_a_olym] OlymMATH-HARD-36-EN incorrect calls=5 dur=503s status=ok
+[set_c_hle_] hle-6700aa576c5c0e0d48330ad1 incorrect calls=5 dur=501s status=ok
+[set_b_aime] aime-9 correct calls=5 dur=507s status=ok
+[set_a_olym] OlymMATH-HARD-74-ZH incorrect calls=5 dur=561s status=ok
+[set_a_olym] OlymMATH-HARD-39-ZH incorrect calls=5 dur=431s status=ok
+[set_a_olym] OlymMATH-HARD-85-EN incorrect calls=5 dur=536s status=ok
+[set_c_hle_] hle-673852c82e5179091a7648e8 incorrect calls=5 dur=355s status=ok
+[set_c_hle_] hle-66e8a3ed3aa94517d4573b14 correct calls=5 dur=354s status=ok
+[set_b_aime] aime-19 incorrect calls=5 dur=438s status=ok
+[set_c_hle_] hle-6732a917934ffe0cf439cf30 incorrect calls=5 dur=415s status=ok
+[set_b_aime] aime-26 incorrect calls=5 dur=437s status=ok
+[set_a_olym] OlymMATH-HARD-51-EN incorrect calls=5 dur=476s status=ok
+[set_a_olym] OlymMATH-HARD-21-EN invalid calls=5 dur=517s status=ok
+[set_c_hle_] hle-671f99152e60076c5693554f incorrect calls=5 dur=479s status=ok
+[set_a_olym] OlymMATH-HARD-6-ZH incorrect calls=5 dur=454s status=ok
+[set_b_aime] aime-28 incorrect calls=5 dur=463s status=ok
+[set_c_hle_] hle-6703a3c04a760324b0e15a30 incorrect calls=5 dur=499s status=ok
+[set_b_aime] aime-16 invalid calls=5 dur=503s status=ok
+[set_a_olym] OlymMATH-HARD-73-EN incorrect calls=5 dur=497s status=ok
+[set_a_olym] OlymMATH-HARD-61-EN incorrect calls=5 dur=599s status=ok
+[set_a_olym] OlymMATH-HARD-91-EN incorrect calls=5 dur=528s status=ok
+[set_b_aime] aime-2024-II-10 correct calls=5 dur=489s status=ok
+[set_a_olym] OlymMATH-HARD-75-ZH correct calls=5 dur=475s status=ok
+[set_a_olym] OlymMATH-HARD-59-ZH incorrect calls=5 dur=531s status=ok
+[set_b_aime] aime-20 correct calls=5 dur=579s status=ok
+[set_a_olym] OlymMATH-HARD-1-EN invalid calls=5 dur=543s status=ok
+[set_b_aime] aime-29 incorrect calls=5 dur=583s status=ok
+[set_c_hle_] hle-6718161735872f2136bcfc88 incorrect calls=5 dur=569s status=ok
+[set_a_olym] OlymMATH-HARD-18-ZH incorrect calls=5 dur=465s status=ok
+[set_b_aime] aime-7 invalid calls=5 dur=510s status=ok
+[set_a_olym] OlymMATH-HARD-41-ZH incorrect calls=5 dur=581s status=ok
+[set_c_hle_] hle-6778bdd88f6679541aac6b6a incorrect calls=5 dur=588s status=ok
+[set_a_olym] OlymMATH-HARD-31-ZH correct calls=5 dur=640s status=ok
+[set_b_aime] aime-2024-II-14 invalid calls=5 dur=660s status=ok
+[set_c_hle_] hle-6720f01e936e8e4575f4f3f4 incorrect calls=5 dur=551s status=ok
+[set_b_aime] aime-2024-I-1 correct calls=5 dur=495s status=ok
+[set_c_hle_] hle-672067805681ce2b6f5a08a7 incorrect calls=5 dur=580s status=ok
+[set_a_olym] OlymMATH-HARD-23-EN incorrect calls=5 dur=644s status=ok
+[set_b_aime] aime-2024-II-3 correct calls=5 dur=554s status=ok
+[set_b_aime] aime-17 incorrect calls=5 dur=533s status=ok
+[set_a_olym] OlymMATH-HARD-4-EN incorrect calls=5 dur=617s status=ok
+[set_a_olym] OlymMATH-HARD-27-ZH incorrect calls=5 dur=582s status=ok
+[set_b_aime] aime-24 invalid calls=5 dur=532s status=ok
+[set_a_olym] OlymMATH-HARD-71-EN incorrect calls=5 dur=657s status=ok
+[set_b_aime] aime-2 correct calls=5 dur=476s status=ok
+[set_a_olym] OlymMATH-HARD-19-EN incorrect calls=5 dur=552s status=ok
+[set_a_olym] OlymMATH-HARD-7-EN correct calls=5 dur=571s status=ok
+[set_b_aime] aime-10 invalid calls=5 dur=575s status=ok
+[set_a_olym] OlymMATH-HARD-72-ZH incorrect calls=5 dur=574s status=ok
+[set_b_aime] aime-12 invalid calls=5 dur=674s status=ok
+[set_a_olym] OlymMATH-HARD-58-EN invalid calls=5 dur=641s status=ok
+[set_c_hle_] hle-6709986e9a83b4ea926a3036 incorrect calls=5 dur=648s status=ok
+[set_b_aime] aime-2024-I-7 correct calls=5 dur=582s status=ok
+[set_a_olym] OlymMATH-HARD-63-ZH incorrect calls=5 dur=540s status=ok
+[set_c_hle_] hle-672059fc2ea5966e3eddd835 incorrect calls=5 dur=616s status=ok
+[set_b_aime] aime-2024-II-5 invalid calls=5 dur=505s status=ok
+{
+  "set_a_olymmath_hard": {
+    "n": 50,
+    "native_correct": 7,
+    "native_incorrect": 37,
+    "invalid": 6,
+    "contract_correct": 7,
+    "format_ok": 44,
+    "serializable": 50,
+    "model_error": 0,
+    "mean_calls": 5.0,
+    "max_calls": 5,
+    "mean_duration_s": 499.7,
+    "p95_duration_s": 639.9,
+    "native_accuracy": 0.14,
+    "by_domain": {
+      "Algebra": {
+        "n": 12,
+        "native_correct": 2,
+        "native_incorrect": 10,
+        "invalid": 0,
+        "contract_correct": 2,
+        "format_ok": 12,
+        "serializable": 12,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 487.5,
+        "p95_duration_s": null,
+        "native_accuracy": 0.1667
+      },
+      "Combinatorics": {
+        "n": 12,
+        "native_correct": 1,
+        "native_incorrect": 8,
+        "invalid": 3,
+        "contract_correct": 1,
+        "format_ok": 9,
+        "serializable": 12,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 517.5,
+        "p95_duration_s": null,
+        "native_accuracy": 0.0833
+      },
+      "Geometry": {
+        "n": 13,
+        "native_correct": 3,
+        "native_incorrect": 9,
+        "invalid": 1,
+        "contract_correct": 3,
+        "format_ok": 12,
+        "serializable": 13,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 516.7,
+        "p95_duration_s": null,
+        "native_accuracy": 0.2308
+      },
+      "Number Theory": {
+        "n": 13,
+        "native_correct": 1,
+        "native_incorrect": 10,
+        "invalid": 2,
+        "contract_correct": 1,
+        "format_ok": 11,
+        "serializable": 13,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 477.6,
+        "p95_duration_s": null,
+        "native_accuracy": 0.0769
+      }
+    },
+    "by_language": {
+      "EN": 25,
+      "ZH": 25
+    }
+  },
+  "set_b_aime": {
+    "n": 50,
+    "native_correct": 22,
+    "native_incorrect": 16,
+    "invalid": 12,
+    "contract_correct": 22,
+    "format_ok": 45,
+    "serializable": 50,
+    "model_error": 0,
+    "mean_calls": 5.0,
+    "max_calls": 5,
+    "mean_duration_s": 465.2,
+    "p95_duration_s": 581.9,
+    "native_accuracy": 0.44,
+    "by_domain": {
+      "Algebra": {
+        "n": 11,
+        "native_correct": 4,
+        "native_incorrect": 5,
+        "invalid": 2,
+        "contract_correct": 4,
+        "format_ok": 10,
+        "serializable": 11,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 459.0,
+        "p95_duration_s": null,
+        "native_accuracy": 0.3636
+      },
+      "Combinatorics": {
+        "n": 17,
+        "native_correct": 10,
+        "native_incorrect": 3,
+        "invalid": 4,
+        "contract_correct": 10,
+        "format_ok": 15,
+        "serializable": 17,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 479.3,
+        "p95_duration_s": null,
+        "native_accuracy": 0.5882
+      },
+      "Geometry": {
+        "n": 14,
+        "native_correct": 5,
+        "native_incorrect": 6,
+        "invalid": 3,
+        "contract_correct": 5,
+        "format_ok": 14,
+        "serializable": 14,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 466.7,
+        "p95_duration_s": null,
+        "native_accuracy": 0.3571
+      },
+      "Number Theory": {
+        "n": 8,
+        "native_correct": 3,
+        "native_incorrect": 2,
+        "invalid": 3,
+        "contract_correct": 3,
+        "format_ok": 6,
+        "serializable": 8,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 441.4,
+        "p95_duration_s": null,
+        "native_accuracy": 0.375
+      }
+    },
+    "by_language": {
+      "EN": 50
+    }
+  },
+  "set_c_hle_math": {
+    "n": 50,
+    "native_correct": 2,
+    "native_incorrect": 40,
+    "invalid": 8,
+    "contract_correct": 2,
+    "format_ok": 42,
+    "serializable": 50,
+    "model_error": 0,
+    "mean_calls": 5.0,
+    "max_calls": 5,
+    "mean_duration_s": 466.5,
+    "p95_duration_s": 597.7,
+    "native_accuracy": 0.04,
+    "by_domain": {
+      "Algebra": {
+        "n": 12,
+        "native_correct": 1,
+        "native_incorrect": 10,
+        "invalid": 1,
+        "contract_correct": 1,
+        "format_ok": 11,
+        "serializable": 12,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 445.6,
+        "p95_duration_s": null,
+        "native_accuracy": 0.0833
+      },
+      "Combinatorics": {
+        "n": 13,
+        "native_correct": 0,
+        "native_incorrect": 10,
+        "invalid": 3,
+        "contract_correct": 0,
+        "format_ok": 10,
+        "serializable": 13,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 485.3,
+        "p95_duration_s": null,
+        "native_accuracy": 0.0
+      },
+      "Geometry": {
+        "n": 12,
+        "native_correct": 0,
+        "native_incorrect": 12,
+        "invalid": 0,
+        "contract_correct": 0,
+        "format_ok": 12,
+        "serializable": 12,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 470.6,
+        "p95_duration_s": null,
+        "native_accuracy": 0.0
+      },
+      "Number Theory": {
+        "n": 13,
+        "native_correct": 1,
+        "native_incorrect": 8,
+        "invalid": 4,
+        "contract_correct": 1,
+        "format_ok": 9,
+        "serializable": 13,
+        "model_error": 0,
+        "mean_calls": 5.0,
+        "max_calls": 5,
+        "mean_duration_s": 463.4,
+        "p95_duration_s": null,
+        "native_accuracy": 0.0769
+      }
+    },
+    "by_language": {
+      "EN": 50
+    }
+  }
+}
