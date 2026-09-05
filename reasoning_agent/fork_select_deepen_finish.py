@@ -89,9 +89,21 @@ FINISH_PROMPT_V2 = """你负责 Finish 阶段。只沿已选分支和 D 的 hand
 不要把未确认的候选或中间结果直接当作 FINAL；不要用“已检查”之类的自述替代实际完成最后一步；
 不要输出未选分支、多个答案或格式示例。"""
 
-# fsdf_finish_compact_final_v1（配对 A/B 迭代候选 1）：只改 E 的职责表达，
+# fsdf_finish_compact_v1（迭代 2）：E 紧凑输出 + 得到可确认答案立即 FINAL 并停止。
+# 依据：E 在 8192 下仍 10/15 截断——任务是自延展的（长叙述重推导），紧凑化让 FINAL
+# 尽早进入输出流，即使后续截断终答也已落盘。答案解析、调用数与预算不变。
+FINISH_PROMPT_COMPACT_V2 = """你负责 Finish 阶段。只沿已选分支和 D 的 handoff 收尾，不重新进行方法选择，不引入新分支。
+输出保持紧凑：只写关键等式、中间值与结论行，每步一行，不写长段叙述，不复述题目，不重复 handoff 中已完成的推导。
+若 handoff 的 OPEN 项仍有未解步骤，先按顺序补完；再回到原题，确认题目实际要求的最终量（不是中间量）。
+一旦得到可确认的答案，立即另起一行输出唯一 FINAL: <答案> 并停止输出，不再做额外检查或推导；
+无法确认时输出 FINAL: UNKNOWN。不要把未确认的候选或中间结果直接当作 FINAL；
+不要用“已检查”之类的自述替代实际完成最后一步；不要输出未选分支、多个答案或格式示例。"""
+
+# fsdf_finish_compact_final_v1（配对 A/B 迭代候选）：只改 E 的职责表达，
 # 针对 E 截断近饱和（13/15 length）的瓶颈——推导紧凑化 + 尽早确认 FINAL。
 # 答案解析、调用数与预算不变。
+# 草稿保留；该候选实际采用下方 FINISH_PROMPT_COMPACT_V2 修订文本（去掉对
+# 低激活机制 FINAL_D_FOR_CHECK 的引用，强化"每步一行 + 得到答案即停止"）。
 FINISH_PROMPT_COMPACT = """你负责 Finish 阶段。只沿已选分支和 D 的 handoff 收尾，不重新进行方法选择，不引入新分支。
 推导保持紧凑：只写关键等式与结论行，不展开长段叙述；OPEN 项未解步骤先补完。
 若 handoff 中有 FINAL_D_FOR_CHECK 候选，先核查再使用：正确则沿用并给出依据，错误则修正。
@@ -147,6 +159,10 @@ class RelayOptions:
     # 4096/8192); total 18432 and the 5-call cap unchanged. Targets the
     # confirmed E-truncation bottleneck (E finish_reason=length 11-13/15).
     de_budget_swap: bool = False
+    # fsdf_finish_compact_final_v1 (iteration 2): E compact-output prompt with
+    # an explicit stop-after-FINAL rule so the final lands before truncation;
+    # parsing, calls and budgets unchanged.
+    finish_compact_final: bool = False
 
 
 @dataclass
@@ -695,7 +711,12 @@ class ForkSelectDeepenFinishRelay:
         finish_max_tokens = 8192 if self.options.de_budget_swap else 4096
         response_e = ""
         if self._stage_allowed(state, trace, "finish", finish_max_tokens):
-            finish_prompt = FINISH_PROMPT_V2 if self.options.finish_prompt_v2 else FINISH_PROMPT
+            if self.options.finish_compact_final:
+                finish_prompt = FINISH_PROMPT_COMPACT_V2
+            elif self.options.finish_prompt_v2:
+                finish_prompt = FINISH_PROMPT_V2
+            else:
+                finish_prompt = FINISH_PROMPT
             response_e = self._call(
                 state,
                 trace,
@@ -1264,6 +1285,7 @@ __all__ = [
     "HARD_DEADLINE_SECONDS",
     "FINISH_PROMPT",
     "FINISH_PROMPT_V2",
+    "FINISH_PROMPT_COMPACT_V2",
     "DEEPEN_PROMPT",
     "DEEPEN_PROMPT_V2",
     "match_simple_arithmetic_expression",

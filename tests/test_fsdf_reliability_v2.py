@@ -14,6 +14,7 @@ from reasoning_agent.fork_select_deepen_finish import (
     DEEPEN_PROMPT_V2,
     FINISH_PROMPT,
     FINISH_PROMPT_V2,
+    FINISH_PROMPT_COMPACT_V2,
     L0_TOKEN_SEQUENCE,
     STAGE_TOKEN_SEQUENCE,
     STAGE_TOKEN_SEQUENCE_DE_SWAP,
@@ -926,6 +927,61 @@ class F2DeBudgetSwapTest(unittest.TestCase):
         self.assertEqual("protocol_failed", deepen["status"])
         self.assertEqual(4096, deepen["max_tokens"])
         self.assertEqual("UNKNOWN", result.final_response)
+
+
+class F2FinishCompactFinalTest(unittest.TestCase):
+    """fsdf_finish_compact_final_v1（迭代 2）：仅 E 提示词换成紧凑+提前 FINAL 变体。"""
+
+    def test_fcf_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_finish_compact_final)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_finish_compact_final)
+        self.assertFalse(RelayOptions().finish_compact_final)
+
+    def test_fcf_02_off_uses_frontier_prompt(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                finish_prompt_v2=True,
+                de_budget_swap=True,
+            ),
+        )
+        self.assertEqual(FINISH_PROMPT_V2, client.calls[4][0][0]["content"])
+
+    def test_fcf_03_on_uses_compact_prompt_only(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish("7", "7")],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                finish_prompt_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                finish_compact_final=True,
+            ),
+        )
+        self.assertEqual(FINISH_PROMPT_COMPACT_V2, client.calls[4][0][0]["content"])
+        self.assertEqual(DEEPEN_PROMPT_V2, client.calls[3][0][0]["content"])
+        # 预算交换（迭代 1 前沿）保持不变：D 4096 / E 8192，总数与调用数不变。
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client.calls))
+        self.assertEqual(5, len(client.calls))
+        self.assertEqual("7", result.final_response)
+        self.assertEqual("finish_final", result.trace[-1]["fallback_source"])
+
+    def test_fcf_04_early_final_still_fail_closed_on_conflict(self):
+        # 紧凑提示鼓励尽早 FINAL；若模型输出两个冲突 FINAL，P2a 规则照常 fail-closed。
+        _, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), "FINAL: 7\nFINAL: 8"],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                finish_compact_final=True,
+            ),
+        )
+        self.assertEqual("UNKNOWN", result.final_response)
+        self.assertEqual("final_conflict", result.trace[-1]["fallback_source"])
 
 
 if __name__ == "__main__":

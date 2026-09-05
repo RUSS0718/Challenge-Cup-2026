@@ -372,6 +372,9 @@ class AgentConfig:
     # fsdf_de_budget_swap_v1 (iteration loop, Issue #16 step 3): D/E stage
     # budget swap 8192/4096 -> 4096/8192; total and call cap unchanged.
     enable_fsdf_de_budget_swap: bool = False
+    # fsdf_finish_compact_final_v1 (iteration 2): E compact-output prompt with
+    # stop-after-FINAL; parsing, calls and budgets unchanged.
+    enable_fsdf_finish_compact_final: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1148,6 +1151,7 @@ class ReasoningAgent:
                 handoff_first_d=self.config.enable_fsdf_handoff_first_d,
                 d_result_to_e=self.config.enable_fsdf_d_result_to_e,
                 de_budget_swap=self.config.enable_fsdf_de_budget_swap,
+                finish_compact_final=self.config.enable_fsdf_finish_compact_final,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

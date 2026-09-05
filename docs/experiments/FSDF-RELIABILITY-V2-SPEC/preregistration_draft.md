@@ -176,3 +176,10 @@
   （invalid→correct ×2，无反转），E 终答形成 1→4、E 截断 13→10，D 侧交接缺失上升
   （29 vs 22）但 E 结果仍改善——**前沿前移至 v2hd_bs**。下一杠杆指向任务量/压缩
   （E 在 8192 下仍 10/15 截断）。仅迭代循环内基线选择，不改 SUBMISSION_CONFIG。
+- 迭代 2 候选登记：`fsdf_finish_compact_final_v1`（E 紧凑输出 + 得到可确认答案立即
+  FINAL 并停止；文本为 FINISH_PROMPT_COMPACT_V2 修订版，去掉对低激活机制
+  FINAL_D_FOR_CHECK 的引用）。假设：E 的任务是自延展的，紧凑化 + 提前 FINAL 让终答
+  在截断前落盘。主要风险：未验证中间量被提前确认转为 incorrect；冲突 FINAL 经 P2a
+  归 UNKNOWN 抵消收益。观察：E 终答形成 ≥ 前沿 4/15 的方向、截断率、incorrect 计数、
+  final_conflict 计数。反斥条件：E 终答形成仍 ≤4/15 且截断 ~10/15 → 提示词级任务
+  塑造被证伪，转向 D 侧强制前置 FINAL_D。臂 `v2hd_bs_cf` = v2hd_bs + 该开关。

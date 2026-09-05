@@ -270,6 +270,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_handoff_first_d",
     "enable_fsdf_d_result_to_e",
     "enable_fsdf_de_budget_swap",
+    "enable_fsdf_finish_compact_final",
 )
 
 
@@ -292,6 +293,11 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     # v2hd + fsdf_de_budget_swap_v1: single variable = D/E budget swap.
     "v2hd_bs": _arm_overrides((
         *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d", "enable_fsdf_de_budget_swap",
+    )),
+    # v2hd_bs + fsdf_finish_compact_final_v1: single variable = E compact prompt.
+    "v2hd_bs_cf": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_compact_final",
     )),
 }
 
