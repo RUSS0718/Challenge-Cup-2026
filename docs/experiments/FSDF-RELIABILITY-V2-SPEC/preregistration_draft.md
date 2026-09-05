@@ -171,3 +171,8 @@
 - 已登记候选：迭代 0 `fsdf_d_result_to_e_v1`（配对窗 FSDF-D-RESULT-TO-E-PAIRED-001：
   机制未激活，D 14/14 未产出有效 FINAL_D，前沿不变）；迭代 1 `fsdf_de_budget_swap_v1`
   （D/E 预算对调 8192/4096→4096/8192，针对 E 截断近饱和 11-13/15 length）。
+
+- 迭代 1 结果（FSDF-ITER-AB-001，15/15 对）：`fsdf_de_budget_swap_v1` 净增 +2 correct
+  （invalid→correct ×2，无反转），E 终答形成 1→4、E 截断 13→10，D 侧交接缺失上升
+  （29 vs 22）但 E 结果仍改善——**前沿前移至 v2hd_bs**。下一杠杆指向任务量/压缩
+  （E 在 8192 下仍 10/15 截断）。仅迭代循环内基线选择，不改 SUBMISSION_CONFIG。
