@@ -415,6 +415,17 @@ SUBMISSION_CONFIG = AgentConfig(
     reconstruction_max_tokens=4096,
     reconstruction_context_max_chars=12000,
     enable_fork_select_deepen_finish=True,
+    # 2026-09-06 user-authorized canary deployment (Issue #16): the full FSDF
+    # reliability stack rides on the official solve path.  This equals the
+    # v2hd_dre diagnostic arm.  It is NOT a capability conclusion and does not
+    # retroactively pass any preregistered gate; the rollback anchor is the
+    # pre-flip gitcode main tip.
+    enable_fsdf_diagnostics_v2=True,
+    enable_fsdf_multiline_handoff_v2=True,
+    enable_fsdf_final_confirmation_v2=True,
+    enable_fsdf_finish_prompt_v2=True,
+    enable_fsdf_handoff_first_d=True,
+    enable_fsdf_d_result_to_e=True,
 )
 
 

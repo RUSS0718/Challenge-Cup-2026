@@ -7,6 +7,7 @@ import unittest
 from dataclasses import asdict
 
 from scripts.run_external_hard_sets_smoke import (
+    FSDF_CANDIDATE_FLAGS,
     FSDF_V2_FLAGS,
     analyze,
     arm_config,
@@ -229,6 +230,16 @@ class ArmSupportTest(unittest.TestCase):
         self.assertEqual(v1, v2)
         with self.assertRaises(ValueError):
             arm_config("v3")
+
+    def test_submission_profile_equals_v2hd_dre_arm(self):
+        # 2026-09-06 用户授权 canary：官方提交配置必须与 v2hd_dre 诊断臂完全一致，
+        # 且臂定义显式钉住全部候选开关（v1 锚点臂不受提交配置漂移影响）。
+        from user_agent import SUBMISSION_CONFIG
+
+        self.assertEqual(asdict(arm_config("v2hd_dre")), asdict(SUBMISSION_CONFIG))
+        v1 = arm_config("v1")
+        for flag in FSDF_CANDIDATE_FLAGS:
+            self.assertFalse(getattr(v1, flag), flag)
 
     def test_v2hd_arm_differs_from_v2_only_in_handoff_first_d(self):
         v2 = asdict(arm_config("v2"))

@@ -194,3 +194,14 @@
 测量口径待细化（trace 不区分字段缺席与 UNKNOWN 合规弃答，Issue #16 已登记）。
 门槛 UNFROZEN；不修改 `SUBMISSION_CONFIG`、不发布。工件：
 `docs/experiments/FSDF-HANDOFF-FIRST-D-DIAG-001/`。
+
+## 六点十三、FSDF v2hd_dre 全栈 canary 发布（2026-09-06，用户授权）
+
+| 项 | 内容 |
+|---|---|
+| 部署内容 | `SUBMISSION_CONFIG` 打开全部六个 FSDF 候选开关：P0 诊断、P1 多行交接（含未闭合条目丢弃）、P2a 终答确认、P2b E 收尾提示、`fsdf_handoff_first_d_v1`（D 交接产物优先）、`fsdf_d_result_to_e_v1`（FINAL_D_FOR_CHECK 对 E 可见） |
+| 授权 | 用户 2026-09-06 明确指示"直接把新实现的功能打开，然后传到 gitcode"；等同既有 `DEPLOYED_UNVALIDATED_CANARY` 先例（hetero_k5、btcs_frame_v2） |
+| 证据边界 | 零模型验收 558 项通过；两个诊断窗口（60 题、30 题）仅分布级/配对诊断，均无能力结论；本发布不追认任何预注册门通过，不构成能力提升表述 |
+| 预期行为变化 | P2a fail-closed 把"错误兜底"大量转为 UNKNOWN（本地诊断窗 correct 占比 23%→13%，分布级）；换取输出卫生（native↔contract 不一致 11/30→1/30）与阶段级可归因诊断 |
+| 回滚锚 | gitcode main @ `de74934`（FSDF v1 官方评测版本）；回滚即把 main 重置回该提交 |
+| 后续 | 同题配对窗口 FSDF-D-RESULT-TO-E-PAIRED-001（v2hd vs v2hd_dre）运行中，其结果不改变本次发布状态 |

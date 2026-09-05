@@ -264,19 +264,29 @@ FSDF_V2_FLAGS = (
     "enable_fsdf_final_confirmation_v2",
     "enable_fsdf_finish_prompt_v2",
 )
+FSDF_CANDIDATE_FLAGS = (
+    *FSDF_V2_FLAGS,
+    "enable_fsdf_handoff_first_d",
+    "enable_fsdf_d_result_to_e",
+)
+
+
+def _arm_overrides(enabled: tuple[str, ...] = ()) -> dict[str, bool]:
+    """Pin every candidate flag explicitly so arm semantics survive any
+    future SUBMISSION_CONFIG drift (arms are defined relative to the
+    submission profile with all candidate flags forced, not inherited)."""
+    return {**{flag: False for flag in FSDF_CANDIDATE_FLAGS},
+            **{flag: True for flag in enabled}}
+
+
 ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
-    "v1": {},
-    "v2": {flag: True for flag in FSDF_V2_FLAGS},
-    "v2hd": {
-        **{flag: True for flag in FSDF_V2_FLAGS},
-        "enable_fsdf_handoff_first_d": True,
-    },
+    "v1": _arm_overrides(),
+    "v2": _arm_overrides(FSDF_V2_FLAGS),
+    "v2hd": _arm_overrides((*FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d")),
     # v2hd + fsdf_d_result_to_e_v1: single variable = FINAL_D visible to E.
-    "v2hd_dre": {
-        **{flag: True for flag in FSDF_V2_FLAGS},
-        "enable_fsdf_handoff_first_d": True,
-        "enable_fsdf_d_result_to_e": True,
-    },
+    "v2hd_dre": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d", "enable_fsdf_d_result_to_e",
+    )),
 }
 
 

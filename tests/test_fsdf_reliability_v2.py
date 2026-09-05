@@ -108,19 +108,30 @@ def handoff_section(e_prompt):
 
 
 class F2P0DiagnosticsTest(unittest.TestCase):
-    def test_p0_01_submission_profile_keeps_v1_flags_off(self):
-        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_diagnostics_v2)
-        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_multiline_handoff_v2)
-        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_final_confirmation_v2)
-        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_finish_prompt_v2)
+    def test_p0_01_submission_profile_is_authorized_canary_agentconfig_defaults_off(self):
+        # 2026-09-06 用户授权：完整 v2hd_dre 栈上官方路径（canary，非能力结论）。
+        # AgentConfig 默认值保持全关，任何显式配置实验不受提交配置影响。
         for flag in (
+            "enable_fork_select_deepen_finish",
             "enable_fsdf_diagnostics_v2",
             "enable_fsdf_multiline_handoff_v2",
             "enable_fsdf_final_confirmation_v2",
             "enable_fsdf_finish_prompt_v2",
+            "enable_fsdf_handoff_first_d",
+            "enable_fsdf_d_result_to_e",
+        ):
+            self.assertTrue(getattr(SUBMISSION_CONFIG, flag), flag)
+        for flag in (
+            "enable_fork_select_deepen_finish",
+            "enable_fsdf_diagnostics_v2",
+            "enable_fsdf_multiline_handoff_v2",
+            "enable_fsdf_final_confirmation_v2",
+            "enable_fsdf_finish_prompt_v2",
+            "enable_fsdf_handoff_first_d",
+            "enable_fsdf_d_result_to_e",
         ):
             self.assertFalse(getattr(AgentConfig(), flag), flag)
-        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+        self.assertFalse(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
 
     def test_p0_02_diagnostics_do_not_change_requests_or_answers(self):
         # 同一 ScriptedClient 序列（含 D 协议失败 + E 失败）在 P0 开关前后
@@ -565,9 +576,9 @@ class F2HandoffFirstDTest(unittest.TestCase):
             "FINAL_D: 5"
         )
 
-    def test_hfd_01_flag_defaults_off_everywhere(self):
+    def test_hfd_01_flag_defaults_off_on_agentconfig(self):
         self.assertFalse(AgentConfig().enable_fsdf_handoff_first_d)
-        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_handoff_first_d)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fsdf_handoff_first_d)
         self.assertFalse(RelayOptions().handoff_first_d)
 
     def test_hfd_02_off_uses_v1_deepen_prompt(self):
@@ -761,9 +772,9 @@ class F2DResultToETest(unittest.TestCase):
             "FINAL_D: 314159"
         )
 
-    def test_dre_01_defaults_off(self):
+    def test_dre_01_default_off_on_agentconfig_canary_on_submission(self):
         self.assertFalse(AgentConfig().enable_fsdf_d_result_to_e)
-        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_d_result_to_e)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fsdf_d_result_to_e)
         self.assertFalse(RelayOptions().d_result_to_e)
 
     def test_dre_02_candidate_visible_to_e_and_fallback_intact(self):
