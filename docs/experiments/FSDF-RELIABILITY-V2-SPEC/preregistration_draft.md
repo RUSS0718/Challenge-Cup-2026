@@ -208,3 +208,8 @@
   E 截断 ≤8/15）。前沿前移：net ≥ +2 且零反转，或 net ≥ +1 且 M1 通过并跨窗复现。
   反斥：E 终答形成 ≤4/15 且截断 ≥10/15 且 M1 失败；或 correct→incorrect 且 net ≤0。
   臂 `v2hd_bs_hs` = v2hd_bs + 该开关。
+- 迭代 4 结果（FSDF-ITER-AB-004，15/15 对）：`fsdf_finish_handoff_share_v1`
+  **net +3 correct、零反转**（含 1 例 incorrect→correct），E 终答形成 3→6、E 截断
+  11→9（历史最低）——按注册规则第一条（net ≥ +2 且零反转）**前沿前移至
+  v2hd_bs_hs**。M2 门大部分达标（截断 9 略超 ≤8 目标）；M1 为构造性激活（trace
+  无直接字符量）。方差警示持续有效，确认性复现留待后续窗口。
