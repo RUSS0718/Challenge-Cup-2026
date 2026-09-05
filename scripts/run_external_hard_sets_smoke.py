@@ -208,6 +208,47 @@ def contract_check(final_response: str, gold: str) -> dict[str, str]:
     return {"verdict": "incorrect"}
 
 
+# P0 (FSDF-RELIABILITY-V2): keep stage/failure-category/fallback/budget fields
+# in compacted traces so stage health stays attributable after serialization.
+# Unknown keys are still dropped, so older baseline traces compact unchanged.
+TRACE_KEEP = frozenset({
+    "step", "status", "reason", "model_calls", "candidate_id", "schema_valid",
+    "method", "generation_calls", "max_model_calls", "top_group_size", "plan_chars",
+    "stage", "error_category", "fallback_source", "selected_branch", "max_tokens",
+    "elapsed_bucket", "packet_present", "candidate_present", "final_present",
+    "ideas_not_diverse", "handoff_missing_fields", "handoff_conflict_fields",
+    "handoff_clipped", "finish_context_clipped", "token_usage", "finish_reason",
+})
+
+_STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
+    "model_error", "timeout", "rate_limit", "http_status", "request",
+    "connectivity", "proxy", "tls", "configuration",
+})
+
+
+def compact_trace(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{k: entry[k] for k in entry if k in TRACE_KEEP} for entry in trace]
+
+
+def client_diagnostics(client: Any) -> dict[str, list[Any]]:
+    """Per-task public client diagnostics (call-ordered, bounded).
+
+    Each task owns its client, so the lists align with that task's calls even
+    under workers=3.  Missing attributes degrade to empty lists instead of
+    guessing from response text.
+    """
+    def bounded(name: str) -> list[Any]:
+        values = getattr(client, name, None)
+        if not isinstance(values, list):
+            return []
+        return list(values[:8])
+
+    return {
+        "finish_reasons": bounded("finish_reasons"),
+        "completion_tokens": bounded("completion_tokens"),
+    }
+
+
 def extract_for_judge(result: dict[str, Any]) -> str:
     extracted = str(result.get("extracted_answer") or "").strip()
     final = str(result.get("final_response") or "").strip()
@@ -235,15 +276,11 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     family = FAMILIES[task["set_id"]]
     native = judge(pred, item["answer"], family)
     contract = contract_check(final_response, item["answer"])
-    keep = {
-        "step", "status", "reason", "model_calls", "candidate_id", "schema_valid",
-        "method", "generation_calls", "max_model_calls", "top_group_size", "plan_chars",
-    }
-    compact_trace = [{k: entry[k] for k in entry if k in keep} for entry in trace]
+    compact_trace_rows = compact_trace(trace)
     # trace hygiene: the API key must never appear anywhere in the serialized result
     serializable = True
     try:
-        blob = json.dumps({"final_response": final_response, "trace": compact_trace}, ensure_ascii=False)
+        blob = json.dumps({"final_response": final_response, "trace": compact_trace_rows}, ensure_ascii=False)
         json.loads(blob)
         if api_key and api_key in blob:
             serializable = False
@@ -255,6 +292,7 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         isinstance(final_response, str) and final_response.strip()
         and final_response.strip().upper() != "UNKNOWN"
     )
+    client_diag = client_diagnostics(client)
     return {
         "set_id": task["set_id"],
         "item_id": item["item_id"],
@@ -270,12 +308,51 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "gold": item["answer"],
         "native": native,
         "contract": contract,
+        "verdict_match": native["verdict"] == contract["verdict"],
         "format_ok": format_ok,
         "json_serializable": serializable,
         "model_calls": calls,
         "duration_seconds": round(duration, 2),
-        "trace": compact_trace,
+        "trace": compact_trace_rows,
+        "client_finish_reasons": client_diag["finish_reasons"],
+        "client_completion_tokens": client_diag["completion_tokens"],
     }
+
+
+def stage_health(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Separate counters for stage-level failures visible in compacted traces.
+
+    A solve can return successfully while stages failed internally; these
+    counts survive precisely because ``stage``/``error_category`` are kept in
+    the compact trace.  Historical artifacts that already dropped fields are
+    never back-filled.
+    """
+    counters = {
+        "stage_client_errors": 0,
+        "stage_invalid_responses": 0,
+        "stage_protocol_failures": 0,
+        "stage_skipped": 0,
+        "handoff_missing": 0,
+        "handoff_clipped": 0,
+    }
+    for row in rows:
+        for event in row.get("trace") or []:
+            status = event.get("status")
+            category = event.get("error_category")
+            if status == "failed":
+                if category == "invalid_response":
+                    counters["stage_invalid_responses"] += 1
+                elif category in _STAGE_CLIENT_ERROR_CATEGORIES:
+                    counters["stage_client_errors"] += 1
+            elif status == "protocol_failed":
+                counters["stage_protocol_failures"] += 1
+            elif status == "skipped":
+                counters["stage_skipped"] += 1
+            if event.get("handoff_missing_fields"):
+                counters["handoff_missing"] += 1
+            if event.get("handoff_clipped"):
+                counters["handoff_clipped"] += 1
+    return counters
 
 
 def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -288,17 +365,34 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "native_incorrect": sum(1 for r in subset if r["native"]["verdict"] == "incorrect"),
             "invalid": sum(1 for r in subset if r["native"]["verdict"] == "invalid"),
             "contract_correct": sum(1 for r in subset if r["contract"]["verdict"] == "correct"),
+            "contract_incorrect": sum(1 for r in subset if r["contract"]["verdict"] == "incorrect"),
+            "contract_invalid": sum(1 for r in subset if r["contract"]["verdict"] == "invalid"),
+            "verdict_mismatch": sum(
+                1 for r in subset
+                if r.get("native", {}).get("verdict") != r.get("contract", {}).get("verdict")
+            ),
             "format_ok": sum(1 for r in subset if r["format_ok"]),
             "serializable": sum(1 for r in subset if r["json_serializable"]),
             "model_error": sum(1 for r in subset if str(r["status"]).startswith("error")),
+            "unknown_final": sum(
+                1 for r in subset
+                if str(r.get("final_response", "")).strip().upper() == "UNKNOWN"
+            ),
             "mean_calls": round(sum(r["model_calls"] for r in subset) / n, 2) if n else 0,
             "max_calls": max((r["model_calls"] for r in subset), default=0),
             "mean_duration_s": round(sum(r["duration_seconds"] for r in subset) / n, 1) if n else 0,
             "p95_duration_s": round(sorted(r["duration_seconds"] for r in subset)[int(n * 0.95) - 1], 1) if n >= 20 else None,
         }
         s["native_accuracy"] = round(s["native_correct"] / n, 4) if n else 0
+        # 完整判定对比：correct 数一致不代表逐题判定一致。
+        s["correct_count_consistent"] = s["native_correct"] == s["contract_correct"]
+        s.update(stage_health(subset))
         return s
     out["overall"] = stats(rows)
+    out["judge_note"] = (
+        "native 与 contract 均为本地近似判定（AIME 整数精确 / Math-Verify / 归一化字符串 / "
+        "answer_equivalence / 严格抽取契约），不是真实官方 judger 的等价实现。"
+    )
     by_domain: dict[str, dict[str, Any]] = {}
     for domain in sorted({r["domain"] for r in rows}):
         by_domain[domain] = stats([r for r in rows if r["domain"] == domain])

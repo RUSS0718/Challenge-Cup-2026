@@ -148,3 +148,18 @@
 不产生数学能力或正确率结论。代码验收本身不授权默认切换；本轮之后用户已另行授权将
 `SUBMISSION_CONFIG` 切换为 FSDF 默认并发布到 GitCode，仍不得将其表述为能力提升。
 完整工件见 `docs/experiments/FSDF-V1-CODE-ACCEPTANCE-001/`。
+
+## 六点十、FSDF-RELIABILITY-V2-CODE-ACCEPTANCE-001（2026-09-05）
+
+| 候选 | 证据 | 处置 |
+|---|---|---|
+| `fsdf_diagnostics_v2`（P0） | 34 项 v2 验收 + 8 项运行器报告验收；开关前后同 ScriptedClient 序列请求与终答完全一致 | `CODE_ACCEPTED / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION`；仅作实验窗报告基座，不构成独立能力臂 |
+| `fsdf_multiline_handoff_v2`（P1） | 多行交接、去重/冲突、字段/推导项粒度裁剪验收通过；默认关闭 | `CODE_ACCEPTED / DEFAULT_OFF / NO_CAPABILITY_CONCLUSION`；候选，需预注册过门 |
+| `fsdf_final_confirmation_v2`（P2a） | 显式 UNKNOWN 不回退、冲突 fail-closed、仅显式完成结果可回退验收通过；默认关闭 | 同上 |
+| `fsdf_finish_prompt_v2`（P2b） | 仅 E 收尾提示词变化、解析与预算不变验收通过；默认关闭 | 同上 |
+| `fsdf_branch_probe_v1`（P3） | 仅登记假设（B/C 输出可检查中间进展），未实现未运行 | `REGISTERED_NOT_IMPLEMENTED`；启动需新预注册与用户授权 |
+
+官方证据基线：FSDF v1 @ `de74934`（correct 14 / incorrect 61 / invalid 37）。
+上述候选的运行门槛全部未冻结（对照面口径冲突、样本量、各门阈值见
+`docs/experiments/FSDF-RELIABILITY-V2-SPEC/preregistration_draft.md`），在用户
+确认前不得运行真实模型实验、不得合并为组合臂、不得修改 `SUBMISSION_CONFIG`。

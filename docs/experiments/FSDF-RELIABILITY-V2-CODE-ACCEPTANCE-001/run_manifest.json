@@ -1,0 +1,39 @@
+{
+  "method_ids": [
+    "fsdf_diagnostics_v2",
+    "fsdf_multiline_handoff_v2",
+    "fsdf_final_confirmation_v2",
+    "fsdf_finish_prompt_v2"
+  ],
+  "registered_not_implemented": [
+    "fsdf_branch_probe_v1"
+  ],
+  "run_type": "ZERO_MODEL_CODE_ACCEPTANCE",
+  "captured_at": "2026-09-05",
+  "baseline_commit": "9f51e12ca4135f1d0850943fe6b3a46eb9874be9",
+  "branch": "codex/fsdf-v1-code-acceptance-001",
+  "snapshot_note": "验收基于工作区代码；未提交工作区不构成有效实验窗，真实模型实验需另行授权快照",
+  "submission_config_untouched": true,
+  "new_agent_config_flags_default_off": [
+    "enable_fsdf_diagnostics_v2",
+    "enable_fsdf_multiline_handoff_v2",
+    "enable_fsdf_final_confirmation_v2",
+    "enable_fsdf_finish_prompt_v2"
+  ],
+  "tests": {
+    "existing_fsdf_v1_suite": {"file": "tests/test_fork_select_deepen_finish.py", "passed": 37, "failed": 0},
+    "fsdf_reliability_v2": {"file": "tests/test_fsdf_reliability_v2.py", "passed": 34, "failed": 0},
+    "runner_report_boundary": {"file": "tests/test_external_hard_sets_runner_report.py", "passed": 8, "failed": 0},
+    "full_suite_excluding_unrelated": {"command": "pytest tests --ignore=tests/test_causal_demo.py -q", "passed": 533, "skipped": 4, "failed": 0},
+    "excluded_unrelated_failure": {
+      "file": "tests/test_causal_demo.py",
+      "reason": "依赖未安装的 mcp 包；属于用户未跟踪 causal_demo/ 工作，与本规格无关",
+      "pre_existing": true
+    }
+  },
+  "static_checks": ["py_compile", "git diff --check"],
+  "model_calls": 0,
+  "capability_conclusion": "NONE",
+  "default_path_change": "NONE",
+  "preregistration": "docs/experiments/FSDF-RELIABILITY-V2-SPEC/preregistration_draft.md (DRAFT, thresholds UNFROZEN, not executable)"
+}

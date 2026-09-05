@@ -9,6 +9,7 @@ from typing import Any
 
 from reasoning_agent.fork_select_deepen_finish import (
     ForkSelectDeepenFinishRelay,
+    RelayOptions,
     match_simple_arithmetic_expression,
 )
 
@@ -353,6 +354,14 @@ class AgentConfig:
     reconstruction_max_tokens: int = 4096
     reconstruction_context_max_chars: int = 12000
     enable_fork_select_deepen_finish: bool = False
+    # FSDF v2 reliability candidates (Issue #15 spec).  Each increment is
+    # independently selectable and defaults off: the submission profile keeps
+    # FSDF v1 solve behaviour until a candidate passes its own preregistered
+    # gate.  P0 (diagnostics) never changes model requests or final answers.
+    enable_fsdf_diagnostics_v2: bool = False
+    enable_fsdf_multiline_handoff_v2: bool = False
+    enable_fsdf_final_confirmation_v2: bool = False
+    enable_fsdf_finish_prompt_v2: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1110,7 +1119,15 @@ class ReasoningAgent:
         if experimental_paths > 1:
             raise ValueError("experimental answering paths are mutually exclusive")
         if self.config.enable_fork_select_deepen_finish:
-            return ForkSelectDeepenFinishRelay(self.client).solve(problem, problem_type).as_dict()
+            relay_options = RelayOptions(
+                diagnostics_v2=self.config.enable_fsdf_diagnostics_v2,
+                multiline_handoff_v2=self.config.enable_fsdf_multiline_handoff_v2,
+                final_confirmation_v2=self.config.enable_fsdf_final_confirmation_v2,
+                finish_prompt_v2=self.config.enable_fsdf_finish_prompt_v2,
+            )
+            return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
+                problem, problem_type
+            ).as_dict()
         if self.config.enable_contextual_answer_reconstruction:
             return self._solve_contextual_answer_reconstruction(problem, problem_type)
         if self.config.enable_typed_answer_capsule:

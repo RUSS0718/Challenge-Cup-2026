@@ -26,10 +26,20 @@ _FINISH_CONTEXT_LIMIT = 6500
 # E 的接力上下文内先为 D handoff 预留固定份额，A 摘要与选中思路不得挤占。
 _FINISH_HANDOFF_RESERVE = 2000
 _FINISH_LABEL_BUDGET = 64
+# 多行交接候选（fsdf_multiline_handoff_v2）：在同一个 6500 总上限内把 handoff
+# 优先级提高（已完成推导/未解步骤/检查结果），相应压缩 A 摘要与思路叙述。
+_FINISH_HANDOFF_RESERVE_V2 = 3000
+# 为末尾有界标记行（INCOMPLETE/CONFLICT/DROPPED/PARTIAL）预留的字符余量。
+_HANDOFF_TRAILER_HEADROOM = 200
 
 _ANALYSIS_FIELDS = ("GOAL", "ANSWER_TYPE", "CONSTRAINTS", "STRUCTURE", "BOTTLENECK")
 _IDEA_FIELDS = ("BRANCH", "METHOD", "KEY_LEMMA", "PLAN", "EXPECTED_FORM", "RISK")
 _HANDOFF_FIELDS = ("SELECTED_BRANCH", "CANDIDATE_D", "DERIVED", "OPEN", "CHECKS", "RISK")
+# v2 交接解析收集正文的多行字段；SELECTED_BRANCH/FINAL_D 只作边界不收集。
+_HANDOFF_VALUE_FIELDS = ("CANDIDATE_D", "DERIVED", "OPEN", "CHECKS", "RISK")
+# 保留优先级（高→低）：裁剪时先丢 RISK，最后保留已完成推导。
+_HANDOFF_KEEP_PRIORITY = ("DERIVED", "OPEN", "CHECKS", "CANDIDATE_D", "RISK")
+_HANDOFF_DISPLAY_ORDER = ("CANDIDATE_D", "DERIVED", "OPEN", "CHECKS", "RISK")
 
 ANALYZE_PROMPT = """你负责 Analyze 阶段。只拆解题目，不完成整题，不输出 FINAL。
 严格输出五个字段：GOAL、ANSWER_TYPE、CONSTRAINTS、STRUCTURE、BOTTLENECK。
@@ -52,6 +62,15 @@ FINISH_PROMPT = """你负责 Finish 阶段。只沿已选分支和 D 的 handoff
 只修复选定链路的局部错误。第一项输出 CANDIDATE_E，末尾另起一行输出唯一 FINAL。
 不要输出未选分支、多个答案或格式示例；无法确认时输出 FINAL: UNKNOWN。"""
 
+# fsdf_finish_prompt_v2（P2b）：只改变 E 的收尾职责表达，不改答案解析、调用数或预算。
+# E 先补完选定链路的局部未解步骤，再回答原题实际要求的量，输出唯一确认终答；
+# 不强制先填写猜测候选，也不把“已检查”之类的自述当成确定性验证。
+FINISH_PROMPT_V2 = """你负责 Finish 阶段。只沿已选分支和 D 的 handoff 收尾，不重新进行方法选择，不引入新分支。
+若 handoff 的 OPEN 项仍有未解步骤，先补完这些步骤；再回到原题，确认题目实际要求的最终量（不是中间量）。
+完成后末尾另起一行输出唯一 FINAL: <答案>；无法确认时输出 FINAL: UNKNOWN。
+不要把未确认的候选或中间结果直接当作 FINAL；不要用“已检查”之类的自述替代实际完成最后一步；
+不要输出未选分支、多个答案或格式示例。"""
+
 L0_PROMPT = """这是一个已由确定性简单算式识别器命中的 L0 题。直接计算并只输出一行 FINAL: <答案>。
 不要输出推理、多个答案或占位符。"""
 
@@ -72,6 +91,27 @@ class RelayResult:
         }
 
 
+@dataclass(frozen=True)
+class RelayOptions:
+    """Independently selectable FSDF v2 reliability increments (Issue #15 spec).
+
+    Every flag defaults to off, which reproduces the FSDF v1 behaviour byte for
+    byte; ``SUBMISSION_CONFIG`` keeps v1 until each candidate passes its own
+    preregistered gate.
+    """
+
+    # P0: diagnostics only — never changes model requests or final answers.
+    diagnostics_v2: bool = False
+    # P1: marker-bounded multi-line handoff with dedupe/conflict and
+    # field/item-granular clipping inside the existing E context cap.
+    multiline_handoff_v2: bool = False
+    # P2a: final-answer confirmation — explicit UNKNOWN stays UNKNOWN, conflicted
+    # finals fail closed, only explicitly completed results may be adopted.
+    final_confirmation_v2: bool = False
+    # P2b: E finishing-responsibility prompt variant (parsing/budget unchanged).
+    finish_prompt_v2: bool = False
+
+
 @dataclass
 class _SolveState:
     started_at: float
@@ -85,6 +125,10 @@ class _SolveState:
     finish_packet_e: str = ""
     candidate_history: list[str] = field(default_factory=list)
     sanitized_errors: list[str] = field(default_factory=list)
+    # P0 bounded diagnostics collected during solve; emitted only when the
+    # diagnostics increment is enabled. Values come from a fixed vocabulary
+    # (field names / booleans / "unavailable") and never contain model text.
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 def _clip(text: str | None, limit: int) -> str:
@@ -117,6 +161,202 @@ def _canonical_packet(text: str | None, fields: tuple[str, ...], limit: int, fal
     if all(values):
         return _clip("\n".join(f"{field}: {value}" for field, value in zip(fields, values)), limit)
     return _clip(text, fallback_limit)
+
+
+# ── FSDF v2 parsing helpers (flag-gated; v1 helpers above stay untouched) ──
+# v1 ``_marker_value`` lets the ``\s*`` after the colon cross a newline, so an
+# empty marker can absorb the next protocol line, and it can never return a
+# multi-line value.  The v2 readers below fix both, and are used only by the
+# flag-gated increments so the shipped v1 path stays byte-compatible.
+
+def _marker_line_pattern(marker: str) -> str:
+    """Regex for one strict single-line marker read (cannot cross newlines)."""
+    return rf"(?im)^[ \t]*{re.escape(marker)}[ \t]*[:：][ \t]*(.*?)[ \t]*$"
+
+
+def _marker_value_strict(text: str | None, marker: str) -> str:
+    """Single-line marker read that cannot cross into the next line."""
+    if not isinstance(text, str):
+        return ""
+    match = re.search(_marker_line_pattern(marker), text)
+    return match.group(1).strip() if match else ""
+
+
+def _marker_occurrences(text: str | None, markers: tuple[str, ...]) -> list[str]:
+    """All strict single-line values for the given marker aliases, in order."""
+    values: list[str] = []
+    if not isinstance(text, str):
+        return values
+    for marker in markers:
+        for match in re.finditer(_marker_line_pattern(marker), text):
+            values.append(match.group(1).strip())
+    return values
+
+
+# Known protocol markers that terminate a multi-line handoff block.  Longest
+# names first where prefixes overlap (FINAL_D before FINAL).
+_V2_KNOWN_MARKERS = (
+    "SELECTED_BRANCH", "SELECTION_REASON", "CANDIDATE_D", "FINAL_D", "DERIVED",
+    "OPEN", "CHECKS", "RISK", "BRANCH", "METHOD", "KEY_LEMMA", "PLAN",
+    "EXPECTED_FORM", "FINAL", "GOAL", "ANSWER_TYPE", "CONSTRAINTS",
+    "STRUCTURE", "BOTTLENECK",
+)
+_V2_MARKER_LINE_RE = re.compile(
+    r"(?im)^[ \t]*(?:[-*][ \t]*)?`?(?P<marker>"
+    + "|".join(_V2_KNOWN_MARKERS)
+    + r")`?[ \t]*[:：]"
+)
+# A continuation line shaped like "短标签: 内容" starts unlabelled free text;
+# it must not be pulled into the trusted handoff package.  The char after the
+# colon must be whitespace, a non-digit, or line end, so "12:30" or "x:2"
+# style math fragments stay inside the block.
+_UNLABELED_FIELD_LINE_RE = re.compile(r"^[ \t]*([^ \t　：:]{1,24})[：:](?:[ \t]|[^\d]|$)")
+# Numbered derivation steps ("第1步" / "步骤一" / "3" / "(2)" / "Step 1") are
+# content, not free-text labels.
+_STEP_LABEL_RE = re.compile(
+    r"^(?:第\s*[0-9一二三四五六七八九十百]+\s*步|步骤\s*[0-9一二三四五六七八九十百]+"
+    r"|[0-9]{1,3}|[（(][0-9]{1,3}[)）]|[Ss]tep\s*[0-9]{1,3})$"
+)
+# Answer-protocol tokens inside a block signal the model switched away from
+# derivation content; the block ends there.
+_ANSWER_PROTOCOL_TOKEN_RE = re.compile(r"FINAL|最终答案|CANDIDATE|SELECTED_BRANCH")
+# A continuation line needs at least one digit/ASCII letter/math symbol to
+# count as derivation content; pure prose lines end the block.
+_BLOCK_CONTENT_SIGNAL_RE = re.compile(r"[0-9A-Za-z\\=+*/^<>≤≥±×÷|{}\[\]()]")
+
+
+def _handoff_block_terminates(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if _ANSWER_PROTOCOL_TOKEN_RE.search(stripped):
+        return True
+    match = _UNLABELED_FIELD_LINE_RE.match(line)
+    if match and not _STEP_LABEL_RE.fullmatch(match.group(1).strip()):
+        return True
+    if not _BLOCK_CONTENT_SIGNAL_RE.search(stripped):
+        return True
+    return False
+
+
+def _handoff_block_value(raw: str) -> str:
+    """Value of one handoff field: same-line remainder plus continuation lines.
+
+    Continuation lines run until the next known marker (handled by the caller's
+    slicing), an unlabelled "label:" line, an answer-protocol token, or a pure
+    prose line.  Free text is never folded into the trusted handoff package.
+    """
+    kept: list[str] = []
+    for offset, line in enumerate(raw.split("\n")):
+        if offset == 0:
+            # remainder after the marker colon on the marker's own line
+            if line.strip():
+                kept.append(line.rstrip())
+            continue
+        if not line.strip():
+            if kept:
+                kept.append("")
+            continue
+        if _handoff_block_terminates(line):
+            break
+        kept.append(line.rstrip())
+    while kept and not kept[-1].strip():
+        kept.pop()
+    return "\n".join(kept).strip()
+
+
+def _parse_handoff_blocks(text: str | None) -> dict[str, list[str]]:
+    """Parse all occurrences of each multi-line handoff field."""
+    if not isinstance(text, str) or not text.strip():
+        return {}
+    matches = list(_V2_MARKER_LINE_RE.finditer(text))
+    blocks: dict[str, list[str]] = {}
+    for index, match in enumerate(matches):
+        field = match.group("marker")
+        if field not in _HANDOFF_VALUE_FIELDS:
+            continue
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        value = _handoff_block_value(text[start:end])
+        if value:
+            blocks.setdefault(field, []).append(value)
+    return blocks
+
+
+def _is_explicit_unknown(value: str | None) -> bool:
+    if not isinstance(value, str):
+        return False
+    text = value.strip().strip("`\"'“”‘’").strip("。.,，；;：:！!？? ")
+    return text.casefold() == "unknown"
+
+
+_V2_ECHO_VALUES = frozenset({
+    "final", "final d", "finald", "candidate e", "candidate d",
+    "selected branch", "handoff", "answer", "result", "output",
+    "最终答案", "答案", "结果", "输出", "候选", "占位符",
+})
+_V2_EXTRA_PLACEHOLDER_VALUES = frozenset({
+    "tbd", "n/a", "todo", "xxx", "待补充", "待填写", "待完善", "略", "省略",
+    "同上", "placeholder", "你的答案", "未能生成有效数学答案",
+})
+_METHOD_DESCRIPTION_RE = re.compile(
+    r"(反证法|归纳法|构造法|枚举法|待定系数|换元法|分类讨论|判别式法|消元法"
+    r"|方法[：:]|解法[：:]|by\s+(?:induction|contradiction|construction|enumeration)"
+    r"|using\s+the\s+method|method\s*:)",
+    re.IGNORECASE,
+)
+
+
+def _is_answer_echo(value: str | None) -> bool:
+    """True when the value merely echoes a protocol field name."""
+    if not isinstance(value, str):
+        return False
+    text = value.strip().strip("`\"'“”‘’").strip("。.,，；;：:！!？? ")
+    folded = re.sub(r"[\s_\-]+", " ", text.casefold())
+    return folded in _V2_ECHO_VALUES
+
+
+def _is_method_description(value: str | None) -> bool:
+    """True when the value names a method without any math content."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    if re.search(r"[0-9=+*/^<>≤≥±×÷\\]", value):
+        return False
+    return bool(_METHOD_DESCRIPTION_RE.search(value))
+
+
+def _is_placeholder_v2(value: str | None) -> bool:
+    """v1 placeholder rules plus generalized placeholders and field echoes."""
+    if _is_placeholder(value):
+        return True
+    if _is_answer_echo(value):
+        return True
+    if isinstance(value, str):
+        text = value.strip().strip("`\"'“”‘’").strip("。.,，；;：:！!？? ")
+        if text.casefold() in _V2_EXTRA_PLACEHOLDER_VALUES:
+            return True
+    return False
+
+
+def _is_invalid_final_value(value: str | None) -> bool:
+    """Applicable answer checks for a confirmed final answer (P2a).
+
+    Placeholder, conflict and echo/description rules apply to every answer
+    type; short-scalar restrictions are deliberately not imposed here so
+    proofs, sets, ordered structures and long expressions keep their own
+    boundaries.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return True
+    return _is_placeholder_v2(value) or _is_method_description(value)
+
+
+def _confirmed_marker_values(values: list[str]) -> tuple[bool, list[str]]:
+    """Reduce repeated final-marker values to (explicit abstention, distinct)."""
+    if any(_is_explicit_unknown(v) for v in values):
+        return True, []
+    real = [v for v in values if not _is_invalid_final_value(v)]
+    return False, list(dict.fromkeys(real))
 
 
 def _is_placeholder(value: str | None) -> bool:
@@ -242,9 +482,15 @@ def _error_category(exc: BaseException) -> str:
 class ForkSelectDeepenFinishRelay:
     """Deep FSDF module with one small public interface."""
 
-    def __init__(self, client: Any, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(
+        self,
+        client: Any,
+        clock: Callable[[], float] = time.monotonic,
+        options: RelayOptions | None = None,
+    ) -> None:
         self.client = client
         self.clock = clock
+        self.options = options or RelayOptions()
 
     def solve(self, problem: str, problem_type: str) -> RelayResult:
         problem_text = problem if isinstance(problem, str) else str(problem)
@@ -337,13 +583,22 @@ class ForkSelectDeepenFinishRelay:
                 8192,
             ) or ""
         if response_d:
-            branch = self._selected_branch(
-                response_d, bool(state.idea_packet_b), bool(state.idea_packet_c)
-            )
+            branch = self._selected_branch(response_d, bool(state.idea_packet_b), bool(state.idea_packet_c))
             if branch:
                 state.stage_status["deepen"] = "ok"
                 state.selected_branch = branch
-                state.deep_handoff_d = self._handoff(response_d, state)
+                if self.options.multiline_handoff_v2:
+                    handoff_text, handoff_meta = self._handoff_v2(response_d, state)
+                    state.deep_handoff_d = handoff_text
+                    state.diagnostics["handoff_missing_fields"] = handoff_meta["missing"]
+                    state.diagnostics["handoff_conflict_fields"] = handoff_meta["conflicts"]
+                    if handoff_meta["clipped"]:
+                        state.diagnostics["handoff_clipped"] = True
+                else:
+                    state.deep_handoff_d = self._handoff(response_d, state)
+                    missing, conflicts = self._handoff_block_diagnostics(response_d)
+                    state.diagnostics["handoff_missing_fields"] = missing
+                    state.diagnostics["handoff_conflict_fields"] = conflicts
                 state.candidate_history.append("D:" + branch)
             else:
                 # D 协议失败：响应存在但没有可解析的 SELECTED_BRANCH。按 D 失败处置
@@ -353,6 +608,9 @@ class ForkSelectDeepenFinishRelay:
                 state.sanitized_errors.append("invalid_response")
                 state.selected_branch = self._available_branch(state)
                 state.deep_handoff_d = self._incomplete_handoff(state.selected_branch)
+                missing, conflicts = self._handoff_block_diagnostics(response_d)
+                state.diagnostics["handoff_missing_fields"] = missing
+                state.diagnostics["handoff_conflict_fields"] = conflicts
                 self._mark_protocol_failure(trace, state, "deepen", state.selected_branch)
         else:
             state.stage_status["deepen"] = "failed"
@@ -361,11 +619,12 @@ class ForkSelectDeepenFinishRelay:
 
         response_e = ""
         if self._stage_allowed(state, trace, "finish", 4096):
+            finish_prompt = FINISH_PROMPT_V2 if self.options.finish_prompt_v2 else FINISH_PROMPT
             response_e = self._call(
                 state,
                 trace,
                 "finish",
-                FINISH_PROMPT,
+                finish_prompt,
                 self._finish_user_prompt(problem_text, state),
                 0.0,
                 4096,
@@ -376,7 +635,21 @@ class ForkSelectDeepenFinishRelay:
         else:
             state.stage_status["finish"] = "failed"
 
-        final_response, source = self._select_answer(response_e, response_d)
+        # P0 有界诊断：候选/终答是否存在（只记录布尔，不记录内容）。
+        candidate_values = [
+            value
+            for value in (
+                _marker_occurrences(response_e, ("CANDIDATE_E",))
+                + _marker_occurrences(response_d, ("CANDIDATE_D",))
+            )
+            if value and not _is_placeholder(value)
+        ]
+        state.diagnostics["candidate_present"] = bool(candidate_values)
+
+        if self.options.final_confirmation_v2:
+            final_response, source = self._select_answer_v2(response_e, response_d, state)
+        else:
+            final_response, source = self._select_answer(response_e, response_d)
         return self._result(state, trace, final_response, source)
 
     @staticmethod
@@ -398,25 +671,35 @@ class ForkSelectDeepenFinishRelay:
         )
         return f"原题：\n{problem}\n\n{context}"
 
-    @staticmethod
-    def _finish_user_prompt(problem: str, state: _SolveState) -> str:
-        branch = state.selected_branch or ForkSelectDeepenFinishRelay._available_branch(state) or "UNKNOWN"
+    def _finish_user_prompt(self, problem: str, state: _SolveState) -> str:
+        branch = state.selected_branch or self._available_branch(state) or "UNKNOWN"
         if branch == "B":
             selected_idea = state.idea_packet_b
         elif branch == "C":
             selected_idea = state.idea_packet_c
         else:
             selected_idea = "没有可用分支；沿 D handoff 做固定 direct fallback。"
-        handoff = _clip(state.deep_handoff_d or "不可用", _FINISH_HANDOFF_RESERVE)
+        if self.options.multiline_handoff_v2:
+            # v2 handoff 已经按字段/推导项粒度适配交接预留额，直接整块传入，
+            # 不再二次字符裁剪；A 摘要与思路在剩余预算内压缩。
+            handoff = state.deep_handoff_d or "不可用"
+        else:
+            raw_handoff = state.deep_handoff_d or "不可用"
+            handoff = _clip(raw_handoff, _FINISH_HANDOFF_RESERVE)
+            if len(handoff) < len(raw_handoff):
+                state.diagnostics["handoff_clipped"] = True
         budget = _FINISH_CONTEXT_LIMIT - _FINISH_LABEL_BUDGET - len(handoff)
-        selected = _clip(selected_idea or "不可用", min(_IDEA_LIMIT, max(0, budget)))
-        analysis = _clip(
-            state.analysis_packet_a or "不可用", max(0, budget - len(selected))
+        raw_selected = selected_idea or "不可用"
+        selected = _clip(raw_selected, min(_IDEA_LIMIT, max(0, budget)))
+        raw_analysis = state.analysis_packet_a or "不可用"
+        analysis = _clip(raw_analysis, max(0, budget - len(selected)))
+        context = (
+            f"A 约束摘要：\n{analysis}\n\nSELECTED_BRANCH: {branch}\n"
+            f"选中思路：\n{selected}\n\nD handoff：\n{handoff}"
         )
-        context = _clip(
-            f"A 约束摘要：\n{analysis}\n\nSELECTED_BRANCH: {branch}\n选中思路：\n{selected}\n\nD handoff：\n{handoff}",
-            _FINISH_CONTEXT_LIMIT,
-        )
+        if len(context) > _FINISH_CONTEXT_LIMIT:
+            state.diagnostics["finish_context_clipped"] = True
+        context = _clip(context, _FINISH_CONTEXT_LIMIT)
         return f"原题：\n{problem}\n\n{context}"
 
     @staticmethod
@@ -428,9 +711,11 @@ class ForkSelectDeepenFinishRelay:
             return "C"
         return ""
 
-    @staticmethod
-    def _selected_branch(response: str, has_b: bool, has_c: bool) -> str:
-        selected = _marker_value(response, "SELECTED_BRANCH").upper()
+    def _selected_branch(self, response: str, has_b: bool, has_c: bool) -> str:
+        if self.options.multiline_handoff_v2:
+            selected = _marker_value_strict(response, "SELECTED_BRANCH").upper()
+        else:
+            selected = _marker_value(response, "SELECTED_BRANCH").upper()
         if selected not in {"B", "C"}:
             return ""
         # A syntactically valid choice is still a protocol failure when that
@@ -458,7 +743,10 @@ class ForkSelectDeepenFinishRelay:
         if any(not value for value in substantive.values()):
             # 缺字段只标记不完整；E 不接收 D 的任意自由文本，避免未选分支泄露。
             parts.append("HANDOFF_INCOMPLETE: true")
-        return _clip("\n".join(parts), _HANDOFF_LIMIT)
+        joined = "\n".join(parts)
+        if len(joined) > _HANDOFF_LIMIT:
+            state.diagnostics["handoff_clipped"] = True
+        return _clip(joined, _HANDOFF_LIMIT)
 
     @staticmethod
     def _incomplete_handoff(branch: str) -> str:
@@ -466,6 +754,118 @@ class ForkSelectDeepenFinishRelay:
             f"SELECTED_BRANCH: {branch or 'UNKNOWN'}\nHANDOFF_INCOMPLETE: true",
             _HANDOFF_LIMIT,
         )
+
+    @staticmethod
+    def _resolve_handoff_blocks(response_d: str) -> dict[str, dict[str, Any]]:
+        """Resolve every handoff field to a deduplicated value or a conflict.
+
+        Repeated identical values dedupe; distinct values mark a conflict
+        instead of silently picking the first or last occurrence.  Placeholder
+        occurrences carry no candidate semantics and are filtered before the
+        conflict decision (so ``UNKNOWN → 42`` is an update, not a conflict).
+        """
+        blocks = _parse_handoff_blocks(response_d)
+        resolved: dict[str, dict[str, Any]] = {}
+        for field in _HANDOFF_VALUE_FIELDS:
+            entries = blocks.get(field, [])
+            if field == "CANDIDATE_D":
+                real = [v for v in entries if not _is_placeholder_v2(v)]
+            else:
+                real = [v for v in entries if not _is_placeholder(v)]
+            distinct = list(dict.fromkeys(real))
+            if len(distinct) >= 2:
+                resolved[field] = {"value": "", "conflict": True}
+            elif len(distinct) == 1:
+                resolved[field] = {"value": distinct[0], "conflict": False}
+            else:
+                resolved[field] = {"value": "", "conflict": False}
+        return resolved
+
+    def _handoff_block_diagnostics(self, response_d: str) -> tuple[list[str], list[str]]:
+        """Bounded P0 summary: which handoff fields are missing or conflicted."""
+        resolved = self._resolve_handoff_blocks(_strip_idea_packet_text(response_d))
+        conflicts = [f for f in _HANDOFF_VALUE_FIELDS if resolved[f]["conflict"]]
+        conflict_set = set(conflicts)
+        missing = [
+            f for f in _HANDOFF_VALUE_FIELDS
+            if not resolved[f]["value"] and f not in conflict_set
+        ]
+        return missing, conflicts
+
+    def _handoff_v2(self, response_d: str, state: _SolveState) -> tuple[str, dict[str, Any]]:
+        """Marker-bounded multi-line handoff with whole-field/whole-item clipping.
+
+        Clipping only ever drops complete fields or complete derivation items;
+        a truncated fragment is never passed to E as complete evidence, and
+        every loss stays visible to E through the bounded trailer markers.
+        """
+        resolved = self._resolve_handoff_blocks(_strip_idea_packet_text(response_d))
+        conflicts = [f for f in _HANDOFF_VALUE_FIELDS if resolved[f]["conflict"]]
+        conflict_set = set(conflicts)
+        missing = [f for f in _HANDOFF_VALUE_FIELDS if not resolved[f]["value"] and f not in conflict_set]
+        header = f"SELECTED_BRANCH: {state.selected_branch or 'UNKNOWN'}"
+        budget = _FINISH_HANDOFF_RESERVE_V2 - len(header) - 1 - _HANDOFF_TRAILER_HEADROOM
+        placed: dict[str, list[str]] = {}
+        dropped: list[str] = []
+        partial: list[str] = []
+        used = 0
+
+        def fits(extra: int) -> bool:
+            return used + extra <= budget
+
+        for field in _HANDOFF_KEEP_PRIORITY:
+            if field in conflict_set:
+                line = f"{field}_CONFLICT: true"
+                if fits(len(line) + 1):
+                    placed[field] = [line]
+                    used += len(line) + 1
+                else:
+                    dropped.append(field)
+                continue
+            value = resolved[field]["value"]
+            if not value:
+                continue
+            lines = value.split("\n")
+            rendered = [f"{field}: {lines[0]}"] + lines[1:]
+            whole = sum(len(line) + 1 for line in rendered)
+            if fits(whole):
+                placed[field] = rendered
+                used += whole
+                continue
+            kept_lines: list[str] = []
+            for line in rendered:
+                cost = len(line) + 1
+                if not fits(cost):
+                    break
+                kept_lines.append(line)
+                used += cost
+            if kept_lines:
+                placed[field] = kept_lines
+                partial.append(field)
+            else:
+                dropped.append(field)
+
+        parts = [header]
+        for field in _HANDOFF_DISPLAY_ORDER:
+            parts.extend(placed.get(field, []))
+        incomplete = bool(missing or dropped or partial)
+        if incomplete:
+            parts.append("HANDOFF_INCOMPLETE: true")
+        if conflicts:
+            parts.append("HANDOFF_CONFLICT: " + ",".join(conflicts))
+        if dropped:
+            parts.append("HANDOFF_DROPPED: " + ",".join(dropped))
+        if partial:
+            parts.append("HANDOFF_PARTIAL: " + ",".join(partial))
+        text = "\n".join(parts)
+        meta = {
+            "missing": missing,
+            "conflicts": conflicts,
+            "dropped": dropped,
+            "partial": partial,
+            "clipped": bool(dropped or partial),
+        }
+        return text, meta
 
     def _mark_protocol_failure(
         self,
@@ -581,6 +981,12 @@ class ForkSelectDeepenFinishRelay:
             "fallback_source",
             "error_category",
             "ideas_not_diverse",
+            "handoff_missing_fields",
+            "handoff_conflict_fields",
+            "handoff_clipped",
+            "finish_context_clipped",
+            "token_usage",
+            "finish_reason",
         }})
         trace.append(event)
 
@@ -627,6 +1033,43 @@ class ForkSelectDeepenFinishRelay:
             return math_line, "math_line"
         return "UNKNOWN", "unknown"
 
+    def _select_answer_v2(
+        self, response_e: str | None, response_d: str | None, state: _SolveState
+    ) -> tuple[str, str]:
+        """P2a confirmed-answer selection (fail-closed).
+
+        - A valid, conflict-free E final wins.
+        - An explicit FINAL: UNKNOWN is an abstention: the final answer stays
+          UNKNOWN and no earlier candidate is revived.
+        - Distinct repeated finals are a conflict: UNKNOWN, never first/last.
+        - When E has no valid final, only an explicitly completed D result
+          (FINAL_D) may be adopted, and only when D itself completed its
+          protocol — a protocol-failed D's raw text never bypasses the
+          source-validity checks.  Unconfirmed CANDIDATE values, boxed
+          intermediate quantities and stray math lines are not answers.
+        """
+        abstained, e_distinct = _confirmed_marker_values(
+            _marker_occurrences(response_e, ("FINAL", "最终答案"))
+        )
+        if abstained:
+            return "UNKNOWN", "finish_unknown"
+        if len(e_distinct) >= 2:
+            return "UNKNOWN", "final_conflict"
+        if len(e_distinct) == 1:
+            return e_distinct[0], "finish_final"
+        # E 终答缺失（无 FINAL 或终答无效）≠ 明确弃答；仅显式完成结果可回退。
+        if state.stage_status.get("deepen") == "ok" and response_d:
+            d_abstained, d_distinct = _confirmed_marker_values(
+                _marker_occurrences(response_d, ("FINAL_D",))
+            )
+            if d_abstained:
+                return "UNKNOWN", "unknown"
+            if len(d_distinct) >= 2:
+                return "UNKNOWN", "deep_final_conflict"
+            if len(d_distinct) == 1:
+                return d_distinct[0], "deep_final"
+        return "UNKNOWN", "unknown"
+
     def _result(
         self,
         state: _SolveState,
@@ -635,8 +1078,22 @@ class ForkSelectDeepenFinishRelay:
         fallback_source: str,
     ) -> RelayResult:
         final = final_response.strip() if isinstance(final_response, str) else "UNKNOWN"
-        if not final or _is_placeholder(final):
+        # 只在终答本身无效时改写来源；显式 UNKNOWN 的原因来源（弃答/冲突）必须保留。
+        if final != "UNKNOWN" and (not final or _is_placeholder(final)):
             final, fallback_source = "UNKNOWN", "unknown"
+        extras: dict[str, Any] = {}
+        if self.options.diagnostics_v2:
+            # P0 有界诊断摘要：只含字段名/布尔/unavailable 标记，不含模型原文。
+            # 公开 client 契约不暴露 token/finish_reason，无法获得时显式标记。
+            extras = {
+                "handoff_missing_fields": list(state.diagnostics.get("handoff_missing_fields", [])),
+                "handoff_conflict_fields": list(state.diagnostics.get("handoff_conflict_fields", [])),
+                "handoff_clipped": bool(state.diagnostics.get("handoff_clipped", False)),
+                "finish_context_clipped": bool(state.diagnostics.get("finish_context_clipped", False)),
+                "candidate_present": bool(state.diagnostics.get("candidate_present", False)),
+                "token_usage": "unavailable",
+                "finish_reason": "unavailable",
+            }
         self._event(
             trace,
             state,
@@ -646,6 +1103,7 @@ class ForkSelectDeepenFinishRelay:
             final_present=final != "UNKNOWN",
             fallback_source=fallback_source,
             selected_branch=state.selected_branch or "UNKNOWN",
+            **extras,
         )
         return RelayResult(final_response=final, extracted_answer=final if final != "UNKNOWN" else "", trace=trace)
 
@@ -653,10 +1111,13 @@ class ForkSelectDeepenFinishRelay:
 __all__ = [
     "ForkSelectDeepenFinishRelay",
     "RelayResult",
+    "RelayOptions",
     "METHOD_ID",
     "STAGE_TOKEN_SEQUENCE",
     "L0_TOKEN_SEQUENCE",
     "SOFT_DEADLINE_SECONDS",
     "HARD_DEADLINE_SECONDS",
+    "FINISH_PROMPT",
+    "FINISH_PROMPT_V2",
     "match_simple_arithmetic_expression",
 ]
