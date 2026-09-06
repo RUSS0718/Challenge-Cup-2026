@@ -63,7 +63,8 @@ def aligned_finish_reasons(record: dict[str, Any]) -> dict[str, str]:
 
 
 def stage_finish_reason(record: dict[str, Any], stage: str) -> str:
-    return aligned_finish_reasons(record).get(stage, "unavailable")
+    name_map = {"A": "analyze", "B": "fork_b", "C": "fork_c", "D": "deepen", "E": "finish"}
+    return aligned_finish_reasons(record).get(name_map.get(stage, stage), "unavailable")
 
 
 def finalize_source(record: dict[str, Any]) -> str:

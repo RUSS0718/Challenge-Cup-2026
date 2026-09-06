@@ -312,3 +312,15 @@
   是否恢复 v1。下一轮（迭代 12）：按用户"设计强制 harness、把限制拉高"的指示，
   实现 `fsdf_skill_harness_v1`（D 系统提示=路线执行脚本、每步强制"第N步:"输出、
   程序侧完成度遥测；思考关），臂 v2hd_hs_tkh = 思考关 + 强制 harness。
+- 迭代 12 候选登记：`fsdf_skill_harness_v1`（强制 harness，按用户指示"把限制
+  拉高"：D 系统提示 = 宿主预选路线的执行脚本——"是路线执行器，不是自由解题者"、
+  不得跳步/改序/自由发挥，每步强制"第N步:"输出行，程序侧统计完成度
+  （harness_steps_completed/expected）；E 获路线核查附录。思考关（用户前提：
+  "思考关掉的话模型会很笨，必须把限制拉高"——关思考后 4096 预算几乎全部可用于
+  内容，迭代 3"加字段必截断"的前提不再成立）。门：机制 = 候选臂
+  harness_steps_completed/expected 完成率（结构性遥测，噪声免疫）+ D 协议失败率
+  不高于基线臂；能力 = net ≥ 0 零反转（方向性）+ correct 数；确认窗规则同前。
+  反斥：完成率 < 50% 且 net < 0 → 强制 harness 在该模型上不可行，记录后回到
+  deep_candidate 线。臂 `v2hd_hs_tkh` = v2hd_hs + skill_harness，思考关
+  （ARM_THINKING_MODE）。基线臂 `v2hd_bs_hs_tkoff`（同前沿配置、思考关、无 harness，
+  迭代 11 已测 1/13/1——本窗重跑作同窗基线）。

@@ -402,6 +402,11 @@ class AgentConfig:
     # prompt; D may override within the directory. Zero model calls for
     # routing; parsing, calls and budgets unchanged.
     enable_fsdf_skill_routes: bool = False
+    # fsdf_skill_harness_v1 (iteration 12): forced harness — D's system prompt
+    # becomes the host-selected route's execution script with mandatory
+    # numbered step outputs and program-side completion telemetry; E gets a
+    # route check addendum. Implies route selection; budgets unchanged.
+    enable_fsdf_skill_harness: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1186,6 +1191,7 @@ class ReasoningAgent:
                 e_budget_up=self.config.enable_fsdf_e_budget_up,
                 deep_candidate_fallback=self.config.enable_fsdf_deep_candidate_fallback,
                 skill_routes=self.config.enable_fsdf_skill_routes,
+                skill_harness=self.config.enable_fsdf_skill_harness,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

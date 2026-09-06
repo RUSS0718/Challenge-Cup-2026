@@ -221,6 +221,46 @@ def render_route_block(selected: str | None, directory: list[str]) -> str:
     return "\n".join(lines)
 
 
+def build_harness_deepen_prompt(route: dict[str, Any]) -> str:
+    """Forced-harness D system prompt: the model is an executor of the
+    host-selected route.  Every step must land as a numbered DERIVED item;
+    skipping steps or freelancing outside the route are protocol violations.
+    """
+    steps = "\n".join(f"{i}. {s}" for i, s in enumerate(route.get("steps") or [], 1))
+    return f"""你负责 Select/Deepen 阶段，是路线执行器，不是自由解题者。必须严格按下面的路线逐步执行：
+不得跳步、不得更改步骤顺序、不得输出路线以外的内容、不得先给结论再补过程。
+
+路线：{route.get('name', '')}
+路线步骤（按顺序逐步执行）：
+{steps}
+预期产物：{route.get('products', '')}
+
+输出协议（每个字段各出现一次，缺一不可）：
+SELECTED_BRANCH: B 或 C
+CANDIDATE_D: <当前候选；无法确定写 UNKNOWN>
+OPEN: <路线中尚未执行的步骤；全部执行完写 无>
+CHECKS: <每一步的验证记录；未验证的必须写明未验证>
+RISK: <依赖前提与可能失效之处>
+DERIVED: <每个路线步骤的执行结果，每条单独一行并以“第N步:”开头，N 对应路线步骤编号；
+每条必须包含该步骤的具体结论与依据；没有完成的步骤不得伪造>
+
+硬性规则：路线的每个步骤都必须有对应的“第N步:”输出行；没有完成的步骤写进 OPEN；
+不得跳过任何步骤直接给答案；不要把未选分支全文复制进 handoff。"""
+
+
+def build_harness_finish_addendum(route: dict[str, Any]) -> str:
+    return (f"路线核查要求：本解按路线“{route.get('name', '')}”执行。给出 FINAL 前，"
+            f"必须对照预期产物（{route.get('products', '')}）逐项核对 handoff 中的第N步记录；"
+            f"核对未通过且无法修复时输出 FINAL: UNKNOWN。")
+
+
+def count_route_steps(text: str | None) -> int:
+    """Number of distinct 第N步 execution items present in a text block."""
+    if not isinstance(text, str):
+        return 0
+    return len({m.group(1) for m in re.finditer(r"第(\d+)步", text)})
+
+
 @dataclass
 class RelayResult:
     """Small result interface returned by the relay."""
@@ -302,6 +342,11 @@ class RelayOptions:
     # prompt; D may override within the directory via SELECTED_SKILL. Zero
     # model calls for routing; parsing, calls and budgets unchanged.
     skill_routes: bool = False
+    # fsdf_skill_harness_v1 (iteration 12): forced harness — D's system prompt
+    # becomes the host-selected route's execution script (every step must land
+    # as a numbered DERIVED item, program-side completion telemetry), E gets a
+    # route check addendum. Implies route selection; budgets unchanged.
+    skill_harness: bool = False
 
 
 @dataclass
@@ -795,16 +840,23 @@ class ForkSelectDeepenFinishRelay:
             self._event(trace, state, "fork", "ok", 0, ideas_not_diverse=methods_equal)
 
         deepen_max_tokens = 4096 if self.options.de_budget_swap else 8192
+        harness_route: dict[str, Any] | None = None
         response_d = ""
         if self._stage_allowed(state, trace, "deepen", deepen_max_tokens):
-            if self.options.mandatory_final_d:
+            if self.options.skill_harness:
+                harness_route = SKILL_ROUTES.get(
+                    select_skill_route(problem_text, problem_type)[0] or ""
+                ) or None
+            if harness_route is not None:
+                deepen_prompt = build_harness_deepen_prompt(harness_route)
+            elif self.options.mandatory_final_d:
                 deepen_prompt = DEEPEN_PROMPT_MFD
             elif self.options.handoff_first_d:
                 deepen_prompt = DEEPEN_PROMPT_V2
             else:
                 deepen_prompt = DEEPEN_PROMPT
             deepen_user = self._deepen_user_prompt(problem_text, state)
-            if self.options.skill_routes:
+            if self.options.skill_routes and harness_route is None:
                 route_block = render_route_block(*select_skill_route(problem_text, problem_type))
                 if route_block:
                     deepen_user = f"{deepen_user}\n\n{route_block}"
@@ -822,6 +874,12 @@ class ForkSelectDeepenFinishRelay:
             if branch:
                 state.stage_status["deepen"] = "ok"
                 state.selected_branch = branch
+                if harness_route is not None:
+                    # 强制 harness：统计路线步骤完成度（程序侧验证，不依赖模型自述）。
+                    done = count_route_steps(response_d)
+                    state.diagnostics["harness_steps_expected"] = len(harness_route.get("steps") or [])
+                    state.diagnostics["harness_steps_completed"] = done
+                    state.diagnostics["harness_route_id"] = select_skill_route(problem_text, problem_type)[0] or ""
                 selected_skill = _marker_value_strict(response_d, "SELECTED_SKILL")
                 if self.options.skill_routes and selected_skill in SKILL_ROUTES:
                     state.diagnostics["selected_skill"] = selected_skill
@@ -953,6 +1011,10 @@ class ForkSelectDeepenFinishRelay:
             # 待核查候选作为独立标注行加入 E 输入；不覆盖 CANDIDATE_D，
             # 不改变答案选择链，只扩大 E 的可见信息。
             handoff = f"{handoff}\nFINAL_D_FOR_CHECK: {state.d_candidate_for_check}"
+        if self.options.skill_harness:
+            harness_route = SKILL_ROUTES.get(str(state.diagnostics.get("harness_route_id") or ""))
+            if harness_route:
+                handoff = f"{handoff}\n{build_harness_finish_addendum(harness_route)}"
         budget = _FINISH_CONTEXT_LIMIT - _FINISH_LABEL_BUDGET - len(handoff)
         raw_analysis = state.analysis_packet_a or "不可用"
         if share_mode and self.options.finish_handoff_share_v2:
@@ -1329,6 +1391,9 @@ class ForkSelectDeepenFinishRelay:
             "d_candidate_visible_to_e",
             "e_final_equals_d_candidate",
             "selected_skill",
+            "harness_route_id",
+            "harness_steps_expected",
+            "harness_steps_completed",
             "token_usage",
             "finish_reason",
         }})
@@ -1452,6 +1517,9 @@ class ForkSelectDeepenFinishRelay:
                 "d_candidate_visible_to_e": bool(state.diagnostics.get("d_candidate_visible_to_e", False)),
                 "e_final_equals_d_candidate": bool(state.diagnostics.get("e_final_equals_d_candidate", False)),
                 "selected_skill": state.diagnostics.get("selected_skill", ""),
+                "harness_route_id": state.diagnostics.get("harness_route_id", ""),
+                "harness_steps_expected": state.diagnostics.get("harness_steps_expected", 0),
+                "harness_steps_completed": state.diagnostics.get("harness_steps_completed", 0),
                 "token_usage": "unavailable",
                 "finish_reason": "unavailable",
             }

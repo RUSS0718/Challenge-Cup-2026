@@ -1460,5 +1460,101 @@ class F2SkillRoutesTest(unittest.TestCase):
         self.assertEqual("7", result.final_response)
 
 
+class F2SkillHarnessTest(unittest.TestCase):
+    """fsdf_skill_harness_v1（迭代 12）：D 系统提示=路线执行脚本，强制逐步输出。"""
+
+    def test_tkh_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_skill_harness)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_skill_harness)
+        self.assertFalse(RelayOptions().skill_harness)
+
+    def test_tkh_02_off_keeps_frontier_prompt(self):
+        client, _ = solve_v2(
+            ["求方程 2x+3=7 的解。", idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, handoff_first_d=True),
+        )
+        self.assertEqual(DEEPEN_PROMPT_V2, client.calls[3][0][0]["content"])
+
+    def test_tkh_03_on_replaces_system_prompt_with_route_script(self):
+        client, result = solve_v2(
+            ["求方程 2x+3=7 的解。", idea("B"), idea("C"), deep(), finish("2", "2")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                skill_harness=True,
+            ),
+        )
+        d_sys = client.calls[3][0][0]["content"]
+        self.assertIn("是路线执行器，不是自由解题者", d_sys)
+        self.assertIn("不得跳步", d_sys)
+        self.assertIn("消元与代换", d_sys)  # 计算题预选路线
+        self.assertNotIn("可以输出 FINAL_D", d_sys)
+        # 预算与调用不变。
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client.calls))
+        self.assertEqual(5, len(client.calls))
+        self.assertEqual("2", result.final_response)
+
+    def test_tkh_04_step_outputs_parse_and_telemetry_counts(self):
+        d_harness = (
+            "SELECTED_BRANCH: B\n"
+            "CANDIDATE_D: 2\n"
+            "OPEN: 无\n"
+            "CHECKS: 代回 2x+3=7 成立\n"
+            "RISK: 无\n"
+            "DERIVED: 第1步: 未知量 x，关系 2x+3=7\n"
+            "第2步: 消元得 x=2\n"
+            "第3步: 代回检验通过\n"
+            "第4步: 无需构造\n"
+            "FINAL_D: 2"
+        )
+        client, result = solve_v2(
+            ["求方程 2x+3=7 的解。", idea("B"), idea("C"), d_harness, RuntimeError("e")],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                skill_harness=True,
+            ),
+        )
+        e_prompt = client.calls[4][0][1]["content"]
+        self.assertIn("第1步: 未知量 x，关系 2x+3=7", e_prompt)
+        self.assertIn("路线核查要求", e_prompt)
+        self.assertEqual("2", result.final_response)
+        self.assertEqual("deep_final", result.trace[-1]["fallback_source"])
+        event = finalize_event(result.trace)
+        self.assertEqual(4, event.get("harness_steps_completed"))
+        self.assertEqual(4, event.get("harness_steps_expected"))
+        self.assertEqual("elimination_substitution", event.get("harness_route_id"))
+
+    def test_tkh_05_missing_steps_telemetry(self):
+        d_partial = (
+            "SELECTED_BRANCH: B\n"
+            "CANDIDATE_D: UNKNOWN\n"
+            "OPEN: 后续步骤未完成\n"
+            "CHECKS: 未验证\n"
+            "RISK: 无\n"
+            "DERIVED: 第1步: 已列出关系 2x+3=7"
+        )
+        _, result = solve_v2(
+            ["求方程 2x+3=7 的解。", idea("B"), idea("C"), d_partial, RuntimeError("e")],
+            RelayOptions(
+                diagnostics_v2=True,
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                skill_harness=True,
+            ),
+        )
+        event = finalize_event(result.trace)
+        self.assertEqual(1, event.get("harness_steps_completed"))
+        self.assertEqual(4, event.get("harness_steps_expected"))
+        self.assertEqual("UNKNOWN", result.final_response)
+
+
 if __name__ == "__main__":
     unittest.main()

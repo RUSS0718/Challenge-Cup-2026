@@ -221,7 +221,8 @@ TRACE_KEEP = frozenset({
     "handoff_unknown_fields", "handoff_unclosed_fields", "handoff_field_states",
     "handoff_all_fields_present", "handoff_has_derived_content",
     "handoff_has_candidate_result", "d_candidate_visible_to_e",
-    "e_final_equals_d_candidate",
+    "e_final_equals_d_candidate", "selected_skill", "harness_route_id",
+    "harness_steps_expected", "harness_steps_completed",
 })
 
 _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
@@ -278,6 +279,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_e_budget_up",
     "enable_fsdf_deep_candidate_fallback",
     "enable_fsdf_skill_routes",
+    "enable_fsdf_skill_harness",
 )
 
 
@@ -363,6 +365,14 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
         "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
         "enable_fsdf_skill_routes",
     )),
+    # v2hd_hs + fsdf_skill_harness_v1, thinking off: forced route-execution
+    # harness per the user directive (raise constraints so the model follows
+    # the skill).
+    "v2hd_hs_tkh": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
+        "enable_fsdf_skill_harness",
+    )),
 }
 
 
@@ -379,6 +389,7 @@ def arm_config(arm: str) -> Any:
 ARM_THINKING_MODE: dict[str, bool | None] = {
     "v2hd_bs_hs_tkoff": False,
     "v2hd_hs_sr": False,
+    "v2hd_hs_tkh": False,
 }
 
 
