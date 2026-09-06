@@ -44,6 +44,8 @@ class CapsuleFlowTest(unittest.TestCase):
             enable_typed_answer_capsule=True,
             enable_contextual_answer_reconstruction=False,
             enable_fork_select_deepen_finish=False,
+            enable_fesf_v1=False,
+            enable_fesf_exact_eval=False,
             enable_condition_checked_selection=False,
             enable_plan_solve_compact=False,
             max_tokens=4096,

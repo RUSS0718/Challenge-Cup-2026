@@ -29,6 +29,8 @@ def config():
         SUBMISSION_CONFIG,
         enable_contextual_answer_reconstruction=True,
         enable_fork_select_deepen_finish=False,
+        enable_fesf_v1=False,
+        enable_fesf_exact_eval=False,
         enable_typed_answer_capsule=False,
         enable_condition_checked_selection=False,
         enable_plan_solve_compact=False,

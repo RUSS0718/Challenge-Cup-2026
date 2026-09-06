@@ -357,9 +357,8 @@ class AgentConfig:
     reconstruction_max_tokens: int = 4096
     reconstruction_context_max_chars: int = 12000
     enable_fork_select_deepen_finish: bool = False
-    # FESF v1 is an opt-in five-call candidate.  The exact-evaluation Skill is
-    # separately selectable so the free/Skill harness can be tested without
-    # changing the default submission path.
+    # FESF v1 is enabled in the current local evaluation profile.  The
+    # rollback profile remains available through explicit runner arms.
     enable_fesf_v1: bool = False
     enable_fesf_exact_eval: bool = False
     # FSDF v2 reliability candidates (Issue #15 spec).  Each increment is
@@ -460,7 +459,9 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_contextual_answer_reconstruction=False,
     reconstruction_max_tokens=4096,
     reconstruction_context_max_chars=12000,
-    enable_fork_select_deepen_finish=True,
+    # The local evaluation profile runs FESF; the FSDF v1 anchor remains an
+    # explicit runner arm rather than a second active path here.
+    enable_fork_select_deepen_finish=False,
     # Forward rollback to the FSDF v1 release anchor.  Candidate canaries are
     # retained in code and remain opt-in for local arms only.
     enable_fsdf_diagnostics_v2=False,
@@ -469,8 +470,8 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_fsdf_finish_prompt_v2=False,
     enable_fsdf_handoff_first_d=False,
     enable_fsdf_d_result_to_e=False,
-    enable_fesf_v1=False,
-    enable_fesf_exact_eval=False,
+    enable_fesf_v1=True,
+    enable_fesf_exact_eval=True,
 )
 
 
@@ -1172,19 +1173,21 @@ class ReasoningAgent:
 
         if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
             raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
-        experimental_paths = sum(bool(flag) for flag in (
+        legacy_experimental_paths = sum(bool(flag) for flag in (
             self.config.enable_typed_answer_capsule,
             self.config.enable_condition_checked_selection,
             self.config.enable_plan_solve_compact,
             self.config.enable_contextual_answer_reconstruction,
             self.config.enable_fork_select_deepen_finish,
-            self.config.enable_fesf_v1,
         ))
-        if experimental_paths > 1:
+        if legacy_experimental_paths > 1:
             raise ValueError("experimental answering paths are mutually exclusive")
         if self.config.enable_fesf_exact_eval and not self.config.enable_fesf_v1:
             raise ValueError("enable_fesf_exact_eval requires enable_fesf_v1")
-        if self.config.enable_fesf_v1:
+        # FESF is the current default profile.  A config that explicitly
+        # selects an older path still gets that path, which keeps historical
+        # test/diagnostic profiles usable when they inherit SUBMISSION_CONFIG.
+        if self.config.enable_fesf_v1 and legacy_experimental_paths == 0:
             return ForkEvidenceSynthesizeFinishRelay(
                 self.client,
                 enable_exact_eval=self.config.enable_fesf_exact_eval,

@@ -268,3 +268,12 @@ completion 预算（client 级可消除，4.7× 提速），但消除截断不�
 定义域、负幂、累计资源预算和 FINAL 卫生，最终结论为 PASS。Skill 真实可用性资格门以及
 Q/W1/W2 真实模型窗口按用户指示暂缓；因此本条不产生数学正确率、Skill 能力或成本结论。
 运行时不加载离线错题账本，未修改默认路径、未推送发布。
+
+## 六点十六、FESF-LOCAL-DEFAULT-TEST-001（2026-09-06）
+
+| 变更 | 范围 | 处置 |
+|---|---|---|
+| `SUBMISSION_CONFIG.enable_fesf_v1=True`、`enable_fesf_exact_eval=True` | 用户授权的本地新体系效果测试；FSDF v1 保留为显式回退臂，未推送 GitCode | `LOCAL_EXPLORATION_ONLY / NO_CAPABILITY_CONCLUSION / NO_RELEASE` |
+
+该开关切换只改变当前工作树的本地默认路由，不把零模型工程验收升级为数学能力证据，
+也不替代真实 Q/W1/W2 资格与能力窗。

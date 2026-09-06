@@ -59,6 +59,8 @@ def baseline_config():
         SUBMISSION_CONFIG,
         enable_contextual_answer_reconstruction=False,
         enable_fork_select_deepen_finish=False,
+        enable_fesf_v1=False,
+        enable_fesf_exact_eval=False,
     )
 
 
@@ -67,6 +69,8 @@ def tail_config(**overrides):
         SUBMISSION_CONFIG,
         enable_contextual_answer_reconstruction=False,
         enable_fork_select_deepen_finish=False,
+        enable_fesf_v1=False,
+        enable_fesf_exact_eval=False,
         enable_stateful_tail_completion=True,
         **overrides
     )

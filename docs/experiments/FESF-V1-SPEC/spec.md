@@ -1,6 +1,6 @@
 # FESF v1：证据合成 Harness、独立 Skill 与单题记忆升级规格
 
-状态：`IMPLEMENTED / CODE_ACCEPTED / MODEL_EXPERIMENT_DEFERRED / NO_RELEASE`
+状态：`IMPLEMENTED / CODE_ACCEPTED / LOCAL_FESF_DEFAULT / MODEL_EXPERIMENT_DEFERRED / NO_RELEASE`
 
 方法 ID：`fork_evidence_synthesize_finish_v1`（简称 `FESF v1`）
 
@@ -11,8 +11,8 @@
 本规格的代码、Skill 与单题记忆部分已完成并通过零模型工程验收；真实模型资格/能力窗按
 用户决定暂缓，因此本轮不执行模型调用。已完成的范围是：
 
-1. 把默认运行行为恢复到 FSDF v1；
-2. 实现新的 FESF v1 候选；
+1. 保留 FSDF v1 作为显式回退 runner 臂；
+2. 实现新的 FESF v1 候选，并在当前本地评测 profile 默认打开；
 3. 在独立目录中开发并完成首个数学 Skill 的工程验收；
 4. 在独立目录中实现单题记忆，并固定离线错题经验沉淀边界；
 5. 扩展双臂 runner 与零模型验收工件。
@@ -20,9 +20,9 @@
 以下模型实验仍是后续可选阶段：在得到明确启动指示后，最多使用 180 分钟完成资格窗和
 两个能力窗；本状态不对 FESF 的数学正确率作结论。
 
-以下动作仍需分别授权：推送 GitCode main、修改赛事作品、把 FESF 设为
-`SUBMISSION_CONFIG`、使用官方隐藏题信息更新运行时代码。代码验收、Skill 验收和本地
-A/B 均不自动产生上述授权。
+本地 `SUBMISSION_CONFIG` 打开 FESF 仅用于当前用户授权的本地新体系测试；这不等同于
+正式发布授权。以下动作仍需分别授权：推送 GitCode main、修改赛事作品、使用官方隐藏题
+信息更新运行时代码。代码验收、Skill 验收和本地 A/B 均不自动产生上述发布授权。
 
 ## 1. 已确认事实、设计判断与未验证项
 
@@ -30,8 +30,9 @@ A/B 均不自动产生上述授权。
 
 - FSDF v1 的官方证据锚为 `de74934`；仓库记录为 correct 14 / incorrect 61 /
   invalid 37。
-- 当前 `SUBMISSION_CONFIG` 已回到 FSDF v1 默认路径，FESF 与六个可靠性 canary 均关闭；
-  历史 canary 官方结果 correct 7/112 仅作回滚背景，不作为本轮能力证据。
+- 当前本地 `SUBMISSION_CONFIG` 打开 FESF v1 与 `exact-evaluation`；FSDF v1 仍由
+  `fsdf_v1_tkoff` runner 臂显式提供，六个可靠性 canary 保持关闭。历史 canary 官方结果
+  correct 7/112 仅作回滚背景，不作为本轮能力证据。
 - 本地 `thinking_off` 是 `InternChatClient`/runner 的请求参数，不是
   `ReasoningAgent(client=official_client)` 三参数公开契约的一部分。
 - 迭代 10–12 表明本地关闭思考后阶段截断和耗时大幅下降，但正确数没有自动提高；
