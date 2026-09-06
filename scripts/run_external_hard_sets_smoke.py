@@ -356,6 +356,19 @@ def arm_config(arm: str) -> Any:
     return dataclasses.replace(SUBMISSION_CONFIG, **ARM_DEFINITIONS[arm])
 
 
+# Per-arm client-level thinking switch: None = server default (env), False =
+# thinking disabled for that arm's calls (see apply_thinking_mode probe:
+# the default thinking pass consumed the whole completion budget inside the
+# output stream).
+ARM_THINKING_MODE: dict[str, bool | None] = {
+    "v2hd_bs_hs_tkoff": False,
+}
+
+
+def arm_thinking_mode(arm: str) -> bool | None:
+    return ARM_THINKING_MODE.get(arm)
+
+
 def assign_arms(tasks: list[dict[str, Any]], arms: list[str]) -> None:
     """Deterministically interleave arms over the seeded-shuffled task list."""
     if not arms:
@@ -396,7 +409,7 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     item = task["item"]
     arm = task.get("arm", "v1")
     config = arm_config(arm)
-    client = InternChatClient(timeout=timeout)
+    client = InternChatClient(timeout=timeout, thinking_mode=arm_thinking_mode(arm))
     agent = ReasoningAgent(client=client, config=config)
     status = "ok"
     t0 = time.time()
@@ -435,6 +448,7 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "item_id": item["item_id"],
         "arm": arm,
         "pair_order": task.get("pair_order", ""),
+        "thinking_mode": "off" if arm_thinking_mode(arm) is False else "default",
         "problem_group_id": item.get("problem_group_id", ""),
         "language": item.get("language", ""),
         "domain": item["domain"],
@@ -551,14 +565,31 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def apply_thinking_mode(mode: str) -> None:
+    """Set the client-side thinking-mode switch for this process.
+
+    ``default`` leaves the environment untouched (server-side default).
+    ``false``/``true`` set INTERN_THINKING_MODE which InternChatClient
+    forwards in the request payload.  Iteration-loop probe (2026-09-06) showed
+    the default thinking pass consumes the completion budget inside the
+    output stream: same problem/budget went length/2048 tokens (zero protocol
+    fields) -> stop/178 tokens with all fields emitted.
+    """
+    if mode == "default":
+        return
+    os.environ["INTERN_THINKING_MODE"] = mode
+
+
 def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
         sample_size: int, sets: list[str], arms: list[str] | None = None,
-        run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001", pairing: str = "independent") -> None:
+        run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001", pairing: str = "independent",
+        thinking_mode: str = "default") -> None:
     arms = arms or ["v1"]
     for arm in arms:
         arm_config(arm)  # validate early
     if pairing not in ("independent", "paired"):
         raise SystemExit(f"unknown pairing mode: {pairing}")
+    apply_thinking_mode(thinking_mode)
     output_dir.mkdir(parents=True, exist_ok=True)
     api_key = os.environ.get("INTERN_API_KEY", "")
     all_tasks: list[dict[str, Any]] = []
@@ -602,6 +633,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "arms": arms,
         "arm_assignment": "round_robin_over_seeded_shuffle",
         "pairing": pairing,
+        "thinking_mode": thinking_mode,
         "arm_flags": {arm: dict(ARM_DEFINITIONS[arm]) for arm in arms},
         "method": (
             "SUBMISSION_CONFIG base (fork_select_deepen_finish_v1); arms add "
@@ -667,6 +699,8 @@ if __name__ == "__main__":
     parser.add_argument("--arms", default="v1", help="comma list from: v1,v2,v2hd,v2hd_dre (interleaved round-robin)")
     parser.add_argument("--pairing", default="independent", choices=["independent", "paired"],
                         help="paired: every sampled item runs once per arm with rotated first arm")
+    parser.add_argument("--thinking-mode", default="default", choices=["default", "false", "true"],
+                        help="client-side thinking switch (default = server default)")
     parser.add_argument("--run-id", default="EXTERNAL-HARD-SETS-SMOKE-001")
     args = parser.parse_args()
     run(
@@ -676,4 +710,5 @@ if __name__ == "__main__":
         arms=[a.strip() for a in args.arms.split(",") if a.strip()],
         run_id=args.run_id,
         pairing=args.pairing,
+        thinking_mode=args.thinking_mode,
     )

@@ -271,3 +271,14 @@
   双窗确认后前移；结构性反斥 = 任何 correct→incorrect 翻转（实现 bug 自动反斥）。
   反斥：net ≤ 0 或转化 < 1 → 宣告 E 失败池惰性，循环达局部最优。臂
   `v2hd_bs_hs_dcf` = v2hd_bs_hs + 该开关。
+- 迭代 10 候选登记：`fsdf_thinking_off_v1`（client 级思考开关：候选臂
+  thinking_mode=False，基线臂=服务端默认；其余全部相同）。**探针证据（单题
+  AIME、2048 预算）**：思考默认 = length/2048 tokens/零协议字段；思考关闭 =
+  stop/178 tokens/全部字段产出——思考在输出流内消耗同一份 completion 预算，
+  是全阶段 94-100% 截断与"E 截断对预算不敏感"的统一解释。机制门：候选臂
+  E 截断 ≤ 3/15（对照历史 ~9-14）且 A-D 截断大幅下降；能力门：net ≥ +1 零反转
+  （二值计分下思考关闭只会把被截断的 run 变为有输出的 run）。
+  反斥：截断不降（思考开关对该模型无效）→ 记录并回到 deep_candidate 线。
+  迁移性注意：官方路径 client 由平台提供，思考开关能否设置需单独评估；
+  本轮先在本地诊断窗确证因果。臂 `v2hd_bs_hs_tkoff` = 前沿 + 思考关闭
+  （client 级 kwarg，经 ARM_THINKING_MODE 表；不含于 SUBMISSION_CONFIG）。

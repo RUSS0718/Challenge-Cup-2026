@@ -30,6 +30,7 @@ class InternChatClient:
         self,
         timeout: int | None = None,
         retry: int | None = None,
+        thinking_mode: bool | None = None,
     ) -> None:
         raw_api_key = os.environ.get("INTERN_API_KEY")
         if not raw_api_key:
@@ -39,7 +40,11 @@ class InternChatClient:
         )
         self.api_base = os.environ.get("INTERN_API_BASE", DEFAULT_API_BASE)
         self.model = os.environ.get("INTERN_MODEL", DEFAULT_MODEL)
-        self.thinking_mode = _optional_bool_env("INTERN_THINKING_MODE")
+        # Explicit kwarg wins over the env switch so experiments can pin the
+        # thinking switch per arm without touching process env.
+        self.thinking_mode = (
+            thinking_mode if thinking_mode is not None else _optional_bool_env("INTERN_THINKING_MODE")
+        )
         self.timeout = timeout if timeout is not None else _positive_int_env("INTERN_TIMEOUT_SECONDS", 30)
         self.retry = retry if retry is not None else _positive_int_env("INTERN_RETRY_COUNT", 1)
         # P0.1: per-call finish_reason log (local diagnostic only; the official
