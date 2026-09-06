@@ -274,6 +274,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_mandatory_final_d",
     "enable_fsdf_finish_handoff_share",
     "enable_fsdf_handoff_open_first_e",
+    "enable_fsdf_finish_handoff_share_v2",
 )
 
 
@@ -320,6 +321,13 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
         *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
         "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
         "enable_fsdf_handoff_open_first_e",
+    )),
+    # v2hd_hs + fsdf_finish_handoff_share_v2: single variable = share-mode
+    # composition drops the A-summary block too; handoff reserve 4600 -> 6050.
+    "v2hd_hs_sv2": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
+        "enable_fsdf_handoff_open_first_e", "enable_fsdf_finish_handoff_share_v2",
     )),
 }
 

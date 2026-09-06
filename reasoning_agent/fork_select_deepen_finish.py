@@ -36,6 +36,9 @@ _FINISH_HANDOFF_RESERVE_V2 = 3000
 # fsdf_finish_handoff_share_v1（迭代 4）：删除"选中思路"块（其 PLAN 字段诱发 E
 # 重推导），把该份额转给 D handoff 的装配上限（3000→4600），总上限 6500 不变。
 _FINISH_HANDOFF_RESERVE_V2_SHARE = 4600
+# fsdf_finish_handoff_share_v2（迭代 7）：share 模式下移除最后的叙事块（A 约束
+# 摘要），E 上下文 = 分支 + 纯进度交接；装配上限 4600→6050，总上限 6500 不变。
+_FINISH_HANDOFF_RESERVE_V2_SHARE_FULL = 6050
 # 为末尾有界标记行（INCOMPLETE/CONFLICT/DROPPED/PARTIAL）预留的字符余量。
 _HANDOFF_TRAILER_HEADROOM = 200
 
@@ -199,6 +202,11 @@ class RelayOptions:
     # order only — OPEN rendered before DERIVED so E reads the remaining steps
     # first; assembly priority, parsing and budgets unchanged.
     handoff_open_first_e: bool = False
+    # fsdf_finish_handoff_share_v2 (iteration 7): share-mode composition — the
+    # A-summary narrative block is also removed from E's input (context =
+    # branch + pure progress handoff) and the handoff reserve rises
+    # 4600 -> 6050 within the same 6500 cap.
+    finish_handoff_share_v2: bool = False
 
 
 @dataclass
@@ -823,7 +831,9 @@ class ForkSelectDeepenFinishRelay:
             selected_idea = state.idea_packet_c
         else:
             selected_idea = "没有可用分支；沿 D handoff 做固定 direct fallback。"
-        share_mode = self.options.multiline_handoff_v2 and self.options.finish_handoff_share
+        share_mode = self.options.multiline_handoff_v2 and (
+            self.options.finish_handoff_share or self.options.finish_handoff_share_v2
+        )
         if self.options.multiline_handoff_v2:
             # v2 handoff 已经按字段/推导项粒度适配交接预留额，直接整块传入，
             # 不再二次字符裁剪；A 摘要与思路在剩余预算内压缩。
@@ -839,7 +849,13 @@ class ForkSelectDeepenFinishRelay:
             handoff = f"{handoff}\nFINAL_D_FOR_CHECK: {state.d_candidate_for_check}"
         budget = _FINISH_CONTEXT_LIMIT - _FINISH_LABEL_BUDGET - len(handoff)
         raw_analysis = state.analysis_packet_a or "不可用"
-        if share_mode:
+        if share_mode and self.options.finish_handoff_share_v2:
+            # v2 交接份额模式：最后的叙事块（A 约束摘要）也移出 E 输入，
+            # E 上下文 = 分支 + 纯进度交接；其份额已在装配端转给 handoff。
+            context = f"SELECTED_BRANCH: {branch}\n\nD handoff：\n{handoff}"
+            if not (state.selected_branch or self._available_branch(state)):
+                context += "\n没有可用分支；沿 D handoff 做固定 direct fallback。"
+        elif share_mode:
             # 交接份额模式：删除"选中思路"块（PLAN 叙述诱发 E 重推导），
             # 其份额已在装配端转给 handoff；A 摘要占用剩余预算。
             analysis = _clip(raw_analysis, max(0, budget))
@@ -993,9 +1009,13 @@ class ForkSelectDeepenFinishRelay:
         unclosed_trimmed: list[str] = []
         header = f"SELECTED_BRANCH: {state.selected_branch or 'UNKNOWN'}"
         reserve = (
-            _FINISH_HANDOFF_RESERVE_V2_SHARE
-            if self.options.finish_handoff_share
-            else _FINISH_HANDOFF_RESERVE_V2
+            _FINISH_HANDOFF_RESERVE_V2_SHARE_FULL
+            if self.options.finish_handoff_share_v2
+            else (
+                _FINISH_HANDOFF_RESERVE_V2_SHARE
+                if self.options.finish_handoff_share
+                else _FINISH_HANDOFF_RESERVE_V2
+            )
         )
         budget = reserve - len(header) - 1 - _HANDOFF_TRAILER_HEADROOM
         placed: dict[str, list[str]] = {}

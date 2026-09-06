@@ -1082,7 +1082,8 @@ class F2FinishHandoffShareTest(unittest.TestCase):
     """fsdf_finish_handoff_share_v1（迭代 4）：E 输入构成重分配——删除"选中思路"块，
     handoff 装配上限 3000→4600（P1 多行装配下），总上下文 6500 不变。"""
 
-    def big_derived(self, lines=40):
+    @staticmethod
+    def big_derived(lines=40):
         return "DERIVED: " + "\n".join(
             f"第{i}步: 完整中间推导条目记录 x_{i} = {i} * 13 + 7 与边界条件核对说明" for i in range(1, lines + 1)
         )
@@ -1215,6 +1216,57 @@ class F2HandoffOpenFirstETest(unittest.TestCase):
         def derived_lines_in(section):
             return [line for line in section.splitlines() if line.startswith(("DERIVED: ", "第"))]
         self.assertEqual(derived_lines_in(sections[False]), derived_lines_in(sections[True]))
+
+
+class F2FinishHandoffShareV2Test(unittest.TestCase):
+    """fsdf_finish_handoff_share_v2（迭代 7）：share 模式下 A 摘要也移出，
+    E 上下文 = 分支 + 纯进度交接，装配上限 4600→6050（总 6500 不变）。"""
+
+    def test_fsv2_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_finish_handoff_share_v2)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_finish_handoff_share_v2)
+        self.assertFalse(RelayOptions().finish_handoff_share_v2)
+
+    def test_fsv2_02_v1_share_keeps_a_block(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, finish_handoff_share=True),
+        )
+        e_prompt = client.calls[4][0][1]["content"]
+        self.assertIn("A 约束摘要：", e_prompt)
+        self.assertNotIn("选中思路：", e_prompt)
+
+    def test_fsv2_03_drops_a_block_and_enlarges_handoff(self):
+        d_response = f"SELECTED_BRANCH: B\nCANDIDATE_D: 42\n{F2FinishHandoffShareTest.big_derived(120)}\nOPEN: 无\nCHECKS: ok\nRISK: 无"
+        client_v1, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_response, finish()],
+            RelayOptions(multiline_handoff_v2=True, finish_handoff_share=True),
+        )
+        client_v2, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_response, finish()],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                finish_handoff_share_v2=True,
+            ),
+        )
+        e_v2 = client_v2.calls[4][0][1]["content"]
+        section_v1 = handoff_section(client_v1.calls[4][0][1]["content"])
+        section_v2 = handoff_section(e_v2)
+        # A 摘要块消失；上下文 = 分支 + 纯交接。
+        self.assertNotIn("A 约束摘要", e_v2)
+        self.assertNotIn("选中思路", e_v2)
+        self.assertIn("SELECTED_BRANCH: B", section_v2)
+        # 6050 上限下更多条目存活（120 行约 5100 字符）。
+        self.assertIn("第120步", section_v2)
+        self.assertNotIn("第120步", section_v1)
+        # 总上下文上限保持；预算与调用不变。
+        context = e_v2.split("求一个非平凡整数 n。\n\n", 1)[1]
+        self.assertLessEqual(len(context), 6500)
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client_v2.calls))
+        self.assertEqual(5, len(client_v2.calls))
+        self.assertEqual("7", result.final_response)
 
 
 if __name__ == "__main__":
