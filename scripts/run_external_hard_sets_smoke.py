@@ -277,6 +277,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_finish_handoff_share_v2",
     "enable_fsdf_e_budget_up",
     "enable_fsdf_deep_candidate_fallback",
+    "enable_fsdf_skill_routes",
 )
 
 
@@ -354,6 +355,14 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
         *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
         "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
     )),
+    # v2hd_hs + skill routes, thinking off (fsdf_skill_routes_v1): candidate
+    # for the skills experiment — frontier composition + host-filtered route
+    # layer + client thinking disabled.
+    "v2hd_hs_sr": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
+        "enable_fsdf_skill_routes",
+    )),
 }
 
 
@@ -369,6 +378,7 @@ def arm_config(arm: str) -> Any:
 # output stream).
 ARM_THINKING_MODE: dict[str, bool | None] = {
     "v2hd_bs_hs_tkoff": False,
+    "v2hd_hs_sr": False,
 }
 
 
@@ -387,9 +397,10 @@ def assign_arms(tasks: list[dict[str, Any]], arms: list[str]) -> None:
 def assign_arms_paired(tasks: list[dict[str, Any]], arms: list[str]) -> list[dict[str, Any]]:
     """Same-question pairing: every task runs once per arm.
 
-    The first arm rotates per item (item i starts with ``arms[i % k]``) so
-    neither arm systematically runs first.  Resume keys already include the
-    arm, so partial windows resume cleanly.
+    The first arm rotates per item (item i starts with ``arms[i % k]``) AND the
+    returned list is ordered so actual execution alternates arms
+    (pair-order-major), instead of always running the baseline arm of each
+    item first.
     """
     if not arms:
         raise ValueError("arms must not be empty")
@@ -400,7 +411,10 @@ def assign_arms_paired(tasks: list[dict[str, Any]], arms: list[str]) -> list[dic
             entry = dict(task)
             entry["arm"] = arm
             entry["pair_order"] = (offset - rotation) % len(arms)
+            entry["item_seq"] = index
             paired.append(entry)
+    # Execution order: alternate arms across items (pair-order-major).
+    paired.sort(key=lambda e: (e["pair_order"], e["item_seq"]))
     return paired
 
 

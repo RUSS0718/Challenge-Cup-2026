@@ -397,6 +397,11 @@ class AgentConfig:
     # an explicit deep_candidate source. E-failure-only; abstention, conflict,
     # placeholder and protocol-failed paths unchanged.
     enable_fsdf_deep_candidate_fallback: bool = False
+    # fsdf_skill_routes_v1 (iteration 11): host-filtered math-route layer — a
+    # compact directory plus the selected route body injected into D's user
+    # prompt; D may override within the directory. Zero model calls for
+    # routing; parsing, calls and budgets unchanged.
+    enable_fsdf_skill_routes: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1180,6 +1185,7 @@ class ReasoningAgent:
                 finish_handoff_share_v2=self.config.enable_fsdf_finish_handoff_share_v2,
                 e_budget_up=self.config.enable_fsdf_e_budget_up,
                 deep_candidate_fallback=self.config.enable_fsdf_deep_candidate_fallback,
+                skill_routes=self.config.enable_fsdf_skill_routes,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

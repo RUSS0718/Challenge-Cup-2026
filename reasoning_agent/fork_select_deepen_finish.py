@@ -6,8 +6,10 @@ five-call protocol instead of inheriting any mutable submission configuration.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import re
 import time
+from pathlib import Path
 from typing import Any, Callable
 
 
@@ -143,6 +145,81 @@ FINISH_PROMPT_COMPACT = """你负责 Finish 阶段。只沿已选分支和 D 的
 L0_PROMPT = """这是一个已由确定性简单算式识别器命中的 L0 题。直接计算并只输出一行 FINAL: <答案>。
 不要输出推理、多个答案或占位符。"""
 
+# ── fsdf_skill_routes_v1（迭代 11）：宿主按题型预筛的解题路线层（浅目录+正文注入）。
+# 资源来自仓库相对路径；加载失败/格式错误 → 空表（回退前沿行为）。宿主筛选不消耗
+# 模型调用；D 可在目录内声明改选，非法 ID 回退宿主预选。
+_SKILL_ROUTES_PATH = Path(__file__).resolve().parent / "skills" / "math_routes.json"
+
+
+def _load_skill_routes() -> dict[str, dict[str, Any]]:
+    try:
+        data = json.loads(_SKILL_ROUTES_PATH.read_text(encoding="utf-8"))
+        routes = data.get("routes") or []
+        return {
+            str(r["id"]): r for r in routes
+            if isinstance(r, dict) and r.get("id") and r.get("steps")
+        }
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+SKILL_ROUTES = _load_skill_routes()
+
+_ROUTE_TYPE_AFFINITY = {
+    "elimination_substitution": {"calculation", "fill_blank", "choice", "derivation"},
+    "symmetry_invariant": {"calculation", "derivation"},
+    "case_partition_boundary": {"derivation", "proof", "explanation"},
+    "bound_construction": {"proof", "derivation", "explanation"},
+}
+_ROUTE_KEYWORDS = {
+    "symmetry_invariant": ("对称", "周期", "不变", "旋转", "交换"),
+    "case_partition_boundary": ("分类", "讨论", "情形", "分段", "绝对值", "是否存在"),
+    "bound_construction": ("证明", "不等", "最值", "存在", "构造", "至少", "至多"),
+    "elimination_substitution": ("方程", "求", "解", "代入", "消元"),
+}
+
+
+def select_skill_route(problem_text: str, problem_type: str) -> tuple[str | None, list[str]]:
+    """Host-side deterministic route filter (zero model calls).
+
+    Returns (selected_route_id, directory_ids): the selected route scores by
+    type affinity + keyword hits on the problem text; the directory carries
+    the selected route plus the runner-ups so D may override within the set.
+    """
+    if not SKILL_ROUTES:
+        return None, []
+    lowered = problem_text[:1200]
+    scored: list[tuple[int, str]] = []
+    for route_id in SKILL_ROUTES:
+        score = 2 if problem_type in _ROUTE_TYPE_AFFINITY.get(route_id, set()) else 0
+        score += sum(2 for kw in _ROUTE_KEYWORDS.get(route_id, ()) if kw in lowered)
+        scored.append((score, route_id))
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    scored = [s for s in scored if s[0] > 0] or [(0, sorted(SKILL_ROUTES)[0])]
+    selected = scored[0][1]
+    directory = [rid for _, rid in scored[:3]]
+    if selected not in directory:
+        directory.insert(0, selected)
+    return selected, directory[:3]
+
+
+def render_route_block(selected: str | None, directory: list[str]) -> str:
+    if not selected or selected not in SKILL_ROUTES:
+        return ""
+    lines = ["可用解题路线（宿主按题型预筛，仅限目录内 ID）："]
+    for idx, rid in enumerate(directory, 1):
+        route = SKILL_ROUTES.get(rid) or {}
+        lines.append(f"{idx}. {rid} — {route.get('name', '')}；适用：{route.get('applies', '')}；边界：{route.get('boundaries', '')}")
+    route = SKILL_ROUTES[selected]
+    lines.append(f"宿主预选路线：{selected}")
+    lines.append("选中路线的执行步骤与预期产物：")
+    for step_idx, step in enumerate(route.get("steps") or [], 1):
+        lines.append(f"{step_idx}. {step}")
+    lines.append(f"预期产物：{route.get('products', '')}")
+    lines.append("你可改选目录中更适用的路线：改选时单独一行输出 SELECTED_SKILL: <目录内 ID>；"
+                 "不适用时不要声明路线，按原有流程执行。")
+    return "\n".join(lines)
+
 
 @dataclass
 class RelayResult:
@@ -220,6 +297,11 @@ class RelayOptions:
     # an explicit deep_candidate source. E-failure-only; abstention, conflict,
     # placeholder and protocol-failed paths unchanged.
     deep_candidate_fallback: bool = False
+    # fsdf_skill_routes_v1 (iteration 11): host-filtered math-route layer — a
+    # compact directory plus the selected route body is injected into D's user
+    # prompt; D may override within the directory via SELECTED_SKILL. Zero
+    # model calls for routing; parsing, calls and budgets unchanged.
+    skill_routes: bool = False
 
 
 @dataclass
@@ -721,12 +803,17 @@ class ForkSelectDeepenFinishRelay:
                 deepen_prompt = DEEPEN_PROMPT_V2
             else:
                 deepen_prompt = DEEPEN_PROMPT
+            deepen_user = self._deepen_user_prompt(problem_text, state)
+            if self.options.skill_routes:
+                route_block = render_route_block(*select_skill_route(problem_text, problem_type))
+                if route_block:
+                    deepen_user = f"{deepen_user}\n\n{route_block}"
             response_d = self._call(
                 state,
                 trace,
                 "deepen",
                 deepen_prompt,
-                self._deepen_user_prompt(problem_text, state),
+                deepen_user,
                 0.2,
                 deepen_max_tokens,
             ) or ""
@@ -735,6 +822,9 @@ class ForkSelectDeepenFinishRelay:
             if branch:
                 state.stage_status["deepen"] = "ok"
                 state.selected_branch = branch
+                selected_skill = _marker_value_strict(response_d, "SELECTED_SKILL")
+                if self.options.skill_routes and selected_skill in SKILL_ROUTES:
+                    state.diagnostics["selected_skill"] = selected_skill
                 if self.options.multiline_handoff_v2:
                     handoff_text, handoff_meta = self._handoff_v2(response_d, state)
                     state.deep_handoff_d = handoff_text
@@ -1238,6 +1328,7 @@ class ForkSelectDeepenFinishRelay:
             "finish_context_clipped",
             "d_candidate_visible_to_e",
             "e_final_equals_d_candidate",
+            "selected_skill",
             "token_usage",
             "finish_reason",
         }})
@@ -1360,6 +1451,7 @@ class ForkSelectDeepenFinishRelay:
                 "candidate_present": bool(state.diagnostics.get("candidate_present", False)),
                 "d_candidate_visible_to_e": bool(state.diagnostics.get("d_candidate_visible_to_e", False)),
                 "e_final_equals_d_candidate": bool(state.diagnostics.get("e_final_equals_d_candidate", False)),
+                "selected_skill": state.diagnostics.get("selected_skill", ""),
                 "token_usage": "unavailable",
                 "finish_reason": "unavailable",
             }

@@ -1396,5 +1396,69 @@ class F2DeepCandidateFallbackTest(unittest.TestCase):
         self.assertEqual("deep_final", result.trace[-1]["fallback_source"])
 
 
+class F2SkillRoutesTest(unittest.TestCase):
+    """fsdf_skill_routes_v1（迭代 11）：宿主预筛路线层——目录+正文注入 D 的 user 提示。"""
+
+    def test_sr_01_defaults_off_and_resource_loads(self):
+        self.assertFalse(AgentConfig().enable_fsdf_skill_routes)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_skill_routes)
+        self.assertFalse(RelayOptions().skill_routes)
+        from reasoning_agent.fork_select_deepen_finish import SKILL_ROUTES
+
+        self.assertGreaterEqual(len(SKILL_ROUTES), 3)
+
+    def test_sr_02_off_keeps_frontier_d_prompt(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, handoff_first_d=True),
+        )
+        self.assertNotIn("可用解题路线", client.calls[3][0][1]["content"])
+
+    def test_sr_03_on_injects_directory_and_body(self):
+        client, result = solve_v2(
+            ["求方程 2x+3=7 的解。", idea("B"), idea("C"), deep(), finish("2", "2")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                skill_routes=True,
+            ),
+        )
+        d_user = client.calls[3][0][1]["content"]
+        self.assertIn("可用解题路线（宿主按题型预筛，仅限目录内 ID）：", d_user)
+        self.assertIn("宿主预选路线：", d_user)
+        self.assertIn("预期产物：", d_user)
+        # 预算与调用不变。
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client.calls))
+        self.assertEqual("2", result.final_response)
+
+    def test_sr_04_d_override_validated_against_directory(self):
+        d_override = deep() + "\nSELECTED_SKILL: symmetry_invariant"
+        d_bad = deep() + "\nSELECTED_SKILL: not_a_route"
+        for d_response, expected in ((d_override, "symmetry_invariant"), (d_bad, "")):
+            with self.subTest(expected=expected):
+                _, result = solve_v2(
+                    ["证明：对任意实数 a>0，a+a^2 >= 2a^3 不一定成立，讨论之。", idea("B"), idea("C"),
+                     d_response, finish()],
+                    RelayOptions(
+                        diagnostics_v2=True,
+                        multiline_handoff_v2=True,
+                        handoff_first_d=True,
+                        skill_routes=True,
+                    ),
+                )
+                event = finalize_event(result.trace)
+                self.assertEqual(expected, event.get("selected_skill", ""))
+
+    def test_sr_05_no_route_text_falls_back(self):
+        # 无匹配关键词/题型时回退前沿行为（仍注入宿主预选，但目录存在）。
+        client, result = solve_v2(
+            ["求一个非平凡整数 n。", idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, skill_routes=True),
+        )
+        self.assertIn("可用解题路线", client.calls[3][0][1]["content"])
+        self.assertEqual("7", result.final_response)
+
+
 if __name__ == "__main__":
     unittest.main()

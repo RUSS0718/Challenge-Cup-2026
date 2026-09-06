@@ -23,12 +23,13 @@ vs 候选 `v2hd_bs_hs_tkoff`。15 题配对，workers=3，hard-stop 75 min。git
 
 1. **机制门决定性通过（用户假设证实）**：思考关闭后全阶段截断基本消失
    （A/B/C stop 14-15/15，E 1/15），单题耗时降 4.7 倍——**思考模式（在输出流内
-   消耗同一份 completion 预算）就是截断的唯一根源**。截断率对预算不敏感之谜、
+   消耗同一份 completion 预算）是截断的主因（探针与全阶段数据一致）**。截断率对预算不敏感之谜、
    提示词塑形无效之谜，全部由此解释。
 2. **分数杠杆否定**：关思考把"被截断保护住的 run"变成"快速自信的错误答案"
-   （invalid→incorrect ×7、correct→incorrect ×2），correct 净增 0。截断本质是
-   fail-closed 保护——被截断的 run 大部分本来就不会做，关思考只是把"不知道"
-   变成"错着说"。按预注册反斥（≥1 correct→incorrect 反转 + net ≤ 0）→ 不入前沿。
+   （invalid→incorrect ×7、correct→incorrect ×2），correct 净增 0。拒绝无效答案的规则提供保护，但截断本身也会破坏原本可能完成的答案；
+   关思考后的能力取舍（本窗 2 例 correct→incorrect、2 例 invalid→correct）
+   不能反推原模式下"必然无法解出"。另：候选臂存在 5 次阶段内部 timeout，
+   "0 顶层错误"不等于无调用异常。按预注册反斥（≥1 correct→incorrect 反转 + net ≤ 0）→ 不入前沿。
 
 ## 对循环的总结意义
 

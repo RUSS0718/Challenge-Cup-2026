@@ -28,8 +28,42 @@ from typing import Any
 
 
 def finish_reason_at(record: dict[str, Any], index: int) -> str:
+    """Deprecated fixed-index read; kept for backward compatibility.
+
+    Records store ``client_finish_reasons`` per SUCCESSFUL call while trace
+    events cover every logical call (client exceptions emit no finish
+    reason), so fixed indices can misalign stages.  Prefer
+    :func:`aligned_finish_reasons`.
+    """
     reasons = record.get("client_finish_reasons") or []
     return str(reasons[index]) if index < len(reasons) else "unavailable"
+
+
+def aligned_finish_reasons(record: dict[str, Any]) -> dict[str, str]:
+    """Map stage names to finish reasons by walking the trace in order.
+
+    Successful calls consume ``client_finish_reasons`` entries in order;
+    trace events whose call failed (client exception / invalid response)
+    receive ``client_error`` / ``missing`` instead, so a failed earlier call
+    can no longer shift later stages.
+    """
+    reasons = list(record.get("client_finish_reasons") or [])
+    out: dict[str, str] = {}
+    pointer = 0
+    for event in record.get("trace") or []:
+        stage = event.get("stage")
+        if stage not in {"analyze", "fork_b", "fork_c", "deepen", "finish", "l0"}:
+            continue
+        if event.get("status") == "ok":
+            out[stage] = str(reasons[pointer]) if pointer < len(reasons) else "missing"
+            pointer += 1
+        else:
+            out[stage] = "client_error"
+    return out
+
+
+def stage_finish_reason(record: dict[str, Any], stage: str) -> str:
+    return aligned_finish_reasons(record).get(stage, "unavailable")
 
 
 def finalize_source(record: dict[str, Any]) -> str:
@@ -63,7 +97,7 @@ def analyze_paired(rows: list[dict[str, Any]]) -> dict[str, Any]:
     for arm in (base, cand):
         sub = [r for r in rows if r["arm"] == arm]
         durs = [float(r["duration_seconds"]) for r in sub]
-        e_len = sum(1 for r in sub if finish_reason_at(r, 4) == "length")
+        e_len = sum(1 for r in sub if stage_finish_reason(r, "finish") == "length")
         e_final = sum(
             1 for r in sub
             if str(r.get("final_response", "")).strip().upper() not in {"", "UNKNOWN"}
@@ -104,10 +138,10 @@ def analyze_paired(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "handoff_unclosed": unclosed,
             "d_candidate_visible": visible_candidates,
             "e_final_copied_candidate": copies,
-            # 逐阶段 finish_reason 计数（A/B/C/D/E = 成功调用序 0-4）。
+            # 逐阶段 finish_reason 计数（按事件对齐：失败调用不占 finish_reason 位）。
             "stage_finish_reasons": {
-                name: dict(Counter(finish_reason_at(r, idx) for r in sub))
-                for idx, name in enumerate(("A", "B", "C", "D", "E"))
+                name: dict(Counter(stage_finish_reason(r, name) for r in sub))
+                for name in ("A", "B", "C", "D", "E")
             },
         }
 
