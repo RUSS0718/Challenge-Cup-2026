@@ -118,6 +118,28 @@
 完整工件：`docs/experiments/V5-HARD20-TYPED-CAPSULE-001-RETRY/`。官方发布面继续锁定
 `hetero_k5 @ 25f99b5`（GitCode `34bc353`）。
 
+## 五点七、CAUSAL-MCP-ENGINEERING-SMOKE-001（2026-09-04）
+
+| 方向 | 结果 | 处置 |
+|---|---|---|
+| `causal_lens_shadow_v1` | 12/12 代表例通过；零模型调用；输出可序列化 | `OPEN / ENGINEERING_SMOKE_PASS / NO_CAPABILITY_CONCLUSION`；可继续做默认关闭的工程接入，不证明数学答案收益 |
+| `causal_analyzer_stdio_demo` | 真实 `initialize → tools/list → tools/call` 通过；3 个工具注册；受限输入失败结构化；1.56s；0 孤儿进程 | `OPEN / ENGINEERING_SMOKE_PASS / NO_CAPABILITY_CONCLUSION`；未解锁 P4 正式门、统计算法能力或官方路径 |
+
+完整工件：`docs/experiments/CAUSAL-MCP-ENGINEERING-SMOKE-001/`。本轮明确没有运行真实
+模型、PC/OLC/DirectLiNGAM 能力 A/B、P4 的 500+200 正式门或 P5 双轮交错 A/B；不能据此
+修改 `SUBMISSION_CONFIG`、提交仓库或默认指针。
+
+## 五点八、CAUSAL-MCP-ALGO-SMOKE-001/002（2026-09-04）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAUSAL-MCP-ALGO-SMOKE-001` | PC、DirectLiNGAM、OLC 共 9/9 执行成功；后审发现 OLC 邻接矩阵未映射到 `data.edges` | `ENGINEERING_PARTIAL / NO_CAPABILITY_CONCLUSION`；保留缺陷证据，不作为完整 Demo fidelity 或能力结论 |
+| `CAUSAL-MCP-ALGO-SMOKE-002` | OLC 边投影修复后的同协议独立复验：9/9 成功、0 超时、0 非法输出、0 孤儿进程；PC/DirectLiNGAM 各 2 边，OLC 各 4 边；17.027s | `ENGINEERING_SMOKE_PASS / NO_CAPABILITY_CONCLUSION`；仍不解锁 P4/P5 或官方路径 |
+
+两个窗口均使用确定性合成 CSV、零模型调用；完整工件分别位于
+`docs/experiments/CAUSAL-MCP-ALGO-SMOKE-001/` 和
+`docs/experiments/CAUSAL-MCP-ALGO-SMOKE-002/`。
+
 ## 六、当前允许队列
 
 0. `btcs_v1`：真实帧解析 6/7（85.7143%），低于 95% 预注册门，保持
@@ -205,3 +227,26 @@
 | 预期行为变化 | P2a fail-closed 把"错误兜底"大量转为 UNKNOWN（本地诊断窗 correct 占比 23%→13%，分布级）；换取输出卫生（native↔contract 不一致 11/30→1/30）与阶段级可归因诊断 |
 | 回滚锚 | gitcode main @ `de74934`（FSDF v1 官方评测版本）；回滚即把 main 重置回该提交 |
 | 后续 | 同题配对窗口 FSDF-D-RESULT-TO-E-PAIRED-001（v2hd vs v2hd_dre）运行中，其结果不改变本次发布状态 |
+
+## 六点十四、FSDF 迭代循环（FSDF-ITER-AB 系列，2026-09-06 结束）
+
+| 轮次 | 候选（单变量，15 题同题配对窗） | 判定 |
+|---|---|---|
+| 0 | `d_result_to_e`（FINAL_D 对 E 可见） | 机制未激活（D 从不输出 FINAL_D），+1=方差 |
+| 1 | `de_budget_swap`（D/E 预算对调） | 净 +2 零反转 → 前移 |
+| 2 | `finish_compact_final`（E 紧凑提示） | 反斥（截断未降、形成未超前沿） |
+| 3 | `mandatory_final_d`（强制前置 FINAL_D） | 反斥（激活 1/15<5；D 截断 15/15 恶化） |
+| 4 | `finish_handoff_share`（删选中思路块，交接 4600） | 净 +3 零反转 → 前移 |
+| 5+6 | `handoff_open_first_e`（OPEN 前置渲染）+确认窗 | 两窗净 0 → 方差内，不变 |
+| 7 | `finish_handoff_share_v2`（再删 A 摘要，6050） | 反斥（截断 10 vs 7；c→incorrect 反转）→ 构成假设证伪 |
+| 8 | `e_budget_up`（E 8192→9728，总 +8%） | 干净反斥（截断率对预算零敏感） |
+| 9 | `deep_candidate_fallback`（E 失败采纳 content 态候选） | 机制 0 触发（可转化池集中于协议失败 D），+1=方差 |
+| 10 | `thinking_off`（client 级思考关闭） | 机制门决定性通过（截断消失、4.7× 提速）但分数否定（inv→inc ×7、反转 ×2、净 0） |
+
+循环结论：**当前前沿 `v2hd_bs_hs` 为本地单变量杠杆空间内的局部最优**；预算双向穷尽、
+构成类穷尽、措辞/顺序/加字段类全部反斥。机制性发现：截断=思考模式在输出流内消耗
+completion 预算（client 级可消除，4.7× 提速），但消除截断不带来正确率——被截断池
+大部分是 fail-closed 保护住的"不会做"。全部候选默认关；前沿仅存在于迭代分支，
+`SUBMISSION_CONFIG`/gitcode main 维持 canary @ `507ebd3`。完整数据：
+`docs/experiments/FSDF-ITER-AB-00{1..9}, FSDF-ITER-AB-010, FSDF-D-RESULT-TO-E-PAIRED-001`；
+判定轨迹：`preregistration_draft.md` §7。重启任何候选须新预注册。
