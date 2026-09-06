@@ -257,8 +257,9 @@ class ArmSupportTest(unittest.TestCase):
         del v2hd["enable_fsdf_d_result_to_e"], dre["enable_fsdf_d_result_to_e"]
         self.assertEqual(v2hd, dre)
 
-    def test_v2hd_hs_eu_arm_differs_from_v2hd_hs_only_in_e_budget(self):
-        base = asdict(arm_config("v2hd_hs"))
+    def test_v2hd_hs_eu_arm_differs_from_lineage_base_only_in_e_budget(self):
+        # v2hd_hs_eu 的谱系基座是 v2hd_hs_of（含 open_first_e），单变量 = e_budget_up。
+        base = asdict(arm_config("v2hd_hs_of"))
         eu = asdict(arm_config("v2hd_hs_eu"))
         self.assertFalse(base["enable_fsdf_e_budget_up"])
         self.assertTrue(eu["enable_fsdf_e_budget_up"])
