@@ -1314,5 +1314,87 @@ class F2EBudgetUpTest(unittest.TestCase):
         self.assertEqual((2048, 2048, 2048, 8192, 9728), tuple(call[2] for call in client.calls))
 
 
+class F2DeepCandidateFallbackTest(unittest.TestCase):
+    """fsdf_deep_candidate_fallback_v1（迭代 9）：仅 E 失败时采纳 content 态 CANDIDATE_D。"""
+
+    def test_dcf_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_deep_candidate_fallback)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_deep_candidate_fallback)
+        self.assertFalse(RelayOptions().deep_candidate_fallback)
+
+    def test_dcf_02_off_pool_stays_unknown(self):
+        # 前沿行为：E 失败 + 无 FINAL_D + CANDIDATE_D content → UNKNOWN。
+        _, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(candidate="5"), RuntimeError("e")],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True),
+        )
+        self.assertEqual("UNKNOWN", result.final_response)
+
+    def test_dcf_03_on_adopts_content_candidate_on_e_failure(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(candidate="5"), RuntimeError("e")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                deep_candidate_fallback=True,
+            ),
+        )
+        self.assertEqual("5", result.final_response)
+        self.assertEqual("deep_candidate", result.trace[-1]["fallback_source"])
+
+    def test_dcf_04_e_final_still_wins(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(candidate="5"), finish("9", "9")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                deep_candidate_fallback=True,
+            ),
+        )
+        self.assertEqual("9", result.final_response)
+        self.assertEqual("finish_final", result.trace[-1]["fallback_source"])
+
+    def test_dcf_05_abstention_conflict_and_unknown_states_unchanged(self):
+        # E 显式弃答 → UNKNOWN（即使候选可用）。
+        _, r1 = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(candidate="5"), "FINAL: UNKNOWN"],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, deep_candidate_fallback=True),
+        )
+        self.assertEqual("UNKNOWN", r1.final_response)
+        # CANDIDATE_D 冲突 → 不可采纳。
+        d_conflict = deep(candidate="5") + "CANDIDATE_D: 6"
+        _, r2 = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_conflict, RuntimeError("e")],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, deep_candidate_fallback=True),
+        )
+        self.assertEqual("UNKNOWN", r2.final_response)
+        # CANDIDATE_D: UNKNOWN（unknown 态）→ 不可采纳。
+        _, r3 = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(candidate="UNKNOWN"), RuntimeError("e")],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, deep_candidate_fallback=True),
+        )
+        self.assertEqual("UNKNOWN", r3.final_response)
+
+    def test_dcf_06_protocol_failed_d_excluded(self):
+        d_failed = "SELECTED_BRANCH: 大概是B吧\nCANDIDATE_D: 42"
+        _, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), d_failed, RuntimeError("e")],
+            RelayOptions(multiline_handoff_v2=True, final_confirmation_v2=True, deep_candidate_fallback=True),
+        )
+        self.assertEqual("UNKNOWN", result.final_response)
+
+    def test_dcf_07_deep_final_still_preferred(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(candidate="5") + "FINAL_D: 42", RuntimeError("e")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                deep_candidate_fallback=True,
+            ),
+        )
+        self.assertEqual("42", result.final_response)
+        self.assertEqual("deep_final", result.trace[-1]["fallback_source"])
+
+
 if __name__ == "__main__":
     unittest.main()

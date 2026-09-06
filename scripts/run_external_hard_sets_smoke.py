@@ -276,6 +276,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_handoff_open_first_e",
     "enable_fsdf_finish_handoff_share_v2",
     "enable_fsdf_e_budget_up",
+    "enable_fsdf_deep_candidate_fallback",
 )
 
 
@@ -338,6 +339,13 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
         *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
         "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
         "enable_fsdf_handoff_open_first_e", "enable_fsdf_e_budget_up",
+    )),
+    # v2hd_bs_hs + fsdf_deep_candidate_fallback_v1: single variable = adopt a
+    # content-state CANDIDATE_D when E fails (E-failure-only, program-side).
+    "v2hd_bs_hs_dcf": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
+        "enable_fsdf_deep_candidate_fallback",
     )),
 }
 

@@ -215,6 +215,11 @@ class RelayOptions:
     # (total 18432 -> 19968); no stage has slack to donate (A/B/C/D finish
     # reasons are 94-100% length-capped), so the budget must grow, not move.
     e_budget_up: bool = False
+    # fsdf_deep_candidate_fallback_v1 (iteration 9): when E forms no final and
+    # D completed its protocol with a content-state CANDIDATE_D, adopt it as
+    # an explicit deep_candidate source. E-failure-only; abstention, conflict,
+    # placeholder and protocol-failed paths unchanged.
+    deep_candidate_fallback: bool = False
 
 
 @dataclass
@@ -1316,6 +1321,14 @@ class ForkSelectDeepenFinishRelay:
                 return "UNKNOWN", "deep_final_conflict"
             if len(d_distinct) == 1:
                 return d_distinct[0], "deep_final"
+            # fsdf_deep_candidate_fallback_v1：E 未形成终答且无 FINAL_D 时，
+            # 若 D 协议成功且 CANDIDATE_D 为 content 状态（单一、非占位、闭合），
+            # 按显式来源采纳。弃答/冲突/占位/协议失败路径全部不变。
+            if self.options.deep_candidate_fallback:
+                resolved = self._resolve_handoff_blocks(_strip_idea_packet_text(response_d))
+                cand = resolved.get("CANDIDATE_D") or {}
+                if cand.get("state") == "content" and cand.get("value"):
+                    return cand["value"], "deep_candidate"
         return "UNKNOWN", "unknown"
 
     def _result(

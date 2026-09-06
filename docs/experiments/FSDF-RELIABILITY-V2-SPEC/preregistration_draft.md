@@ -262,3 +262,12 @@
   ——无复跑否决，前沿不变。科学结论：E 截断率对生成预算完全不敏感
   （4096→8192 曾有效，8192→9728 零效应，收益在 8192 饱和）；预算杠杆双向穷尽
   （A/B/C/D 94-100% length 无余量可捐）。前沿 token 上限保持 18432。
+- 迭代 9 候选登记：`fsdf_deep_candidate_fallback_v1`（程序侧、仅 E 失败时生效：
+  `_select_answer_v2` 在 deepen-ok、无 FINAL_D、无弃答后，若 CANDIDATE_D 为
+  content 态（单一、非占位、闭合）按显式来源 `deep_candidate` 采纳）。VOID 门
+  通过：可转化池（E-UNKNOWN ∧ CANDIDATE_D=content）逐窗 4-11/15，从未低于 3。
+  依据：二值计分下错误候选与 UNKNOWN 同分（弱单调）；提示词/预算/构成杠杆
+  已穷尽。门：接受 = net ≥ +1 且 ≥2 次 deep_candidate 转化且零不当反转，
+  双窗确认后前移；结构性反斥 = 任何 correct→incorrect 翻转（实现 bug 自动反斥）。
+  反斥：net ≤ 0 或转化 < 1 → 宣告 E 失败池惰性，循环达局部最优。臂
+  `v2hd_bs_hs_dcf` = v2hd_bs_hs + 该开关。
