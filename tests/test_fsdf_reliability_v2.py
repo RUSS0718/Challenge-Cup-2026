@@ -113,10 +113,10 @@ def handoff_section(e_prompt):
 
 class F2P0DiagnosticsTest(unittest.TestCase):
     def test_p0_01_submission_profile_is_authorized_canary_agentconfig_defaults_off(self):
-        # 2026-09-06 用户授权：完整 v2hd_dre 栈上官方路径（canary，非能力结论）。
-        # AgentConfig 默认值保持全关，任何显式配置实验不受提交配置影响。
+        # FESF v1 specification rolls the official profile back to FSDF v1;
+        # canaries stay opt-in while AgentConfig defaults remain off.
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
         for flag in (
-            "enable_fork_select_deepen_finish",
             "enable_fsdf_diagnostics_v2",
             "enable_fsdf_multiline_handoff_v2",
             "enable_fsdf_final_confirmation_v2",
@@ -124,7 +124,7 @@ class F2P0DiagnosticsTest(unittest.TestCase):
             "enable_fsdf_handoff_first_d",
             "enable_fsdf_d_result_to_e",
         ):
-            self.assertTrue(getattr(SUBMISSION_CONFIG, flag), flag)
+            self.assertFalse(getattr(SUBMISSION_CONFIG, flag), flag)
         for flag in (
             "enable_fork_select_deepen_finish",
             "enable_fsdf_diagnostics_v2",
@@ -582,7 +582,7 @@ class F2HandoffFirstDTest(unittest.TestCase):
 
     def test_hfd_01_flag_defaults_off_on_agentconfig(self):
         self.assertFalse(AgentConfig().enable_fsdf_handoff_first_d)
-        self.assertTrue(SUBMISSION_CONFIG.enable_fsdf_handoff_first_d)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_handoff_first_d)
         self.assertFalse(RelayOptions().handoff_first_d)
 
     def test_hfd_02_off_uses_v1_deepen_prompt(self):
@@ -778,7 +778,7 @@ class F2DResultToETest(unittest.TestCase):
 
     def test_dre_01_default_off_on_agentconfig_canary_on_submission(self):
         self.assertFalse(AgentConfig().enable_fsdf_d_result_to_e)
-        self.assertTrue(SUBMISSION_CONFIG.enable_fsdf_d_result_to_e)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_d_result_to_e)
         self.assertFalse(RelayOptions().d_result_to_e)
 
     def test_dre_02_candidate_visible_to_e_and_fallback_intact(self):

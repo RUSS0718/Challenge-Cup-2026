@@ -256,3 +256,15 @@ completion 预算（client 级可消除，4.7× 提速），但消除截断不�
 `SUBMISSION_CONFIG`/gitcode main 维持 canary @ `507ebd3`。完整数据：
 `docs/experiments/FSDF-ITER-AB-00{1..9}, FSDF-ITER-AB-010, FSDF-D-RESULT-TO-E-PAIRED-001`；
 判定轨迹：`preregistration_draft.md` §7。重启任何候选须新预注册。
+
+## 六点十五、FESF-V1-CODE-ACCEPTANCE-001（2026-09-06）
+
+| 候选 | 证据 | 处置 |
+|---|---|---|
+| `fork_evidence_synthesize_finish_v1` + `exact-evaluation` + 单题 `SolveMemory` | 零模型 focused 187 项、全量 648 项（4 skipped）通过；Skill `quick_validate` 通过；`py_compile` 与 `git diff --check` 通过；默认 `SUBMISSION_CONFIG` 保持 FSDF v1 | `CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION` |
+
+独立 Luna 复核首轮发现的 A 路由、claim/evidence 绑定、冲突归一化和 D 损坏 fail-closed
+问题均已修复并加入回归测试；后续 Luna max 只读复核进一步检查 canonical equation 绑定、
+定义域、负幂、累计资源预算和 FINAL 卫生，最终结论为 PASS。Skill 真实可用性资格门以及
+Q/W1/W2 真实模型窗口按用户指示暂缓；因此本条不产生数学正确率、Skill 能力或成本结论。
+运行时不加载离线错题账本，未修改默认路径、未推送发布。

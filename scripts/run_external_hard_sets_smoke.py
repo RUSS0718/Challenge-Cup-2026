@@ -223,6 +223,8 @@ TRACE_KEEP = frozenset({
     "handoff_has_candidate_result", "d_candidate_visible_to_e",
     "e_final_equals_d_candidate", "selected_skill", "harness_route_id",
     "harness_steps_expected", "harness_steps_completed",
+    "skill_name", "evidence_id", "claim_id", "supported_count",
+    "auxiliary_count", "refuted_count", "unresolved_count", "skill_loaded",
 })
 
 _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
@@ -280,6 +282,10 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_deep_candidate_fallback",
     "enable_fsdf_skill_routes",
     "enable_fsdf_skill_harness",
+    # FESF is a separate opt-in path; pin both switches in every arm so a
+    # future submission-profile change cannot silently alter an experiment.
+    "enable_fesf_v1",
+    "enable_fesf_exact_eval",
 )
 
 
@@ -293,6 +299,19 @@ def _arm_overrides(enabled: tuple[str, ...] = ()) -> dict[str, bool]:
 
 ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     "v1": _arm_overrides(),
+    # Explicit names used by the FESF v1 qualification/A-B protocol.
+    "fsdf_v1_tkoff": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": True,
+        "enable_fesf_v1": False,
+        "enable_fesf_exact_eval": False,
+    },
+    "fesf_v1_tkoff_exact_eval": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": False,
+        "enable_fesf_v1": True,
+        "enable_fesf_exact_eval": True,
+    },
     "v2": _arm_overrides(FSDF_V2_FLAGS),
     "v2hd": _arm_overrides((*FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d")),
     # v2hd + fsdf_d_result_to_e_v1: single variable = FINAL_D visible to E.
@@ -387,6 +406,8 @@ def arm_config(arm: str) -> Any:
 # the default thinking pass consumed the whole completion budget inside the
 # output stream).
 ARM_THINKING_MODE: dict[str, bool | None] = {
+    "fsdf_v1_tkoff": False,
+    "fesf_v1_tkoff_exact_eval": False,
     "v2hd_bs_hs_tkoff": False,
     "v2hd_hs_sr": False,
     "v2hd_hs_tkh": False,
@@ -667,10 +688,23 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "pairing": pairing,
         "thinking_mode": thinking_mode,
         "arm_flags": {arm: dict(ARM_DEFINITIONS[arm]) for arm in arms},
+        "arm_thinking_modes": {
+            arm: "off" if arm_thinking_mode(arm) is False else "default"
+            for arm in arms
+        },
+        "fesf_skill_sha256": {
+            "reasoning_agent/fesf_skills/exact-evaluation/SKILL.md": sha256_file(
+                ROOT / "reasoning_agent" / "fesf_skills" / "exact-evaluation" / "SKILL.md"
+            ) if (ROOT / "reasoning_agent" / "fesf_skills" / "exact-evaluation" / "SKILL.md").exists() else "missing",
+            "reasoning_agent/fesf_skills/exact-evaluation/cases.jsonl": sha256_file(
+                ROOT / "reasoning_agent" / "fesf_skills" / "exact-evaluation" / "cases.jsonl"
+            ) if (ROOT / "reasoning_agent" / "fesf_skills" / "exact-evaluation" / "cases.jsonl").exists() else "missing",
+        },
         "method": (
-            "SUBMISSION_CONFIG base (fork_select_deepen_finish_v1); arms add "
-            "FSDF-RELIABILITY-V2 candidate flags (exploratory diagnostic, "
-            "not per-variable attributable, no capability conclusion)"
+            "Explicit arm definitions: fsdf_v1_tkoff is the FSDF v1 anchor; "
+            "fesf_v1_tkoff_exact_eval is FESF v1 plus the independently "
+            "qualified exact-evaluation Skill. Existing v2 arms remain "
+            "exploratory diagnostics and are not capability conclusions."
         ),
         "git_head": os.popen("git rev-parse HEAD").read().strip(),
         "start_unix": time.time(),
@@ -725,10 +759,12 @@ if __name__ == "__main__":
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--seed", type=int, default=20260905)
-    parser.add_argument("--hard-stop-minutes", type=float, default=300.0)
+    # FESF qualification + two capability windows share a strict 180-minute
+    # local budget; callers may still pass a smaller stop for a smoke run.
+    parser.add_argument("--hard-stop-minutes", type=float, default=180.0)
     parser.add_argument("--sample-size", type=int, default=SAMPLE_SIZE)
     parser.add_argument("--sets", default="set_a_olymmath_hard,set_b_aime,set_c_hle_math")
-    parser.add_argument("--arms", default="v1", help="comma list from: v1,v2,v2hd,v2hd_dre (interleaved round-robin)")
+    parser.add_argument("--arms", default="v1", help="comma list from: v1,fsdf_v1_tkoff,fesf_v1_tkoff_exact_eval,v2,v2hd,v2hd_dre (interleaved round-robin)")
     parser.add_argument("--pairing", default="independent", choices=["independent", "paired"],
                         help="paired: every sampled item runs once per arm with rotated first arm")
     parser.add_argument("--thinking-mode", default="default", choices=["default", "false", "true"],

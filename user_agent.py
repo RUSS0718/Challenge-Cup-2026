@@ -12,6 +12,9 @@ from reasoning_agent.fork_select_deepen_finish import (
     RelayOptions,
     match_simple_arithmetic_expression,
 )
+from reasoning_agent.fork_evidence_synthesize_finish import (
+    ForkEvidenceSynthesizeFinishRelay,
+)
 
 # ── Task-type constants (universal, problem-text based) ────────────────────
 TASK_TYPE_CHOICE = "choice"
@@ -354,6 +357,11 @@ class AgentConfig:
     reconstruction_max_tokens: int = 4096
     reconstruction_context_max_chars: int = 12000
     enable_fork_select_deepen_finish: bool = False
+    # FESF v1 is an opt-in five-call candidate.  The exact-evaluation Skill is
+    # separately selectable so the free/Skill harness can be tested without
+    # changing the default submission path.
+    enable_fesf_v1: bool = False
+    enable_fesf_exact_eval: bool = False
     # FSDF v2 reliability candidates (Issue #15 spec).  Each increment is
     # independently selectable and defaults off: the submission profile keeps
     # FSDF v1 solve behaviour until a candidate passes its own preregistered
@@ -453,17 +461,16 @@ SUBMISSION_CONFIG = AgentConfig(
     reconstruction_max_tokens=4096,
     reconstruction_context_max_chars=12000,
     enable_fork_select_deepen_finish=True,
-    # 2026-09-06 user-authorized canary deployment (Issue #16): the full FSDF
-    # reliability stack rides on the official solve path.  This equals the
-    # v2hd_dre diagnostic arm.  It is NOT a capability conclusion and does not
-    # retroactively pass any preregistered gate; the rollback anchor is the
-    # pre-flip gitcode main tip.
-    enable_fsdf_diagnostics_v2=True,
-    enable_fsdf_multiline_handoff_v2=True,
-    enable_fsdf_final_confirmation_v2=True,
-    enable_fsdf_finish_prompt_v2=True,
-    enable_fsdf_handoff_first_d=True,
-    enable_fsdf_d_result_to_e=True,
+    # Forward rollback to the FSDF v1 release anchor.  Candidate canaries are
+    # retained in code and remain opt-in for local arms only.
+    enable_fsdf_diagnostics_v2=False,
+    enable_fsdf_multiline_handoff_v2=False,
+    enable_fsdf_final_confirmation_v2=False,
+    enable_fsdf_finish_prompt_v2=False,
+    enable_fsdf_handoff_first_d=False,
+    enable_fsdf_d_result_to_e=False,
+    enable_fesf_v1=False,
+    enable_fesf_exact_eval=False,
 )
 
 
@@ -1171,9 +1178,17 @@ class ReasoningAgent:
             self.config.enable_plan_solve_compact,
             self.config.enable_contextual_answer_reconstruction,
             self.config.enable_fork_select_deepen_finish,
+            self.config.enable_fesf_v1,
         ))
         if experimental_paths > 1:
             raise ValueError("experimental answering paths are mutually exclusive")
+        if self.config.enable_fesf_exact_eval and not self.config.enable_fesf_v1:
+            raise ValueError("enable_fesf_exact_eval requires enable_fesf_v1")
+        if self.config.enable_fesf_v1:
+            return ForkEvidenceSynthesizeFinishRelay(
+                self.client,
+                enable_exact_eval=self.config.enable_fesf_exact_eval,
+            ).solve(problem, problem_type).as_dict()
         if self.config.enable_fork_select_deepen_finish:
             relay_options = RelayOptions(
                 diagnostics_v2=self.config.enable_fsdf_diagnostics_v2,

@@ -1,0 +1,1 @@
+{"experience_id":"queue-empty-001","status":"PROPOSED","structural_trigger":"评测后发现可迁移的结构性失败模式","failure_pattern":"尚无已审核条目；本记录仅表示离线错题本队列已建立","countermeasure":"保持运行时不加载；只有去题面特化后才创建 Skill 新版本","required_check":"完成结构化复审、独立 Skill 资格门和 fresh held-out A/B","source_scope":"local_external","source_artifact":"pending","reviewer":"unassigned","target_skill":"exact-evaluation"}

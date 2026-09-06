@@ -231,12 +231,26 @@ class ArmSupportTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             arm_config("v3")
 
-    def test_submission_profile_equals_v2hd_dre_arm(self):
-        # 2026-09-06 用户授权 canary：官方提交配置必须与 v2hd_dre 诊断臂完全一致，
-        # 且臂定义显式钉住全部候选开关（v1 锚点臂不受提交配置漂移影响）。
+    def test_fesf_experiment_arms_pin_separate_paths_and_thinking_off(self):
+        fsdf = arm_config("fsdf_v1_tkoff")
+        fesf = arm_config("fesf_v1_tkoff_exact_eval")
+        self.assertTrue(fsdf.enable_fork_select_deepen_finish)
+        self.assertFalse(fsdf.enable_fesf_v1)
+        self.assertFalse(fsdf.enable_fesf_exact_eval)
+        self.assertFalse(fesf.enable_fork_select_deepen_finish)
+        self.assertTrue(fesf.enable_fesf_v1)
+        self.assertTrue(fesf.enable_fesf_exact_eval)
+        from scripts.run_external_hard_sets_smoke import arm_thinking_mode
+
+        self.assertIs(arm_thinking_mode("fsdf_v1_tkoff"), False)
+        self.assertIs(arm_thinking_mode("fesf_v1_tkoff_exact_eval"), False)
+
+    def test_submission_profile_equals_v1_anchor_arm(self):
+        # The official profile follows the FSDF v1 rollback anchor; canaries
+        # remain explicit arm-only candidates.
         from user_agent import SUBMISSION_CONFIG
 
-        self.assertEqual(asdict(arm_config("v2hd_dre")), asdict(SUBMISSION_CONFIG))
+        self.assertEqual(asdict(arm_config("v1")), asdict(SUBMISSION_CONFIG))
         v1 = arm_config("v1")
         for flag in FSDF_CANDIDATE_FLAGS:
             self.assertFalse(getattr(v1, flag), flag)
