@@ -257,6 +257,26 @@ class ArmSupportTest(unittest.TestCase):
         del v2hd["enable_fsdf_d_result_to_e"], dre["enable_fsdf_d_result_to_e"]
         self.assertEqual(v2hd, dre)
 
+    def test_v2hd_hs_eu_arm_differs_from_v2hd_hs_only_in_e_budget(self):
+        base = asdict(arm_config("v2hd_hs"))
+        eu = asdict(arm_config("v2hd_hs_eu"))
+        self.assertFalse(base["enable_fsdf_e_budget_up"])
+        self.assertTrue(eu["enable_fsdf_e_budget_up"])
+        del base["enable_fsdf_e_budget_up"], eu["enable_fsdf_e_budget_up"]
+        self.assertEqual(base, eu)
+
+    def test_v2hd_bs_hs_tkoff_arm_matches_frontier_config(self):
+        # 思考开关是 client 级（ARM_THINKING_MODE），AgentConfig 必须与前沿一致。
+        frontier = asdict(arm_config("v2hd_bs_hs"))
+        tkoff = asdict(arm_config("v2hd_bs_hs_tkoff"))
+        self.assertEqual(frontier, tkoff)
+        from scripts.run_external_hard_sets_smoke import arm_thinking_mode
+
+        self.assertIsNone(arm_thinking_mode("v2hd_bs_hs"))
+        self.assertIs(arm_thinking_mode("v2hd_bs_hs_tkoff"), False)
+        with self.assertRaises(ValueError):
+            arm_config("v2hd_bs_hs_tkoff_typo")
+
     def test_paired_assignment_covers_every_arm_with_rotation(self):
         tasks = [{"i": i} for i in range(3)]
         paired = assign_arms_paired(tasks, ["v2", "v2hd"])

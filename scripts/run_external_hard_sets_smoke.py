@@ -347,6 +347,13 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
         "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
         "enable_fsdf_deep_candidate_fallback",
     )),
+    # v2hd_bs_hs + client thinking off (fsdf_thinking_off_v1): single variable
+    # is the client-level thinking switch (ARM_THINKING_MODE); the AgentConfig
+    # is identical to the frontier.
+    "v2hd_bs_hs_tkoff": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
+    )),
 }
 
 
