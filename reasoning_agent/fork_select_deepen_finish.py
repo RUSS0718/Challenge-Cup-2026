@@ -17,6 +17,10 @@ STAGE_TOKEN_SEQUENCE = (2048, 2048, 2048, 8192, 4096)
 # （length 11-13/15）而 D 常见 stop（10/14），D 有安全捐出空间；交接-first 条目
 # 增量自含且 P1 裁掉未闭合尾部，4096 的 D 仍产出可用部分交接。
 STAGE_TOKEN_SEQUENCE_DE_SWAP = (2048, 2048, 2048, 4096, 8192)
+# fsdf_e_budget_up_v1（迭代 8）：仅 E 生成预算 8192→9728（总 18432→19968，+8%）。
+# 依据：逐阶段 finish_reason 显示 A ~96%、B/C ~99%、D ~94% 均 length 截断——
+# 没有任何阶段有可捐出余量；E 终答形成受生成预算限制（迭代 1 的唯一前移杠杆）。
+STAGE_TOKEN_SEQUENCE_E_UP = (2048, 2048, 2048, 4096, 9728)
 L0_TOKEN_SEQUENCE = (4096,)
 SOFT_DEADLINE_SECONDS = 900.0
 HARD_DEADLINE_SECONDS = 1080.0
@@ -207,6 +211,10 @@ class RelayOptions:
     # branch + pure progress handoff) and the handoff reserve rises
     # 4600 -> 6050 within the same 6500 cap.
     finish_handoff_share_v2: bool = False
+    # fsdf_e_budget_up_v1 (iteration 8): E generation budget 8192 -> 9728 only
+    # (total 18432 -> 19968); no stage has slack to donate (A/B/C/D finish
+    # reasons are 94-100% length-capped), so the budget must grow, not move.
+    e_budget_up: bool = False
 
 
 @dataclass
@@ -757,7 +765,10 @@ class ForkSelectDeepenFinishRelay:
                 state.d_candidate_for_check = _clip(final_d_distinct[0], 500)
         state.diagnostics["d_candidate_visible_to_e"] = bool(state.d_candidate_for_check)
 
-        finish_max_tokens = 8192 if self.options.de_budget_swap else 4096
+        finish_max_tokens = (
+            9728 if self.options.e_budget_up
+            else (8192 if self.options.de_budget_swap else 4096)
+        )
         response_e = ""
         if self._stage_allowed(state, trace, "finish", finish_max_tokens):
             if self.options.finish_compact_final:
@@ -1360,6 +1371,7 @@ __all__ = [
     "METHOD_ID",
     "STAGE_TOKEN_SEQUENCE",
     "STAGE_TOKEN_SEQUENCE_DE_SWAP",
+    "STAGE_TOKEN_SEQUENCE_E_UP",
     "L0_TOKEN_SEQUENCE",
     "SOFT_DEADLINE_SECONDS",
     "HARD_DEADLINE_SECONDS",

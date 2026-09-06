@@ -275,6 +275,7 @@ FSDF_CANDIDATE_FLAGS = (
     "enable_fsdf_finish_handoff_share",
     "enable_fsdf_handoff_open_first_e",
     "enable_fsdf_finish_handoff_share_v2",
+    "enable_fsdf_e_budget_up",
 )
 
 
@@ -324,10 +325,19 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     )),
     # v2hd_hs + fsdf_finish_handoff_share_v2: single variable = share-mode
     # composition drops the A-summary block too; handoff reserve 4600 -> 6050.
+    # v2hd_hs + fsdf_finish_handoff_share_v2: single variable = share-mode
+    # composition drops the A-summary block too; handoff reserve 4600 -> 6050.
     "v2hd_hs_sv2": _arm_overrides((
         *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
         "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
         "enable_fsdf_handoff_open_first_e", "enable_fsdf_finish_handoff_share_v2",
+    )),
+    # v2hd_hs + fsdf_e_budget_up_v1: single variable = E budget 8192 -> 9728
+    # (total 18432 -> 19968); no donor stage exists.
+    "v2hd_hs_eu": _arm_overrides((
+        *FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d",
+        "enable_fsdf_de_budget_swap", "enable_fsdf_finish_handoff_share",
+        "enable_fsdf_handoff_open_first_e", "enable_fsdf_e_budget_up",
     )),
 }
 

@@ -104,6 +104,11 @@ def analyze_paired(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "handoff_unclosed": unclosed,
             "d_candidate_visible": visible_candidates,
             "e_final_copied_candidate": copies,
+            # 逐阶段 finish_reason 计数（A/B/C/D/E = 成功调用序 0-4）。
+            "stage_finish_reasons": {
+                name: dict(Counter(finish_reason_at(r, idx) for r in sub))
+                for idx, name in enumerate(("A", "B", "C", "D", "E"))
+            },
         }
 
     for item_id, arms_map in sorted(by_item.items()):

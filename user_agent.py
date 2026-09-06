@@ -388,6 +388,10 @@ class AgentConfig:
     # A-summary block; E context = branch + pure progress handoff, reserve
     # 4600 -> 6050.
     enable_fsdf_finish_handoff_share_v2: bool = False
+    # fsdf_e_budget_up_v1 (iteration 8): E generation budget 8192 -> 9728 only
+    # (total 18432 -> 19968); A/B/C/D have no slack to donate (their finish
+    # reasons are 94-100% length-capped).
+    enable_fsdf_e_budget_up: bool = False
 
 
 # ── Submission profile ────────────────────────────────────────────────────
@@ -1169,6 +1173,7 @@ class ReasoningAgent:
                 finish_handoff_share=self.config.enable_fsdf_finish_handoff_share,
                 handoff_open_first_e=self.config.enable_fsdf_handoff_open_first_e,
                 finish_handoff_share_v2=self.config.enable_fsdf_finish_handoff_share_v2,
+                e_budget_up=self.config.enable_fsdf_e_budget_up,
             )
             return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
                 problem, problem_type

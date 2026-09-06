@@ -19,6 +19,7 @@ from reasoning_agent.fork_select_deepen_finish import (
     L0_TOKEN_SEQUENCE,
     STAGE_TOKEN_SEQUENCE,
     STAGE_TOKEN_SEQUENCE_DE_SWAP,
+    STAGE_TOKEN_SEQUENCE_E_UP,
     ForkSelectDeepenFinishRelay,
     RelayOptions,
 )
@@ -1267,6 +1268,50 @@ class F2FinishHandoffShareV2Test(unittest.TestCase):
         self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client_v2.calls))
         self.assertEqual(5, len(client_v2.calls))
         self.assertEqual("7", result.final_response)
+
+
+class F2EBudgetUpTest(unittest.TestCase):
+    """fsdf_e_budget_up_v1（迭代 8）：仅 E 生成预算 8192→9728（总 +8%）。"""
+
+    def test_ebu_01_defaults_off(self):
+        self.assertFalse(AgentConfig().enable_fsdf_e_budget_up)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fsdf_e_budget_up)
+        self.assertFalse(RelayOptions().e_budget_up)
+
+    def test_ebu_02_off_keeps_swap_sequence(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(multiline_handoff_v2=True, de_budget_swap=True),
+        )
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_DE_SWAP, tuple(call[2] for call in client.calls))
+
+    def test_ebu_03_on_raises_only_e_budget(self):
+        client, result = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish("7", "7")],
+            RelayOptions(
+                multiline_handoff_v2=True,
+                final_confirmation_v2=True,
+                handoff_first_d=True,
+                de_budget_swap=True,
+                finish_handoff_share=True,
+                e_budget_up=True,
+            ),
+        )
+        self.assertEqual(STAGE_TOKEN_SEQUENCE_E_UP, tuple(call[2] for call in client.calls))
+        self.assertEqual([4096], [call[2] for call in client.calls if call[2] not in (2048, 9728)])
+        self.assertEqual(2048 * 3 + 4096 + 9728, sum(call[2] for call in client.calls))
+        self.assertEqual(5, len(client.calls))
+        # 提示词不受影响。
+        self.assertEqual(DEEPEN_PROMPT_V2, client.calls[3][0][0]["content"])
+        self.assertEqual("7", result.final_response)
+        self.assertEqual("finish_final", result.trace[-1]["fallback_source"])
+
+    def test_ebu_04_without_swap_e_goes_4096_to_9728(self):
+        client, _ = solve_v2(
+            [analysis(), idea("B"), idea("C"), deep(), finish()],
+            RelayOptions(e_budget_up=True),
+        )
+        self.assertEqual((2048, 2048, 2048, 8192, 9728), tuple(call[2] for call in client.calls))
 
 
 if __name__ == "__main__":
