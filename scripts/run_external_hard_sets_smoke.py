@@ -344,7 +344,7 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
 
 def arm_config(arm: str) -> Any:
     if arm not in ARM_DEFINITIONS:
-        raise ValueError(f"unknown arm: {arm}")
+        raise ValueError(f"unknown arm: {arm} (available: {', '.join(ARM_DEFINITIONS)})")
     return dataclasses.replace(SUBMISSION_CONFIG, **ARM_DEFINITIONS[arm])
 
 
