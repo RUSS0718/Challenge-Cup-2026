@@ -15,6 +15,7 @@ from scripts.run_external_hard_sets_smoke import (
     assign_arms_paired,
     client_diagnostics,
     compact_trace,
+    analyze_skill_qualification,
     stage_health,
 )
 
@@ -203,6 +204,55 @@ class AnalyzeVerdictMatrixTest(unittest.TestCase):
         self.assertIsInstance(blob, str)
 
 
+class SkillQualificationReportTest(unittest.TestCase):
+    def test_qualification_metrics_use_scorer_labels_and_bounded_events(self):
+        def qrow(rid, applicable, selected, usable=True, consumed=True):
+            route = {
+                "stage": "route",
+                "skill_name": "exact-evaluation" if selected else "NONE",
+                "skill_choice_parsed": True,
+                "applicability": "yes" if selected else "no",
+            }
+            trace = [route]
+            events = []
+            if selected and usable:
+                events.append({
+                    "stage": "tool_exact_eval",
+                    "status": "EXACT",
+                    "execution_status": "ok",
+                    "claim_known": True,
+                    "binding_ok": True,
+                    "tool_request_valid": True,
+                    "evidence_consumed": consumed,
+                    "evidence_id": "T1",
+                })
+                trace.extend(events)
+            row = make_row(row_id=rid, set_id="fesf_skill_qualification", trace=trace)
+            row.update({
+                "qualification_applicable": applicable,
+                "skill_selected": selected,
+                "skill_choice_parsed": True,
+                "route_applicability": "yes" if selected else "no",
+                "tool_request_count": len(events),
+                "tool_events": events,
+            })
+            return row
+
+        rows = [
+            qrow("a", True, True),
+            qrow("b", True, False),
+            qrow("c", False, False),
+            qrow("d", False, True),
+        ]
+        report = analyze_skill_qualification(rows)
+        self.assertEqual(2, report["applicable_n"])
+        self.assertEqual(1, report["applicable_selected"])
+        self.assertEqual(1, report["non_applicable_none"])
+        self.assertEqual(2, report["tool_execution_success_n"])
+        self.assertEqual(2, report["evidence_consumed_n"])
+        self.assertFalse(report["qualification_pass"])
+
+
 class ClientDiagnosticsTest(unittest.TestCase):
     def test_bounded_and_tolerant_of_missing_attributes(self):
         class FullClient:
@@ -240,10 +290,16 @@ class ArmSupportTest(unittest.TestCase):
         self.assertFalse(fesf.enable_fork_select_deepen_finish)
         self.assertTrue(fesf.enable_fesf_v1)
         self.assertTrue(fesf.enable_fesf_exact_eval)
+        self.assertFalse(fesf.enable_fesf_claim_dsl)
+        dsl = arm_config("fesf_v1_tkoff_claim_dsl")
+        self.assertTrue(dsl.enable_fesf_v1)
+        self.assertTrue(dsl.enable_fesf_exact_eval)
+        self.assertTrue(dsl.enable_fesf_claim_dsl)
         from scripts.run_external_hard_sets_smoke import arm_thinking_mode
 
         self.assertIs(arm_thinking_mode("fsdf_v1_tkoff"), False)
         self.assertIs(arm_thinking_mode("fesf_v1_tkoff_exact_eval"), False)
+        self.assertIs(arm_thinking_mode("fesf_v1_tkoff_claim_dsl"), False)
 
     def test_submission_profile_equals_v1_anchor_arm(self):
         # The official profile follows the FSDF v1 rollback anchor; canaries

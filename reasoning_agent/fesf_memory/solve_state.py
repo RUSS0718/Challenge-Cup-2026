@@ -282,6 +282,35 @@ class SolveMemory:
         allowed = set(ids) if ids is not None else None
         return [claim for claim in self.claims if allowed is None or claim.id in allowed]
 
+    def candidate_rows_for_e(self) -> list[tuple[str, CandidateRecord]]:
+        """Return the bounded candidate set that E is allowed to select.
+
+        Candidate text is model-controlled, so it is not sufficient to merely
+        render every parsed ``CANDIDATE_*`` line.  E may only see candidates from
+        the selected branch (or an explicitly auxiliary branch), with at least
+        one known supporting claim and no claim already marked ``REFUTED``.
+        The generated ``K<n>`` id is host-owned and stable for this solve.
+        """
+        allowed_branches = {self.selected_branch} if self.selected_branch else set()
+        auxiliary_sources = {
+            claim.source for claim in self.claims if claim.id in set(self.auxiliary_claim_ids)
+        }
+        allowed_branches.update(auxiliary_sources)
+        claim_map = {claim.id: claim for claim in self.claims}
+        rows: list[tuple[str, CandidateRecord]] = []
+        for index, candidate in enumerate(self.candidates, start=1):
+            if candidate.branch not in allowed_branches:
+                continue
+            if not candidate.supporting_claim_ids:
+                continue
+            claims = [claim_map.get(item) for item in candidate.supporting_claim_ids]
+            if any(claim is None for claim in claims):
+                continue
+            if any(claim.status == "REFUTED" for claim in claims if claim is not None):
+                continue
+            rows.append((f"K{index}", candidate))
+        return rows
+
     def render_for_d(self, max_chars: int = 7000) -> str:
         rows = [
             f"ANALYSIS_GOAL: {_clip(self.goal, 700)}",
@@ -303,7 +332,7 @@ class SolveMemory:
             for item in self.evidence:
                 assumptions = ", ".join(_clip(a, 120) for a in item.assumptions[:6]) or "none"
                 rows.append(
-                    f"{item.id} [{item.status}; claim={item.claim_id or 'none'}; scope={_clip(item.scope, 160)}; "
+                    f"{item.id} [evidence.status={item.status}; claim={item.claim_id or 'none'}; scope={_clip(item.scope, 160)}; "
                     f"expr={_clip(item.checked_expression, 180) or 'none'}; expected={_clip(item.checked_expected, 180) or 'none'}; "
                     f"assumptions={assumptions}]: "
                     f"{_clip(item.result, 300)}"
@@ -324,22 +353,20 @@ class SolveMemory:
         visible = set(self.supported_claim_ids + self.auxiliary_claim_ids + self.refuted_claim_ids + self.unresolved_claim_ids)
         for claim in self._claim_rows(visible or None):
             rows.append(f"{claim.id} [{claim.source}; {claim.status}; evidence={','.join(claim.evidence_ids) or 'none'}]: {_clip(claim.content, 520)}")
-        if self.candidates:
+        candidate_rows = self.candidate_rows_for_e()
+        if candidate_rows:
             rows.append("CANDIDATES:")
-            allowed_branches = {self.selected_branch} if self.selected_branch else set()
-            auxiliary_sources = {
-                claim.source for claim in self.claims if claim.id in set(self.auxiliary_claim_ids)
-            }
-            allowed_branches.update(auxiliary_sources)
-            for candidate in self.candidates:
-                if candidate.branch in allowed_branches:
-                    rows.append(f"{candidate.branch}: {_clip(candidate.answer, 420)} (claims={','.join(candidate.supporting_claim_ids) or 'none'})")
+            for candidate_id, candidate in candidate_rows:
+                rows.append(
+                    f"{candidate_id} {candidate.branch}: {_clip(candidate.answer, 420)} "
+                    f"(claims={','.join(candidate.supporting_claim_ids)})"
+                )
         if self.evidence:
             rows.append("EVIDENCE:")
             for item in self.evidence:
                 assumptions = ", ".join(_clip(a, 120) for a in item.assumptions[:6]) or "none"
                 rows.append(
-                    f"{item.id} [{item.status}; claim={item.claim_id or 'none'}; scope={_clip(item.scope, 160)}; "
+                    f"{item.id} [evidence.status={item.status}; claim={item.claim_id or 'none'}; scope={_clip(item.scope, 160)}; "
                     f"expr={_clip(item.checked_expression, 180) or 'none'}; expected={_clip(item.checked_expected, 180) or 'none'}; "
                     f"assumptions={assumptions}]: "
                     f"{_clip(item.result, 300)}"

@@ -1,11 +1,13 @@
 ---
 name: exact-evaluation
 description: >
-  Use when a candidate derivation has reduced the problem to a bounded exact
-  arithmetic or symbolic expression. Produce one restricted EXACT_EVAL request
-  using the host tool and map its result back to a named claim. Do not use for unbounded search,
-  informal existence arguments, geometric interpretation, or when the needed
-  expression has not been derived.
+  Use when a candidate derivation has reduced the problem to one closed,
+  bounded exact arithmetic or symbolic expression and a standalone canonical
+  equation claim. Produce one restricted EXACT_EVAL request using the host
+  tool and map its result back to that named claim. Do not use when the task
+  still requires a proof, derivation, unbounded search, optimization, informal existence
+  argument, or geometric interpretation, or when the expression or its scope
+  has not been derived.
 ---
 
 # Exact evaluation
@@ -26,12 +28,17 @@ claim id stable and make the scope explicit.
 ## Procedure
 
 1. Copy the smallest closed expression into the restricted request.
-2. Emit exactly one request in this form:
+2. First record one standalone canonical equation claim, with no prose,
+   labels, units, or conjunctions:
+   `C1: <expr>=<expected_or_result>`
+3. Emit exactly one request for that claim in this form:
    `EXACT_EVAL: claim_id=<id>; expr=<expression>; expected=<expression>; scope=<scope>`
    Omit `expected` when the result itself is the claim's value.
-3. Keep arithmetic operators and symbolic names only; leave every other
+4. Keep arithmetic operators and symbolic names only; leave every other
    operation for the host to reject.
-4. Record which claim the request tests and wait for the host result.
+5. Record which claim the request tests and wait for the host result. Use one
+   request per claim and do not issue a request when the expression is open or
+   the scope is vague.
 
 ## Required artifacts
 

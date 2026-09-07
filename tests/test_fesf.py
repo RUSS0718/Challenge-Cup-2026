@@ -35,11 +35,11 @@ def a_packet(choice="exact-evaluation", applicability="YES"):
     )
 
 
-def b_packet(secret="B_PRIVATE"):
+def b_packet(secret="B_PRIVATE", candidate="3"):
     return (
         "BRANCH: B\nCLAIMS:\n"
         f"B1: 由原题关系得到候选 3；内部备注 {secret}\n"
-        "CANDIDATE_B: 3\nOPEN: 检查代回"
+        f"CANDIDATE_B: {candidate}\nOPEN: 检查代回"
     )
 
 
@@ -182,10 +182,39 @@ class FESFRelayTest(unittest.TestCase):
                     for event in result.trace
                 ))
 
+    def test_d_illegal_marker_diagnostic_is_redacted(self):
+        malicious = d_packet("none") + "\nSECRET_MARKER_" + ("X" * 500) + ": leaked"
+        client, result = self.solve([a_packet(), b_packet(), c_packet(), malicious, e_packet("1")])
+        blob = json.dumps(result.as_dict(), ensure_ascii=False)
+        self.assertNotIn("SECRET_MARKER_", blob)
+        event = next(
+            item for item in result.trace
+            if item["stage"] == "synthesize" and item["status"] == "protocol_failed"
+        )
+        self.assertEqual("illegal_marker", event["protocol_error"])
+
     def test_e_conflicting_finals_fails_closed(self):
         client, result = self.solve([a_packet(), b_packet(), c_packet(), d_packet(), "FINAL: 3\nFINAL: 4"])
         self.assertEqual("UNKNOWN", result.final_response)
         self.assertEqual("unknown", result.trace[-1]["status"])
+
+    def test_e_cannot_create_answer_outside_host_candidate_set(self):
+        client, result = self.solve([a_packet(), b_packet(), c_packet(), d_packet(), e_packet("99")])
+        self.assertEqual("UNKNOWN", result.final_response)
+        gate = next(item for item in result.trace if item["stage"] == "candidate_gate")
+        self.assertEqual("rejected", gate["status"])
+        self.assertEqual("not_in_candidate_set", gate["candidate_gate"])
+        self.assertGreaterEqual(gate["eligible_count"], 1)
+
+    def test_refuted_candidate_is_not_rendered_or_accepted(self):
+        memory = SolveMemory()
+        self.assertTrue(memory.add_claim("B1", "x = 3", "B"))
+        self.assertTrue(memory.add_evidence("T1", "exact-evaluation", "REFUTED", "value", "4", claim_id="B1"))
+        self.assertTrue(memory.set_claim_status("B1", "REFUTED", ["T1"]))
+        memory.set_synthesis(primary_branch="B", primary_reason="evidence", refuted=["B1"])
+        self.assertTrue(memory.add_candidate("B", "3", ["B1"]))
+        self.assertEqual([], memory.candidate_rows_for_e())
+        self.assertNotIn("CANDIDATES:", memory.render_for_e())
 
     def test_e_withdrawal_or_truncated_final_fails_closed(self):
         for final in ("FINAL: 3\nFINAL: UNKNOWN.", "FINAL: 3\nFINAL: <answer>", "FINAL: x +"):
@@ -205,6 +234,54 @@ class FESFRelayTest(unittest.TestCase):
                 self.assertIn("UNRESOLVED_CLAIMS: B1, C1", e_user)
                 self.assertNotIn("SUPPORTED_CLAIMS: C1", e_user)
                 self.assertEqual("3", result.final_response)
+
+    def test_tool_event_exposes_bounded_binding_diagnostics(self):
+        client, result = self.solve([a_packet(), b_packet(), c_packet(), d_packet(), e_packet()])
+        event = next(item for item in result.trace if item["stage"] == "tool_exact_eval")
+        self.assertEqual("UNKNOWN", event["status"])
+        self.assertEqual("rejected", event["execution_status"])
+        self.assertTrue(event["claim_known"])
+        self.assertFalse(event["binding_ok"])
+        self.assertEqual("claim_binding", event["error"])
+
+    def test_route_diagnostics_are_enum_bounded(self):
+        secret = "SECRET_APPLICABILITY_" + "x" * 10_000
+        analysis = a_packet().replace("APPLICABILITY: YES", f"APPLICABILITY: {secret}")
+        client, result = self.solve([analysis, b_packet(), c_packet(tool=False), d_packet(), e_packet()])
+        route = next(item for item in result.trace if item["stage"] == "route")
+        self.assertEqual("unknown", route["applicability"])
+        self.assertNotIn(secret, json.dumps(result.as_dict(), ensure_ascii=False))
+
+    def test_noncanonical_claim_id_is_redacted_in_tool_trace(self):
+        c = c_packet().replace("claim_id=C1", "claim_id=C_PRIVATE_SECRET")
+        client, result = self.solve([a_packet(), b_packet(), c, d_packet(), e_packet()])
+        event = next(item for item in result.trace if item["stage"] == "tool_exact_eval")
+        self.assertEqual("UNKNOWN", event["claim_id"])
+        self.assertNotIn("C_PRIVATE_SECRET", json.dumps(result.as_dict(), ensure_ascii=False))
+
+    def test_canonical_tool_claim_is_accepted_and_consumable(self):
+        c = c_packet().replace(
+            "C1: 将目标化为表达式并得到 3；内部备注 C_PRIVATE",
+            "C1: 1+2=3",
+        )
+        d = d_packet().replace("AUXILIARY_CLAIMS: C1", "AUXILIARY_CLAIMS: none")
+        client, result = self.solve([a_packet(), b_packet(), c, d, e_packet()])
+        event = next(item for item in result.trace if item["stage"] == "tool_exact_eval")
+        self.assertEqual("EXACT", event["status"])
+        self.assertEqual("ok", event["execution_status"])
+        self.assertTrue(event["claim_known"])
+        self.assertTrue(event["binding_ok"])
+        self.assertEqual("none", event["error"])
+        self.assertTrue(event["evidence_consumed"])
+        self.assertIn("SUPPORTED_CLAIMS: C1", client.calls[4][0][1]["content"])
+
+    def test_d_protocol_failure_keeps_bounded_parser_reason(self):
+        client, result = self.solve([a_packet(), b_packet(), c_packet(), "GARBAGE D", e_packet("1")])
+        event = next(
+            item for item in result.trace
+            if item["stage"] == "synthesize" and item["status"] == "protocol_failed"
+        )
+        self.assertIn("missing=", event["protocol_error"])
 
     def test_tool_evidence_domain_and_result_size_are_bounded(self):
         self.assertEqual(
@@ -297,7 +374,7 @@ class FESFRelayTest(unittest.TestCase):
         client, result = self.solve([a_packet(), b_packet(), c, d_packet(), e_packet()])
         tool_events = [event for event in result.trace if event["stage"] == "tool_exact_eval"]
         self.assertEqual(1, len(tool_events))
-        self.assertEqual("Z9", tool_events[0]["claim_id"])
+        self.assertEqual("UNKNOWN", tool_events[0]["claim_id"])
         self.assertEqual("UNKNOWN", tool_events[0]["status"])
         self.assertNotIn("Z9", client.calls[3][0][1]["content"])
 
@@ -328,7 +405,7 @@ class FESFRelayTest(unittest.TestCase):
 
     def test_memory_isolation_across_consecutive_and_parallel_solves(self):
         def one(value):
-            client = ScriptedClient([a_packet("NONE", "NO"), b_packet(str(value)), c_packet(False), d_packet(), e_packet(str(value))])
+            client = ScriptedClient([a_packet("NONE", "NO"), b_packet(str(value), value), c_packet(False), d_packet(), e_packet(str(value))])
             return ForkEvidenceSynthesizeFinishRelay(client).solve(f"题目 {value}", "calculation")
 
         first, second = one("1"), one("2")

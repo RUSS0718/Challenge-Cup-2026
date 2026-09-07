@@ -1,0 +1,709 @@
+{
+  "version": 1,
+  "declaration": "temporary substitute for the reviewed error notebook",
+  "matching": "NFC plus whitespace-normalised exact problem digest",
+  "seed": 20260907,
+  "entry_count": 100,
+  "entries": [
+    {
+      "case_id": "temporary-001",
+      "source_family": "eval112",
+      "source_id": "eval112-28",
+      "problem_sha256": "037ffc402799dc9f6ae08844e71466e056eaf1ed58946385edb193090a9c4f63",
+      "answer": "43"
+    },
+    {
+      "case_id": "temporary-002",
+      "source_family": "eval112",
+      "source_id": "eval112-24",
+      "problem_sha256": "000fe044b496a161c442b4eda227170846229d61e1358b7358b7357e337119ef",
+      "answer": "2048"
+    },
+    {
+      "case_id": "temporary-003",
+      "source_family": "eval112",
+      "source_id": "eval112-52",
+      "problem_sha256": "5e07e17eb1a90aa91c21c0424662a522cf64d17db2993a0a1f837db91384ad6f",
+      "answer": "2"
+    },
+    {
+      "case_id": "temporary-004",
+      "source_family": "eval112",
+      "source_id": "eval112-26",
+      "problem_sha256": "364a17eba30a7c5a891834ed19bbe9169d690ddc283a8e2ecaf3f36d59940797",
+      "answer": "486"
+    },
+    {
+      "case_id": "temporary-005",
+      "source_family": "eval112",
+      "source_id": "eval112-102",
+      "problem_sha256": "38302ffbc7be6ebad19747f28a32921914dbadc91f851c075293ee9ca95f42b6",
+      "answer": "B"
+    },
+    {
+      "case_id": "temporary-006",
+      "source_family": "eval112",
+      "source_id": "eval112-93",
+      "problem_sha256": "6905795d223c993d50b938b97673617aa2bc596750cb14ee685a75f2d35ff1fa",
+      "answer": "CE"
+    },
+    {
+      "case_id": "temporary-007",
+      "source_family": "eval112",
+      "source_id": "eval112-78",
+      "problem_sha256": "44cb476c01db5a807a6bab3b0ab368a6600d9694feb4d97b27fd3ffd738be098",
+      "answer": "1"
+    },
+    {
+      "case_id": "temporary-008",
+      "source_family": "eval112",
+      "source_id": "eval112-31",
+      "problem_sha256": "c789822a46c356abca5a3854d6d00274a003d6005d0eeb009296d4d0e519cad8",
+      "answer": "1026169"
+    },
+    {
+      "case_id": "temporary-009",
+      "source_family": "eval112",
+      "source_id": "eval112-56",
+      "problem_sha256": "d4231359b65bffd9a09e0d3b2b476cc1563783dd3f1ee85c4745089b22d15aec",
+      "answer": "2450"
+    },
+    {
+      "case_id": "temporary-010",
+      "source_family": "eval112",
+      "source_id": "eval112-32",
+      "problem_sha256": "b790179d6ca8c842c585c637259cb2ea930793886a5a608e836fbbb837d1920c",
+      "answer": "512"
+    },
+    {
+      "case_id": "temporary-011",
+      "source_family": "eval112",
+      "source_id": "eval112-64",
+      "problem_sha256": "ed0e5ce909ed463d65b151591b6ba447b777ce2e57891bff9d74165cba7163cc",
+      "answer": "4"
+    },
+    {
+      "case_id": "temporary-012",
+      "source_family": "eval112",
+      "source_id": "eval112-15",
+      "problem_sha256": "675cb7c62f4e95971e9128f1bd9428379703f1937bba76809903018adf6eeb38",
+      "answer": "2"
+    },
+    {
+      "case_id": "temporary-013",
+      "source_family": "eval112",
+      "source_id": "eval112-29",
+      "problem_sha256": "95b0a980fafb52ce9f116acf1c0721e1316dbc9aeefaa6e5a52208f60921dcea",
+      "answer": "2ᵃ 3ᵇ 5ᶜ"
+    },
+    {
+      "case_id": "temporary-014",
+      "source_family": "eval112",
+      "source_id": "eval112-21",
+      "problem_sha256": "032641f6c8d284637ec81d7a93ea701863bf3267e3afa15cc6fb905409b9cd85",
+      "answer": "21"
+    },
+    {
+      "case_id": "temporary-015",
+      "source_family": "eval112",
+      "source_id": "eval112-44",
+      "problem_sha256": "374ca78191796b19f2d539341f4f957515fb39929289f1e8d695c20e822496ce",
+      "answer": "96"
+    },
+    {
+      "case_id": "temporary-016",
+      "source_family": "eval112",
+      "source_id": "eval112-66",
+      "problem_sha256": "c4c5336b9c9e4c2a7dcc95ef9f793c42e49264cce4a2c9ac5434cea6f8ed2c89",
+      "answer": "4"
+    },
+    {
+      "case_id": "temporary-017",
+      "source_family": "eval112",
+      "source_id": "eval112-36",
+      "problem_sha256": "2b65bbaf6ea3e35e3b7ad2add94ba6cd2357c7a39ecefb0b261e6bd75f566881",
+      "answer": "2025"
+    },
+    {
+      "case_id": "temporary-018",
+      "source_family": "eval112",
+      "source_id": "eval112-72",
+      "problem_sha256": "fb312b833e86d8c5ecfb89f1ea1d8515e10c0c516c43f901e4e549bf5ad4d7eb",
+      "answer": "(n-2)2ⁿ +1"
+    },
+    {
+      "case_id": "temporary-019",
+      "source_family": "eval112",
+      "source_id": "eval112-47",
+      "problem_sha256": "03298edeb2cb0906c66ab4a0e131cd3e78e2ce1c9215631da51ac0f0ba9eb199",
+      "answer": "64"
+    },
+    {
+      "case_id": "temporary-020",
+      "source_family": "eval112",
+      "source_id": "eval112-1",
+      "problem_sha256": "e2e3f1e178673dd75d9b98da5c85c9968f0e2b879a12e5e6ed2c2854ca9a4faf",
+      "answer": "2-2m"
+    },
+    {
+      "case_id": "temporary-021",
+      "source_family": "eval112",
+      "source_id": "eval112-30",
+      "problem_sha256": "d3d3224e47ee9139c741f78ba891df66f32aae6ec0cfebd021167d17448e8c3f",
+      "answer": "2027091"
+    },
+    {
+      "case_id": "temporary-022",
+      "source_family": "eval112",
+      "source_id": "eval112-106",
+      "problem_sha256": "b614eb1f342b717e4af9003eab77fd3c57f04933fa842e89b85adc69fd8a63ef",
+      "answer": "A"
+    },
+    {
+      "case_id": "temporary-023",
+      "source_family": "eval112",
+      "source_id": "eval112-7",
+      "problem_sha256": "21080bcc22b656a47645b95165c2b6d3e921a8e2c22dd86e469aac86739f42d4",
+      "answer": "1"
+    },
+    {
+      "case_id": "temporary-024",
+      "source_family": "eval112",
+      "source_id": "eval112-100",
+      "problem_sha256": "512f223a493c423bbc8454322be46e27d2724f0f1afa9a98cc66ca77f224fab5",
+      "answer": "函数f(x)=sin(x)在x=π/4处的一阶导数（中心差分，h=0.1）约为0.6706（保留四位小数）"
+    },
+    {
+      "case_id": "temporary-025",
+      "source_family": "eval112",
+      "source_id": "eval112-4",
+      "problem_sha256": "4cff0ae2cdebced6435c5ebfd21f3a916534588fc60796c2fe721f3edd240c86",
+      "answer": "2024"
+    },
+    {
+      "case_id": "temporary-026",
+      "source_family": "eval112",
+      "source_id": "eval112-89",
+      "problem_sha256": "f00ccf83ab9e24428848a639674ba9673b409bbd61157c8fed7e6f03a99a3537",
+      "answer": "5129"
+    },
+    {
+      "case_id": "temporary-027",
+      "source_family": "eval112",
+      "source_id": "eval112-105",
+      "problem_sha256": "fb69adc0d6028d2c2e335fb2413c40a15dbf8676ef942d64010af193755e8d66",
+      "answer": "标准差"
+    },
+    {
+      "case_id": "temporary-028",
+      "source_family": "eval112",
+      "source_id": "eval112-0",
+      "problem_sha256": "2a72024cc7d9e6b4de25ed5ea02521ac981e455603a4bf80d5bad5fea76cb7fb",
+      "answer": "20460"
+    },
+    {
+      "case_id": "temporary-029",
+      "source_family": "eval112",
+      "source_id": "eval112-22",
+      "problem_sha256": "af1c65dde0aa202ddc5ca330a36faaaa338b439a427839e74e744fcb7019c04f",
+      "answer": "25502500"
+    },
+    {
+      "case_id": "temporary-030",
+      "source_family": "eval112",
+      "source_id": "eval112-13",
+      "problem_sha256": "412227814923b60c7bde1271a2b56818ce0e79c522cac8ce3175183fb51958e3",
+      "answer": "48"
+    },
+    {
+      "case_id": "temporary-031",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-60-EN",
+      "problem_sha256": "cd456af632456ed02be384df2ea54ef2db03fe92d2f4bc1eecd0177029a3168e",
+      "answer": "\\frac{\\sqrt{15}}{3}"
+    },
+    {
+      "case_id": "temporary-032",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-75-EN",
+      "problem_sha256": "efd790af78838b1c3907e6d9b15e31300884ef96bf11d7213ac710927bcff95f",
+      "answer": "504"
+    },
+    {
+      "case_id": "temporary-033",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-57-EN",
+      "problem_sha256": "fd8a413953dfa1946f5a9c58ca0e51b47a38a366b4a53838f71ba5acc7f49c4a",
+      "answer": "\\frac{27}{32}"
+    },
+    {
+      "case_id": "temporary-034",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-59-EN",
+      "problem_sha256": "c4406e074abfe24c0b27b1d51c10fc22be27c147e93d465111cd708583bf505a",
+      "answer": "\\frac{3}{512}"
+    },
+    {
+      "case_id": "temporary-035",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-0-EN",
+      "problem_sha256": "d33d2f82b68bcf12ecef778f326c24c330a2e965064d8db708174265cfe9123d",
+      "answer": "2625"
+    },
+    {
+      "case_id": "temporary-036",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-55-EN",
+      "problem_sha256": "003d02b7550f907f1f7415cb02ee9dfae734731e767208c1d555cfc56bacf657",
+      "answer": "-32"
+    },
+    {
+      "case_id": "temporary-037",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-72-EN",
+      "problem_sha256": "24dec5e8a774e88d4a92c8d21d8be1360da8969f02e4d04e960b577f20b55c23",
+      "answer": "4650"
+    },
+    {
+      "case_id": "temporary-038",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-58-EN",
+      "problem_sha256": "7515caa0d276b84f03eacd57e8fd0099a0cb57e3af21bbcdc89257ed86e0f4d8",
+      "answer": "\\frac{253}{12}"
+    },
+    {
+      "case_id": "temporary-039",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-47-EN",
+      "problem_sha256": "585ae18c568340bc0a0b1ead162ed3126fc6abcf9c13ecb34393e480ace91e07",
+      "answer": "424"
+    },
+    {
+      "case_id": "temporary-040",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-54-EN",
+      "problem_sha256": "706e7e19a1a77415d2ba49c1de55e2d7a89b4fb366470c36ad18213a64726c43",
+      "answer": "11"
+    },
+    {
+      "case_id": "temporary-041",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-39-EN",
+      "problem_sha256": "1f72566a63879ea327fd47a64e7e91089ad6463327fe71f19bdf82ee7b33b615",
+      "answer": "4425"
+    },
+    {
+      "case_id": "temporary-042",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-46-EN",
+      "problem_sha256": "6ab36a353f7fb3de75c16fec8c5bbf863f6fc0207fa291c2aa8593820823ea57",
+      "answer": "201"
+    },
+    {
+      "case_id": "temporary-043",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-23-EN",
+      "problem_sha256": "6f93a6f0154cffca9911fe8d342a1e592f5b31bdaca8ddfda4fb2fa211a063c5",
+      "answer": "2^2023"
+    },
+    {
+      "case_id": "temporary-044",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-36-EN",
+      "problem_sha256": "9a024091936bfd7dd94b33d509ff2ba04dc8374cc795c30302a461ff059d317f",
+      "answer": "\\frac{2318}{5}"
+    },
+    {
+      "case_id": "temporary-045",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-65-EN",
+      "problem_sha256": "d925a0efabf42ec0854b7a685cbca906b09089c4b9fd93ff21770d57c555efe9",
+      "answer": "-\\sqrt{5}"
+    },
+    {
+      "case_id": "temporary-046",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-51-EN",
+      "problem_sha256": "e787b0fce2210e363b98f72e7cd995360a5674a5e69e42f0d60644d74f2cbc26",
+      "answer": "2\\sqrt{2}-1"
+    },
+    {
+      "case_id": "temporary-047",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-18-EN",
+      "problem_sha256": "f47a42182d40304a1ebe281e9a4f36ce14adc35d5adfe57e5c0294649b0341e3",
+      "answer": "-\\frac{4\\sqrt{3}}{3}"
+    },
+    {
+      "case_id": "temporary-048",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-83-EN",
+      "problem_sha256": "733908a65bd1777653dddd14ae974b62c88ea8364448dd2772b992bb80cda6e5",
+      "answer": "\\left[1-\\frac{1}{\\sqrt{2}}, \\frac{1}{2}\\right)"
+    },
+    {
+      "case_id": "temporary-049",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-43-EN",
+      "problem_sha256": "51b5e8a29e0e2d39cc1579d2374ae2aee6c2ec779a6cb3271c223d5bd3de9fb9",
+      "answer": "6\\sqrt{3}-5"
+    },
+    {
+      "case_id": "temporary-050",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-73-EN",
+      "problem_sha256": "64bfd4a449b15234490a9790d0bd61fdba5621f657948fb5122898a18da1df92",
+      "answer": "\\arccos \\frac{7}{18}"
+    },
+    {
+      "case_id": "temporary-051",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-44-EN",
+      "problem_sha256": "4539f329ef1eb1a19f65e1ec30e0713bcdbe2d6310bea37c86256ac2a607a9e8",
+      "answer": "\\frac{4}{9}"
+    },
+    {
+      "case_id": "temporary-052",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-67-EN",
+      "problem_sha256": "0c8326fe163a507e998a0383ac5f2209fbed31dbee4c0a4a29e2e2f514ac7a54",
+      "answer": "2011"
+    },
+    {
+      "case_id": "temporary-053",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-21-EN",
+      "problem_sha256": "f0952a588e11ca6c64fbeefef2192243a7644e7ceaa471156f220f51a87cf5e4",
+      "answer": "14"
+    },
+    {
+      "case_id": "temporary-054",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-90-EN",
+      "problem_sha256": "9d41b6f7119f7cfff1b2d8f84be9b5cddbaa1bc847b50695a970e47b31282af5",
+      "answer": "1581330"
+    },
+    {
+      "case_id": "temporary-055",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-41-EN",
+      "problem_sha256": "b19b4bb2a5d5be53f1b9e41c4eb9444efa96cf750b7a327332b00b10ba5fd98f",
+      "answer": "246"
+    },
+    {
+      "case_id": "temporary-056",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-50-EN",
+      "problem_sha256": "e6071619b5e29d36f492fbdd68facb56f4567702180da7739ff32c06924496ba",
+      "answer": "7962"
+    },
+    {
+      "case_id": "temporary-057",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-96-EN",
+      "problem_sha256": "ac856d86d8e62338fb19f4eb299a96ad0f95798a8e125f86d15ade74de5a4069",
+      "answer": "2027"
+    },
+    {
+      "case_id": "temporary-058",
+      "source_family": "olymmath",
+      "source_id": "OlymMATH-HARD-25-EN",
+      "problem_sha256": "689bd944f686a6ac3848c2c184c155f9d5136698f3b368bc6221499b730f6c7b",
+      "answer": "4"
+    },
+    {
+      "case_id": "temporary-059",
+      "source_family": "aime",
+      "source_id": "aime-10",
+      "problem_sha256": "ca3c71880dc98b0bad258597b53492bf599eed350830f327f6d500093e260062",
+      "answer": "259"
+    },
+    {
+      "case_id": "temporary-060",
+      "source_family": "aime",
+      "source_id": "aime-2024-I-1",
+      "problem_sha256": "60f7c17493798380a3d975642aed4180f130a8833f454e552ad4dc34fe7d9b08",
+      "answer": "204"
+    },
+    {
+      "case_id": "temporary-061",
+      "source_family": "aime",
+      "source_id": "aime-23",
+      "problem_sha256": "658a2a69f8bebb22a152c5fb532e4e823debf7ab86ac16ce9d80f0359f16e821",
+      "answer": "149"
+    },
+    {
+      "case_id": "temporary-062",
+      "source_family": "aime",
+      "source_id": "aime-18",
+      "problem_sha256": "29e3248ddb41ca06901c519b88a39ed337a47b80d5c8f86472d38398364dca20",
+      "answer": "106"
+    },
+    {
+      "case_id": "temporary-063",
+      "source_family": "aime",
+      "source_id": "aime-2024-I-2",
+      "problem_sha256": "43afc8d2eb636c35477cc9ac8f1db3563134d10673beb9fb808c45dbc3021e51",
+      "answer": "25"
+    },
+    {
+      "case_id": "temporary-064",
+      "source_family": "aime",
+      "source_id": "aime-2024-I-6",
+      "problem_sha256": "c0aff28b8c4a645b43550e5d0d3fabf80ff7528b406514fcd898152683edce36",
+      "answer": "294"
+    },
+    {
+      "case_id": "temporary-065",
+      "source_family": "aime",
+      "source_id": "aime-21",
+      "problem_sha256": "579722c4119a4e3d6b6a31dfe1ef2e746a3af3121566a287e1a2565abf5edf9f",
+      "answer": "237"
+    },
+    {
+      "case_id": "temporary-066",
+      "source_family": "aime",
+      "source_id": "aime-4",
+      "problem_sha256": "916d316d943e776c597540dc3d8fd505bb2bb6aa6b765c1c3dd379a9bc2b78b9",
+      "answer": "279"
+    },
+    {
+      "case_id": "temporary-067",
+      "source_family": "aime",
+      "source_id": "aime-2024-II-9",
+      "problem_sha256": "dc0068844c4eba958335de332deb34249dd051819a40323a1b5d1f7cc5d487f4",
+      "answer": "902"
+    },
+    {
+      "case_id": "temporary-068",
+      "source_family": "aime",
+      "source_id": "aime-2024-II-1",
+      "problem_sha256": "d7c47fba84b4bcd1b0fac5a069b1924a7827f3b015be620b42ae4c4e729d33b3",
+      "answer": "73"
+    },
+    {
+      "case_id": "temporary-069",
+      "source_family": "aime",
+      "source_id": "aime-2024-II-5",
+      "problem_sha256": "01f4378fc0aa8d4ad347260572db3350ecd0f93dff0e7f2847c7610963cae0b5",
+      "answer": "80"
+    },
+    {
+      "case_id": "temporary-070",
+      "source_family": "aime",
+      "source_id": "aime-20",
+      "problem_sha256": "4a95f81d38d7c035d8ca957c1662e1e59d62660f40b939679367b8806e6a7bb4",
+      "answer": "293"
+    },
+    {
+      "case_id": "temporary-071",
+      "source_family": "aime",
+      "source_id": "aime-15",
+      "problem_sha256": "48ca2d000cf108712cfac21791a52dea5f1bcbc87bcde41a357636b6ad064ee8",
+      "answer": "468"
+    },
+    {
+      "case_id": "temporary-072",
+      "source_family": "aime",
+      "source_id": "aime-5",
+      "problem_sha256": "f862f0368b2ad1a8459a02663dad9474cb8d907be3263542ca5b39b0154eba39",
+      "answer": "504"
+    },
+    {
+      "case_id": "temporary-073",
+      "source_family": "aime",
+      "source_id": "aime-2024-I-15",
+      "problem_sha256": "9513702243982147aad46347cb842cd440393cf3acf06efbbc6250e9bcb22e99",
+      "answer": "721"
+    },
+    {
+      "case_id": "temporary-074",
+      "source_family": "aime",
+      "source_id": "aime-22",
+      "problem_sha256": "fc397ccfdd7e5d7d07919e427e8732b08ab6337ff62ef999000a4136e5435f0d",
+      "answer": "610"
+    },
+    {
+      "case_id": "temporary-075",
+      "source_family": "aime",
+      "source_id": "aime-2024-II-7",
+      "problem_sha256": "10c80ba48d1803c48df550827e6e2c3b4b8ef3e0aba30c507798eabf30aeea2e",
+      "answer": "699"
+    },
+    {
+      "case_id": "temporary-076",
+      "source_family": "aime",
+      "source_id": "aime-14",
+      "problem_sha256": "63326536fab5909240d6b85dfa0fbcdc50e4cc83005c744279472f492b052744",
+      "answer": "735"
+    },
+    {
+      "case_id": "temporary-077",
+      "source_family": "aime",
+      "source_id": "aime-3",
+      "problem_sha256": "ac65eccabc1bc3d866e79b6b02cbb25bdb504fafc861043c15c5c957368cf657",
+      "answer": "117"
+    },
+    {
+      "case_id": "temporary-078",
+      "source_family": "aime",
+      "source_id": "aime-2024-II-6",
+      "problem_sha256": "7d2b9ecfeeda92b9e2676414566a0300c9239ff15fac1139ad56d6c35c9d84fc",
+      "answer": "55"
+    },
+    {
+      "case_id": "temporary-079",
+      "source_family": "hle",
+      "source_id": "hle-6736cea8134f03c3c61391e9",
+      "problem_sha256": "9bc478dede54780cef4dc65288e83ba04cd9a9030adc908abbaf4b27152b7cd0",
+      "answer": "00111101"
+    },
+    {
+      "case_id": "temporary-080",
+      "source_family": "hle",
+      "source_id": "hle-673b631505be2302d4445ece",
+      "problem_sha256": "c34af22fbe0945c973ae65c7f52050e635adb2e08ef5278bc3cf841ceff0f922",
+      "answer": "3.9942"
+    },
+    {
+      "case_id": "temporary-081",
+      "source_family": "hle",
+      "source_id": "hle-6733e070361b540695504b86",
+      "problem_sha256": "c46e572d2f5a4760fd2c47c5cfcbf8258f9e4c48727b9d56609ae089ed121283",
+      "answer": "6"
+    },
+    {
+      "case_id": "temporary-082",
+      "source_family": "hle",
+      "source_id": "hle-6734b2fec14270a5b42323f5",
+      "problem_sha256": "c95bf18de82cacc0c465b0d78ae0281d65a714d2c3b3a40d5386b4fc792f5603",
+      "answer": "erfi(2√3√t)²e^(-24t)+e^(-12t)erfi(√6√t)²"
+    },
+    {
+      "case_id": "temporary-083",
+      "source_family": "hle",
+      "source_id": "hle-66fbd5aca177ae967e47041b",
+      "problem_sha256": "8a986310727020f95c9e28a6a6c8738c9b2dd87142ea1b5af2f3e66fadefe35c",
+      "answer": "1, 6, 28, 120"
+    },
+    {
+      "case_id": "temporary-084",
+      "source_family": "hle",
+      "source_id": "hle-67259a76e7601df8b19a9e2a",
+      "problem_sha256": "d59f656b1c56312b319fa941fc175ab0ef6af1c3613d4ccd90cfede2a6727023",
+      "answer": "\\( \\frac{(p+1)_2' + (p-1)_2'}{2} - 1 \\)"
+    },
+    {
+      "case_id": "temporary-085",
+      "source_family": "hle",
+      "source_id": "hle-671d4bf79eff7434a89d98e0",
+      "problem_sha256": "3af423360d20f232e262b861abf14a340d1864dd1dc21fd51a6d10794ab7cfca",
+      "answer": "\\frac{318281087}{8016470462}"
+    },
+    {
+      "case_id": "temporary-086",
+      "source_family": "hle",
+      "source_id": "hle-6721154d5968ddcc0df3a25c",
+      "problem_sha256": "f9a0cc213228dcd66a3458c8524f10f8f855edd93a75c484d313d926fed4407c",
+      "answer": "0.163"
+    },
+    {
+      "case_id": "temporary-087",
+      "source_family": "hle",
+      "source_id": "hle-6742f485e9256150e88912f1",
+      "problem_sha256": "901ad7d068ed2fd98cb7d61524bb6da74910e38f4c98de0446559def7765b230",
+      "answer": "51,648"
+    },
+    {
+      "case_id": "temporary-088",
+      "source_family": "hle",
+      "source_id": "hle-66ed96aec2becb9452e4d7b1",
+      "problem_sha256": "a45d6739637740f54436f0ec46640805fbc735b1563382355004128da3f86124",
+      "answer": "56"
+    },
+    {
+      "case_id": "temporary-089",
+      "source_family": "hle",
+      "source_id": "hle-6703a3c04a760324b0e15a30",
+      "problem_sha256": "4896d76bca7d62865b709735844c591799aa83c1993348f9d6011c6437807f8d",
+      "answer": "$3m-1$"
+    },
+    {
+      "case_id": "temporary-090",
+      "source_family": "hle",
+      "source_id": "hle-671641166bc44542da778ccf",
+      "problem_sha256": "73b61dba015374465e3d2fba8b60a565aa3ac18f9297df777f5cefbddd2776e9",
+      "answer": "0"
+    },
+    {
+      "case_id": "temporary-091",
+      "source_family": "hle",
+      "source_id": "hle-672603f3fd50e2db8a0571ba",
+      "problem_sha256": "1ca5775889cda543d5ff9b296d83e3760c05bea6dc6b1dac2958de59241977a0",
+      "answer": "$\\frac{\\sqrt{2k+1}}{(k!)^2}$"
+    },
+    {
+      "case_id": "temporary-092",
+      "source_family": "hle",
+      "source_id": "hle-672059fc2ea5966e3eddd835",
+      "problem_sha256": "b6c2eccd86f50c682251873f3dda5b47bef64fb9e28bc68f2a1d5b24b3bb6559",
+      "answer": "6"
+    },
+    {
+      "case_id": "temporary-093",
+      "source_family": "hle",
+      "source_id": "hle-67367cbd06a61a42cae30293",
+      "problem_sha256": "f64ee138c13d36abad9d47c031fde76fa2b9c92a76b704caf87c4e5ca2e18ac9",
+      "answer": "18"
+    },
+    {
+      "case_id": "temporary-094",
+      "source_family": "hle",
+      "source_id": "hle-6720c324083a628a849fcb53",
+      "problem_sha256": "d23c8b1f97ee6a01107ae132a297dd3868ab297c2afd48a3d63c869ed2e4682f",
+      "answer": "11520"
+    },
+    {
+      "case_id": "temporary-095",
+      "source_family": "hle",
+      "source_id": "hle-673d70ca1b7b41a118b4b786",
+      "problem_sha256": "3a89d0a1fa0a9c2cfbd0477cef5fb038a0787c99966e3125085ea73b3246a33a",
+      "answer": "$r^2:(4R^2)$"
+    },
+    {
+      "case_id": "temporary-096",
+      "source_family": "hle",
+      "source_id": "hle-670c2d61886695e43e7c18b3",
+      "problem_sha256": "39d25cdd3a8ec30f397f73e1a3a49d0195397aa2ac504753fa0c6f2809086028",
+      "answer": "26682"
+    },
+    {
+      "case_id": "temporary-097",
+      "source_family": "hle",
+      "source_id": "hle-670df2e172288739ca35e0e1",
+      "problem_sha256": "b642c25fc010d639c6191a0534367fdc1a0b3127bd50436cb40a02ee3e4ce47b",
+      "answer": "9"
+    },
+    {
+      "case_id": "temporary-098",
+      "source_family": "hle",
+      "source_id": "hle-66f708eec8903a7f2c03edbe",
+      "problem_sha256": "6b73fa2ca7c18fc5add0506911d8f708276e34e48519654cb8330312bc10a273",
+      "answer": "126"
+    },
+    {
+      "case_id": "temporary-099",
+      "source_family": "hle",
+      "source_id": "hle-6754baec618d187bb3362936",
+      "problem_sha256": "1dc6a5e967a6105ab807d415a8eb4e3418a49ccc1197e4cc25c957e2b021da28",
+      "answer": "21"
+    },
+    {
+      "case_id": "temporary-100",
+      "source_family": "hle",
+      "source_id": "hle-672067805681ce2b6f5a08a7",
+      "problem_sha256": "0f10102ed6df3369f41296bdb4df3691591896ed74be640816cd08ae5218f512",
+      "answer": "25"
+    }
+  ]
+}

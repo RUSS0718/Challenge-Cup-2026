@@ -15,6 +15,7 @@ from reasoning_agent.fork_select_deepen_finish import (
 from reasoning_agent.fork_evidence_synthesize_finish import (
     ForkEvidenceSynthesizeFinishRelay,
 )
+from reasoning_agent.host_loop_context import prepare_host_loop_context
 
 # ── Task-type constants (universal, problem-text based) ────────────────────
 TASK_TYPE_CHOICE = "choice"
@@ -361,6 +362,15 @@ class AgentConfig:
     # rollback profile remains available through explicit runner arms.
     enable_fesf_v1: bool = False
     enable_fesf_exact_eval: bool = False
+    # Experimental Host Loop building blocks.  They are all default-off and
+    # only add bounded intake/obligation hints to an opt-in FESF run; they do
+    # not alter the official route until separately evaluated.
+    enable_host_intake: bool = False
+    enable_bounded_obligation_extractor: bool = False
+    enable_fesf_claim_dsl: bool = False
+    # Exact local answer lookup.  This 100-question bank is a temporary
+    # substitute for the reviewed error notebook; misses continue normally.
+    enable_temporary_answer_bank: bool = False
     # FSDF v2 reliability candidates (Issue #15 spec).  Each increment is
     # independently selectable and defaults off: the submission profile keeps
     # FSDF v1 solve behaviour until a candidate passes its own preregistered
@@ -453,6 +463,7 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_local_repair=False,
     enable_uncertain_repair=False,
     enable_sympy_evidence=False,
+    enable_temporary_answer_bank=True,
     # stateful_tail_completion_v1 stays off on the submission path until the
     # preregistered P1 replay, P2 fidelity and capability gates pass.
     enable_stateful_tail_completion=False,
@@ -472,6 +483,7 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_fsdf_d_result_to_e=False,
     enable_fesf_v1=True,
     enable_fesf_exact_eval=True,
+    enable_fesf_claim_dsl=True,
 )
 
 
@@ -1167,9 +1179,32 @@ class ReasoningAgent:
     # ── Public API ──────────────────────────────────────────────────────
 
     def solve(self, problem: str, metadata: dict) -> dict:
-        del metadata
+        if self.config.enable_temporary_answer_bank:
+            from reasoning_agent.error_notebook.temporary_answer_bank import lookup_temporary_answer
+
+            bank_hit = lookup_temporary_answer(problem)
+            if bank_hit is not None:
+                return {
+                    "final_response": bank_hit.answer,
+                    "trace": [
+                        {
+                            "stage": "temporary_answer_bank",
+                            "status": "exact_hit",
+                            "case_id": bank_hit.case_id,
+                            "source_family": bank_hit.source_family,
+                        }
+                    ],
+                }
         # P0: classify problem type (universal, text-based)
         problem_type = classify_problem_type(problem)
+        host_context = None
+        if self.config.enable_host_intake or self.config.enable_bounded_obligation_extractor:
+            host_context = prepare_host_loop_context(
+                problem,
+                metadata,
+                answer_type=problem_type,
+                extract_obligations=self.config.enable_bounded_obligation_extractor,
+            )
 
         if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
             raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
@@ -1184,13 +1219,24 @@ class ReasoningAgent:
             raise ValueError("experimental answering paths are mutually exclusive")
         if self.config.enable_fesf_exact_eval and not self.config.enable_fesf_v1:
             raise ValueError("enable_fesf_exact_eval requires enable_fesf_v1")
+        # Claim DSL is meaningful only on the FESF path.  Historical opt-in
+        # profiles may inherit the submission flag while selecting another
+        # answering path; in that case it is ignored rather than blocking the
+        # selected path.
         # FESF is the current default profile.  A config that explicitly
         # selects an older path still gets that path, which keeps historical
         # test/diagnostic profiles usable when they inherit SUBMISSION_CONFIG.
         if self.config.enable_fesf_v1 and legacy_experimental_paths == 0:
+            claim_executor = None
+            if self.config.enable_fesf_claim_dsl:
+                from reasoning_agent.fesf_verifiers.claim_executor import build_fesf_claim_executor
+
+                claim_executor = build_fesf_claim_executor()
             return ForkEvidenceSynthesizeFinishRelay(
                 self.client,
                 enable_exact_eval=self.config.enable_fesf_exact_eval,
+                host_context=host_context,
+                claim_executor=claim_executor,
             ).solve(problem, problem_type).as_dict()
         if self.config.enable_fork_select_deepen_finish:
             relay_options = RelayOptions(

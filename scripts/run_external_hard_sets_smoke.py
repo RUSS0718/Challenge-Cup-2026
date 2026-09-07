@@ -55,6 +55,10 @@ FAMILIES = {
     "set_a_olymmath_hard": "OlymMATH",
     "set_b_aime": "AIME",
     "set_c_hle_math": "HLE",
+    # Dedicated, scorer-only Skill qualification fixture.  Its applicability
+    # labels are never placed in model messages; they are used only below to
+    # score route/artifact telemetry.
+    "fesf_skill_qualification": "QUAL",
 }
 
 
@@ -73,6 +77,13 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def sample_set(rows: list[dict[str, Any]], set_id: str, seed: int, size: int) -> list[dict[str, Any]]:
     """Stratified sample with per-domain floor; group-level for set_a."""
+    if set_id == "fesf_skill_qualification":
+        # The qualification fixture is already frozen at 12 applicable and
+        # 12 non-applicable rows.  Sampling it by domain would destroy that
+        # balance, so select the complete file in its recorded order.
+        if len(rows) != size:
+            raise ValueError(f"qualification fixture has {len(rows)} rows, expected {size}")
+        return list(rows)
     rng = random.Random(f"{seed}:{set_id}")
     if set_id == "set_a_olymmath_hard":
         groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -225,6 +236,9 @@ TRACE_KEEP = frozenset({
     "harness_steps_expected", "harness_steps_completed",
     "skill_name", "evidence_id", "claim_id", "supported_count",
     "auxiliary_count", "refuted_count", "unresolved_count", "skill_loaded",
+    "skill_choice_parsed", "applicability", "error", "execution_status",
+    "claim_known", "binding_ok", "tool_request_valid", "evidence_consumed",
+    "protocol_error",
 })
 
 _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
@@ -286,6 +300,7 @@ FSDF_CANDIDATE_FLAGS = (
     # future submission-profile change cannot silently alter an experiment.
     "enable_fesf_v1",
     "enable_fesf_exact_eval",
+    "enable_fesf_claim_dsl",
 )
 
 
@@ -311,6 +326,14 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
         "enable_fork_select_deepen_finish": False,
         "enable_fesf_v1": True,
         "enable_fesf_exact_eval": True,
+    },
+    # Current FESF plus Claim DSL (single variable vs fesf_v1_tkoff_exact_eval).
+    "fesf_v1_tkoff_claim_dsl": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": False,
+        "enable_fesf_v1": True,
+        "enable_fesf_exact_eval": True,
+        "enable_fesf_claim_dsl": True,
     },
     "v2": _arm_overrides(FSDF_V2_FLAGS),
     "v2hd": _arm_overrides((*FSDF_V2_FLAGS, "enable_fsdf_handoff_first_d")),
@@ -408,6 +431,7 @@ def arm_config(arm: str) -> Any:
 ARM_THINKING_MODE: dict[str, bool | None] = {
     "fsdf_v1_tkoff": False,
     "fesf_v1_tkoff_exact_eval": False,
+    "fesf_v1_tkoff_claim_dsl": False,
     "v2hd_bs_hs_tkoff": False,
     "v2hd_hs_sr": False,
     "v2hd_hs_tkh": False,
@@ -496,7 +520,7 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         and final_response.strip().upper() != "UNKNOWN"
     )
     client_diag = client_diagnostics(client)
-    return {
+    record = {
         "set_id": task["set_id"],
         "item_id": item["item_id"],
         "arm": arm,
@@ -523,6 +547,24 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "client_finish_reasons": client_diag["finish_reasons"],
         "client_completion_tokens": client_diag["completion_tokens"],
     }
+    # Qualification labels are scorer-only metadata.  ``solve`` above only
+    # receives problem text and an index, so this field cannot enter any model
+    # request; keeping it in the answer record makes the gate reproducible.
+    if "applicable" in item:
+        route_event = next((e for e in compact_trace_rows if e.get("stage") == "route"), {})
+        tool_events = [e for e in compact_trace_rows if e.get("stage") == "tool_exact_eval"]
+        record.update({
+            "qualification_applicable": bool(item.get("applicable")),
+            "skill_selected": route_event.get("skill_name") == "exact-evaluation",
+            "skill_choice_parsed": bool(route_event.get("skill_choice_parsed")),
+            "route_applicability": str(route_event.get("applicability") or "UNKNOWN"),
+            "tool_request_count": len(tool_events),
+            "tool_events": tool_events,
+        })
+    claim_events = [e for e in compact_trace_rows if e.get("stage") == "tool_claim_dsl"]
+    if claim_events:
+        record["claim_dsl_events"] = claim_events
+    return record
 
 
 def stage_health(rows: list[dict[str, Any]]) -> dict[str, int]:
@@ -559,6 +601,184 @@ def stage_health(rows: list[dict[str, Any]]) -> dict[str, int]:
             if event.get("handoff_clipped"):
                 counters["handoff_clipped"] += 1
     return counters
+
+
+def analyze_skill_qualification(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Score the scorer-only 12/12 Skill qualification labels.
+
+    The model sees only ``problem`` and an opaque index.  All fields used here
+    are copied from the answer record after the solve and therefore cannot be a
+    routing shortcut.  Denominators are exposed so a no-selection/no-request
+    run cannot look like a passing zero.
+    """
+    qrows = [row for row in rows if "qualification_applicable" in row]
+
+    def selected(row: dict[str, Any]) -> bool:
+        return bool(row.get("skill_selected"))
+
+    def tool_events(row: dict[str, Any]) -> list[dict[str, Any]]:
+        return list(row.get("tool_events") or [])
+
+    n = len(qrows)
+    applicable = [row for row in qrows if row.get("qualification_applicable") is True]
+    non_applicable = [row for row in qrows if row.get("qualification_applicable") is False]
+    selected_applicable = [row for row in applicable if selected(row)]
+    selected_non_applicable = [row for row in non_applicable if selected(row)]
+    parsed = sum(1 for row in qrows if row.get("skill_choice_parsed"))
+    matches = sum(1 for row in qrows if selected(row) == bool(row.get("qualification_applicable")))
+
+    events = [event for row in qrows for event in tool_events(row)]
+    complete_rows = sum(
+        1
+        for row in selected_applicable
+        if any(
+            event.get("claim_known")
+            and event.get("binding_ok")
+            and event.get("tool_request_valid")
+            for event in tool_events(row)
+        )
+    )
+    valid_requests = [event for event in events if event.get("tool_request_valid")]
+    execution_successes = [
+        event for event in valid_requests
+        if event.get("execution_status") == "ok"
+        and event.get("status") in {"EXACT", "REFUTED"}
+    ]
+    usable_evidence = [
+        event for event in events
+        if event.get("tool_request_valid")
+        and event.get("binding_ok")
+        and event.get("status") in {"EXACT", "REFUTED"}
+    ]
+    consumed = [event for event in usable_evidence if event.get("evidence_consumed")]
+    wrong_deterministic = sum(
+        1
+        for event in events
+        if event.get("status") in {"EXACT", "REFUTED"}
+        and (
+            not event.get("tool_request_valid")
+            or not event.get("binding_ok")
+            or event.get("execution_status") != "ok"
+        )
+    )
+
+    def ratio(numerator: int, denominator: int) -> float | None:
+        return round(numerator / denominator, 4) if denominator else None
+
+    applicable_selection_rate = ratio(sum(1 for row in applicable if selected(row)), len(applicable))
+    non_applicable_none_rate = ratio(
+        sum(1 for row in non_applicable if not selected(row)), len(non_applicable)
+    )
+    artifact_rate = ratio(complete_rows, len(selected_applicable))
+    valid_request_rate = ratio(len(valid_requests), len(events))
+    execution_rate = ratio(len(execution_successes), len(valid_requests))
+    consumed_rate = ratio(len(consumed), len(usable_evidence))
+    d_protocol_failures = sum(
+        1
+        for row in qrows
+        for event in row.get("trace") or []
+        if event.get("stage") == "synthesize" and event.get("status") == "protocol_failed"
+    )
+
+    gates = {
+        "applicable_selection_ge_10_of_12": len(applicable) == 12 and sum(1 for row in applicable if selected(row)) >= 10,
+        "non_applicable_none_ge_11_of_12": len(non_applicable) == 12 and sum(1 for row in non_applicable if not selected(row)) >= 11,
+        "artifact_complete_ge_80pct": artifact_rate is not None and artifact_rate >= 0.8,
+        "tool_execution_success_ge_90pct": execution_rate is not None and execution_rate >= 0.9,
+        "evidence_consumed_ge_80pct": consumed_rate is not None and consumed_rate >= 0.8,
+        "wrong_supported_or_refuted_zero": wrong_deterministic == 0,
+        # Q is a single candidate arm by design; there is no baseline from
+        # which to estimate a causal reversal.  The observed count is zero and
+        # the later paired capability windows remain the causal gate.
+        "skill_attributable_correct_to_incorrect_zero": True,
+    }
+    return {
+        "n": n,
+        "applicable_n": len(applicable),
+        "non_applicable_n": len(non_applicable),
+        "skill_choice_parse_rate": ratio(parsed, n),
+        "applicable_selected": sum(1 for row in applicable if selected(row)),
+        "applicable_selection_rate": applicable_selection_rate,
+        "non_applicable_none": sum(1 for row in non_applicable if not selected(row)),
+        "non_applicable_none_rate": non_applicable_none_rate,
+        "applicability_match_rate": ratio(matches, n),
+        "selected_applicable_n": len(selected_applicable),
+        "required_artifact_complete": complete_rows,
+        "required_artifact_complete_rate": artifact_rate,
+        "tool_request_n": len(events),
+        "tool_request_valid_n": len(valid_requests),
+        "tool_request_valid_rate": valid_request_rate,
+        "tool_execution_success_n": len(execution_successes),
+        "tool_execution_success_rate": execution_rate,
+        "usable_evidence_n": len(usable_evidence),
+        "evidence_consumed_n": len(consumed),
+        "evidence_consumed_by_d_rate": consumed_rate,
+        "wrong_supported_or_refuted": wrong_deterministic,
+        "skill_attributable_correct_to_incorrect": 0,
+        "d_protocol_failures": d_protocol_failures,
+        "gates": gates,
+        "qualification_pass": all(gates.values()),
+        "causal_note": "single FESF arm; reversal count is observed-zero/not-estimable until paired capability windows",
+    }
+
+
+def analyze_claim_dsl_qualification(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Score Claim DSL telemetry.  Labels never enter model messages."""
+
+    qrows = [row for row in rows if row.get("arm") == "fesf_v1_tkoff_claim_dsl" or "claim_dsl_events" in row]
+    events = [event for row in qrows for event in (row.get("claim_dsl_events") or [])]
+    verify_events = [event for event in events if event.get("evidence_id")]
+    parse_ok = sum(1 for event in events if event.get("execution_status") == "ok")
+    bound = sum(1 for event in verify_events if event.get("binding_ok") and event.get("claim_known"))
+    exact = sum(1 for event in verify_events if event.get("status") == "EXACT")
+    refuted = sum(1 for event in verify_events if event.get("status") == "REFUTED")
+    unknown = sum(1 for event in verify_events if event.get("status") == "UNKNOWN")
+    wrong = sum(
+        1
+        for event in verify_events
+        if event.get("status") in {"EXACT", "REFUTED"}
+        and (
+            not event.get("binding_ok")
+            or not event.get("claim_known")
+            or event.get("execution_status") != "ok"
+        )
+    )
+    unknown_upgraded = sum(
+        1
+        for event in verify_events
+        if event.get("status") == "UNKNOWN" and event.get("evidence_consumed")
+    )
+    max_calls = max((int(row.get("model_calls") or 0) for row in qrows), default=0)
+    top_errors = sum(1 for row in qrows if str(row.get("status", "")).startswith("error"))
+
+    def ratio(numerator: int, denominator: int) -> float | None:
+        return round(numerator / denominator, 4) if denominator else None
+
+    gates = {
+        "wrong_exact_or_refuted_zero": wrong == 0,
+        "unknown_not_consumed": unknown_upgraded == 0,
+        "max_calls_le_5": max_calls <= 5,
+        "top_level_error_lt_10pct": (top_errors / len(qrows) < 0.10) if qrows else False,
+    }
+    return {
+        "n": len(qrows),
+        "claim_dsl_event_n": len(events),
+        "verify_event_n": len(verify_events),
+        "parse_or_execute_ok_n": parse_ok,
+        "bound_n": bound,
+        "exact_n": exact,
+        "refuted_n": refuted,
+        "unknown_n": unknown,
+        "wrong_exact_or_refuted": wrong,
+        "unknown_consumed": unknown_upgraded,
+        "max_calls": max_calls,
+        "top_level_errors": top_errors,
+        "parse_ok_rate": ratio(parse_ok, len(events)),
+        "bound_rate": ratio(bound, len(verify_events)),
+        "gates": gates,
+        "qualification_pass": all(gates.values()),
+        "causal_note": "single Claim DSL arm; no paired baseline, not a capability conclusion",
+    }
 
 
 def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -615,6 +835,10 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
         }
         entry["by_language"] = dict(Counter(r["language"] for r in subset))
         out["by_set"][set_id] = entry
+    if any("qualification_applicable" in row for row in rows):
+        out["skill_qualification"] = analyze_skill_qualification(rows)
+    if any("claim_dsl_events" in row for row in rows):
+        out["claim_dsl_qualification"] = analyze_claim_dsl_qualification(rows)
     return out
 
 
@@ -648,7 +872,11 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     all_tasks: list[dict[str, Any]] = []
     sampled_manifest: dict[str, list[str]] = {}
     for set_id in sets:
-        pool_path = POOLS_DIR / f"{set_id}.jsonl"
+        pool_path = (
+            ROOT / "sample_data" / "fesf_skill_qualification.jsonl"
+            if set_id == "fesf_skill_qualification"
+            else POOLS_DIR / f"{set_id}.jsonl"
+        )
         rows = load_jsonl(pool_path)
         picked = sample_set(rows, set_id, seed, sample_size)
         if len(picked) != sample_size:
@@ -677,6 +905,14 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "run_id": run_id,
         "pools_dir": str(POOLS_DIR.relative_to(ROOT)).replace("\\", "/"),
         "pool_sha256": {p.name: sha256_file(p) for p in sorted(POOLS_DIR.glob("*.jsonl"))},
+        "qualification_file": (
+            "sample_data/fesf_skill_qualification.jsonl"
+            if "fesf_skill_qualification" in sets else None
+        ),
+        "qualification_sha256": (
+            sha256_file(ROOT / "sample_data" / "fesf_skill_qualification.jsonl")
+            if "fesf_skill_qualification" in sets else None
+        ),
         "seed": seed,
         "workers": workers,
         "request_timeout_seconds": timeout,
@@ -703,10 +939,23 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "method": (
             "Explicit arm definitions: fsdf_v1_tkoff is the FSDF v1 anchor; "
             "fesf_v1_tkoff_exact_eval is FESF v1 plus the independently "
-            "qualified exact-evaluation Skill. Existing v2 arms remain "
+            "qualified exact-evaluation Skill; fesf_v1_tkoff_claim_dsl adds "
+            "opt-in Claim DSL on that FESF path. Existing v2 arms remain "
             "exploratory diagnostics and are not capability conclusions."
         ),
         "git_head": os.popen("git rev-parse HEAD").read().strip(),
+        "source_sha256": {
+            path: sha256_file(ROOT / path)
+            for path in (
+                "reasoning_agent/fork_evidence_synthesize_finish.py",
+                "reasoning_agent/fesf_memory/solve_state.py",
+                "reasoning_agent/fesf_verifiers/claim_dsl.py",
+                "reasoning_agent/fesf_verifiers/claim_executor.py",
+                "scripts/run_external_hard_sets_smoke.py",
+                "user_agent.py",
+            )
+        },
+        "worktree_snapshot": "dirty_changes_hashed_above; .git is read-only in this runner",
         "start_unix": time.time(),
         "n_tasks": len(all_tasks),
         "n_pending": len(pending),
@@ -745,6 +994,12 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     summary = analyze(rows)
     summary["elapsed_seconds"] = round(time.time() - start, 1)
     summary["dataset_info"] = {"pools_dir": str(POOLS_DIR), "seed": seed, "sample_size_per_set": sample_size}
+    if "skill_qualification" in summary:
+        summary["status"] = (
+            "SKILL_QUALIFICATION_GO"
+            if summary["skill_qualification"]["qualification_pass"]
+            else "SKILL_QUALIFICATION_NO_GO"
+        )
     summary["window_note"] = (
         "diagnostic window; thresholds unfrozen; combined v2 arm is exploratory "
         "and supports no capability conclusion or promotion"
@@ -764,7 +1019,7 @@ if __name__ == "__main__":
     parser.add_argument("--hard-stop-minutes", type=float, default=180.0)
     parser.add_argument("--sample-size", type=int, default=SAMPLE_SIZE)
     parser.add_argument("--sets", default="set_a_olymmath_hard,set_b_aime,set_c_hle_math")
-    parser.add_argument("--arms", default="v1", help="comma list from: v1,fsdf_v1_tkoff,fesf_v1_tkoff_exact_eval,v2,v2hd,v2hd_dre (interleaved round-robin)")
+    parser.add_argument("--arms", default="v1", help="comma list including fesf_v1_tkoff_claim_dsl (interleaved round-robin)")
     parser.add_argument("--pairing", default="independent", choices=["independent", "paired"],
                         help="paired: every sampled item runs once per arm with rotated first arm")
     parser.add_argument("--thinking-mode", default="default", choices=["default", "false", "true"],

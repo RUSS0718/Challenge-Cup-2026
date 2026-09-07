@@ -12,10 +12,13 @@ import hashlib
 import re
 import time
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from .fesf_claim_protocol import ClaimExecutor
 from .fesf_memory import SolveMemory
+from .host_loop_context import HostLoopContext
 from .fork_select_deepen_finish import (
     HARD_DEADLINE_SECONDS,
     L0_TOKEN_SEQUENCE,
@@ -40,7 +43,8 @@ _FINAL_RE = re.compile(r"(?im)^[ \t]*(?:FINAL|最终答案|答案)[ \t]*[:：][ 
 _KNOWN_STAGE_MARKERS = (
     "SKILL_CHOICE", "APPLICABILITY", "GOAL", "ANSWER_TYPE", "CONSTRAINTS",
     "STRUCTURE", "BOTTLENECK", "BRANCH", "CLAIMS", "CANDIDATE", "CANDIDATE_B",
-    "CANDIDATE_C", "OPEN", "EXACT_EVAL", "PRIMARY_BRANCH", "PRIMARY_REASON",
+    "CANDIDATE_C", "OPEN", "EXACT_EVAL", "CLAIM_DSL", "VERIFY_DSL",
+    "PRIMARY_BRANCH", "PRIMARY_REASON",
     "SUPPORTED_CLAIMS", "AUXILIARY_CLAIMS", "REFUTED_CLAIMS", "UNRESOLVED_CLAIMS",
     "CANDIDATE_D", "FINAL", "FINAL_D", "FINAL_D_FOR_CHECK",
 )
@@ -52,6 +56,7 @@ _D_REQUIRED_MARKERS = (
     "REFUTED_CLAIMS", "UNRESOLVED_CLAIMS", "CANDIDATE_D", "OPEN",
 )
 _D_MARKER_LINE_RE = re.compile(r"(?im)^[ \t]*([A-Z][A-Z0-9_]*)[ \t]*[:：]")
+_RATIONAL_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d+)?|\d+/\d+)$")
 
 
 def _clip(value: Any, limit: int) -> str:
@@ -65,6 +70,19 @@ def _clip(value: Any, limit: int) -> str:
     head = (limit - len(marker) + 1) // 2
     tail = limit - len(marker) - head
     return text[:head] + marker + (text[-tail:] if tail else "")
+
+
+def _trace_claim_id(value: Any, *, known: bool) -> str:
+    """Keep only conventional branch IDs in the serialized diagnostic trace.
+
+    The protocol accepts bounded arbitrary IDs for interoperability, but an ID
+    itself is model-controlled text and can carry a secret.  Full IDs remain in
+    the in-memory protocol state; trace output gets a stable alias or UNKNOWN.
+    """
+    text = str(value or "")
+    if not known:
+        return "UNKNOWN"
+    return text if re.fullmatch(r"[BC][0-9]{1,2}", text) else "CLAIM"
 
 
 def _closed_final(value: str) -> bool:
@@ -81,6 +99,35 @@ def _closed_final(value: str) -> bool:
             if depth < 0:
                 return False
     return depth == 0
+
+
+def _normalize_candidate_answer(value: str | None) -> str:
+    """Normalize only representations whose equality can be proven locally."""
+    if not isinstance(value, str):
+        return ""
+    compact = re.sub(r"\s+", "", value).strip().strip("`\"'").strip("。；;，,")
+    compact = compact.replace("−", "-").replace("×", "*")
+    if not compact:
+        return ""
+    if _RATIONAL_RE.fullmatch(compact):
+        try:
+            return str(Fraction(compact))
+        except (ValueError, ZeroDivisionError):
+            return compact
+    return compact
+
+
+def _candidate_answer_equivalence(left: str | None, right: str | None) -> str:
+    """Conservative three-state comparison for the host-owned candidate gate."""
+    normalized_left = _normalize_candidate_answer(left)
+    normalized_right = _normalize_candidate_answer(right)
+    if not normalized_left or not normalized_right:
+        return "UNKNOWN"
+    if normalized_left == normalized_right:
+        return "EQUIVALENT"
+    if _RATIONAL_RE.fullmatch(normalized_left) and _RATIONAL_RE.fullmatch(normalized_right):
+        return "NOT_EQUIVALENT"
+    return "UNKNOWN"
 
 
 def _marker_value(text: str | None, marker: str) -> str:
@@ -196,17 +243,20 @@ class SkillRegistry:
                 front, _ = _parse_frontmatter(text)
                 name = front.get("name", "").strip()
                 description = front.get("description", "").strip()
-                if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name):
+                # Skill names are local metadata but are still copied into
+                # bounded diagnostics.  Keep the registry contract finite so
+                # a custom skill cannot smuggle an unbounded/secret marker
+                # through the route event.
+                if len(name) > 64 or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name):
                     raise ValueError("invalid_name")
                 if not description:
                     raise ValueError("description_missing")
                 description_folded = description.casefold()
-                if not (
-                    "use when" in description_folded
-                    and "do not use" in description_folded
-                    and "exact_eval" in description_folded
-                    and ("tool" in description_folded or "工具" in description_folded)
-                ):
+                # Every Skill must declare a positive applicability boundary
+                # and an explicit non-applicability boundary.  Only tool
+                # Skills need to mention the optional EXACT_EVAL protocol;
+                # theorem/strategy Skills are valid without a tool marker.
+                if not ("use when" in description_folded and "do not use" in description_folded):
                     raise ValueError("description_scope_missing")
                 if name in self._skills:
                     raise ValueError("duplicate_name")
@@ -228,7 +278,9 @@ class SkillRegistry:
         if not self._skills:
             return "SKILL_CATALOG: NONE"
         lines = ["SKILL_CATALOG:"]
-        for item in self.metadata()[:3]:
+        # Expose every registered metadata row under the bounded catalog cap;
+        # silently showing only the first three made valid Skills unreachable.
+        for item in self.metadata():
             lines.append(f"- {item.name}: {item.description}")
         return _clip("\n".join(lines), 4_500)
 
@@ -508,7 +560,9 @@ def evaluate_exact_request(request: str, request_index: int = 0) -> dict[str, An
 ANALYZE_PROMPT = """你负责 A / Analyze + route。只拆解原题并选择 Skill，不完成整题。
 第一行必须是 SKILL_CHOICE: <已列出的 skill name> 或 NONE；第二行必须是
 APPLICABILITY: YES 或 NO。随后输出 GOAL、ANSWER_TYPE、CONSTRAINTS、STRUCTURE、BOTTLENECK。
-只依据 Skill 的 name/description 判断适用性，不猜测未列出的 Skill。"""
+对 exact-evaluation 仅在题目目标可落到一个已经闭合、有限的算术/符号表达式时选 YES；
+若仍需证明、推导、搜索、优化、存在性论证或几何解释，选 NONE/NO。只依据 Skill 的
+name/description 判断适用性，不猜测未列出的 Skill。"""
 
 FREE_BRANCH_PROMPT = """你负责 B / Free branch。保持自由求解，不加载或复述任何 Skill。
 提出一条独立、可检查的解法，并用命题 ID 保存中间事实。严格输出：
@@ -520,11 +574,16 @@ CANDIDATE_B: <候选或 UNKNOWN>
 OPEN: <仍需完成的义务>"""
 
 SKILL_BRANCH_PROMPT = """你负责 C / Skill branch。使用宿主注入的这一份 Skill，形成与 B 互补的候选。
-只提出 Skill 允许的受限工具请求，不自行执行请求，不输出最终答案。严格输出：
+先完成推导；只有已经得到一个有限、闭合的表达式时才提出 Skill 允许的受限工具请求。
+工具请求与命题必须一一对应：在 CLAIMS 中先写一条独立的规范等式命题，格式严格为
+`C1: <expr>=<expected_or_result>`；这一行只能有等式本身，不能有解释、标签、单位或合取。
+随后写 `EXACT_EVAL: claim_id=C1; expr=<同一表达式>; expected=<同一等式右侧（可选）>; scope=<具体范围>`。
+每个请求只引用一个这样的命题；表达式未闭合、范围不清或不适用时不发请求。
+不自行执行请求，不输出最终答案。严格输出：
 BRANCH: C
 CLAIMS:
-C1: <完整命题>
-（可继续 C2、C3）
+C1: <standalone canonical equation>
+（可继续 C2、C3；非工具命题可用自然语言，但不得绑定工具证据）
 EXACT_EVAL: claim_id=C1; expr=<表达式>; expected=<可选表达式>; scope=<明确范围>
 CANDIDATE_C: <候选或 UNKNOWN>
 OPEN: <仍需完成的义务>
@@ -532,7 +591,13 @@ OPEN: <仍需完成的义务>
 
 EVIDENCE_SYNTHESIS_PROMPT = """你负责 D / Evidence synthesis。只依据宿主给出的结构化 claims 和 evidence。
 选择一条 PRIMARY_BRANCH 作为主线，但不要整体否定另一分支；可把另一分支的命题列为辅助。
-只有引用存在且状态允许的 evidence 才能写入 REFUTED_CLAIMS。严格输出每个字段一次：
+逐条处理宿主 evidence：状态为 EXACT 的证据若 claim_id 已知，就把该命题连同 evidence_id
+写入 SUPPORTED_CLAIMS；状态为 REFUTED 的证据同理写入 REFUTED_CLAIMS。先完成这一步，
+再选择主线和整理其它命题；只要 EVIDENCE 中出现一条可用证据，相应列表就不能写 none。
+例如 `T1 [evidence.status=EXACT; claim=C1]` 必须产生 `C1 <- T1`，即使 PRIMARY_BRANCH 选 B，C1
+也应作为局部已支持事实保留。不要省略可用证据，但仍可把未被证据覆盖的 B/C 命题保留为
+AUXILIARY 或 UNRESOLVED；不要把辅助分支整体否定。
+只有引用存在且状态允许的 evidence 才能写入 SUPPORTED_CLAIMS/REFUTED_CLAIMS。严格输出每个字段一次：
 PRIMARY_BRANCH: B 或 C
 PRIMARY_REASON: <完整度、约束覆盖和证据依据>
 SUPPORTED_CLAIMS: <claim_id <- evidence_id; ...>
@@ -545,6 +610,8 @@ OPEN: <E 仍需完成的义务>
 
 FINISH_PROMPT = """你负责 E / Finish。回到原题，利用 D 的主线、辅助命题、反证、未决义务和工具范围完成答案。
 可以修正主线的局部错误，但不得恢复被硬证据反驳的命题。不要复述 B/C 原始全文。
+宿主提供的 CANDIDATES 是唯一允许选择的候选集合；只能选择其中一个候选的答案，不能创造新答案。
+如果候选集合为空、证据冲突或无法确定，必须写 FINAL: UNKNOWN。
 最后一行必须且只能是 FINAL: <唯一答案>；确实无法确定时写 FINAL: UNKNOWN。"""
 
 
@@ -634,7 +701,9 @@ def _parse_d_packet(response: str, memory: SolveMemory) -> dict[str, Any]:
     if illegal:
         return {
             "protocol_ok": False,
-            "protocol_error": "illegal=" + ",".join(dict.fromkeys(illegal)),
+            # Marker names are model-controlled text and can contain secrets;
+            # keep diagnostics enumerable without copying their contents.
+            "protocol_error": "illegal_marker",
             "primary": "",
             "supported": [],
             "auxiliary": [],
@@ -793,12 +862,16 @@ class ForkEvidenceSynthesizeFinishRelay:
         *,
         enable_exact_eval: bool = False,
         memory_factory: Callable[[], SolveMemory] | None = None,
+        host_context: HostLoopContext | None = None,
+        claim_executor: ClaimExecutor | None = None,
     ) -> None:
         self.client = client
         self.clock = clock
         self.registry = registry or SkillRegistry()
         self.enable_exact_eval = bool(enable_exact_eval)
         self.memory_factory = memory_factory or SolveMemory
+        self.host_context = host_context
+        self.claim_executor = claim_executor
 
     def solve(self, problem: str, problem_type: str) -> RelayResult:
         problem_text = problem if isinstance(problem, str) else str(problem)
@@ -811,14 +884,29 @@ class ForkEvidenceSynthesizeFinishRelay:
             )
         }
         trace: list[dict[str, Any]] = []
+        if self.host_context is not None:
+            intake_event = self.host_context.trace_event()
+            self._event(
+                trace,
+                memory,
+                intake_event["stage"],
+                intake_event["status"],
+                profile=intake_event["profile"],
+                obligation_count=intake_event["obligation_count"],
+                obligation_truncated=intake_event["obligation_truncated"],
+                metadata_rejections=intake_event["metadata_rejections"],
+            )
         started = self.clock()
         if problem_type == "calculation" and match_simple_arithmetic_expression(problem_text) is not None:
             response = self._call(memory, trace, "l0", "直接计算并只输出 FINAL: <答案>。", problem_text, 0.6, L0_TOKEN_SEQUENCE[0], started)
             final = self._extract_final(response)
             return self._result(memory, trace, final, "l0_final" if final != "UNKNOWN" else "unknown")
 
+        analysis_user = f"原题：\n{problem_text}\n\n{self.registry.catalog_text()}"
+        if self.host_context is not None:
+            analysis_user += "\n\n" + self.host_context.prompt_hints()
         response_a = self._call(memory, trace, "analyze", ANALYZE_PROMPT,
-                                f"原题：\n{problem_text}\n\n{self.registry.catalog_text()}", 0.2, 2048, started)
+                                analysis_user, 0.2, 2048, started)
         skill_name, applicability = self._ingest_analysis(response_a, memory)
         skill: SkillMetadata | None = None
         skill_body = ""
@@ -828,10 +916,26 @@ class ForkEvidenceSynthesizeFinishRelay:
                 memory.mark_loaded_skill(skill.name, skill.content_hash)
             else:
                 skill_name, skill_body = "", ""
-        self._event(trace, memory, "route", "ok" if skill_name else "none", skill_name=skill_name or "NONE")
+        analysis_lines = [line.strip() for line in (response_a or "").splitlines() if line.strip()]
+        analysis_parse_ok = bool(
+            len(analysis_lines) >= 2
+            and re.match(r"(?i)^SKILL_CHOICE\s*[:：]", analysis_lines[0])
+            and re.match(r"(?i)^APPLICABILITY\s*[:：]", analysis_lines[1])
+        )
+        raw_applicability = _marker_value(response_a, "APPLICABILITY").strip().casefold()
+        applicability_diag = raw_applicability if raw_applicability in {"yes", "no"} else "unknown"
+        self._event(
+            trace,
+            memory,
+            "route",
+            "ok" if skill_name else "none",
+            skill_name=skill_name or "NONE",
+            skill_choice_parsed=analysis_parse_ok,
+            applicability=applicability_diag,
+        )
 
         response_b = self._call(memory, trace, "fork_b", FREE_BRANCH_PROMPT,
-                                self._branch_user(problem_text, memory, "B"), 0.6, 2048, started)
+                                self._branch_user(problem_text, memory, "B", self.host_context), 0.6, 2048, started)
         packet_b = _parse_branch_packet(response_b or "", "B")
         for claim_id, content in packet_b.claims:
             memory.add_claim(claim_id, content, "B")
@@ -841,10 +945,15 @@ class ForkEvidenceSynthesizeFinishRelay:
             memory.open_obligations.append(_clip(f"B: {packet_b.open_text}", 500))
 
         skill_context = skill_body if skill_body else "NONE（没有加载 Skill 正文；按互补自由求解）"
-        c_user = self._branch_user(problem_text, memory, "C") + (
+        c_user = self._branch_user(problem_text, memory, "C", self.host_context) + (
             f"\n\n宿主加载的 Skill：{skill_name or 'NONE'}\n"
             f"Skill 正文（仅此一份）：\n{skill_context}"
         )
+        if self.claim_executor is not None:
+            c_user += (
+                "\n\n可选 Claim DSL：每行一个 JSON。"
+                "CLAIM_DSL 登记局部命题；VERIFY_DSL 只引用 claim_id，不得改写表达式。"
+            )
         response_c = self._call(memory, trace, "fork_c", SKILL_BRANCH_PROMPT,
                                 c_user, 0.6, 2048, started)
         packet_c = _parse_branch_packet(response_c or "", "C")
@@ -856,6 +965,21 @@ class ForkEvidenceSynthesizeFinishRelay:
             memory.add_candidate("C", packet_c.candidate, [cid for cid, _ in packet_c.claims])
         if packet_c.open_text:
             memory.open_obligations.append(_clip(f"C: {packet_c.open_text}", 500))
+        if self.claim_executor is not None:
+            for extra in self.claim_executor.verify("C", response_c or "", memory):
+                self._event(
+                    trace,
+                    memory,
+                    extra.get("stage") or "tool_claim_dsl",
+                    extra.get("status") or "UNKNOWN",
+                    evidence_id=extra.get("evidence_id") or "",
+                    claim_id=extra.get("claim_id") or "UNKNOWN",
+                    error=extra.get("error") or "none",
+                    execution_status=extra.get("execution_status") or "unknown",
+                    claim_known=bool(extra.get("claim_known")),
+                    binding_ok=bool(extra.get("binding_ok")),
+                    tool_request_valid=bool(extra.get("tool_request_valid")),
+                )
 
         # A route is active only after an applicable, registered Skill body
         # was actually loaded.  A's explicit NO/unknown applicability must
@@ -895,16 +1019,44 @@ class ForkEvidenceSynthesizeFinishRelay:
                         checked_expression=expression,
                         checked_expected=expected,
                     )
-                self._event(trace, memory, "tool_exact_eval", str(evidence.get("status") or "UNKNOWN"),
-                            evidence_id=evidence_id, claim_id=claim_id or "UNKNOWN")
+                binding_ok: bool | None = None
+                if known_claim and expression:
+                    binding_ok = _claim_binds_tool(
+                        claim, expression, str(evidence.get("result") or ""), expected
+                    )
+                self._event(
+                    trace,
+                    memory,
+                    "tool_exact_eval",
+                    str(evidence.get("status") or "UNKNOWN"),
+                    evidence_id=evidence_id,
+                    claim_id=_trace_claim_id(claim_id, known=known_claim),
+                    error=_clip(str(evidence.get("error") or ""), 80) or "none",
+                    execution_status=str(evidence.get("execution_status") or "unknown"),
+                    claim_known=known_claim,
+                    binding_ok=binding_ok if binding_ok is not None else False,
+                    tool_request_valid=not bool(evidence.get("error")),
+                )
 
         d_context = memory.render_for_d(MAX_PACKET_CHARS)
+        d_user = f"原题：\n{problem_text}\n\n结构化状态：\n{d_context}"
+        if self.host_context is not None:
+            d_user += "\n\n" + self.host_context.prompt_hints()
         response_d = self._call(memory, trace, "synthesize", EVIDENCE_SYNTHESIS_PROMPT,
-                                f"原题：\n{problem_text}\n\n结构化状态：\n{d_context}", 0.2, 8192, started)
+                                d_user, 0.2, 8192, started)
         d_protocol_ok = False
         if response_d:
             d_summary = _parse_d_packet(response_d, memory)
             d_protocol_ok = bool(d_summary.get("protocol_ok"))
+            consumed_evidence_ids = {
+                evidence_id
+                for claim in memory.claims
+                if claim.status in {"SUPPORTED", "REFUTED"}
+                for evidence_id in claim.evidence_ids
+            }
+            for event in trace:
+                if event.get("stage") == "tool_exact_eval":
+                    event["evidence_consumed"] = event.get("evidence_id") in consumed_evidence_ids
             if not d_protocol_ok:
                 self._fallback_synthesis(memory)
                 self._event(
@@ -913,28 +1065,44 @@ class ForkEvidenceSynthesizeFinishRelay:
                     "synthesize",
                     "protocol_failed",
                     error_category="invalid_response",
+                    protocol_error=_clip(str(d_summary.get("protocol_error") or "invalid_response"), 240),
                 )
         else:
             d_summary = self._fallback_synthesis(memory)
+            for event in trace:
+                if event.get("stage") == "tool_exact_eval":
+                    event["evidence_consumed"] = False
         if response_d is None:
             self._event(trace, memory, "synthesize", "protocol_failed", error_category="empty_response")
 
         e_context = memory.render_for_e(MAX_PACKET_CHARS)
         if not d_protocol_ok:
             e_context = "D_PROTOCOL: INVALID; final response will be rejected.\n" + e_context
+        e_user = f"原题：\n{problem_text}\n\nD/E 证据状态：\n{e_context}"
+        if self.host_context is not None:
+            e_user += "\n\n" + self.host_context.prompt_hints()
         response_e = self._call(memory, trace, "finish", FINISH_PROMPT,
-                                f"原题：\n{problem_text}\n\nD/E 证据状态：\n{e_context}", 0.0, 4096, started)
+                                e_user, 0.0, 4096, started)
         final = self._extract_final(response_e) if d_protocol_ok else "UNKNOWN"
-        source = "finish_final" if final != "UNKNOWN" else "unknown"
+        final, gate_source = self._apply_candidate_gate(memory, final, d_protocol_ok, trace)
+        source = gate_source if final != "UNKNOWN" else "unknown"
         return self._result(memory, trace, final, source, d_summary=d_summary)
 
     @staticmethod
-    def _branch_user(problem: str, memory: SolveMemory, branch: str) -> str:
+    def _branch_user(
+        problem: str,
+        memory: SolveMemory,
+        branch: str,
+        host_context: HostLoopContext | None = None,
+    ) -> str:
         analysis = (
             f"GOAL: {memory.goal}\nANSWER_TYPE: {memory.answer_type}\n"
             f"CONSTRAINTS: {' | '.join(memory.constraints[:6])}"
         )
-        return f"原题：\n{problem}\n\nA 分析摘要：\n{_clip(analysis, 1_500)}\n\n当前分支：{branch}"
+        text = f"原题：\n{problem}\n\nA 分析摘要：\n{_clip(analysis, 1_500)}\n\n当前分支：{branch}"
+        if host_context is not None:
+            text += "\n\n" + host_context.prompt_hints()
+        return text
 
     def _ingest_analysis(self, response: str | None, memory: SolveMemory) -> tuple[str, bool]:
         lines = [line.strip() for line in (response or "").splitlines() if line.strip()]
@@ -982,6 +1150,45 @@ class ForkEvidenceSynthesizeFinishRelay:
         if _is_placeholder(value) or not value or not _closed_final(value):
             return "UNKNOWN"
         return _clip(value, 2_000)
+
+    @staticmethod
+    def _apply_candidate_gate(
+        memory: SolveMemory,
+        final: str,
+        d_protocol_ok: bool,
+        trace: list[dict[str, Any]],
+    ) -> tuple[str, str]:
+        """Bind E's answer to a host-owned, non-refuted candidate.
+
+        Parsing ``FINAL`` is only an output-hygiene check.  The semantic gate is
+        deliberately separate: a well-formed but novel value (for example
+        ``FINAL: 99`` when every parsed candidate is ``3``) is rejected.
+        """
+        candidates = memory.candidate_rows_for_e() if d_protocol_ok else []
+        if final == "UNKNOWN":
+            reason = "no_final" if d_protocol_ok else "d_protocol_invalid"
+            ForkEvidenceSynthesizeFinishRelay._event(
+                trace, memory, "candidate_gate", "rejected",
+                candidate_count=len(memory.candidates), eligible_count=len(candidates),
+                candidate_gate=reason,
+            )
+            return "UNKNOWN", "unknown"
+        for candidate_id, candidate in candidates:
+            relation = _candidate_answer_equivalence(final, candidate.answer)
+            if relation == "EQUIVALENT":
+                ForkEvidenceSynthesizeFinishRelay._event(
+                    trace, memory, "candidate_gate", "accepted",
+                    candidate_count=len(memory.candidates), eligible_count=len(candidates),
+                    matched_candidate_id=candidate_id,
+                    candidate_gate="equivalent",
+                )
+                return final, "finish_final_candidate"
+        ForkEvidenceSynthesizeFinishRelay._event(
+            trace, memory, "candidate_gate", "rejected",
+            candidate_count=len(memory.candidates), eligible_count=len(candidates),
+            candidate_gate="not_in_candidate_set",
+        )
+        return "UNKNOWN", "unknown"
 
     def _call(
         self,
@@ -1033,6 +1240,11 @@ class ForkEvidenceSynthesizeFinishRelay:
             "packet_present", "error_category", "skill_name", "evidence_id", "claim_id",
             "fallback_source", "final_present", "selected_branch", "supported_count",
             "auxiliary_count", "refuted_count", "unresolved_count", "skill_loaded",
+            "skill_choice_parsed", "applicability", "error", "execution_status",
+            "claim_known", "binding_ok", "tool_request_valid", "evidence_consumed",
+            "protocol_error",
+            "candidate_gate", "candidate_count", "eligible_count", "matched_candidate_id",
+            "profile", "obligation_count", "obligation_truncated", "metadata_rejections",
         }
         event.update({key: value for key, value in extra.items() if key in allowed})
         trace.append(event)
