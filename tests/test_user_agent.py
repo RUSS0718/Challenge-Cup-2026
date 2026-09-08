@@ -1140,8 +1140,7 @@ class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
     def test_submission_config_uses_local_fesf_profile(self):
-        # The current local profile selects FESF; FSDF v1 remains an explicit
-        # runner arm for comparison.
+        # The official rollback profile selects FSDF v1.
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
@@ -1150,9 +1149,9 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(4096, SUBMISSION_CONFIG.max_tokens)
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
         self.assertFalse(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
-        self.assertFalse(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
-        self.assertTrue(SUBMISSION_CONFIG.enable_fesf_v1)
-        self.assertTrue(SUBMISSION_CONFIG.enable_fesf_exact_eval)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fesf_v1)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fesf_exact_eval)
 
     def test_bare_agent_config_stays_legacy_stop_bleeding(self):
         config = AgentConfig()
@@ -1172,7 +1171,7 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual("7", result["extracted_answer"])
         self.assertEqual(5, len(client.calls))
         self.assertEqual("finalize", result["trace"][-1]["stage"])
-        self.assertEqual("fork_evidence_synthesize_finish_v1", result["trace"][-1]["method"])
+        self.assertEqual("fork_select_deepen_finish_v1", result["trace"][-1]["method"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -115,7 +115,7 @@ class F2P0DiagnosticsTest(unittest.TestCase):
     def test_p0_01_submission_profile_is_authorized_canary_agentconfig_defaults_off(self):
         # FESF v1 specification rolls the official profile back to FSDF v1;
         # canaries stay opt-in while AgentConfig defaults remain off.
-        self.assertFalse(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
         for flag in (
             "enable_fsdf_diagnostics_v2",
             "enable_fsdf_multiline_handoff_v2",

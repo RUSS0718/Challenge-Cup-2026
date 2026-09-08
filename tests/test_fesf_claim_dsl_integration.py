@@ -49,8 +49,8 @@ def packets(c_text=None, d_text=None):
 
 
 class ClaimDslIntegrationTest(unittest.TestCase):
-    def test_submission_profile_enables_claim_dsl_without_top_level_import(self):
-        self.assertTrue(SUBMISSION_CONFIG.enable_fesf_claim_dsl)
+    def test_submission_profile_disables_claim_dsl_without_top_level_import(self):
+        self.assertFalse(SUBMISSION_CONFIG.enable_fesf_claim_dsl)
         self.assertFalse(AgentConfig().enable_fesf_claim_dsl)
         source = Path(__file__).resolve().parents[1] / "user_agent.py"
         tree = ast.parse(source.read_text(encoding="utf-8"))

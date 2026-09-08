@@ -175,8 +175,8 @@ class ClaimDslSecurityAndDefaultOffTest(unittest.TestCase):
         blob = json.dumps(evidence.as_dict(), ensure_ascii=False)
         self.assertNotIn("__import__", blob)
 
-    def test_submission_config_enables_claim_dsl_without_top_level_import(self):
-        self.assertTrue(SUBMISSION_CONFIG.enable_fesf_claim_dsl)
+    def test_submission_config_disables_claim_dsl_without_top_level_import(self):
+        self.assertFalse(SUBMISSION_CONFIG.enable_fesf_claim_dsl)
         self.assertFalse(getattr(AgentConfig(), "enable_fesf_claim_dsl", False))
         source = Path(__file__).resolve().parents[1] / "user_agent.py"
         tree = ast.parse(source.read_text(encoding="utf-8"))

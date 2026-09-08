@@ -269,6 +269,15 @@ completion 预算（client 级可消除，4.7× 提速），但消除截断不�
 Q/W1/W2 真实模型窗口按用户指示暂缓；因此本条不产生数学正确率、Skill 能力或成本结论。
 运行时不加载离线错题账本，未修改默认路径、未推送发布。
 
+## 六点十六、FESF-SKILL-EXACT-EVAL-QUAL-001（2026-09-06）
+
+| 窗口 | 证据 | 处置 |
+|---|---|---|
+| Q：`fesf_v1_tkoff_exact_eval`，24 题 | 24/24 `UNKNOWN`；120 次阶段 client error；24 次 D protocol failure；任务均在约 0 秒结束 | `VOID / MODEL_ENDPOINT_BLOCKED / NO_W1_W2` |
+
+该结果是外部模型端点/网络连通性故障，不是 Skill 资格或数学能力结果。W1/W2 按 VOID
+门停止。一次网络权限重跑请求被安全审查拒绝，未再次发送题目数据。
+
 ## 六点十六、FESF-LOCAL-DEFAULT-TEST-001（2026-09-06）
 
 | 变更 | 范围 | 处置 |
@@ -277,3 +286,120 @@ Q/W1/W2 真实模型窗口按用户指示暂缓；因此本条不产生数学正
 
 该开关切换只改变当前工作树的本地默认路由，不把零模型工程验收升级为数学能力证据，
 也不替代真实 Q/W1/W2 资格与能力窗。
+
+## 六点十七、FESF-SKILL-EXACT-EVAL-QUAL-001-RETRY（2026-09-06）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| Q retry：`fesf_v1_tkoff_exact_eval`，24 题 | 3 correct / 15 incorrect / 6 invalid；5 个 D 协议失败；5 个 Skill 工具请求均为 `UNKNOWN`；24/24 完成，平均 5 calls、67.8s | `SKILL_QUALIFICATION_NO_GO / NO_W1_W2` |
+
+该 Q 结果不满足资格门，且外部题组未预先人工标注 Skill 适用性，不能声称选择率通过。
+按预注册规则不启动 W1/W2；结果不产生 FESF 数学能力结论，也不修改默认路径或发布。
+
+## 六点十八、FESF-SKILL-EXACT-EVAL-QUAL-006（2026-09-07）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| Q retry：`fesf_v1_tkoff_exact_eval`，24 题 | 8 native correct / 7 incorrect / 9 invalid；适用题选择 10/12；不适用题 NONE 12/12；产物完整率 8/10=80%；工具执行成功率 8/8=100%；可用证据被 D 消费 6/8=75%；7 次阶段协议失败（31 次 client error） | `SKILL_QUALIFICATION_NO_GO / NO_W1_W2 / NO_RELEASE` |
+
+本轮端点可完成部分请求，但证据消费门仍低于预注册的 80%，因此不能启动 W1/W2，不能形成 Skill 数学能力结论，也不能据此提交 GitCode。随后针对 Luna max 发现的 trace 脱敏边界补丁仅属于零模型工程修复，须重新验收后才能考虑发布。
+
+## 六点十九、FESF-SKILL-EXACT-EVAL-QUAL-007（2026-09-07）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| Q retry：`fesf_v1_tkoff_exact_eval`，24 题目标 | 端点重试 5 次后仍不可用；20 分钟硬停前仅完成 16/24，16/16 `UNKNOWN`；80 次 client error、16 次 D protocol failure | `VOID / MODEL_ENDPOINT_BLOCKED / NO_W1_W2 / NO_RELEASE` |
+
+本轮只用于验证零模型 trace 脱敏修复，不产生 Skill 或数学能力结论；W1/W2 未启动，未提交 GitCode。详见 `docs/experiments/FESF-SKILL-EXACT-EVAL-QUAL-007/result.md`。
+
+## 六点二十、FESF-V1-CODE-ACCEPTANCE-002（2026-09-07）
+
+| 范围 | 证据 | 处置 |
+|---|---|---|
+| Q-007 后的零模型修复验收 | Luna max 只读复核 PASS；58 项定向测试、全量 656 项测试通过（4 skipped）；`py_compile` 与 `git diff --check` 通过 | `PASS_LUNA_MAX / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION` |
+
+本条只确认 trace 脱敏、Skill metadata 边界和既有 guard 未回归；不改变 Q-006 的资格 NO-GO 或 Q-007 的端点 VOID，不启动 W1/W2，不发布 GitCode。
+
+## 六点二十一、FESF-SKILL-EXACT-EVAL-QUAL-008（2026-09-07）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| Q retry：`fesf_v1_tkoff_exact_eval`，24 题 | 24/24 `UNKNOWN`；120 次阶段 `model_error`、24 次 D 协议失败；无任何有效模型响应 | `VOID / MODEL_ENDPOINT_BLOCKED / NO_W1_W2 / NO_RELEASE` |
+
+Q-008 与 Q-007 的端点故障模式一致，不能估计 Skill 资格指标；W1/W2 未启动，未提交 GitCode。详见 `docs/experiments/FESF-SKILL-EXACT-EVAL-QUAL-008/result.md`。
+
+## 六点二十二、HOST-LOOP-FOUNDATIONS-CODE-ACCEPTANCE-001（2026-09-07）
+
+| 范围 | 证据 | 处置 |
+|---|---|---|
+| Host intake、bounded obligation、三个 verifier adapter、离线错题本、opt-in FESF bridge | 本地 F0–F5 硬门通过：55 个 intake/obligation case、96 个 verifier oracle、300 fuzz、定向 253 / 全量 697 测试、零远程调用、默认开关关闭 | 本地门不能单独晋升。独立复核 P0：复合分母上 false `EXACT`。整窗 `NO_GO / DEFAULT_OFF / ZERO_REMOTE_MODEL_CALLS / NO_CAPABILITY_CONCLUSION` |
+
+不得把本窗表述为代码验收通过，不得打开 `enable_host_intake` /
+`enable_bounded_obligation_extractor`，不得把 verifier 接入默认路径。修复定义域
+假设后必须新建 `...-001-RETRY` 并重新冻结 hash。工件：
+`docs/experiments/HOST-LOOP-FOUNDATIONS-CODE-ACCEPTANCE-001/`。
+
+后续独立重冻均为 `NO_GO / DEFAULT_OFF / ZERO_REMOTE_MODEL_CALLS / NO_CAPABILITY_CONCLUSION`：
+
+| 窗口 | 关闭的旧 finding | 新否决 |
+|---|---|---|
+| `...-001-RETRY` | adapter 复合分母 false `EXACT` | P1：`(x-1)/(x-1)` 被标 `COVERED` |
+| `...-001-RETRY2` | 复合分母 `COVERED` | P1：`max != 0` 子串覆盖 `1/x` |
+| `...-001-RETRY3` | 标识符子串 `COVERED` | P0：`x**(0-1)` false `EXACT`；P1：`x != 0.5` 覆盖 `1/x` |
+| `...-001-RETRY4` | 计算型负幂 EXACT 与 ASCII `0.5` 前缀 | P1：`0点5` / 全角小数仍覆盖 `1/x` |
+
+RETRY4 是 2026-09-07 的停止点：本地 F0–F5 通过，工程测试通过，独立复核 P1，总体 `NO_GO`，默认路径未启用，远程模型调用 0，不发布、不提交 GitCode。继续给 `_NONZERO_RE` 补 Unicode 例外不能形成稳定验收边界。
+
+下一轮只允许一次结构性修复：把非零断言收成白名单全文匹配（`x != 0` / `x ≠ 0` / `x 非零`），然后只开一个受控窗 `HOST-LOOP-FOUNDATIONS-CODE-ACCEPTANCE-RETRY5`。不得改 verifier、bridge、错题本或实验门槛。若 RETRY5 仍有 P1，不再开 RETRY6，撤销自动 `COVERED`，符号分母全部默认 `OPEN`。决策全文见根目录 `DEVLOG.md`。
+
+工件：`docs/experiments/HOST-LOOP-FOUNDATIONS-CODE-ACCEPTANCE-001-RETRY{,2,3,4}/`。
+
+## 六点二十三、HOST-LOOP-FOUNDATIONS-CODE-ACCEPTANCE-RETRY5（2026-09-07）
+
+| 范围 | 证据 | 处置 |
+|---|---|---|
+| 严格白名单非零断言，单次受控重试 | 本地 F0–F5 通过：75 intake/obligation、109 oracle、300 fuzz、定向 255 / 全量 699；独立复核无新 P0，P1：`x*y != 0` 覆盖 `1/y` | `NO_GO / DEFAULT_OFF / ZERO_REMOTE_MODEL_CALLS / NO_CAPABILITY_CONCLUSION` |
+
+不再开 RETRY6。自动 COVERED 已撤销，符号分母义务一律 `OPEN`。默认开关未启用，未发布。下一步是 claim DSL，不是继续补文本匹配。工件：`docs/experiments/HOST-LOOP-FOUNDATIONS-CODE-ACCEPTANCE-RETRY5/`。
+
+Host Loop 基础件当前内部状态为
+`SAFE_DEGRADED / DEFAULT_OFF / NO_CAPABILITY_CONCLUSION`：intake 与关键词义务抽取可用但默认关闭；符号分母不自动 COVERED；三类 verifier 独立存在尚未在线接入；错题本离线存在；默认提交路径未改变。不得把 RETRY 系列失败表述为整个 Host Loop 失败，也不得继续 foundations 全绿追逐。
+
+## 六点二十四、FESF-CLAIM-DSL-CODE-ACCEPTANCE-001（2026-09-07）
+
+| 范围 | 证据 | 处置 |
+|---|---|---|
+| Claim DSL parser / binding / evidence ledger / adapter 调用 | 定向 71、全量 709（4 skipped）；`py_compile` 与 `git diff --check` 通过；默认路径不导入 DSL；探针无 false EXACT/REFUTED、无 UNKNOWN 升级、无错绑 | `CLAIM_DSL_CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION` |
+
+Terra medium 复核因额度不可用；探针清单由本会话只读执行。未接入 FESF，未改 `SUBMISSION_CONFIG`，未发布。下一窗才是独立开关 `enable_fesf_claim_dsl` 的 opt-in 接入验收。工件：`docs/experiments/FESF-CLAIM-DSL-CODE-ACCEPTANCE-001/`。
+
+## 六点二十五、FESF-CLAIM-DSL-INTEGRATION-CODE-ACCEPTANCE-001（2026-09-07）
+
+| 范围 | 证据 | 处置 |
+|---|---|---|
+| Claim DSL opt-in 接入 FESF | 定向 228、全量 716（4 skipped）；默认关闭预算/终答不变；lazy import；错误绑定 fail-closed | `CLAIM_DSL_INTEGRATION_CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION` |
+
+`SUBMISSION_CONFIG.enable_fesf_claim_dsl` 保持 False。未启动真实模型资格窗、W1/W2 或 GitCode 发布。符号分母仍为 OPEN。工件：`docs/experiments/FESF-CLAIM-DSL-INTEGRATION-CODE-ACCEPTANCE-001/`。
+
+## 六点二十六、FESF-CLAIM-DSL-QUAL-001（2026-09-07）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| 健康探针 3 次 + 24 题 `fesf_v1_tkoff_claim_dsl` | 探针 3/3 ok；资格窗顶层 0 model_error，但 84 次阶段 HTTP/timeout，C 失败 16/24，Claim DSL 事件 0 | `VOID / STAGE_ENDPOINT_UNHEALTHY / NO_W1_W2 / NO_CAPABILITY_CONCLUSION` |
+
+机制未激活，不能估计绑定率或错误证据。不启动能力窗，不发布。工件：`docs/experiments/FESF-CLAIM-DSL-QUAL-001/`。
+
+## 六点二十七、FESF 官方 NO_GO 与 FSDF v1 前向回退（2026-09-08）
+
+| 提交/路径 | 官方证据 | 处置 |
+|---|---|---|
+| `921afad`：FESF v1 + exact eval + Claim DSL + 临时答案路由 | 112 题：2 correct / 1 incorrect / 109 invalid；541 次生成请求中 452 次截断（约 83.5%）；总 token 2,014,135；runner completed；墙钟约 7 小时 22 分 | `OFFICIAL_NO_GO / TRUNCATION_AND_TIME_GATE_FAIL / NO_INCREMENTAL_RETRY` |
+| FSDF v1 回退路径 | 已有官方锚 `de74934`：14 correct；本次只做前向配置回退，不删除后续实现 | `RESTORED_BASELINE` |
+
+附件无逐题 trace，因此不能精确拆分 109 个 invalid 的来源；大量截断与 FESF 的严格协议、
+候选闸门和 fail-closed 行为一致，但属于机制解释而非逐题证明。官方公开 client 不提供可由
+`ReasoningAgent` 可靠控制的 thinking 开关，后续正式路径不得依赖本地 `thinking_mode=False`。
+
+回退配置只启用 `enable_fork_select_deepen_finish=True`。FESF、exact eval、Claim DSL、Host
+intake、bounded obligation、临时答案路由和所有 FSDF v2/迦代候选均关闭；代码保留供显式
+实验配置使用。

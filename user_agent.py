@@ -463,16 +463,17 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_local_repair=False,
     enable_uncertain_repair=False,
     enable_sympy_evidence=False,
-    enable_temporary_answer_bank=True,
+    enable_temporary_answer_bank=False,
     # stateful_tail_completion_v1 stays off on the submission path until the
     # preregistered P1 replay, P2 fidelity and capability gates pass.
     enable_stateful_tail_completion=False,
     enable_contextual_answer_reconstruction=False,
     reconstruction_max_tokens=4096,
     reconstruction_context_max_chars=12000,
-    # The local evaluation profile runs FESF; the FSDF v1 anchor remains an
-    # explicit runner arm rather than a second active path here.
-    enable_fork_select_deepen_finish=False,
+    # Official rollback profile: the verified FSDF v1 path owns solve().
+    # Newer FESF/Claim DSL capabilities remain available only to explicit
+    # experimental configs.
+    enable_fork_select_deepen_finish=True,
     # Forward rollback to the FSDF v1 release anchor.  Candidate canaries are
     # retained in code and remain opt-in for local arms only.
     enable_fsdf_diagnostics_v2=False,
@@ -481,9 +482,9 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_fsdf_finish_prompt_v2=False,
     enable_fsdf_handoff_first_d=False,
     enable_fsdf_d_result_to_e=False,
-    enable_fesf_v1=True,
-    enable_fesf_exact_eval=True,
-    enable_fesf_claim_dsl=True,
+    enable_fesf_v1=False,
+    enable_fesf_exact_eval=False,
+    enable_fesf_claim_dsl=False,
 )
 
 

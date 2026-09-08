@@ -85,7 +85,7 @@ class ForkSelectDeepenFinishAcceptanceTest(unittest.TestCase):
         # Acceptance base config is off; the current submission profile is on
         # only because default promotion was explicitly authorized separately.
         self.assertFalse(AgentConfig().enable_fork_select_deepen_finish)
-        self.assertFalse(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
         self.assertFalse(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
         result = ReasoningAgent(ScriptedClient([]), AgentConfig()).config
         self.assertFalse(result.enable_fork_select_deepen_finish)

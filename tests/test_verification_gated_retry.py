@@ -167,7 +167,7 @@ class SubmissionConfigTest(unittest.TestCase):
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
         self.assertTrue(SUBMISSION_CONFIG.enable_heterogeneous_reasoners)
         self.assertFalse(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
-        self.assertFalse(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_verification)
         self.assertFalse(SUBMISSION_CONFIG.enable_step_revision)
         self.assertFalse(SUBMISSION_CONFIG.enable_conditional_token_retry)

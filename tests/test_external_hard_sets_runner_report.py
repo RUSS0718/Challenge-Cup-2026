@@ -306,9 +306,10 @@ class ArmSupportTest(unittest.TestCase):
         # remain explicit arm-only candidates.
         from user_agent import SUBMISSION_CONFIG
 
-        self.assertNotEqual(asdict(arm_config("v1")), asdict(SUBMISSION_CONFIG))
-        self.assertTrue(SUBMISSION_CONFIG.enable_fesf_v1)
-        self.assertTrue(SUBMISSION_CONFIG.enable_fesf_exact_eval)
+        self.assertEqual(asdict(arm_config("v1")), asdict(SUBMISSION_CONFIG))
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fesf_v1)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fesf_exact_eval)
         v1 = arm_config("v1")
         for flag in FSDF_CANDIDATE_FLAGS:
             self.assertFalse(getattr(v1, flag), flag)

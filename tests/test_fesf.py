@@ -492,9 +492,9 @@ class SolveMemoryGuardTest(unittest.TestCase):
 
 class FESFIntegrationConfigTest(unittest.TestCase):
     def test_default_submission_is_rollback_fsdf_and_fesf_off(self):
-        self.assertFalse(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
-        self.assertTrue(SUBMISSION_CONFIG.enable_fesf_v1)
-        self.assertTrue(SUBMISSION_CONFIG.enable_fesf_exact_eval)
+        self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fesf_v1)
+        self.assertFalse(SUBMISSION_CONFIG.enable_fesf_exact_eval)
         for name in (
             "enable_fsdf_diagnostics_v2", "enable_fsdf_multiline_handoff_v2",
             "enable_fsdf_final_confirmation_v2", "enable_fsdf_finish_prompt_v2",
