@@ -1,0 +1,77 @@
+{
+  "run_id": "POST-MAIN-EVAL-001",
+  "pools_dir": "sample_data/external_hard_sets",
+  "pool_sha256": {
+    "set_a_olymmath_hard.jsonl": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+    "set_b_aime.jsonl": "e39108744b5b0548fccfc28a089ddd1cccd0821e7235a6f2e18fa74449cd8315",
+    "set_c_hle_math.jsonl": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8"
+  },
+  "qualification_file": null,
+  "qualification_sha256": null,
+  "seed": 20260905,
+  "workers": 3,
+  "request_timeout_seconds": 120,
+  "hard_stop_minutes": 30.0,
+  "sample_size_per_set": 1,
+  "sampled_items": {
+    "set_a_olymmath_hard": [
+      "OlymMATH-HARD-61-EN"
+    ],
+    "set_b_aime": [
+      "aime-2024-II-1"
+    ],
+    "set_c_hle_math": [
+      "hle-6736cea8134f03c3c61391e9"
+    ]
+  },
+  "arms": [
+    "v1"
+  ],
+  "arm_assignment": "round_robin_over_seeded_shuffle",
+  "pairing": "independent",
+  "thinking_mode": "default",
+  "arm_flags": {
+    "v1": {
+      "enable_fsdf_diagnostics_v2": false,
+      "enable_fsdf_multiline_handoff_v2": false,
+      "enable_fsdf_final_confirmation_v2": false,
+      "enable_fsdf_finish_prompt_v2": false,
+      "enable_fsdf_handoff_first_d": false,
+      "enable_fsdf_d_result_to_e": false,
+      "enable_fsdf_de_budget_swap": false,
+      "enable_fsdf_finish_compact_final": false,
+      "enable_fsdf_mandatory_final_d": false,
+      "enable_fsdf_finish_handoff_share": false,
+      "enable_fsdf_handoff_open_first_e": false,
+      "enable_fsdf_finish_handoff_share_v2": false,
+      "enable_fsdf_e_budget_up": false,
+      "enable_fsdf_deep_candidate_fallback": false,
+      "enable_fsdf_skill_routes": false,
+      "enable_fsdf_skill_harness": false,
+      "enable_fesf_v1": false,
+      "enable_fesf_exact_eval": false,
+      "enable_fesf_claim_dsl": false
+    }
+  },
+  "arm_thinking_modes": {
+    "v1": "default"
+  },
+  "fesf_skill_sha256": {
+    "reasoning_agent/fesf_skills/exact-evaluation/SKILL.md": "951fcfa30d7d0c3151062971f0b5e995835f5a10c17b3565900e63d8bb068355",
+    "reasoning_agent/fesf_skills/exact-evaluation/cases.jsonl": "cb8b8d3a65a9abd2045a904c6564a02652aae0216334cd3cc65e607c053064fa"
+  },
+  "method": "Explicit arm definitions: fsdf_v1_tkoff is the FSDF v1 anchor; fesf_v1_tkoff_exact_eval is FESF v1 plus the independently qualified exact-evaluation Skill; fesf_v1_tkoff_claim_dsl adds opt-in Claim DSL on that FESF path. Existing v2 arms remain exploratory diagnostics and are not capability conclusions.",
+  "git_head": "bd16a3fab4596bb15e39c1f72e8858301562f6f2",
+  "source_sha256": {
+    "reasoning_agent/fork_evidence_synthesize_finish.py": "da3cacaad7869fc25526d96a6905e0aa019a3467a086d30c086a53dfa63d3d1c",
+    "reasoning_agent/fesf_memory/solve_state.py": "36a6351996d65e66edbeffc05e931e4a2e8e298cad0bcef7b95e7d5882c33402",
+    "reasoning_agent/fesf_verifiers/claim_dsl.py": "8ee5326ae74b29f1263d2bd4d37a906d028a3216679d89397d27d4b97ae98b51",
+    "reasoning_agent/fesf_verifiers/claim_executor.py": "50b1491f1e8b20c04a2af817c65b8c4c42c0e107e69c41bf8235145ab330e734",
+    "scripts/run_external_hard_sets_smoke.py": "c5728414c075d64a5c9dc56be15d78a92435c3b9776a1f95aa29935e942b32c7",
+    "user_agent.py": "5bf6aa7eff83781875e677f213239e519bc9820c0df47c4327410d2140319bef"
+  },
+  "worktree_snapshot": "dirty_changes_hashed_above; .git is read-only in this runner",
+  "start_unix": 1788853850.5845287,
+  "n_tasks": 3,
+  "n_pending": 3
+}

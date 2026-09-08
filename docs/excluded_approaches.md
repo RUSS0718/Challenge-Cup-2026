@@ -485,3 +485,13 @@ probe/F1，并使用修复后的 runner。工件见
 增量 checkpoint 和 F1 fail-fast 均生效。CAR 平均调用约 1.83、FSDF 5.0；这是健康/成本
 观察，不是能力结论。按错误率门不启动 F2；后续若继续必须重新做请求级 probe，并新编号
 窗口，不得修改默认配置。
+
+## 六点三十五、POST-MAIN-EVAL-001（2026-09-08）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| GitCode `main` @ `bd16a3f`，OlymMATH/AIME/HLE 各 1 题，FSDF v1、thinking-on 默认 | 1 correct / 0 incorrect / 2 invalid；平均 5 次调用、445.5s；阶段级 client error 5 次 | `LOCAL_SMOKE_ONLY / NO_CAPABILITY_CONCLUSION` |
+
+本地近似判定为 33.33%，native/contract 一致；两道 invalid 均为 D/E timeout 后的
+fail-closed UNKNOWN。该 3 题 smoke 不是赛事隐藏集成绩，不修改默认配置；完整记录见
+`docs/experiments/POST-MAIN-EVAL-001/`。

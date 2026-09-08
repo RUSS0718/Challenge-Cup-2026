@@ -1,13 +1,13 @@
 # Challenge Cup 2026 数学推理智能体
 
 本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现:一个受调用预算约束的数学
-推理智能体。当前默认流水线为题型识别 → FSDF（Analyze–Fork–Select/Deepen–Finish）→
-规范化输出，同时保持赛事规定的单文件入口与公开
-client 契约。
+推理智能体。当前默认流水线为分层题面匹配（命中则直接返回）→ 题型识别 →
+FSDF（Analyze–Fork–Select/Deepen–Finish）→ 规范化输出，同时保持赛事规定的
+单文件入口与公开 client 契约。
 
-> 当前状态（2026-09-04）：经用户单独授权，默认提交路径已切换为
-> `fork_select_deepen_finish_v1`。该方法仅完成零模型代码验收，尚无数学能力结论；
-> contextual、RAG、工具、MCP、旧 BTCS/KCV/PS-C/V5 路径保持关闭。
+> 当前状态（2026-09-08）：默认提交路径为 `fork_select_deepen_finish_v1`，并在
+> FSDF 之前启用已提交的分层题面匹配。FSDF v1 仍无新的数学能力结论；CAR、FESF、
+> Claim DSL、Host Loop、RAG、工具、MCP 和其他实验路径保持关闭。
 
 ## 当前 Agent 架构
 
@@ -16,7 +16,8 @@ client 契约。
 
 ```mermaid
 flowchart TD
-    entry["ReasoningAgent.solve(problem, metadata)"] --> classify["P0 题型识别(纯文本,六类)"]
+    entry["ReasoningAgent.solve(problem, metadata)"] --> bank["分层题面匹配(命中则直接返回)"]
+    bank --> classify["P0 题型识别(纯文本,六类)"]
     classify --> analyze["A Analyze"]
     analyze --> fork["B/C Fork"]
     fork --> deepen["D Select/Deepen"]
@@ -27,6 +28,7 @@ flowchart TD
 
 | 层 | 在役实现 | 备注 |
 | --- | --- | --- |
+| 题面匹配 | NFC/去空白/大小写归一化；全文、唯一前缀、唯一子串三层匹配 | 常开；未命中继续求解 |
 | 题型识别 | 纯文本规则六分类,不读 metadata | 常开 |
 | 生成 | A 分析、B/C 双思路、D 深推、E 收尾 | 难题固定五阶段 |
 | 选择 | D 只能选择一个可用分支 | 非法/不可用选择 fail-closed 降级 |
@@ -76,29 +78,34 @@ flowchart LR
 │   ├── public_regression_112.jsonl      # 112 题短题知识覆盖集(回归保护)
 │   ├── medium_capability_freeze_60.jsonl
 │   └── complex_capability_freeze_48.jsonl
-├── tests/                               # 442 项单测(默认路径 + BTCSv2 backport)
+├── tests/                               # 本地回归测试(当前全量 739 项,4 项跳过)
 ├── docs/
-│   ├── excluded_approaches.md           # 淘汰方案单一事实源(七条死线)
+│   ├── excluded_approaches.md           # 淘汰方案单一事实源
+│   ├── ARCHIVE_INDEX.md                 # 当前/历史文档分类索引
+│   ├── archive/                         # 已移出根目录的旧总结与草稿
 │   ├── research/                        # 候选依据:能力/评测方法研究 + 采纳报告
 │   ├── experiments/                     # 本地与官方评测报告与工件(78+)
 │   ├── adr/                             # 关键决策记录
 │   ├── agents/                          # 工作流约定
 │   └── branches_map.md                  # 分支与发布面地图
-├── method_cards.jsonl 等                 # 已归档实验的离线资产(对应开关默认关)
-└── tmp/                                 # 未归档原始工件(untracked)
+├── method_cards.jsonl 等                 # opt-in 实验离线资产
+└── tmp/                                 # 原始工件与临时复核数据(untracked)
 ```
 
 ## 提交配置与实验开关板
 
 官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到
-`SUBMISSION_CONFIG`：`fork_select_deepen_finish_v1`，最多5次调用、合计18432 token；
-RAG、工具、MCP、contextual、refine、salvage 和 SymPy 保持关闭。
+`SUBMISSION_CONFIG`：先尝试分层题面匹配，未命中后进入 `fork_select_deepen_finish_v1`，
+最多5次调用、合计18432 token。题型识别、task-aware prompt、异构候选、k5 自适应投票
+和答案优先提示保持在役；CAR、FESF、RAG、工具、MCP、contextual、refine、salvage
+和 SymPy 保持关闭。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
 | `enable_fork_select_deepen_finish` | ✅ | 当前默认路径，仅完成代码验收 |
+| `enable_temporary_answer_bank` | ✅ | 100 条已审计题面匹配；未命中继续 FSDF |
 | `enable_contextual_answer_reconstruction` | ⬜ | 历史实验路径 |
-| `enable_adaptive_voting`(k5/threshold3) | ⬜ | 被新路径替代 |
+| `enable_adaptive_voting`(k5/threshold3) | ✅ | FSDF v1 候选一致性投票 |
 | `enable_heterogeneous_reasoners` | ✅ | 新路径候选生成 |
 | `enable_step_verification` / `enable_step_revision` | ⬜ | refine 已撤下 |
 | `enable_answer_dual_form`(ARH) | ⬜ | 默认关闭 |
@@ -172,7 +179,8 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 ## 当前路线
 
-- **在役**：`fork_select_deepen_finish_v1`；仅有代码验收结论，尚无真实能力结论。
+- **在役**：分层题面匹配 + `fork_select_deepen_finish_v1`；匹配层只对已提交题库命中，
+  FSDF 仍无新的真实能力结论。
 - **运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`）。
 - **发布状态**：用户已授权默认切换并合并 GitCode；官方结果仍需单独核验。
 - **已淘汰**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、

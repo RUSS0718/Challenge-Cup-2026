@@ -1,4 +1,4 @@
-# 分支与发布面地图(2026-09-04 梳理)
+# 分支与发布面地图(2026-09-08 梳理)
 
 > 目的:终结"两个 main"时代的拓扑混乱。此后引用任何分支,以本文件为准。
 
@@ -6,9 +6,9 @@
 
 | ref | tip | 角色 |
 | --- | --- | --- |
-| **gitcode/main** | `1afdbe7`（FSDF payload） | **唯一官方评测拉取面**；用户已授权切换为 `fork_select_deepen_finish_v1`，尚未完成真实能力验证 |
-| **origin/main**(GitHub) | 未在本次整理同步 | 不作为本次发布面 |
-| **local main** | 未在本次整理切换 | 保留现状，不覆盖本地历史 |
+| **gitcode/main** | `0ac38ea` | **AtomGit/赛事发布面**；FSDF v1 默认路径，分层题面匹配已启用 |
+| **origin/main**(GitHub) | `0ac38ea` | GitHub 镜像，与 gitcode/main 同步 |
+| **codex/fsdf-iterative-ab-001** | `0ac38ea` | 当前工作分支；包含 CAR/F1 代码和评测工件 |
 
 ## 工作分支
 
@@ -17,7 +17,7 @@
 | **codex/btcs-v1** | `30f3aeb` | BTCSv2 模块化开发提交；已推 GitCode，资源窗作废 |
 | **codex/b1-4k-canary** | `b2f01ec` | 已推 GitHub 的实验/证据分支；包含 GSA/ARH 工件与最新研究文档 |
 | **codex/main-integration-20260829** | `d84be6e` | 集成历史分支；内容已快进到 local main，当前无工作树 |
-| **codex/fsdf-v1-code-acceptance-001** | `1afdbe7` | FSDF 代码验收修复、默认切换与发布候选 |
+| **codex/fsdf-v1-code-acceptance-001** | `1afdbe7` | 历史 FSDF 代码验收与发布候选 |
 | codex/c0-evidence-release-20260827 | `0409103` | 历史发布工作树注册；当前本地路径已失效,不得作为发布面 |
 | codex/cod-numeric-candidate-20260827 | `25f99b5`+未提交 CoD | CoD 原始实现存档(实现已移植主线);CoD 线 ARCHIVED |
 
@@ -37,6 +37,9 @@
 
 - `tmp/` 保持 untracked:原始工件先判定、后拷贝归档至 `docs/experiments/`,
   判定未归档的窗不得清理;
-- 当前 Git worktree 仅保留仓库根目录(local main)；辅助 worktree 已全部解除注册。
+- 当前默认发布代码位于仓库根目录；辅助 worktree 仍作为历史快照保留在 `.worktrees/`，
+  不参与发布。
 - 原集成目录中的未跟踪缓存已可恢复地归档到 `tmp/archived_worktree_main-integration-20260829/`；
   本地分支与实验产物均保留。
+- 根目录过时的 `P0-提交总结.md` 已归档至 `docs/archive/legacy/`；历史实验报告不删除，
+  仅由 `docs/ARCHIVE_INDEX.md` 分类索引。

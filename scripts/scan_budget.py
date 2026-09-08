@@ -1,7 +1,7 @@
 """P0.1 model-call budget scan tool (legacy: 23-item dev set experiment).
 
-Goal (per TODO_LIST.md P0.1): without changing prompt, token limits, answer
-handling, verification approach, or tool toggles, compare different candidate
+Goal (per docs/archive/legacy/TODO_LIST-2026-07.md P0.1): without changing prompt,
+token limits, answer handling, verification approach, or tool toggles, compare different candidate
 generation counts to find the call configuration with the highest reproducible
 accuracy on the frozen dev set.  Findings are reported per tier and never claim
 global or hidden-evaluation optimality.
