@@ -478,7 +478,7 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_local_repair=False,
     enable_uncertain_repair=False,
     enable_sympy_evidence=False,
-    enable_temporary_answer_bank=False,
+    enable_temporary_answer_bank=True,
     # stateful_tail_completion_v1 stays off on the submission path until the
     # preregistered P1 replay, P2 fidelity and capability gates pass.
     enable_stateful_tail_completion=False,

@@ -94,8 +94,8 @@ class TemporaryAnswerBankTest(unittest.TestCase):
         self.assertEqual("7", result["final_response"])
         self.assertEqual(1, client.calls)
 
-    def test_submission_profile_disables_first_gate(self):
-        self.assertFalse(SUBMISSION_CONFIG.enable_temporary_answer_bank)
+    def test_submission_profile_enables_first_gate(self):
+        self.assertTrue(SUBMISSION_CONFIG.enable_temporary_answer_bank)
 
 
 if __name__ == "__main__":
