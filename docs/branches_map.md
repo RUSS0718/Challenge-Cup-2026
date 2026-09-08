@@ -6,9 +6,9 @@
 
 | ref | tip | 角色 |
 | --- | --- | --- |
-| **gitcode/main** | `0ac38ea` | **AtomGit/赛事发布面**；FSDF v1 默认路径，分层题面匹配已启用 |
-| **origin/main**(GitHub) | `0ac38ea` | GitHub 镜像，与 gitcode/main 同步 |
-| **codex/fsdf-iterative-ab-001** | `0ac38ea` | 当前工作分支；包含 CAR/F1 代码和评测工件 |
+| **gitcode/main** | `9f8466e` | **AtomGit/赛事发布面**；FSDF v1 默认路径，分层题面匹配已启用 |
+| **origin/main**(GitHub) | `9f8466e` | GitHub 镜像，与 gitcode/main 同步 |
+| **codex/fsdf-iterative-ab-001** | `9f8466e` | 当前工作分支；包含 CAR/F1 代码和评测工件 |
 
 ## 工作分支
 
