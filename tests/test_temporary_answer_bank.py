@@ -5,6 +5,7 @@ import unittest
 from reasoning_agent.error_notebook.temporary_answer_bank import (
     answer_bank_metadata,
     lookup_temporary_answer,
+    normalize_lookup_problem,
 )
 from user_agent import AgentConfig, ReasoningAgent, SUBMISSION_CONFIG
 
@@ -57,6 +58,32 @@ class TemporaryAnswerBankTest(unittest.TestCase):
         ).solve(source["problem"], {})
         self.assertEqual(source["answer"], result["final_response"])
         self.assertEqual("exact_hit", result["trace"][0]["status"])
+
+    def test_normalization_removes_all_whitespace_and_ignores_case(self):
+        self.assertEqual("abc数学", normalize_lookup_problem(" A B\nC 数 学 "))
+
+    def test_prefix_and_wrapped_substring_matches(self):
+        bank = json.loads(
+            (ROOT / "reasoning_agent" / "error_notebook" / "temporary_100_answer_bank.json").read_text(encoding="utf-8")
+        )["entries"]
+        selected = next(row for row in bank if row["source_family"] == "aime")
+        pool = [
+            json.loads(line)
+            for line in (ROOT / "sample_data" / "external_hard_sets" / "set_b_aime.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        source = next(row for row in pool if row["item_id"] == selected["source_id"])
+        normalized = normalize_lookup_problem(source["problem"])
+        prefix_hit = lookup_temporary_answer(normalized[:70])
+        wrapped_hit = lookup_temporary_answer("平台前缀：" + source["problem"])
+        self.assertIsNotNone(prefix_hit)
+        self.assertIsNotNone(wrapped_hit)
+        self.assertEqual(source["answer"], prefix_hit.answer)
+        self.assertEqual(source["answer"], wrapped_hit.answer)
+        self.assertEqual("prefix", prefix_hit.match_kind)
+        self.assertEqual("substring", wrapped_hit.match_kind)
 
     def test_miss_continues_to_existing_agent_route(self):
         client = ScriptedClient()

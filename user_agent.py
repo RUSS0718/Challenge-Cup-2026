@@ -1190,7 +1190,7 @@ class ReasoningAgent:
                     "trace": [
                         {
                             "stage": "temporary_answer_bank",
-                            "status": "exact_hit",
+                            "status": f"{bank_hit.match_kind}_hit",
                             "case_id": bank_hit.case_id,
                             "source_family": bank_hit.source_family,
                         }

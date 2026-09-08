@@ -22,11 +22,13 @@ LOCAL_POOLS = {
     "hle": ROOT / "sample_data" / "external_hard_sets" / "set_c_hle_math.jsonl",
 }
 _SPACE_RE = re.compile(r"\s+")
+PREFIX_LEN = 60
+SUBSTRING_LEN = 80
 
 
 def normalize_problem(value: str) -> str:
     text = unicodedata.normalize("NFC", value).replace("\u200b", "").replace("\ufeff", "")
-    return _SPACE_RE.sub(" ", text).strip()
+    return _SPACE_RE.sub("", text).casefold()
 
 
 def digest(value: str) -> str:
@@ -98,14 +100,16 @@ def build(private_path: Path) -> dict[str, Any]:
             "source_family": source,
             "source_id": source_id,
             "problem_sha256": problem_hash,
+            "problem_prefix": normalize_problem(problem)[:PREFIX_LEN],
+            "problem_substring": normalize_problem(problem)[:SUBSTRING_LEN],
             "answer": answer.strip(),
         })
     if len(entries) != 100:
         raise ValueError("entry_count")
     return {
-        "version": 1,
+        "version": 2,
         "declaration": "temporary substitute for the reviewed error notebook",
-        "matching": "NFC plus whitespace-normalised exact problem digest",
+        "matching": "normalized exact digest, unique 60-character prefix, unique embedded 80-character prefix",
         "seed": SEED,
         "entry_count": len(entries),
         "entries": entries,
