@@ -11,10 +11,13 @@ from reasoning_agent.fork_select_deepen_finish import (
     ForkSelectDeepenFinishRelay,
     RelayOptions,
     match_simple_arithmetic_expression,
+    render_route_block,
+    select_skill_route,
 )
 from reasoning_agent.fork_evidence_synthesize_finish import (
     ForkEvidenceSynthesizeFinishRelay,
 )
+from reasoning_agent.adaptive_candidate_first import AdaptiveCandidateFirstRelay
 from reasoning_agent.host_loop_context import prepare_host_loop_context
 
 # ── Task-type constants (universal, problem-text based) ────────────────────
@@ -358,6 +361,18 @@ class AgentConfig:
     reconstruction_max_tokens: int = 4096
     reconstruction_context_max_chars: int = 12000
     enable_fork_select_deepen_finish: bool = False
+    # CAR-001: thinking-on adaptive candidate-first relay.  Opt-in only; the
+    # official profile remains FSDF v1 until this candidate passes its gates.
+    enable_adaptive_candidate_first: bool = False
+    adaptive_candidate_max_tokens: int = 2048
+    adaptive_followup_max_tokens: int = 2048
+    adaptive_adjudication_max_tokens: int = 4096
+    adaptive_max_model_calls: int = 3
+    adaptive_soft_deadline_seconds: float = 600.0
+    adaptive_hard_deadline_seconds: float = 900.0
+    # CAR-001 soft skill hint: read-only route suggestion, never a hard parser
+    # requirement.  It has no effect unless adaptive candidate-first is on.
+    enable_adaptive_skill_hint: bool = True
     # FESF v1 is enabled in the current local evaluation profile.  The
     # rollback profile remains available through explicit runner arms.
     enable_fesf_v1: bool = False
@@ -1215,11 +1230,14 @@ class ReasoningAgent:
             self.config.enable_plan_solve_compact,
             self.config.enable_contextual_answer_reconstruction,
             self.config.enable_fork_select_deepen_finish,
+            self.config.enable_adaptive_candidate_first,
         ))
         if legacy_experimental_paths > 1:
             raise ValueError("experimental answering paths are mutually exclusive")
         if self.config.enable_fesf_exact_eval and not self.config.enable_fesf_v1:
             raise ValueError("enable_fesf_exact_eval requires enable_fesf_v1")
+        if self.config.enable_fesf_v1 and self.config.enable_adaptive_candidate_first:
+            raise ValueError("FESF and adaptive candidate-first paths are mutually exclusive")
         # Claim DSL is meaningful only on the FESF path.  Historical opt-in
         # profiles may inherit the submission flag while selecting another
         # answering path; in that case it is ignored rather than blocking the
@@ -1239,6 +1257,21 @@ class ReasoningAgent:
                 host_context=host_context,
                 claim_executor=claim_executor,
             ).solve(problem, problem_type).as_dict()
+        if self.config.enable_adaptive_candidate_first:
+            skill_hint = ""
+            if self.config.enable_adaptive_skill_hint:
+                selected_route, route_directory = select_skill_route(problem, problem_type)
+                skill_hint = render_route_block(selected_route, route_directory)
+            return AdaptiveCandidateFirstRelay(
+                self.client,
+                temperature=self.config.policy_temperature,
+                candidate_max_tokens=self.config.adaptive_candidate_max_tokens,
+                followup_max_tokens=self.config.adaptive_followup_max_tokens,
+                adjudication_max_tokens=self.config.adaptive_adjudication_max_tokens,
+                max_model_calls=self.config.adaptive_max_model_calls,
+                soft_deadline_seconds=self.config.adaptive_soft_deadline_seconds,
+                hard_deadline_seconds=self.config.adaptive_hard_deadline_seconds,
+            ).solve(problem, problem_type, skill_hint=skill_hint)
         if self.config.enable_fork_select_deepen_finish:
             relay_options = RelayOptions(
                 diagnostics_v2=self.config.enable_fsdf_diagnostics_v2,

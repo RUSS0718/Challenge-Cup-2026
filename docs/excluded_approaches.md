@@ -403,3 +403,85 @@ Terra medium 复核因额度不可用；探针清单由本会话只读执行。�
 回退配置只启用 `enable_fork_select_deepen_finish=True`。FESF、exact eval、Claim DSL、Host
 intake、bounded obligation、临时答案路由和所有 FSDF v2/迦代候选均关闭；代码保留供显式
 实验配置使用。
+
+## 六点二十八、CAR-001-ADAPTIVE-CANDIDATE-FIRST（2026-09-08）
+
+| 候选 | 当前状态 | 处置 |
+|---|---|---|
+| `car_001`：thinking-on 自适应候选优先 | 已完成架构质询与预注册；F0–F3 尚未运行；默认配置未改 | `OPEN / PREREGISTERED_NOT_RUN / NO_CAPABILITY_CONCLUSION` |
+
+设计为“1 次短候选 → 条件第 2 候选 → 至多 1 次短裁决/恢复”，单题最多 3 次调用、
+2048/2048/4096、软/硬截止 10/15 分钟；首版单题内部串行，仅 runner 3 workers 交错。
+候选冲突保留双方，先做有限规范化/精确等价/数值检查，无法判定再短裁决。skill 只作
+软建议，verifier/Claim DSL 只作 shadow；本地错题本可沉淀，正式评测只能读冻结版本，
+运行期间不得写回。完整规格见 `docs/experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-SPEC/`。
+
+RPM=200、TPM=2M 只用于缩短交错实验和提高吞吐，不放宽单题 20 分钟、整轮 6 小时或
+单题调用/token 上限。F0 零模型门通过后依次执行 F1（6+6 健康）、F2（24 配对探索）、
+F3（48 fresh A/B）；每窗先判 VOID，再判能力/卫生/成本。不得把本登记视为数学能力
+通过、官方候选或 `SUBMISSION_CONFIG` 修改授权。
+
+## 六点二十九、CAR-001 F0 代码门（2026-09-08）
+
+| 范围 | 证据 | 处置 |
+|---|---|---|
+| `adaptive_candidate_first_v1` 宿主 relay、候选解析、恢复/裁决上限、互斥路由与 trace 卫生 | 12 项定向测试通过；全量 736 项中 732 通过、4 skipped；`py_compile` 与 `git diff --check` 通过；零真实模型调用 | `CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION` |
+
+F0 只确认代码契约。F1 仍需使用 thinking-on 官方默认 client 做 baseline/CAR 各 6 题健康
+探针；F2/F3 未启动。CAR 不得写入 `SUBMISSION_CONFIG`，不自动提交或推送 GitCode。
+完整工件见 `docs/experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-SPEC/` 的
+`result.md`、`report.json` 与 `run_manifest.json`。
+
+## 六点三十、CAR-001 F1 thinking-on 健康探针（2026-09-08）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAR-001-ADAPTIVE-CANDIDATE-FIRST-F1-HEALTH-001`：FSDF v1 vs CAR-001，6 题配对、3 workers | 12/12 任务完成，但两臂均无成功模型响应；FSDF 6/6、CAR 6/6 在阶段调用中出现 connectivity/ConnectionError | `VOID / STAGE_ENDPOINT_UNHEALTHY / NO_CAPABILITY_CONCLUSION` |
+
+初始 runner 把 fail-closed `UNKNOWN` 误记为顶层 `status=ok`，已依据逐题 stage trace 重分类并
+修复统计器；修复没有追加模型调用。`finish_reason`/completion token 为空，不产生截断或正确率结论。
+按停止规则不启动 F2/F3；端点恢复后只能用修复后的 runner 开新编号健康窗。工件见
+`docs/experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-F1-HEALTH-001/`。
+
+## 六点三十一、CAR-001 F1-002 thinking-on 健康探针（2026-09-08）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAR-001-ADAPTIVE-CANDIDATE-FIRST-F1-HEALTH-002`：FSDF v1 vs CAR-001，6 题配对、3 workers | 12/12 任务完成；FSDF 6/6、CAR 4/6 至少一个阶段 timeout；总耗时约 1771 秒 | `VOID / STAGE_ENDPOINT_UNHEALTHY / NO_CAPABILITY_CONCLUSION` |
+
+端点已可间歇返回成功响应（FSDF 5/6、CAR 5/6 至少有成功阶段；CAR 2/6 任务完整返回），
+但阶段级超时率超过预注册健康门；部分成功响应仍有 `finish_reason=length`。thinking 保持
+官方默认，不能据此得出截断、正确率或 CAR 能力结论。F1-002 的失败集中在健康/延迟层，
+不启动 F2；后续必须先做单请求或更小 probe，再新编号 F1。工件见
+`docs/experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-F1-HEALTH-002/`。
+
+## 六点三十二、CAR-001 恢复 probe（2026-09-08）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAR-001-ADAPTIVE-CANDIDATE-FIRST-RECOVERY-PROBE-001`：idx 6000，FSDF v1 vs CAR-001 | 最小请求约 0.81s 成功；CAR 1 次调用约 112s、无阶段错误；FSDF A/B/C 成功但 D/E timeout、总耗时约 542s | `PARTIAL_RECOVERY / DO_NOT_REOPEN_F1 / NO_CAPABILITY_CONCLUSION` |
+
+端点已从完全连接失败恢复为可间歇响应，但 thinking-on 阶段延迟仍不稳定，FSDF 基线
+未通过单题健康条件。不能据此重开 F1-003 或进入 F2；后续若端点持续稳定，需新编号
+probe/F1，并使用修复后的 runner。工件见
+`docs/experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-RECOVERY-PROBE-001/`。
+
+## 六点三十三、CAR-001 F1-003 完整窗口（2026-09-08）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAR-001-ADAPTIVE-CANDIDATE-FIRST-F1-HEALTH-003`：6+6、3 workers | 运行约 23.5 分钟后人工安全终止；当时脚本尚未写入逐题结果 | `VOID / MANUAL_HARD_STOP / NO_DURABLE_TASK_RECORDS / NO_CAPABILITY_CONCLUSION` |
+
+本窗不推断任何模型结果，也不进入 F2。后续若继续，必须先为 runner 增加全局硬截止并
+让已完成任务增量落盘，再新编号预注册；不得重复相同的无界批量窗口。
+
+## 六点三十四、CAR-001 F1-004 完整窗口（2026-09-08）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAR-001-ADAPTIVE-CANDIDATE-FIRST-F1-HEALTH-004`：6+6、3 workers、window hard-stop 1200s | 12/12 任务约 942 秒完成；FSDF 6/6、CAR 2/6 至少一个阶段 timeout；所有任务有 durable records | `VOID / STAGE_ENDPOINT_UNHEALTHY / NO_CAPABILITY_CONCLUSION` |
+
+本窗没有触发 partial hard stop，但确认启动即写 manifest/report、bounded active futures、
+增量 checkpoint 和 F1 fail-fast 均生效。CAR 平均调用约 1.83、FSDF 5.0；这是健康/成本
+观察，不是能力结论。按错误率门不启动 F2；后续若继续必须重新做请求级 probe，并新编号
+窗口，不得修改默认配置。

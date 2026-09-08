@@ -1,0 +1,54 @@
+{
+  "method_id": "adaptive_candidate_first_v1",
+  "phase": "F1_health_probe",
+  "baseline_id": "fsdf_v1",
+  "records": 2,
+  "expected_records": 2,
+  "arm_reports": {
+    "fsdf_v1": {
+      "n": 1,
+      "expected": 1,
+      "model_error_count": 1,
+      "model_error_rate": 1.0,
+      "missing_results": 0,
+      "stage_error_count": 1,
+      "average_model_calls": 5.0,
+      "max_model_calls": 5,
+      "average_duration_seconds": 542.211,
+      "max_duration_seconds": 542.211,
+      "finish_reason_counts": {
+        "stop": 2,
+        "length": 1
+      },
+      "completion_tokens_total": 5193
+    },
+    "car_001": {
+      "n": 1,
+      "expected": 1,
+      "model_error_count": 0,
+      "model_error_rate": 0.0,
+      "missing_results": 0,
+      "stage_error_count": 0,
+      "average_model_calls": 1.0,
+      "max_model_calls": 1,
+      "average_duration_seconds": 112.17,
+      "max_duration_seconds": 112.17,
+      "finish_reason_counts": {
+        "length": 1
+      },
+      "completion_tokens_total": 2048
+    }
+  },
+  "void": false,
+  "void_reasons": [],
+  "probe_decision": "DO_NOT_REOPEN_F1",
+  "probe_note": "Single-item probe uses a stricter diagnostic decision than the 6+6 health-window VOID threshold: any FSDF stage timeout blocks reopening F1.",
+  "capability_conclusion": "NONE",
+  "items_path": "sample_data\\medium_capability_freeze_60.jsonl",
+  "items_sha256": "a3d1287c555669e4943c306abe767d651706804eb64f72012da68bcfb2d761a0",
+  "workers": 2,
+  "request_timeout_seconds": 120,
+  "retry": 1,
+  "thinking_mode": "default",
+  "elapsed_seconds": 542.213
+}

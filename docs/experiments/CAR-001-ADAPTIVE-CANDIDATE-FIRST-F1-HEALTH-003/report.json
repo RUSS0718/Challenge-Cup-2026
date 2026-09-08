@@ -1,0 +1,16 @@
+{
+  "method_id": "adaptive_candidate_first_v1",
+  "phase": "F1_health_probe",
+  "status": "aborted",
+  "void": true,
+  "void_reasons": ["manual_hard_stop", "no_durable_task_records"],
+  "records": 0,
+  "expected_records": 12,
+  "workers": 3,
+  "request_timeout_seconds": 120,
+  "retry": 1,
+  "thinking_mode": "default",
+  "elapsed_seconds_observed": 1411,
+  "capability_conclusion": "NONE",
+  "note": "Runner was manually terminated before its end-of-window atomic write; no task result is inferred. RUNNER_TIMEOUT is retained only as a legacy shorthand."
+}

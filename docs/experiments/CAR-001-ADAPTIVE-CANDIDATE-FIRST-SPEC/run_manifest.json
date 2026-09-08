@@ -1,0 +1,42 @@
+{
+  "method_id": "adaptive_candidate_first_v1",
+  "phase": "F0_code_gate",
+  "protocol_snapshot": {
+    "base_commit": "d238c5b33c3b9dd34dd849f6092b9c7aeb34fefe",
+    "branch": "codex/fsdf-iterative-ab-001",
+    "working_tree_dirty": true,
+    "dirty_paths_out_of_scope": true
+  },
+  "interpreter": "D:\\Anaconda\\envs\\CA-py310\\python.exe",
+  "commands": [
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest tests.test_adaptive_candidate_first -q",
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m py_compile user_agent.py reasoning_agent/adaptive_candidate_first.py tests/test_adaptive_candidate_first.py",
+    "git diff --check",
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest discover -s tests -q"
+  ],
+  "model_calls": {
+    "zero_real_model_calls": true,
+    "client": "ScriptedClient",
+    "thinking_mode": "official_default_uncontrolled",
+    "max_logical_calls": 3,
+    "token_sequence": [2048, 2048, 4096]
+  },
+  "configuration": {
+    "enable_adaptive_candidate_first": true,
+    "enable_adaptive_skill_hint": true,
+    "enable_fork_select_deepen_finish": false,
+    "enable_fesf_v1": false,
+    "enable_fesf_claim_dsl": false,
+    "enable_temporary_answer_bank": false
+  },
+  "validation": {
+    "target_tests": 12,
+    "full_discover_tests": 736,
+    "full_discover_passed": 732,
+    "full_discover_skipped": 4,
+    "py_compile": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "disposition": "CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION",
+  "submission_status": "NOT_PUBLISHED"
+}
