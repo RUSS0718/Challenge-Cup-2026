@@ -946,6 +946,54 @@ def apply_thinking_mode(mode: str) -> None:
     os.environ["INTERN_THINKING_MODE"] = mode
 
 
+def run_preflight(output_dir: Path, timeout: int = 240) -> dict[str, Any]:
+    """Run three bounded resource requests before a CoD qualification window."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    requests: list[dict[str, Any]] = []
+    for index in range(3):
+        started = time.perf_counter()
+        client = None
+        status = "ok"
+        error_category = None
+        try:
+            client = InternChatClient(timeout=timeout, retry=1)
+            response = client.chat(
+                [{"role": "user", "content": "Resource preflight. Return exactly PREFLIGHT_OK."}],
+                temperature=0.0,
+                max_tokens=2048,
+            )
+            if not isinstance(response, str) or not response.strip():
+                status = "invalid_response"
+                error_category = "invalid_response"
+        except Exception as exc:
+            status = "error"
+            error_category = getattr(exc, "category", type(exc).__name__)
+        requests.append({
+            "request_index": index + 1,
+            "status": status,
+            "error_category": error_category,
+            "elapsed_seconds": round(time.perf_counter() - started, 3),
+            "finish_reason": client.finish_reasons[-1] if client and client.finish_reasons else None,
+            "completion_tokens": client.completion_tokens[-1] if client and client.completion_tokens else None,
+        })
+    report = {
+        "phase": "P1_resource_preflight",
+        "requests": requests,
+        "success_count": sum(item["status"] == "ok" for item in requests),
+        "client_errors": sum(item["status"] == "error" for item in requests),
+        "timeouts": sum(item["error_category"] == "timeout" for item in requests),
+        "invalid_responses": sum(item["status"] == "invalid_response" for item in requests),
+        "pass": all(item["status"] == "ok" for item in requests),
+        "thinking_mode": "official_default / client thinking_mode=None",
+        "max_tokens": 2048,
+        "request_timeout_seconds": timeout,
+    }
+    (output_dir / "preflight.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return report
+
+
 def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
         sample_size: int, sets: list[str], arms: list[str] | None = None,
         run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001", pairing: str = "independent",
@@ -958,6 +1006,12 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         raise SystemExit(f"unknown pairing mode: {pairing}")
     apply_thinking_mode(thinking_mode)
     output_dir.mkdir(parents=True, exist_ok=True)
+    if set(arms).intersection({"current_c0", "current_cod_numeric"}):
+        preflight_path = output_dir / "preflight.json"
+        if not preflight_path.exists():
+            raise SystemExit("CoD qualification requires a passing preflight.json")
+        if not json.loads(preflight_path.read_text(encoding="utf-8")).get("pass"):
+            raise SystemExit("CoD qualification preflight did not pass")
     api_key = os.environ.get("INTERN_API_KEY", "")
     all_tasks: list[dict[str, Any]] = []
     sampled_manifest: dict[str, list[str]] = {}
@@ -1038,6 +1092,8 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "prompt_hashes": {
             "cod_numeric": hashlib.sha256(COD_NUMERIC_PROMPT.encode("utf-8")).hexdigest(),
         },
+        "preflight_sha256": sha256_file(output_dir / "preflight.json")
+        if set(arms).intersection({"current_c0", "current_cod_numeric"}) else None,
         "arm_flags": {arm: dict(ARM_DEFINITIONS[arm]) for arm in arms},
         "arm_thinking_modes": {
             arm: "off" if arm_thinking_mode(arm) is False else "default"
@@ -1140,6 +1196,7 @@ if __name__ == "__main__":
     parser.add_argument("--sample-size", type=int, default=SAMPLE_SIZE)
     parser.add_argument("--sample-sizes", help="Optional comma list such as set_a_olymmath_hard=10,cod_numeric_parity=3")
     parser.add_argument("--fixed-items-file", help="JSON mapping of set id to frozen item-id lists")
+    parser.add_argument("--preflight-only", action="store_true", help="Run only the three-request resource preflight")
     parser.add_argument("--sets", default="set_a_olymmath_hard,set_b_aime,set_c_hle_math")
     parser.add_argument("--arms", default="v1", help="comma list including fesf_v1_tkoff_claim_dsl (interleaved round-robin)")
     parser.add_argument("--pairing", default="independent", choices=["independent", "paired"],
@@ -1148,6 +1205,10 @@ if __name__ == "__main__":
                         help="client-side thinking switch (default = server default)")
     parser.add_argument("--run-id", default="EXTERNAL-HARD-SETS-SMOKE-001")
     args = parser.parse_args()
+    if args.preflight_only:
+        report = run_preflight(Path(args.output_dir), args.timeout)
+        print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
+        raise SystemExit(0 if report["pass"] else 1)
     sample_sizes = {}
     if args.sample_sizes:
         for item in args.sample_sizes.split(","):
