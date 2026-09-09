@@ -58,6 +58,10 @@ NUMERIC_ANSWER_FIRST_PROMPT = """你是数学求解器。只解决题目本身�
 第一行必须且只能写：最终答案：<答案>
 从第二行起可以给出必要的简短推理或校验；不要在第一行之前输出任何内容，也不要重复最终答案。"""
 
+COD_NUMERIC_PROMPT = """你是数学求解器。只处理题目本身，不复述题面、计划、标题或解释性套话。
+采用极简 Chain-of-Draft 草稿：每一步只写一个必要的等式、变换、数值结果或关键条件；省略显然的中间步骤，不重复题目和已完成结论。
+完成必要核对后，单独一行写“最终答案：<唯一结果>”。不要输出多个候选答案或 Thinking Process；无法确认时写“最终答案：UNKNOWN”。"""
+
 DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
 
 最终答案：<只写最终表达式、数值或结论>
@@ -320,6 +324,9 @@ class AgentConfig:
     # Experimental A/B switches.  All remain opt-in; the current F+4096 path
     # is the default baseline until a freeze-set gate promotes a candidate.
     enable_numeric_answer_first_prompt: bool = False
+    # current_cod_numeric: C0/legacy-only compact draft prompt.  It is
+    # mutually exclusive with FSDF and does not change the answer pipeline.
+    enable_current_cod_numeric: bool = False
     enable_numeric_answer_only_prompt: bool = False
     enable_strict_numeric_salvage: bool = False
     enable_conditional_token_retry: bool = False
@@ -1189,6 +1196,8 @@ class ReasoningAgent:
         # Official platform path (config=None) uses the promoted submission
         # profile; explicitly passed configs (local experiments) win as-is.
         self.config = config or SUBMISSION_CONFIG
+        if self.config.enable_current_cod_numeric and self.config.enable_fork_select_deepen_finish:
+            raise ValueError("current_cod_numeric cannot be combined with FSDF")
         self.sympy_adapter = sympy_adapter
         self.method_rag_retriever = method_rag_retriever
 
@@ -1510,9 +1519,15 @@ class ReasoningAgent:
         choice / proof / explanation format constraints are not lost.
         """
         if level == "L0":
+            l0_prompt = (
+                COD_NUMERIC_PROMPT
+                if self.config.enable_current_cod_numeric
+                and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION)
+                else DIRECT_REASONER_PROMPT
+            )
             self._generate_candidates(problem, 1, candidates, trace, budget,
                                       self._policy_max_tokens(level),
-                                      task_prompt=DIRECT_REASONER_PROMPT,
+                                      task_prompt=l0_prompt,
                                       problem_type=problem_type,
                                       reasoner="direct")
             return
@@ -2000,6 +2015,10 @@ class ReasoningAgent:
 
     def _task_policy_prompt(self, problem_type: str) -> str:
         """Return the generation prompt for a given problem type."""
+        if self.config.enable_current_cod_numeric and problem_type in (
+            TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION
+        ):
+            return COD_NUMERIC_PROMPT
         if not self.config.enable_task_aware_prompt:
             return self.config.policy_prompt
         if self.config.enable_numeric_answer_only_prompt and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):

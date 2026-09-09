@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT))
 
 from llm_client import InternChatClient
 from user_agent import (
+    COD_NUMERIC_PROMPT,
     SUBMISSION_CONFIG,
     ReasoningAgent,
     answer_equivalence,
@@ -59,6 +60,7 @@ FAMILIES = {
     # labels are never placed in model messages; they are used only below to
     # score route/artifact telemetry.
     "fesf_skill_qualification": "QUAL",
+    "cod_numeric_parity": "COD-PARITY",
 }
 
 
@@ -77,10 +79,9 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def sample_set(rows: list[dict[str, Any]], set_id: str, seed: int, size: int) -> list[dict[str, Any]]:
     """Stratified sample with per-domain floor; group-level for set_a."""
-    if set_id == "fesf_skill_qualification":
-        # The qualification fixture is already frozen at 12 applicable and
-        # 12 non-applicable rows.  Sampling it by domain would destroy that
-        # balance, so select the complete file in its recorded order.
+    if set_id in {"fesf_skill_qualification", "cod_numeric_parity"}:
+        # These fixtures are already frozen. Sampling by domain would destroy
+        # their recorded balance, so select the complete file in order.
         if len(rows) != size:
             raise ValueError(f"qualification fixture has {len(rows)} rows, expected {size}")
         return list(rows)
@@ -309,12 +310,43 @@ def _arm_overrides(enabled: tuple[str, ...] = ()) -> dict[str, bool]:
     """Pin every candidate flag explicitly so arm semantics survive any
     future SUBMISSION_CONFIG drift (arms are defined relative to the
     submission profile with all candidate flags forced, not inherited)."""
-    return {**{flag: False for flag in FSDF_CANDIDATE_FLAGS},
+    return {"enable_current_cod_numeric": False,
+            **{flag: False for flag in FSDF_CANDIDATE_FLAGS},
             **{flag: True for flag in enabled}}
 
 
 ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     "v1": _arm_overrides(),
+    # C0/legacy baseline and its single prompt-only CoD candidate.  Both arms
+    # are explicitly bank-off and keep the non-FSDF answering path.
+    "current_c0": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": False,
+        "enable_temporary_answer_bank": False,
+        "enable_current_cod_numeric": False,
+        "enable_contextual_answer_reconstruction": False,
+        "enable_heterogeneous_reasoners": False,
+        "enable_adaptive_voting": True,
+        "max_model_calls": 5,
+        "max_tokens": 4096,
+        "l0_max_tokens": 4096,
+        "enable_numeric_answer_first_prompt": False,
+        "enable_numeric_answer_only_prompt": True,
+    },
+    "current_cod_numeric": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": False,
+        "enable_temporary_answer_bank": False,
+        "enable_current_cod_numeric": True,
+        "enable_contextual_answer_reconstruction": False,
+        "enable_heterogeneous_reasoners": False,
+        "enable_adaptive_voting": True,
+        "max_model_calls": 5,
+        "max_tokens": 4096,
+        "l0_max_tokens": 4096,
+        "enable_numeric_answer_first_prompt": False,
+        "enable_numeric_answer_only_prompt": True,
+    },
     # Protocol-stability baseline/candidate: both arms are explicitly bank-off
     # and diagnostics-on; the candidate changes only multi-line D→E handoff.
     "fsdf_protocol_v1": {
@@ -598,6 +630,10 @@ def stage_health(rows: list[dict[str, Any]]) -> dict[str, int]:
         "stage_invalid_responses": 0,
         "stage_protocol_failures": 0,
         "stage_skipped": 0,
+        "legacy_client_errors": 0,
+        "legacy_timeouts": 0,
+        "legacy_invalid_responses": 0,
+        "legacy_skipped": 0,
         "handoff_missing": 0,
         "handoff_clipped": 0,
     }
@@ -614,6 +650,16 @@ def stage_health(rows: list[dict[str, Any]]) -> dict[str, int]:
                 counters["stage_protocol_failures"] += 1
             elif status == "skipped":
                 counters["stage_skipped"] += 1
+            if event.get("step") == "generate_candidate" and status == "skipped":
+                reason = str(event.get("reason") or "").lower()
+                if "timeout" in reason:
+                    counters["legacy_timeouts"] += 1
+                elif "invalid_response" in reason:
+                    counters["legacy_invalid_responses"] += 1
+                elif "model_call_failed" in reason or "model_error" in reason:
+                    counters["legacy_client_errors"] += 1
+                else:
+                    counters["legacy_skipped"] += 1
             if event.get("handoff_missing_fields"):
                 counters["handoff_missing"] += 1
             if event.get("handoff_clipped"):
@@ -801,8 +847,23 @@ def analyze_claim_dsl_qualification(rows: list[dict[str, Any]]) -> dict[str, Any
 
 def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
     out: dict[str, Any] = {"overall": {}, "by_set": {}}
+
+    def nearest_rank_p95(values: list[float | int]) -> float | None:
+        if not values:
+            return None
+        ordered = sorted(values)
+        return ordered[max(1, int(len(ordered) * 0.95 + 0.999)) - 1]
+
     def stats(subset: list[dict[str, Any]]) -> dict[str, Any]:
         n = len(subset)
+        completion_tokens = [
+            sum(
+                int(token)
+                for token in row.get("client_completion_tokens", [])
+                if isinstance(token, (int, float))
+            )
+            for row in subset
+        ]
         s: dict[str, Any] = {
             "n": n,
             "native_correct": sum(1 for r in subset if r["native"]["verdict"] == "correct"),
@@ -825,12 +886,22 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "mean_calls": round(sum(r["model_calls"] for r in subset) / n, 2) if n else 0,
             "max_calls": max((r["model_calls"] for r in subset), default=0),
             "mean_duration_s": round(sum(r["duration_seconds"] for r in subset) / n, 1) if n else 0,
-            "p95_duration_s": round(sorted(r["duration_seconds"] for r in subset)[int(n * 0.95) - 1], 1) if n >= 20 else None,
+            "p95_duration_s": nearest_rank_p95([float(r["duration_seconds"]) for r in subset]),
+            "mean_completion_tokens": round(sum(completion_tokens) / n, 1) if n else 0,
+            "p95_completion_tokens": nearest_rank_p95(completion_tokens),
+            "total_completion_tokens": sum(completion_tokens),
         }
         s["native_accuracy"] = round(s["native_correct"] / n, 4) if n else 0
         # 完整判定对比：correct 数一致不代表逐题判定一致。
         s["correct_count_consistent"] = s["native_correct"] == s["contract_correct"]
         s.update(stage_health(subset))
+        s["invalid_plus_error"] = (
+            s["invalid"]
+            + s["model_error"]
+            + s["legacy_client_errors"]
+            + s["legacy_timeouts"]
+            + s["legacy_invalid_responses"]
+        )
         return s
     out["overall"] = stats(rows)
     out["judge_note"] = (
@@ -878,7 +949,8 @@ def apply_thinking_mode(mode: str) -> None:
 def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
         sample_size: int, sets: list[str], arms: list[str] | None = None,
         run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001", pairing: str = "independent",
-        thinking_mode: str = "default") -> None:
+        thinking_mode: str = "default", sample_sizes: dict[str, int] | None = None,
+        fixed_items: dict[str, list[str]] | None = None) -> None:
     arms = arms or ["v1"]
     for arm in arms:
         arm_config(arm)  # validate early
@@ -889,17 +961,33 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     api_key = os.environ.get("INTERN_API_KEY", "")
     all_tasks: list[dict[str, Any]] = []
     sampled_manifest: dict[str, list[str]] = {}
+    effective_sample_sizes: dict[str, int] = {}
     for set_id in sets:
         pool_path = (
             ROOT / "sample_data" / "fesf_skill_qualification.jsonl"
             if set_id == "fesf_skill_qualification"
+            else ROOT / "sample_data" / "cod_numeric_parity.jsonl"
+            if set_id == "cod_numeric_parity"
             else POOLS_DIR / f"{set_id}.jsonl"
         )
         rows = load_jsonl(pool_path)
-        picked = sample_set(rows, set_id, seed, sample_size)
-        if len(picked) != sample_size:
-            raise SystemExit(f"{set_id}: sampled {len(picked)} != {sample_size}")
+        size = (sample_sizes or {}).get(set_id, sample_size)
+        if fixed_items and set_id in fixed_items:
+            ids = fixed_items[set_id]
+            if len(ids) != len(set(ids)):
+                raise SystemExit(f"{set_id}: fixed item ids must be unique")
+            by_id = {str(row.get("item_id")): row for row in rows}
+            missing = [item_id for item_id in ids if item_id not in by_id]
+            if missing:
+                raise SystemExit(f"{set_id}: fixed item is missing: {missing}")
+            picked = [by_id[item_id] for item_id in ids]
+            size = len(picked)
+        else:
+            picked = sample_set(rows, set_id, seed, size)
+        if len(picked) != size:
+            raise SystemExit(f"{set_id}: sampled {len(picked)} != {size}")
         sampled_manifest[set_id] = [r["item_id"] for r in picked]
+        effective_sample_sizes[set_id] = len(picked)
         for i, item in enumerate(picked):
             all_tasks.append({"set_id": set_id, "item": item, "seed": seed, "task_idx": f"{set_id}-{i}"})
     rng = random.Random(seed)
@@ -923,6 +1011,10 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "run_id": run_id,
         "pools_dir": str(POOLS_DIR.relative_to(ROOT)).replace("\\", "/"),
         "pool_sha256": {p.name: sha256_file(p) for p in sorted(POOLS_DIR.glob("*.jsonl"))},
+        "custom_pool_sha256": {
+            "cod_numeric_parity.jsonl": sha256_file(ROOT / "sample_data" / "cod_numeric_parity.jsonl")
+            if "cod_numeric_parity" in sets else None,
+        },
         "qualification_file": (
             "sample_data/fesf_skill_qualification.jsonl"
             if "fesf_skill_qualification" in sets else None
@@ -936,11 +1028,16 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "request_timeout_seconds": timeout,
         "hard_stop_minutes": hard_stop_minutes,
         "sample_size_per_set": sample_size,
+        "sample_sizes": effective_sample_sizes,
+        "fixed_items": fixed_items,
         "sampled_items": sampled_manifest,
         "arms": arms,
         "arm_assignment": "round_robin_over_seeded_shuffle",
         "pairing": pairing,
         "thinking_mode": thinking_mode,
+        "prompt_hashes": {
+            "cod_numeric": hashlib.sha256(COD_NUMERIC_PROMPT.encode("utf-8")).hexdigest(),
+        },
         "arm_flags": {arm: dict(ARM_DEFINITIONS[arm]) for arm in arms},
         "arm_thinking_modes": {
             arm: "off" if arm_thinking_mode(arm) is False else "default"
@@ -1011,7 +1108,12 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     rows = [r for r in rows if r.get("set_id") in sets]
     summary = analyze(rows)
     summary["elapsed_seconds"] = round(time.time() - start, 1)
-    summary["dataset_info"] = {"pools_dir": str(POOLS_DIR), "seed": seed, "sample_size_per_set": sample_size}
+    summary["dataset_info"] = {
+        "pools_dir": str(POOLS_DIR),
+        "seed": seed,
+        "sample_size_per_set": sample_size,
+        "sample_sizes": effective_sample_sizes,
+    }
     if "skill_qualification" in summary:
         summary["status"] = (
             "SKILL_QUALIFICATION_GO"
@@ -1036,6 +1138,8 @@ if __name__ == "__main__":
     # local budget; callers may still pass a smaller stop for a smoke run.
     parser.add_argument("--hard-stop-minutes", type=float, default=180.0)
     parser.add_argument("--sample-size", type=int, default=SAMPLE_SIZE)
+    parser.add_argument("--sample-sizes", help="Optional comma list such as set_a_olymmath_hard=10,cod_numeric_parity=3")
+    parser.add_argument("--fixed-items-file", help="JSON mapping of set id to frozen item-id lists")
     parser.add_argument("--sets", default="set_a_olymmath_hard,set_b_aime,set_c_hle_math")
     parser.add_argument("--arms", default="v1", help="comma list including fesf_v1_tkoff_claim_dsl (interleaved round-robin)")
     parser.add_argument("--pairing", default="independent", choices=["independent", "paired"],
@@ -1044,6 +1148,22 @@ if __name__ == "__main__":
                         help="client-side thinking switch (default = server default)")
     parser.add_argument("--run-id", default="EXTERNAL-HARD-SETS-SMOKE-001")
     args = parser.parse_args()
+    sample_sizes = {}
+    if args.sample_sizes:
+        for item in args.sample_sizes.split(","):
+            name, sep, raw_size = item.partition("=")
+            if not sep or not name.strip() or not raw_size.strip().isdigit() or int(raw_size) <= 0:
+                parser.error("--sample-sizes expects name=positive_int pairs")
+            sample_sizes[name.strip()] = int(raw_size)
+    fixed_items = None
+    if args.fixed_items_file:
+        fixed_items = json.loads(Path(args.fixed_items_file).read_text(encoding="utf-8"))
+        if not isinstance(fixed_items, dict) or any(
+            not isinstance(key, str) or not isinstance(value, list)
+            or not all(isinstance(item_id, str) for item_id in value)
+            for key, value in fixed_items.items()
+        ):
+            parser.error("--fixed-items-file must contain a JSON object of string lists")
     run(
         Path(args.output_dir), args.timeout, args.workers, args.seed,
         args.hard_stop_minutes, args.sample_size,
@@ -1052,4 +1172,6 @@ if __name__ == "__main__":
         run_id=args.run_id,
         pairing=args.pairing,
         thinking_mode=args.thinking_mode,
+        sample_sizes=sample_sizes,
+        fixed_items=fixed_items,
     )
