@@ -24,6 +24,7 @@ from reasoning_agent.fork_select_deepen_finish import (
     RelayOptions,
 )
 from user_agent import AgentConfig, ReasoningAgent, SUBMISSION_CONFIG
+from scripts.run_external_hard_sets_smoke import arm_config, compact_trace
 
 
 class ScriptedClient:
@@ -203,6 +204,77 @@ class F2P0DiagnosticsTest(unittest.TestCase):
             "finish_reason",
         ):
             self.assertNotIn(key, event)
+
+    def test_p0_06_stage_duration_is_diagnostic_only(self):
+        _, result_on = solve_v2([analysis(), idea("B"), idea("C"), deep(), finish()], P0_ONLY)
+        stage_events = [
+            event for event in result_on.trace
+            if event.get("stage") in {"analyze", "fork_b", "fork_c", "deepen", "finish"}
+        ]
+        self.assertEqual(5, len(stage_events))
+        for event in stage_events:
+            self.assertIsInstance(event["duration_seconds"], float)
+            self.assertGreaterEqual(event["duration_seconds"], 0.0)
+
+        _, result_off = solve_v2([analysis(), idea("B"), idea("C"), deep(), finish()], RelayOptions())
+        for event in result_off.trace:
+            self.assertNotIn("duration_seconds", event)
+
+    def test_p0_07_compact_trace_keeps_bounded_diagnostics_only(self):
+        compact = compact_trace([{
+            "stage": "finalize",
+            "handoff_unknown_fields": ["OPEN"],
+            "handoff_conflict_fields": ["RISK"],
+            "handoff_unclosed_fields": ["DERIVED"],
+            "handoff_field_states": {"OPEN": "unknown"},
+            "d_candidate_visible_to_e": False,
+            "duration_seconds": 0.125,
+            "raw_response": "MODEL_SECRET",
+            "prompt": "PROMPT_SECRET",
+        }])[0]
+        for key in (
+            "handoff_unknown_fields",
+            "handoff_conflict_fields",
+            "handoff_unclosed_fields",
+            "handoff_field_states",
+            "d_candidate_visible_to_e",
+            "duration_seconds",
+        ):
+            self.assertIn(key, compact)
+        self.assertNotIn("raw_response", compact)
+        self.assertNotIn("prompt", compact)
+
+    def test_p0_08_protocol_stability_arms_pin_bank_and_single_variable(self):
+        baseline = arm_config("fsdf_protocol_v1")
+        candidate = arm_config("fsdf_multiline_handoff_v2")
+        self.assertFalse(baseline.enable_temporary_answer_bank)
+        self.assertFalse(candidate.enable_temporary_answer_bank)
+        self.assertTrue(baseline.enable_fork_select_deepen_finish)
+        self.assertTrue(candidate.enable_fork_select_deepen_finish)
+        self.assertTrue(baseline.enable_fsdf_diagnostics_v2)
+        self.assertTrue(candidate.enable_fsdf_diagnostics_v2)
+        self.assertFalse(baseline.enable_fsdf_multiline_handoff_v2)
+        self.assertTrue(candidate.enable_fsdf_multiline_handoff_v2)
+        for name in (
+            "enable_fsdf_final_confirmation_v2",
+            "enable_fsdf_finish_prompt_v2",
+            "enable_fsdf_handoff_first_d",
+            "enable_fsdf_d_result_to_e",
+            "enable_fsdf_de_budget_swap",
+        ):
+            self.assertFalse(getattr(baseline, name), name)
+            self.assertFalse(getattr(candidate, name), name)
+
+    def test_p0_09_external_compact_trace_keeps_stage_duration(self):
+        compact = compact_trace([{
+            "stage": "deepen",
+            "duration_seconds": 1.25,
+            "handoff_field_states": {"DERIVED": "content"},
+            "raw_response": "MODEL_SECRET",
+        }])[0]
+        self.assertEqual(1.25, compact["duration_seconds"])
+        self.assertEqual({"DERIVED": "content"}, compact["handoff_field_states"])
+        self.assertNotIn("raw_response", compact)
 
 
 class F2P1HandoffTest(unittest.TestCase):

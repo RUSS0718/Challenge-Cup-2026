@@ -1305,6 +1305,7 @@ class ForkSelectDeepenFinishRelay:
             self._event(trace, state, stage, "skipped", max_tokens, error_category="hard_deadline")
             return None
         state.logical_calls += 1
+        call_started = time.monotonic()
         try:
             response = self.client.chat(
                 messages=[
@@ -1318,16 +1319,45 @@ class ForkSelectDeepenFinishRelay:
             category = _error_category(exc)
             state.sanitized_errors.append(category)
             state.stage_status[stage] = "failed"
-            self._event(trace, state, stage, "failed", max_tokens, error_category=category)
+            self._event(
+                trace,
+                state,
+                stage,
+                "failed",
+                max_tokens,
+                error_category=category,
+                **self._duration_extra(call_started),
+            )
             return None
         if not isinstance(response, str) or not response.strip():
             state.sanitized_errors.append("invalid_response")
             state.stage_status[stage] = "failed"
-            self._event(trace, state, stage, "failed", max_tokens, error_category="invalid_response")
+            self._event(
+                trace,
+                state,
+                stage,
+                "failed",
+                max_tokens,
+                error_category="invalid_response",
+                **self._duration_extra(call_started),
+            )
             return None
         state.stage_status[stage] = "ok"
-        self._event(trace, state, stage, "ok", max_tokens, packet_present=True)
+        self._event(
+            trace,
+            state,
+            stage,
+            "ok",
+            max_tokens,
+            packet_present=True,
+            **self._duration_extra(call_started),
+        )
         return response.strip()
+
+    def _duration_extra(self, started: float) -> dict[str, float]:
+        if not self.options.diagnostics_v2:
+            return {}
+        return {"duration_seconds": round(max(0.0, time.monotonic() - started), 6)}
 
     def _stage_allowed(
         self, state: _SolveState, trace: list[dict[str, Any]], stage: str, max_tokens: int
@@ -1396,6 +1426,7 @@ class ForkSelectDeepenFinishRelay:
             "harness_steps_completed",
             "token_usage",
             "finish_reason",
+            "duration_seconds",
         }})
         trace.append(event)
 

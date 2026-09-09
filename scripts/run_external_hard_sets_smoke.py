@@ -234,6 +234,7 @@ TRACE_KEEP = frozenset({
     "handoff_has_candidate_result", "d_candidate_visible_to_e",
     "e_final_equals_d_candidate", "selected_skill", "harness_route_id",
     "harness_steps_expected", "harness_steps_completed",
+    "duration_seconds",
     "skill_name", "evidence_id", "claim_id", "supported_count",
     "auxiliary_count", "refuted_count", "unresolved_count", "skill_loaded",
     "skill_choice_parsed", "applicability", "error", "execution_status",
@@ -314,6 +315,23 @@ def _arm_overrides(enabled: tuple[str, ...] = ()) -> dict[str, bool]:
 
 ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     "v1": _arm_overrides(),
+    # Protocol-stability baseline/candidate: both arms are explicitly bank-off
+    # and diagnostics-on; the candidate changes only multi-line D→E handoff.
+    "fsdf_protocol_v1": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": True,
+        "enable_temporary_answer_bank": False,
+        "enable_contextual_answer_reconstruction": False,
+        "enable_fsdf_diagnostics_v2": True,
+    },
+    "fsdf_multiline_handoff_v2": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": True,
+        "enable_temporary_answer_bank": False,
+        "enable_contextual_answer_reconstruction": False,
+        "enable_fsdf_diagnostics_v2": True,
+        "enable_fsdf_multiline_handoff_v2": True,
+    },
     # Explicit names used by the FESF v1 qualification/A-B protocol.
     "fsdf_v1_tkoff": {
         **_arm_overrides(),
