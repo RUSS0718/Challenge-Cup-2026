@@ -124,6 +124,6 @@ archive it and register Re2 separately; do not automatically start Re2.
 ## 6. Implementation snapshot
 
 ```text
-implementation_commit: b0625f7
+implementation_commit: e2bb296
 worktree: clean temporary worktree required for execution
 ```
