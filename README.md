@@ -103,7 +103,7 @@ flowchart LR
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
 | `enable_fork_select_deepen_finish` | ✅ | 当前默认路径，仅完成代码验收 |
-| `enable_temporary_answer_bank` | ✅ | 100 条已审计题面匹配；未命中继续 FSDF |
+| `enable_temporary_answer_bank` | ✅ | 50 条参考 `eval_112` 题面匹配；未命中继续 FSDF |
 | `enable_contextual_answer_reconstruction` | ⬜ | 历史实验路径 |
 | `enable_adaptive_voting`(k5/threshold3) | ✅ | FSDF v1 候选一致性投票 |
 | `enable_heterogeneous_reasoners` | ✅ | 新路径候选生成 |

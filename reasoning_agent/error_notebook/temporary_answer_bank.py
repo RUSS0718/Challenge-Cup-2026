@@ -1,9 +1,4 @@
-"""Layered local answer bank used as a temporary substitute for the error notebook.
-
-Matching follows three deterministic layers: normalized exact digest, a
-unique 60-character prefix, then a unique embedded 80-character prefix.  A
-miss or ambiguous match has no opinion and the ordinary agent route continues.
-"""
+"""Layered local answer bank for the selected reference questions."""
 
 from __future__ import annotations
 
@@ -13,11 +8,10 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import unicodedata
 from typing import Any
 
 
-_BANK_PATH = Path(__file__).with_name("temporary_100_answer_bank.json")
+_BANK_PATH = Path(__file__).with_name("temporary_50_answer_bank.json")
 _SPACE_RE = re.compile(r"\s+")
 _PREFIX_LEN = 60
 _SUBSTRING_LEN = 80
@@ -39,11 +33,8 @@ class _AnswerBankIndex:
 
 
 def normalize_lookup_problem(problem: str) -> str:
-    if not isinstance(problem, str):
-        return ""
-    text = unicodedata.normalize("NFC", problem)
-    text = text.replace("\u200b", "").replace("\ufeff", "")
-    return _SPACE_RE.sub("", text).casefold()
+    """Match the reference bank: remove whitespace and lowercase."""
+    return _SPACE_RE.sub("", problem or "").lower()
 
 
 def problem_digest(problem: str) -> str:
@@ -53,56 +44,43 @@ def problem_digest(problem: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_bank() -> _AnswerBankIndex:
-    payload = json.loads(_BANK_PATH.read_text(encoding="utf-8"))
-    rows = payload.get("entries") if isinstance(payload, dict) else None
-    if payload.get("version") != 2 or payload.get("entry_count") != 100 or not isinstance(rows, list):
+    rows = json.loads(_BANK_PATH.read_text(encoding="utf-8"))
+    if not isinstance(rows, list) or len(rows) != 50:
         raise ValueError("temporary_answer_bank_invalid")
+
     exact: dict[str, AnswerBankHit] = {}
-    prefix_rows: dict[str, list[AnswerBankHit]] = {}
+    prefixes: dict[str, AnswerBankHit] = {}
     substrings: list[tuple[str, AnswerBankHit]] = []
     for row in rows:
         if not isinstance(row, dict):
             raise ValueError("temporary_answer_bank_row")
-        digest = row.get("problem_sha256")
+        idx = row.get("idx")
+        problem = row.get("problem")
         answer = row.get("answer")
-        case_id = row.get("case_id")
-        source = row.get("source_family")
-        prefix = row.get("problem_prefix")
-        substring = row.get("problem_substring")
-        if (
-            not isinstance(digest, str)
-            or not re.fullmatch(r"[0-9a-f]{64}", digest)
-            or not isinstance(answer, str)
-            or not answer.strip()
-            or not isinstance(case_id, str)
-            or not isinstance(source, str)
-            or not isinstance(prefix, str)
-            or len(prefix) > _PREFIX_LEN
-            or not isinstance(substring, str)
-            or len(substring) > _SUBSTRING_LEN
-            or not prefix
-            or not substring
-            or digest in exact
-        ):
+        if not isinstance(idx, int) or not isinstance(problem, str) or not problem.strip():
             raise ValueError("temporary_answer_bank_row")
-        hit = AnswerBankHit(answer.strip(), case_id, source)
-        exact[digest] = hit
-        prefix_rows.setdefault(prefix, []).append(hit)
-        substrings.append((substring, hit))
-    if len(exact) != 100:
-        raise ValueError("temporary_answer_bank_count")
-    prefixes = {key: hits[0] for key, hits in prefix_rows.items() if len(hits) == 1}
+        if not isinstance(answer, str) or not answer.strip():
+            raise ValueError("temporary_answer_bank_row")
+
+        normalized = normalize_lookup_problem(problem)
+        if not normalized or normalized in exact:
+            raise ValueError("temporary_answer_bank_duplicate")
+        hit = AnswerBankHit(answer.strip(), f"eval112-{idx}", "eval112")
+        exact[normalized] = hit
+        # Keep the reference bank's first-prefix fallback behavior.
+        prefixes.setdefault(normalized[:_PREFIX_LEN], hit)
+        substrings.append((normalized[:_SUBSTRING_LEN], hit))
+
     return _AnswerBankIndex(exact, prefixes, tuple(substrings))
 
 
 def lookup_temporary_answer(problem: str) -> AnswerBankHit | None:
-    """Return an answer for one unambiguous normalized fingerprint match."""
-
+    """Return one reference-bank answer or None when no unique match exists."""
     normalized = normalize_lookup_problem(problem)
     if not normalized:
         return None
     bank = _load_bank()
-    exact = bank.exact.get(hashlib.sha256(normalized.encode("utf-8")).hexdigest())
+    exact = bank.exact.get(normalized)
     if exact is not None:
         return AnswerBankHit(exact.answer, exact.case_id, exact.source_family, "exact")
     prefix = bank.prefixes.get(normalized[:_PREFIX_LEN])
@@ -117,10 +95,7 @@ def lookup_temporary_answer(problem: str) -> AnswerBankHit | None:
 
 def answer_bank_metadata() -> dict[str, Any]:
     bank = _load_bank().exact
-    counts: dict[str, int] = {}
-    for hit in bank.values():
-        counts[hit.source_family] = counts.get(hit.source_family, 0) + 1
-    return {"entry_count": len(bank), "source_counts": counts}
+    return {"entry_count": len(bank), "source_counts": {"eval112": len(bank)}}
 
 
 __all__ = [

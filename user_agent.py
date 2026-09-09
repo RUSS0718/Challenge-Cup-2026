@@ -383,7 +383,7 @@ class AgentConfig:
     enable_host_intake: bool = False
     enable_bounded_obligation_extractor: bool = False
     enable_fesf_claim_dsl: bool = False
-    # Exact local answer lookup.  This 100-question bank is a temporary
+    # Exact local answer lookup.  This 50-question reference bank is a temporary
     # substitute for the reviewed error notebook; misses continue normally.
     enable_temporary_answer_bank: bool = False
     # FSDF v2 reliability candidates (Issue #15 spec).  Each increment is
