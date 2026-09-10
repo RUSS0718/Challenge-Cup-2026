@@ -1,0 +1,3 @@
+{"request_index": 0, "status": "ok", "error_category": null, "response_present": true, "response_chars": 1100, "finish_reason": "length", "completion_tokens": 256, "latency_seconds": 12.403}
+{"request_index": 1, "status": "ok", "error_category": null, "response_present": true, "response_chars": 921, "finish_reason": "length", "completion_tokens": 256, "latency_seconds": 7.891}
+{"request_index": 2, "status": "ok", "error_category": null, "response_present": true, "response_chars": 906, "finish_reason": "length", "completion_tokens": 256, "latency_seconds": 10.474}

@@ -1,0 +1,37 @@
+{
+  "run_id": "MATH-HARNESS-112-DIAGNOSTIC-005",
+  "phase": "user_authorized_112_diagnostic",
+  "method_id": "bounded_evidence_trajectory_selection_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "diagnostic_only": true,
+  "capability_conclusion": "NONE",
+  "temporary_answer_bank": "off",
+  "dataset_role": "public_regression_only",
+  "official_evaluation": false,
+  "records": 112,
+  "expected_records": 112,
+  "outcome_counts": {
+    "correct": 60,
+    "incorrect": 2,
+    "invalid": 50,
+    "model_error": 0
+  },
+  "accuracy_over_expected": 0.5357142857142857,
+  "decided_accuracy": 0.967741935483871,
+  "candidate_formed_rows": 101,
+  "total_model_calls": 184,
+  "average_model_calls": 1.6428571428571428,
+  "p95_model_calls": 4.0,
+  "total_requested_tokens": 661504,
+  "actual_completion_tokens_known": null,
+  "finish_reason_counts": {
+    "missing": 184
+  },
+  "average_duration_seconds": 35.21809821428572,
+  "p95_duration_seconds": 114.26,
+  "max_duration_seconds": 212.222,
+  "model_errors": 0,
+  "timeout_count": 0,
+  "health_pass": true,
+  "disposition": "DIAGNOSTIC_COMPLETE_NO_CAPABILITY_CONCLUSION"
+}

@@ -1,0 +1,9 @@
+{
+  "experiment_id": "MATH-HARNESS-FIT-AUDIT-001",
+  "kind": "contract_audit",
+  "source_spec": "docs/experiments/MATH-HARNESS-V1-SPEC/spec.md",
+  "remote_model_calls": 0,
+  "answer_bank": "not_used",
+  "dataset": null,
+  "note": "The fit audit is a constraint matrix, not a mathematical capability run."
+}

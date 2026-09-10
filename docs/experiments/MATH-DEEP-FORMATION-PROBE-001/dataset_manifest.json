@@ -1,0 +1,85 @@
+{
+  "run_id": "MATH-DEEP-FORMATION-PROBE-001",
+  "dataset_id": "fresh_olymmath_deep_formation_v1",
+  "source_dataset": "sample_data/external_hard_sets/set_a_olymmath_hard.jsonl",
+  "source_dataset_sha256": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+  "rows": 6,
+  "selected_ids": [
+    "OlymMATH-HARD-34-EN",
+    "OlymMATH-HARD-47-EN",
+    "OlymMATH-HARD-53-EN",
+    "OlymMATH-HARD-57-EN",
+    "OlymMATH-HARD-90-EN",
+    "OlymMATH-HARD-95-EN"
+  ],
+  "selected_items": [
+    {
+      "item_id": "OlymMATH-HARD-34-EN",
+      "problem_group_id": "olym-hard-34",
+      "domain": "Combinatorics",
+      "language": "EN",
+      "problem_sha256": "b39006fb7862893365c3031899756c7bbd37c2cd971822124bab092f0ab8f867",
+      "answer_shape": "single_numeric",
+      "reasoning_risk": "deep",
+      "route_confidence": "high"
+    },
+    {
+      "item_id": "OlymMATH-HARD-47-EN",
+      "problem_group_id": "olym-hard-47",
+      "domain": "Combinatorics",
+      "language": "EN",
+      "problem_sha256": "585ae18c568340bc0a0b1ead162ed3126fc6abcf9c13ecb34393e480ace91e07",
+      "answer_shape": "single_numeric",
+      "reasoning_risk": "deep",
+      "route_confidence": "high"
+    },
+    {
+      "item_id": "OlymMATH-HARD-53-EN",
+      "problem_group_id": "olym-hard-53",
+      "domain": "Geometry",
+      "language": "EN",
+      "problem_sha256": "e8ba9dc7ff2d11647175c4bc6a9676b0ba54873a17e4f8d740effa536b6ae8dc",
+      "answer_shape": "single_numeric",
+      "reasoning_risk": "deep",
+      "route_confidence": "high"
+    },
+    {
+      "item_id": "OlymMATH-HARD-57-EN",
+      "problem_group_id": "olym-hard-57",
+      "domain": "Algebra",
+      "language": "EN",
+      "problem_sha256": "fd8a413953dfa1946f5a9c58ca0e51b47a38a366b4a53838f71ba5acc7f49c4a",
+      "answer_shape": "single_numeric",
+      "reasoning_risk": "deep",
+      "route_confidence": "high"
+    },
+    {
+      "item_id": "OlymMATH-HARD-90-EN",
+      "problem_group_id": "olym-hard-90",
+      "domain": "Number Theory",
+      "language": "EN",
+      "problem_sha256": "9d41b6f7119f7cfff1b2d8f84be9b5cddbaa1bc847b50695a970e47b31282af5",
+      "answer_shape": "single_numeric",
+      "reasoning_risk": "structured",
+      "route_confidence": "medium"
+    },
+    {
+      "item_id": "OlymMATH-HARD-95-EN",
+      "problem_group_id": "olym-hard-95",
+      "domain": "Number Theory",
+      "language": "EN",
+      "problem_sha256": "353ef72b3b9fc2247792e118cf449807fa7e016a2fd7883e159857a58729d39d",
+      "answer_shape": "single_numeric",
+      "reasoning_risk": "deep",
+      "route_confidence": "high"
+    }
+  ],
+  "gold_passed_to_agent": false,
+  "gold_written_to_run_records": false,
+  "known_overlap_checks": {
+    "MATH-HARNESS-EVAL112-SMOKE-001": 0,
+    "CAR-002C-ENDPOINT-COMPATIBILITY-PROBE-001": 0,
+    "archived_FSDF_hard_windows_by_problem_group": 0
+  },
+  "frozen_reason": "fresh public hard questions for typed formation; no capability scoring"
+}

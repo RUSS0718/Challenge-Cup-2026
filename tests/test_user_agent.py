@@ -1140,7 +1140,8 @@ class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
     def test_submission_config_uses_local_fesf_profile(self):
-        # The official rollback profile selects FSDF v1.
+        # The explicit submission profile now selects Harness + Deep with
+        # matcher-on and keeps FSDF available as the legacy fallback.
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
@@ -1150,6 +1151,11 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertTrue(SUBMISSION_CONFIG.enable_numeric_answer_first_prompt)
         self.assertFalse(SUBMISSION_CONFIG.enable_contextual_answer_reconstruction)
         self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+        self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_harness)
+        self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_deep_lane)
+        self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_hybrid_router)
+        self.assertTrue(SUBMISSION_CONFIG.enable_temporary_answer_bank)
+        self.assertEqual("on", SUBMISSION_CONFIG.harness_bank_mode)
         self.assertFalse(SUBMISSION_CONFIG.enable_fesf_v1)
         self.assertFalse(SUBMISSION_CONFIG.enable_fesf_exact_eval)
 
@@ -1159,19 +1165,13 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(2, config.max_model_calls)
 
     def test_agent_without_config_uses_submission_profile(self):
-        client = FakeClient([
-            "SKILL_CHOICE: NONE\nAPPLICABILITY: NO\nGOAL: 求唯一答案\nANSWER_TYPE: 整数\nCONSTRAINTS: 定义域",
-            "BRANCH: B\nCLAIMS:\nB1: f(3)=7\nCANDIDATE_B: 7\nOPEN: 代回",
-            "BRANCH: C\nCLAIMS:\nC1: 3^2+?\nCANDIDATE_C: 7\nOPEN: 检查",
-            "PRIMARY_BRANCH: B\nPRIMARY_REASON: B 覆盖约束\nSUPPORTED_CLAIMS: none\nAUXILIARY_CLAIMS: none\nREFUTED_CLAIMS: none\nUNRESOLVED_CLAIMS: B1, C1\nCANDIDATE_D: 7\nOPEN: 完成",
-            "FINAL: 7",
-        ])
+        client = FakeClient(["最终答案：7"])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
-        self.assertEqual(5, len(client.calls))
+        self.assertEqual(1, len(client.calls))
         self.assertEqual("finalize", result["trace"][-1]["stage"])
-        self.assertEqual("fork_select_deepen_finish_v1", result["trace"][-1]["method"])
+        self.assertEqual("bounded_evidence_trajectory_selection_v1", result["trace"][-1]["method"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════

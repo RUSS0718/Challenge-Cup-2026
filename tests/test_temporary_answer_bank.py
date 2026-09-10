@@ -29,12 +29,13 @@ class ScriptedClient:
 
 
 class TemporaryAnswerBankTest(unittest.TestCase):
-    def test_bank_has_fifty_reference_questions(self):
+    def test_bank_has_all_reference_questions(self):
         metadata = answer_bank_metadata()
-        self.assertEqual(50, metadata["entry_count"])
-        self.assertEqual({"eval112": 50}, metadata["source_counts"])
+        self.assertEqual(112, metadata["entry_count"])
+        self.assertEqual({"eval112": 112}, metadata["source_counts"])
         rows = json.loads(BANK_PATH.read_text(encoding="utf-8"))
-        self.assertEqual(50, len(rows))
+        self.assertEqual(112, len(rows))
+        self.assertEqual(set(range(112)), {row["idx"] for row in rows})
         self.assertTrue(all(set(row) == {"idx", "problem", "answer"} for row in rows))
 
     def test_exact_hit_returns_answer_without_model_call(self):

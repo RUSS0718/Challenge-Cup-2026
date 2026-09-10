@@ -1,0 +1,39 @@
+{
+  "experiment_id": "MATH-ENDPOINT-DIRECT-PROBE-001",
+  "method": "bare_InternChatClient_chat",
+  "status": "completed",
+  "records": 6,
+  "expected_records": 6,
+  "model_error_count": 0,
+  "timeout_count": 0,
+  "response_present_count": 6,
+  "case_status_counts": {
+    "plain_text": {
+      "ok": 3
+    },
+    "basic_math": {
+      "ok": 3
+    }
+  },
+  "case_latency_seconds": {
+    "plain_text": {
+      "mean": 5.896999999999999,
+      "max": 8.497
+    },
+    "basic_math": {
+      "mean": 5.368333333333333,
+      "max": 7.484
+    }
+  },
+  "mean_latency_seconds": 5.632666666666666,
+  "max_latency_seconds": 8.497,
+  "remote_model_calls": 6,
+  "temporary_answer_bank": "not imported",
+  "thinking_mode": "official_default / client thinking_mode=None",
+  "max_tokens": 128,
+  "request_timeout_seconds": 90,
+  "retry_count": 1,
+  "capability_conclusion": "NONE",
+  "diagnostic_conclusion": "simple_direct_requests_pass",
+  "elapsed_seconds": 33.812
+}

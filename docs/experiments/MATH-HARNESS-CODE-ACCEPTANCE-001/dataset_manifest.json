@@ -1,0 +1,18 @@
+{
+  "experiment_id": "MATH-HARNESS-CODE-ACCEPTANCE-001",
+  "kind": "zero_model_code_acceptance",
+  "source_spec": "docs/experiments/MATH-HARNESS-V1-SPEC/spec.md",
+  "remote_model_calls": 0,
+  "answer_bank": {
+    "capability_tests": "off",
+    "fixture_bank_hit_test": "injected_only"
+  },
+  "test_cases": {
+    "parser_and_normalization": 6,
+    "orchestrator_and_budget": 17,
+    "boundary_and_support": 7,
+    "agent_integration": 2,
+    "total": 32
+  },
+  "note": "These are structural cases, not a scored mathematical dataset; no gold answers are used."
+}

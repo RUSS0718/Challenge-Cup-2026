@@ -1,0 +1,14 @@
+{
+  "experiment_id": "MATH-CONTRACT-ROUTER-CODE-001",
+  "phase": "dual_axis_contract_router_code_acceptance",
+  "status": "completed",
+  "zero_model_calls": true,
+  "test_cases": 11,
+  "regression_tests": 231,
+  "passed": true,
+  "default_harness_enabled": false,
+  "default_deep_lane_enabled": false,
+  "temporary_answer_bank": "off",
+  "capability_conclusion": "NONE",
+  "disposition": "CODE_ACCEPTED_DEFAULT_OFF"
+}

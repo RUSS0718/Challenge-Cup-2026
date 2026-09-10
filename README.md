@@ -36,6 +36,21 @@ flowchart TD
 | 表示 | 允许 handoff 字段 + `HANDOFF_INCOMPLETE` | `UNKNOWN` fail-closed |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
 
+### Constraint-Fit Math Harness（MATH-HARNESS-V1，提交 profile 开启）
+
+新 Harness 位于 `reasoning_agent/math_harness.py`，通过 `ReasoningAgent.solve()` 作为
+外层 opt-in 路径接入；候选实现为
+`bounded_evidence_trajectory_selection_v1`。它使用有限 A/B 轨迹、Evidence Ledger、
+保守选择、截断单次恢复和 5 次/16384 token 硬预算。FSDF 仍保留为 legacy backend；
+提交 profile 开启 Harness、Deep lane、hybrid router 与 matcher；能力/健康/A-B 路径仍强制
+bank-off。
+
+该候选已完成双轴 Router、typed parser 和 Deep 状态机的零模型代码验收；随后按新 spec
+执行 fresh 6 题 formation probe，但首 3 题均在固定 1200 秒 `deep_primary` 边界超时，
+触发立即停止门。因此 formation 本身为 `NO_GO / NO_CAPABILITY_CONCLUSION`；这是用户明确
+授权的提交配置覆盖，尚未形成能力 A/B 证据。formation 工件见
+`docs/experiments/MATH-DEEP-FORMATION-PROBE-001/`。
+
 ### Contextual Answer Reconstruction 历史实验路径
 
 该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用 FSDF。
@@ -68,6 +83,7 @@ flowchart LR
 
 ```text
 ├── user_agent.py                        # Agent 核心:ReasoningAgent + 全部实验开关
+├── reasoning_agent/math_harness.py       # MATH-HARNESS-V1 外层 Harness（默认关闭）
 ├── llm_client.py                        # 书生 API client(本地评测用)
 ├── main.py                              # 本地逐题 runner
 ├── scripts/
@@ -103,7 +119,7 @@ flowchart LR
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
 | `enable_fork_select_deepen_finish` | ✅ | 当前默认路径，仅完成代码验收 |
-| `enable_temporary_answer_bank` | ✅ | 50 条参考 `eval_112` 题面匹配；未命中继续 FSDF |
+| `enable_temporary_answer_bank` | ✅ | 团队自建 `eval_112` 题面匹配；未命中继续 FSDF；不是官方题集 |
 | `enable_contextual_answer_reconstruction` | ⬜ | 历史实验路径 |
 | `enable_adaptive_voting`(k5/threshold3) | ✅ | FSDF v1 候选一致性投票 |
 | `enable_heterogeneous_reasoners` | ✅ | 新路径候选生成 |

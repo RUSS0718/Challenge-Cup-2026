@@ -1,0 +1,19 @@
+{
+  "experiment_id": "MATH-CONTRACT-ROUTER-CODE-001",
+  "phase": "dual_axis_contract_router_code_acceptance",
+  "method_id": "typed_contract_adaptive_deep_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "status": "completed",
+  "remote_model_calls": 0,
+  "temporary_answer_bank": "off",
+  "deep_lane": "implemented_as_routing_contract_only; execution_default_off",
+  "test_command": "isolated-python -m unittest -q tests.test_math_harness_contract_router tests.test_math_harness tests.test_user_agent",
+  "test_cases": 11,
+  "regression_tests": 231,
+  "py_compile": true,
+  "git_diff_check": true,
+  "submission_config_changed": false,
+  "official_submission_changed": false,
+  "remote_pushed": false,
+  "capability_conclusion": "NONE"
+}

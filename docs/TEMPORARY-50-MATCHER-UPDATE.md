@@ -2,8 +2,8 @@
 
 状态：`LOCAL_MATCH_CONFIRMED`
 
-该匹配库是 reviewed error notebook 的临时替代实现，题面与答案格式参考原仓库
-`bank.py` + `eval_112.json`。
+该匹配库是 reviewed error notebook 的临时替代实现，题面与答案格式参考团队自建的
+`eval_112.json`。该题集不是官方评测题或隐藏题集。
 
 ## 当前行为
 
@@ -24,8 +24,8 @@
 
 | 来源 | 数量 |
 |---|---:|
-| 参考 `eval_112.json` | 50 |
-| 合计 | 50 |
+| 团队自建 `eval_112.json` | 112 |
+| 合计 | 112 |
 
 运行时文件：
 
@@ -39,8 +39,8 @@ reasoning_agent/error_notebook/temporary_50_answer_bank.json
 scripts/build_temporary_50_answer_bank.py
 ```
 
-当前选择保留原有 30 个 `eval112` 索引，并补入此前未选择的 20 个参考题；索引集合
-在生成脚本中显式固定，避免随机抽样漂移。原 OlymMATH、AIME、HLE 的 70 条已移除。
+当前使用团队自建题集的 112 条固定索引；索引集合在生成脚本中显式固定，避免随机抽样
+漂移。该答案库仅在显式 submission 配置下使用，bank-off 能力/健康/A-B 路径不加载它。
 
 ## 配置边界
 

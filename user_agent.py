@@ -377,9 +377,32 @@ class AgentConfig:
     adaptive_max_model_calls: int = 3
     adaptive_soft_deadline_seconds: float = 600.0
     adaptive_hard_deadline_seconds: float = 900.0
+    # CAR-002: force two mutually blind short-answer candidates.  It is an
+    # opt-in overlay; non-short-answer tasks remain on the FSDF fallback.
+    enable_adaptive_dual_candidate_consensus: bool = False
+    adaptive_dual_prompt_variant: str = "default"
     # CAR-001 soft skill hint: read-only route suggestion, never a hard parser
     # requirement.  It has no effect unless adaptive candidate-first is on.
     enable_adaptive_skill_hint: bool = True
+    # MATH-HARNESS-V1: outer constraint-fit route.  It is deliberately
+    # default-off; local capability/health/A-B runs must set bank_mode=off.
+    enable_constraint_fit_harness: bool = False
+    enable_constraint_fit_deep_lane: bool = False
+    enable_constraint_fit_hybrid_router: bool = False
+    harness_bank_mode: str = "off"
+    harness_attempt_a_max_tokens: int = 4096
+    harness_attempt_b_max_tokens: int = 4096
+    harness_critic_max_tokens: int = 2048
+    harness_repair_max_tokens: int = 4096
+    harness_continuation_max_tokens: int = 2048
+    harness_max_model_calls: int = 5
+    harness_total_token_budget: int = 16384
+    harness_max_wall_seconds: float = 1200.0
+    harness_deep_primary_max_tokens: int = 8192
+    harness_deep_review_max_tokens: int = 4096
+    harness_deep_continuation_max_tokens: int = 4096
+    harness_deep_critic_max_tokens: int = 4096
+    harness_deep_max_model_calls: int = 3
     # FESF v1 is enabled in the current local evaluation profile.  The
     # rollback profile remains available through explicit runner arms.
     enable_fesf_v1: bool = False
@@ -486,6 +509,13 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_uncertain_repair=False,
     enable_sympy_evidence=False,
     enable_temporary_answer_bank=True,
+    # Explicitly authorized submission profile: the outer Harness and its
+    # Deep lane are enabled, while local capability profiles must override
+    # both the Harness and bank flags to remain bank-off.
+    enable_constraint_fit_harness=True,
+    enable_constraint_fit_deep_lane=True,
+    enable_constraint_fit_hybrid_router=True,
+    harness_bank_mode="on",
     # stateful_tail_completion_v1 stays off on the submission path until the
     # preregistered P1 replay, P2 fidelity and capability gates pass.
     enable_stateful_tail_completion=False,
@@ -1191,7 +1221,7 @@ def run_answer_checks(
     return {"status": "pass", "mode": None, "detail": None}
 
 class ReasoningAgent:
-    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, **_: Any) -> None:
+    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, constraint_fit_harness: Any | None = None, **_: Any) -> None:
         self.client = client
         # Official platform path (config=None) uses the promoted submission
         # profile; explicitly passed configs (local experiments) win as-is.
@@ -1200,10 +1230,66 @@ class ReasoningAgent:
             raise ValueError("current_cod_numeric cannot be combined with FSDF")
         self.sympy_adapter = sympy_adapter
         self.method_rag_retriever = method_rag_retriever
+        self.constraint_fit_harness = constraint_fit_harness
 
     # ── Public API ──────────────────────────────────────────────────────
 
     def solve(self, problem: str, metadata: dict) -> dict:
+        legacy_experimental_paths = self._validate_experimental_paths()
+        if self.config.enable_constraint_fit_harness:
+            from reasoning_agent.math_harness import (
+                ConstraintFitOrchestrator,
+                FSDFLegacyBackendAdapter,
+                HarnessConfig,
+            )
+
+            # ``enable_temporary_answer_bank=False`` is the hard local
+            # capability/health/A-B boundary.  It wins over an inherited
+            # submission profile so a local harness run cannot accidentally
+            # turn into a lookup run.
+            harness_bank_mode = (
+                self.config.harness_bank_mode
+                if self.config.enable_temporary_answer_bank
+                else "off"
+            )
+            harness = self.constraint_fit_harness or ConstraintFitOrchestrator(
+                self.client,
+                config=HarnessConfig(
+                    attempt_a_max_tokens=self.config.harness_attempt_a_max_tokens,
+                    attempt_b_max_tokens=self.config.harness_attempt_b_max_tokens,
+                    critic_max_tokens=self.config.harness_critic_max_tokens,
+                    repair_max_tokens=self.config.harness_repair_max_tokens,
+                    continuation_max_tokens=self.config.harness_continuation_max_tokens,
+                    max_model_calls=self.config.harness_max_model_calls,
+                    total_token_budget=self.config.harness_total_token_budget,
+                    max_wall_seconds=self.config.harness_max_wall_seconds,
+                    bank_mode=harness_bank_mode,
+                    enable_deep_lane=self.config.enable_constraint_fit_deep_lane,
+                    deep_primary_max_tokens=self.config.harness_deep_primary_max_tokens,
+                    deep_review_max_tokens=self.config.harness_deep_review_max_tokens,
+                    deep_continuation_max_tokens=self.config.harness_deep_continuation_max_tokens,
+                    deep_critic_max_tokens=self.config.harness_deep_critic_max_tokens,
+                    deep_max_model_calls=self.config.harness_deep_max_model_calls,
+                ),
+                legacy_backend=(
+                    FSDFLegacyBackendAdapter(self.client)
+                    if self.config.enable_constraint_fit_hybrid_router
+                    else None
+                ),
+            )
+            result = harness.solve(problem, metadata)
+            # Keep the platform seam safe even when an injected harness or a
+            # future backend violates the output contract.
+            if not isinstance(result, dict):
+                return {"final_response": "UNKNOWN", "extracted_answer": "", "trace": []}
+            final_response = result.get("final_response")
+            if not isinstance(final_response, str) or not final_response.strip():
+                result["final_response"] = "UNKNOWN"
+            if not isinstance(result.get("trace"), list):
+                result["trace"] = []
+            if not isinstance(result.get("extracted_answer", ""), str):
+                result["extracted_answer"] = ""
+            return result
         if self.config.enable_temporary_answer_bank:
             from reasoning_agent.error_notebook.temporary_answer_bank import lookup_temporary_answer
 
@@ -1231,22 +1317,6 @@ class ReasoningAgent:
                 extract_obligations=self.config.enable_bounded_obligation_extractor,
             )
 
-        if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
-            raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
-        legacy_experimental_paths = sum(bool(flag) for flag in (
-            self.config.enable_typed_answer_capsule,
-            self.config.enable_condition_checked_selection,
-            self.config.enable_plan_solve_compact,
-            self.config.enable_contextual_answer_reconstruction,
-            self.config.enable_fork_select_deepen_finish,
-            self.config.enable_adaptive_candidate_first,
-        ))
-        if legacy_experimental_paths > 1:
-            raise ValueError("experimental answering paths are mutually exclusive")
-        if self.config.enable_fesf_exact_eval and not self.config.enable_fesf_v1:
-            raise ValueError("enable_fesf_exact_eval requires enable_fesf_v1")
-        if self.config.enable_fesf_v1 and self.config.enable_adaptive_candidate_first:
-            raise ValueError("FESF and adaptive candidate-first paths are mutually exclusive")
         # Claim DSL is meaningful only on the FESF path.  Historical opt-in
         # profiles may inherit the submission flag while selecting another
         # answering path; in that case it is ignored rather than blocking the
@@ -1266,6 +1336,30 @@ class ReasoningAgent:
                 host_context=host_context,
                 claim_executor=claim_executor,
             ).solve(problem, problem_type).as_dict()
+        if self.config.enable_adaptive_dual_candidate_consensus:
+            short_answer_types = (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION)
+            if problem_type not in short_answer_types:
+                if not self.config.enable_fork_select_deepen_finish:
+                    raise ValueError("CAR-002 requires FSDF for non-short-answer tasks")
+            else:
+                skill_hint = ""
+                if self.config.enable_adaptive_skill_hint:
+                    selected_route, route_directory = select_skill_route(problem, problem_type)
+                    skill_hint = render_route_block(selected_route, route_directory)
+                return AdaptiveCandidateFirstRelay(
+                    self.client,
+                    temperature=self.config.policy_temperature,
+                    candidate_max_tokens=self.config.adaptive_candidate_max_tokens,
+                    followup_max_tokens=self.config.adaptive_followup_max_tokens,
+                    adjudication_max_tokens=self.config.adaptive_adjudication_max_tokens,
+                    max_model_calls=self.config.adaptive_max_model_calls,
+                    soft_deadline_seconds=self.config.adaptive_soft_deadline_seconds,
+                    hard_deadline_seconds=self.config.adaptive_hard_deadline_seconds,
+                    dual_candidate_consensus=True,
+                    dual_prompt_variant=self.config.adaptive_dual_prompt_variant,
+                    equivalence=answer_equivalence,
+                    normalizer=normalize_answer,
+                ).solve(problem, problem_type, skill_hint=skill_hint)
         if self.config.enable_adaptive_candidate_first:
             skill_hint = ""
             if self.config.enable_adaptive_skill_hint:
@@ -1393,6 +1487,56 @@ class ReasoningAgent:
         extracted_answer = best.get("normalized_answer") or best.get("answer", "")
         trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"],"problem_type":problem_type,"diagnostic_reasons":list(budget["diagnostic_reasons"])})
         return {"final_response":final_answer,"trace":trace, "extracted_answer": extracted_answer}
+
+    def _validate_experimental_paths(self) -> int:
+        if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
+            raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
+        harness_path = int(bool(self.config.enable_constraint_fit_harness))
+        legacy_experimental_paths = sum(bool(flag) for flag in (
+            self.config.enable_typed_answer_capsule,
+            self.config.enable_condition_checked_selection,
+            self.config.enable_plan_solve_compact,
+            self.config.enable_contextual_answer_reconstruction,
+            self.config.enable_fork_select_deepen_finish,
+            self.config.enable_adaptive_candidate_first,
+            self.config.enable_current_cod_numeric,
+        ))
+        car002_path = int(bool(self.config.enable_adaptive_dual_candidate_consensus))
+        legacy_experimental_paths += car002_path
+        if harness_path:
+            if any(bool(flag) for flag in (
+                self.config.enable_typed_answer_capsule,
+                self.config.enable_condition_checked_selection,
+                self.config.enable_plan_solve_compact,
+                self.config.enable_contextual_answer_reconstruction,
+                self.config.enable_adaptive_candidate_first,
+                self.config.enable_adaptive_dual_candidate_consensus,
+                self.config.enable_current_cod_numeric,
+                self.config.enable_fesf_v1,
+            )):
+                raise ValueError("Constraint-Fit Math Harness cannot be combined with another experimental path")
+            # FSDF may remain enabled as a legacy fallback, but only an
+            # explicit hybrid-router flag can select that fallback.
+            return legacy_experimental_paths
+        # CAR-002 may coexist with FSDF only as its required fallback for
+        # non-short-answer tasks; every other answering-path combination is
+        # ambiguous and must fail closed.
+        if car002_path and (
+            legacy_experimental_paths - int(bool(self.config.enable_fork_select_deepen_finish)) > 1
+        ):
+            raise ValueError("CAR-002 cannot be combined with another answering path")
+        if not car002_path and legacy_experimental_paths > 1:
+            raise ValueError("experimental answering paths are mutually exclusive")
+        if self.config.enable_fesf_exact_eval and not self.config.enable_fesf_v1:
+            raise ValueError("enable_fesf_exact_eval requires enable_fesf_v1")
+        if self.config.enable_adaptive_candidate_first and self.config.enable_adaptive_dual_candidate_consensus:
+            raise ValueError("CAR-001 and CAR-002 paths are mutually exclusive")
+        if self.config.enable_fesf_v1 and (
+            self.config.enable_adaptive_candidate_first
+            or self.config.enable_adaptive_dual_candidate_consensus
+        ):
+            raise ValueError("FESF and adaptive candidate paths are mutually exclusive")
+        return legacy_experimental_paths
 
     # ── Candidate generation ─────────────────────────────────────────────
 

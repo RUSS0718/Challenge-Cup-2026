@@ -1,0 +1,21 @@
+{
+  "experiment_id": "MATH-CONTRACT-ROUTER-CODE-001",
+  "dataset_id": "synthetic_contract_router_cases_v1",
+  "rows": 11,
+  "case_kinds": [
+    "direct_single_numeric",
+    "deep_single_numeric",
+    "parameterized_expression",
+    "finite_set",
+    "interval_or_range",
+    "function_family",
+    "proof_and_low_confidence_mixed",
+    "range_word_boundary",
+    "probability_numeric",
+    "numeric_remainder_bound",
+    "short_choice_single_answer"
+  ],
+  "gold_passed_to_agent": false,
+  "remote_model_calls": 0,
+  "frozen_reason": "zero-model contract routing acceptance; cases contain no evaluation answers"
+}

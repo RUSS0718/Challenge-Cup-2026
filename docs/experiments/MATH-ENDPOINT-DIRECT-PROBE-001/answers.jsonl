@@ -1,0 +1,6 @@
+{"case": "plain_text", "repetition": 0, "status": "ok", "error_category": null, "response_present": true, "response_chars": 479, "finish_reason": "length", "completion_tokens": 128, "latency_seconds": 4.675}
+{"case": "plain_text", "repetition": 1, "status": "ok", "error_category": null, "response_present": true, "response_chars": 505, "finish_reason": "length", "completion_tokens": 128, "latency_seconds": 4.519}
+{"case": "plain_text", "repetition": 2, "status": "ok", "error_category": null, "response_present": true, "response_chars": 547, "finish_reason": "length", "completion_tokens": 128, "latency_seconds": 8.497}
+{"case": "basic_math", "repetition": 0, "status": "ok", "error_category": null, "response_present": true, "response_chars": 407, "finish_reason": "length", "completion_tokens": 128, "latency_seconds": 2.941}
+{"case": "basic_math", "repetition": 1, "status": "ok", "error_category": null, "response_present": true, "response_chars": 458, "finish_reason": "length", "completion_tokens": 128, "latency_seconds": 5.68}
+{"case": "basic_math", "repetition": 2, "status": "ok", "error_category": null, "response_present": true, "response_chars": 403, "finish_reason": "length", "completion_tokens": 128, "latency_seconds": 7.484}

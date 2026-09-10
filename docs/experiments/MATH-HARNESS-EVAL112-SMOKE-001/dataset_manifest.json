@@ -1,0 +1,10 @@
+{
+  "dataset_id": "team_created_eval_112",
+  "source_path": "reasoning_agent/error_notebook/eval_112.json",
+  "selection": "first_10_rows",
+  "indices": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "temporary_answer_bank": "off",
+  "gold_passed_to_agent": false,
+  "official_evaluation": false,
+  "frozen_reason": "user-authorized ten-question smoke on team-created answer-bearing data"
+}

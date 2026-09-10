@@ -1,0 +1,9 @@
+{
+  "dataset_id": "public_regression_112",
+  "dataset_path": "sample_data/public_regression_112.jsonl",
+  "rows": 112,
+  "selection": "all_rows_in_frozen_file_order",
+  "temporary_answer_bank_overlap": "not used; bank off",
+  "gold_passed_to_agent": false,
+  "frozen_reason": "user-authorized full diagnostic after endpoint preflight NO_GO; no capability conclusion"
+}

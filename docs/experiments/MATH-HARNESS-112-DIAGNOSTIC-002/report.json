@@ -1,0 +1,50 @@
+{
+  "run_id": "MATH-HARNESS-112-DIAGNOSTIC-002",
+  "phase": "user_authorized_112_diagnostic",
+  "method_id": "bounded_evidence_trajectory_selection_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "status": "completed",
+  "diagnostic_only": true,
+  "capability_conclusion": "NONE",
+  "temporary_answer_bank": "off",
+  "records": 2,
+  "expected_records": 112,
+  "outcome_counts": {
+    "invalid": 2
+  },
+  "verdict_counts": {
+    "unknown": 2
+  },
+  "correct": 0,
+  "incorrect": 0,
+  "invalid": 2,
+  "model_errors": 0,
+  "timeout_count": 0,
+  "accuracy_over_expected": 0.0,
+  "decided_accuracy": null,
+  "candidate_status_counts": {
+    "parsed": 1,
+    "truncated_with_candidate": 1
+  },
+  "candidate_formed_rows": 2,
+  "total_model_calls": 3,
+  "average_model_calls": 1.5,
+  "p95_model_calls": 2.0,
+  "total_requested_tokens": 12288,
+  "average_requested_tokens": 6144.0,
+  "actual_completion_tokens_known": null,
+  "actual_token_record_count": 0,
+  "finish_reason_counts": {
+    "missing": 3
+  },
+  "average_duration_seconds": 13.2685,
+  "p95_duration_seconds": 19.77,
+  "max_duration_seconds": 19.77,
+  "health_violations": [
+    "incomplete_records",
+    "stopped_for_actionable_parser_wrapper_issue"
+  ],
+  "health_pass": false,
+  "elapsed_seconds": 19.814,
+  "disposition": "DIAGNOSTIC_STOPPED_EARLY_NO_CAPABILITY_CONCLUSION"
+}

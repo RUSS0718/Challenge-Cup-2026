@@ -495,3 +495,262 @@ probe/F1，并使用修复后的 runner。工件见
 本地近似判定为 33.33%，native/contract 一致；两道 invalid 均为 D/E timeout 后的
 fail-closed UNKNOWN。该 3 题 smoke 不是赛事隐藏集成绩，不修改默认配置；完整记录见
 `docs/experiments/POST-MAIN-EVAL-001/`。
+
+## 六点三十六、CAR-002-DUAL-CANDIDATE-CONSENSUS（2026-09-08）
+
+| 候选 | 当前状态 | 处置 |
+|---|---|---|
+| `adaptive_dual_candidate_consensus_v1` | 规格已确认；P1/P2 最小实现与零模型代码门已通过；P3+ 未运行；默认配置未改 | `OPEN / CODE_ACCEPTED / NOT_RUN / NO_CAPABILITY_CONCLUSION` |
+
+CAR-002 相对 CAR-001 的唯一机制增量是：对短终答适用题，在首个合法候选形成后仍强制生成
+互盲候选 B；A/B 可证明等价时返回，否则最多一次短裁决。能力、健康、hard smoke 和正式
+A/B 均硬性关闭 `temporary_answer_bank`；submission simulation 与经另行授权的线上配置保持
+答案库开启，两种 accuracy 必须分栏。首版不加入 Python/SymPy 在线选择、领域 router、并行
+模型调用或策略注册表重构。完整计划见
+`docs/experiments/CAR-002-DUAL-CANDIDATE-CONSENSUS-SPEC/preregistration.md`。
+
+执行顺序固定为零模型门 → 资源 preflight/健康窗 → fresh hard10 机制 smoke → 重验
+`external70_v1` → `confirm30_v2` → submission simulation → 另行授权晋升。任一健康/能力门失败
+即停止，不自动修改 prompt、预算、默认配置或追加同协议样本。本登记不授权真实模型调用、
+代码实现、commit、push 或官方提交。
+本次仅完成用户明确授权的代码实现与零模型验收；未启动真实模型窗口、未修改默认配置、未 commit/push。
+
+## 六点三十七、CAR-002-CODE-ACCEPTANCE-REVERIFY（2026-09-08）
+
+原始 `CAR-002-DUAL-CANDIDATE-CONSENSUS-CODE-ACCEPTANCE-001` 工件保留不覆盖；独立复验发现
+路径互斥、P3b 对照臂/健康门、report 实际配置和补充证据缺口，建议状态为
+`P1_IMPLEMENTED_PARTIAL / P2_NO_GO / P3_BLOCKED / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION`。
+
+修正后新建 `CAR-002-DUAL-CANDIDATE-CONSENSUS-CODE-ACCEPTANCE-002`，完成零模型复验：
+定向 214/214，全量 763 total（759 passed、4 skipped），并记录五个源文件的 Git blob 与
+SHA-256。该复验仍只产生 `CODE_ACCEPTED / NO_CAPABILITY_CONCLUSION`，不解除 P3 阻断。
+
+## 六点三十八、CAR-002-P3-RESOURCE-QUALIFICATION（2026-09-09）
+
+| 阶段 | 结果 | 处置 |
+|---|---|---|
+| P3a 单请求 preflight | 3/3 成功，0 timeout，0 client error，最大延迟 6.774s | `PASS / NO_CAPABILITY_CONCLUSION` |
+| P3b `car_001 vs car_002` 健康窗 | 12/12 durable records；两臂 0 阶段错误；CAR-002 B 6/6 尝试、5/6 有效；约 419s | `P3_HEALTH_PASS / NO_CAPABILITY_CONCLUSION` |
+
+P3 仅证明资源与协议健康，不提供能力正确率。P3 工件见
+`docs/experiments/CAR-002-DUAL-CANDIDATE-CONSENSUS-P3A-PREFLIGHT-001/` 与
+`docs/experiments/CAR-002-DUAL-CANDIDATE-CONSENSUS-P3B-HEALTH-001/`。
+
+## 六点三十九、CAR-002-P4-FRESH-HARD10（2026-09-09）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAR-002-DUAL-CANDIDATE-CONSENSUS-HARD10-001`：MathArena AIME 2026 fresh hard10，`car_001 vs car_002` | 20/20 记录；0 模型错误；CAR-002 B 10/10 尝试、2/10 有效；Oracle@2=2/10；等价 pair=1；paired `b=0,c=3`；约 1349s | `VOID / NO_GO / NO_P5 / NO_CAPABILITY_CONCLUSION` |
+
+本窗满足记录完整、健康、B 尝试率、单题与窗口时限门，但失败于 CAR-002 有效 B、
+Oracle@2、等价 pair 数和 paired 净值门。按停止规则不运行 P5，不在同一 hard10 上调 prompt、
+补跑或改预算。`external70_v1` 与 `hard15` registry 当前 checkout 仍缺失，隔离核验保持未核项。
+工件见 `docs/experiments/CAR-002-DUAL-CANDIDATE-CONSENSUS-HARD10-001/`。
+
+## 六点四十、CAR-002B-CANDIDATE-FORMAT-SMOKE（2026-09-09）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAR-002B-CANDIDATE-FORMAT-SMOKE-001`：新冻结 set_b AIME 2024 short-answer smoke，`car_001 vs car_002b_format_first` | 20/20 durable records；答案库关闭；B 10/10 尝试、2/10 有效；B 10/10 `finish_reason=length`；8/10 无 `CANDIDATE` 标记；2 个阶段 timeout；Oracle@2=5/10；等价 pair=0；paired `b=0,c=2`；约 1720s | `NO_GO / NO_P5 / NO_CAPABILITY_CONCLUSION` |
+
+该窗只改变了候选 system prompt 的 format-first 变量，未放宽 parser、未改变预算或静态
+hint。诊断表明主失败是模型在 2048 completion 上限前没有形成 `CANDIDATE` 标记，
+不是已确认的括号、超长值或多标记 parser 误拒。不得在同一 10 题上继续调 prompt 或补跑，
+不得进入 P5；若继续，必须提出新的可归因假设、新冻结集和新编号。工件见
+`docs/experiments/CAR-002B-CANDIDATE-FORMAT-SMOKE-001/`。
+
+## 六点四十一、CAR-002C-ENDPOINT-COMPATIBILITY-PROBE（2026-09-09）
+
+| 窗口 | 结果 | 处置 |
+|---|---|---|
+| `CAR-002C-ENDPOINT-COMPATIBILITY-PROBE-001`：新冻结 OlymMATH English hard10，终答 marker 兼容性探针 | 10/10 请求完成；0 model error；10/10 `finish_reason=length`；CANDIDATE/FINAL/最终答案 marker 均 0；唯一结构完整终答 0/10；10 次调用 | `ARCHIVED / NO_GO / NO_P5 / NO_CAPABILITY_CONCLUSION` |
+
+该探针未发现可用的显式终答协议，说明当前 thinking-on 端点在 2048 completion 上限下的
+可见终答形成能力不足。CAR-002 方向停止，不建立 CAR-002C，不复跑 P4/P4B，不放宽
+parser，不进入 P5，不修改默认配置。工件见
+`docs/experiments/CAR-002C-ENDPOINT-COMPATIBILITY-PROBE-001/`。
+
+## 六点四十三、FSDF-HEALTH-RECOVERY-001（2026-09-09）
+
+| 窗口 | 结果 | 处置 |
+| --- | --- | --- |
+| 新冻结 12 题、单臂 FSDF v1、3 workers、2400s hard stop | P0 通过；P2 3/3 成功；P3 12/12 durable、0 top-level error、0 skip、0 client error、2 protocol failures、2/60 stage failures | `HEALTH_PASS / NO_CAPABILITY_CONCLUSION / NO_BUDGET_DECISION` |
+
+该窗只证明 FSDF v1 五阶段在扩大后的窗口容量下具备资源/协议健康；未运行 budget-swap arm，
+未使用 correct/invalid/截断数据，未进入 P4/P5。该健康结果不授权直接重跑 budget swap；
+是否创建新的 budget-swap 预注册需另行决定。完整工件见
+`docs/experiments/FSDF-HEALTH-RECOVERY-001/`。
+
+## 六点四十四、FSDF-DE-BUDGET-SWAP-CONFIRM-002（2026-09-09）
+
+| 方案 | 状态 | 处置 |
+| --- | --- | --- |
+| `fsdf_de_budget_swap_confirm_v2`：新 P0、P2、两臂 P3 健康窗后再进入 fresh hard10 | `VOID / P3_HEALTH_UNHEALTHY / NO_P4 / NO_CAPABILITY_CONCLUSION` | P0/P2 通过；两臂 6/6 durable、0 skip、0 top-level error；baseline `4/30`（4 client error），candidate `9/30`（5 client error、4 protocol failure），2400s 未触发 |
+
+该方案不是旧 `FSDF-DE-BUDGET-SWAP-CONFIRM-001` 的重跑。健康恢复窗的 2 个 protocol failures
+仅作为诊断背景，不进入预算/能力证据。P3 失败后未进入 P4/P5。完整规格与结果见
+`docs/experiments/FSDF-DE-BUDGET-SWAP-CONFIRM-002-SPEC/preregistration.md` 和
+`docs/experiments/FSDF-DE-BUDGET-SWAP-CONFIRM-002/`；默认配置保持不变。
+
+### 系列收束
+
+`FSDF-ITER-AB-001` 的历史正向信号属于含 v2 组件的诊断窗口；纯 v1 budget-swap 确认
+窗口 `CONFIRM-001` 因容量型 health failure 作废，`HEALTH-RECOVERY-001` 只证明单臂
+FSDF v1 在扩大窗口后可运行，`CONFIRM-002` 在双臂无 skip 的条件下仍以 baseline
+`4/30`、candidate `9/30` stage failures 失败。系列最终状态为
+`ARCHIVED_VOID / HEALTH_PROTOCOL_NO_GO / NO_CAPABILITY_CONCLUSION`；不再对同一预算
+变量追加 P3/P4/P5。未来若重启，必须提出新的协议机制假设、新 method ID 和新冻结证据。
+
+## 六点四十二、FSDF-DE-BUDGET-SWAP-CONFIRM-001（2026-09-09）
+
+| 窗口 | 结果 | 处置 |
+| --- | --- | --- |
+| 纯 FSDF v1、答案库关闭、D/E `8192/4096` vs `4096/8192`；P2 3 次 preflight、P3 6+6 健康窗 | P0 代码门通过；P2 3/3 成功；P3 12/12 durable records，但 baseline/candidate stage-slot failures 为 15/30 与 17/30，candidate 含 3 client error、4 protocol failure | `VOID / P3_HEALTH_UNHEALTHY / NO_P4 / NO_CAPABILITY_CONCLUSION` |
+
+该窗口因 P3 健康门失败按预注册停止，未启动 fresh hard10、`external70_v1` 或 confirm30；不产生预算交换的数学能力结论，不修改 `SUBMISSION_CONFIG`，不提交或发布。完整工件见
+`docs/experiments/FSDF-DE-BUDGET-SWAP-CONFIRM-001/`。后续若重启，必须提出新的健康假设与新编号，不能在本窗口上补跑或挑选指标晋升。
+
+## 六点四十七、MATH-HARNESS-V1 FIT-AUDIT 与 CODE-ACCEPTANCE（2026-09-10）
+
+| 阶段 | 结果 | 处置 |
+| --- | --- | --- |
+| `MATH-HARNESS-FIT-AUDIT-001` | 公开 client、官方构造、3-worker/20-minute 约束、bank 隔离、状态/预算账本、fail-closed、trace 卫生和 FSDF legacy 边界完成审计；0 远程模型调用 | `FIT_PASS / NO_CAPABILITY_CONCLUSION` |
+| `MATH-HARNESS-CODE-ACCEPTANCE-001` | Harness 相关 249 项回归、`py_compile`、官方 client/ReasoningAgent 构造 smoke 和最小 solve 契约通过；0 远程模型调用 | `CODE_ACCEPTED_TARGETED_SCOPE / NO_CAPABILITY_CONCLUSION` |
+
+全量 discover 仍受仓库既有 `tests/test_causal_demo.py` 对未声明依赖 `mcp` 的导入阻断，未被
+纳入 Harness gate；没有通过扩大 `requirements.txt` 来掩盖该环境问题。新 Harness、typed
+tools、hybrid router 和答案库的默认提交路径均未打开，`SUBMISSION_CONFIG`、main、远程仓库
+和赛事提交均未修改。完整工件见
+`docs/experiments/MATH-HARNESS-FIT-AUDIT-001/` 与
+`docs/experiments/MATH-HARNESS-CODE-ACCEPTANCE-001/`。
+
+下一步只能按 Issue #17 冻结顺序进入 endpoint preflight；该阶段需要用户/端点授权，不能用
+本地 scripted client 结果替代真实端点健康或能力证据。
+
+## 六点四十八、MATH-HARNESS-ENDPOINT-PREFLIGHT-001（2026-09-10）
+
+| 阶段 | 结果 | 处置 |
+| --- | --- | --- |
+| `MATH-HARNESS-ENDPOINT-PREFLIGHT-001` | 新来源 AIME 题集；bank-off；official-default thinking；每题单次普通自由格式请求，`max_tokens=4096`；已记录 3/10 请求，其中 2 次 600 秒 timeout；唯一可抽取候选 1/10，低于 8/10 门槛 | `ARCHIVED / NO_GO / NO_CAPABILITY_CONCLUSION` |
+
+该窗没有要求 `CANDIDATE`/`FINAL` marker，也没有保存完整 response；3 次真实端点调用均计入记录。第 2 次 timeout 已使预检不可通过，按停止规则提前收口，未启动 `MATH-HARNESS-HEALTH-001`、机制 A/B 或能力 A/B。Harness 不进入默认路径，FSDF 保持 legacy/线上回滚路径。完整工件见
+`docs/experiments/MATH-HARNESS-ENDPOINT-PREFLIGHT-001/`。
+
+## 六点四十九、MATH-HARNESS-ENDPOINT-PREFLIGHT-002（2026-09-10）
+
+| 阶段 | 结果 | 处置 |
+| --- | --- | --- |
+| `MATH-HARNESS-ENDPOINT-PREFLIGHT-002` | 对 001 的一次独立、有限重试；完整抽取请求已记录 5/10，其中 1 次 600 秒 timeout、1 次 `finish_reason=length` 且无候选；唯一可抽取候选 3/10，低于 8/10 门槛 | `ARCHIVED / NO_GO / NO_CAPABILITY_CONCLUSION` |
+
+该结果确认当前 official-default thinking 端点在本 Harness 的普通复杂题请求上仍不满足预检健康/抽取条件；不再重试，不进入 `MATH-HARNESS-HEALTH-001`、机制 A/B 或能力 A/B。默认路径继续保持 FSDF，完整工件见
+`docs/experiments/MATH-HARNESS-ENDPOINT-PREFLIGHT-002/`。
+
+## 六点五十、MATH-ENDPOINT-DIRECT-PROBE-001（2026-09-10）
+
+| 诊断 | 结果 | 解释 |
+| --- | --- | --- |
+| 裸 `InternChatClient.chat` 直连当前端点 | 纯文本 3/3、基础 `1+1` 3/3 成功；0 timeout、0 client error；平均延迟 5.633 秒，最大 8.497 秒 | 简单请求的本地 client 与远程端点链路正常 |
+
+该诊断绕过 `ReasoningAgent`、Constraint-Fit Harness、HostParser 和答案库，仅使用公开
+`client.chat(messages, temperature, max_tokens)`。结合 `MATH-HARNESS-ENDPOINT-PREFLIGHT-001/002`
+中复杂题分别出现 600 秒 timeout，当前最合理的定位是远程服务在复杂 thinking 请求上的推理/排队长尾，
+而不是本地 parser 或 Harness 计算；仍无法仅凭客户端数据区分模型服务、网关排队或中间网络设备。
+该诊断不产生数学能力结论，不修改默认路径。完整工件见
+`docs/experiments/MATH-ENDPOINT-DIRECT-PROBE-001/`。
+
+## 六点五十一、MATH-HARNESS-112-DIAGNOSTIC-001~005（2026-09-10）
+
+| 窗口 | 结果 | 处置 |
+| --- | --- | --- |
+| `MATH-HARNESS-112-DIAGNOSTIC-001` | 用户授权的 bank-off 112 题诊断；23/112 后因候选边界问题停止，1 correct、22 invalid、0 model error | `DIAGNOSTIC_STOPPED / NO_CAPABILITY_CONCLUSION` |
+| `MATH-HARNESS-112-DIAGNOSTIC-002` | RHS 规范化校正窗；2/112 后发现数学定界符残留并停止，0 correct、2 invalid | `DIAGNOSTIC_STOPPED / NO_CAPABILITY_CONCLUSION` |
+| `MATH-HARNESS-112-DIAGNOSTIC-003` | 统一 scalar RHS 入口校正；18/112，8 correct、1 incorrect、9 invalid、0 model error | `DIAGNOSTIC_STOPPED / NO_CAPABILITY_CONCLUSION` |
+| `MATH-HARNESS-112-DIAGNOSTIC-004` | 数学定界符校正；7/112，6 correct、1 invalid、0 model error | `DIAGNOSTIC_STOPPED / NO_CAPABILITY_CONCLUSION` |
+| `MATH-HARNESS-112-DIAGNOSTIC-005` | 完成 112/112；60 correct、2 incorrect、50 invalid、0 model error、0 timeout；候选形成 101/112；184 次逻辑调用 | `DIAGNOSTIC_COMPLETE / NO_CAPABILITY_CONCLUSION` |
+
+005 的全体题准确率为 60/112（53.57%），已判定题准确率为 60/62（96.77%）；平均调用
+1.643、P95 调用 4、请求 token 661504、平均/P95/最大耗时 35.22/114.26/212.22 秒。
+实际 completion token 与 finish reason 未通过公开 `client.chat` 字符串契约提供，分别记录为
+unknown/missing。112 题仅是公开 regression/calculation 诊断，不能解除 endpoint preflight
+NO_GO、不能替代 HEALTH/机制 A/B/能力 A/B，且未修改 `SUBMISSION_CONFIG` 或默认 FSDF 路径。
+完整工件见 `docs/experiments/MATH-HARNESS-112-DIAGNOSTIC-001/` 至
+`docs/experiments/MATH-HARNESS-112-DIAGNOSTIC-005/`。
+
+## 六点五十二、MATH-HARNESS-EVAL112-SMOKE-001（2026-09-10）
+
+| 窗口 | 结果 | 处置 |
+| --- | --- | --- |
+| `MATH-HARNESS-EVAL112-SMOKE-001` | 团队自建 `eval_112.json` 前 10 题；最新 Harness、3 workers、bank-off；10/10 记录；0 correct、0 incorrect、10 invalid；0 model error、0 timeout；19 次远程逻辑调用 | `SMOKE_COMPLETE / NO_CAPABILITY_CONCLUSION` |
+
+该 smoke 完整验证了 10 题路径，但未形成可判分答案；其中 9 题形成候选，候选多为未完成
+推导、复杂表达式或非标量结论，另 1 题无候选。按用户设定不再扩大测试。gold 只在宿主
+侧评分，不进入 Agent；`temporary_answer_bank` 全程关闭。该结果不是官方成绩，不解除
+Harness endpoint preflight NO_GO，也不修改默认配置。完整工件见
+`docs/experiments/MATH-HARNESS-EVAL112-SMOKE-001/`。
+
+## 六点五十三、MATH-CONTRACT-ROUTER-CODE-001（2026-09-10）
+
+| 阶段 | 结果 | 处置 |
+| --- | --- | --- |
+| 双轴 `ProblemContract` / Router 零模型代码门 | 11 个 contract case、231 项 Harness/UserAgent/Deep/formation-runner 回归通过；direct/deep 分离、typed answer shape、低置信 mixed 回退和 metadata 隔离通过；0 远程调用 | `CODE_ACCEPTED_DEFAULT_OFF / NO_CAPABILITY_CONCLUSION` |
+
+该门只验收路由契约，不实现 Deep 执行或真实模型形成；`SUBMISSION_CONFIG`、FSDF 和原 bounded
+lane 未改变。下一步按新 spec 进入 `MATH-TYPED-PARSER-CODE-001`，必须先完成七个原 smoke
+非 `UNKNOWN` 输出的负例回归。工件见 `docs/experiments/MATH-CONTRACT-ROUTER-CODE-001/`。
+
+## 六点五十四、MATH-TYPED-PARSER-CODE-001（2026-09-10）
+
+| 阶段 | 结果 | 处置 |
+| --- | --- | --- |
+| typed parser 零模型代码门 | 六类正例 6/6 `typed_complete`；原 smoke 七类非 UNKNOWN 负例 0/7 被误接收；相关 Harness/UserAgent/Deep/formation-runner 回归 231 项通过；0 远程调用 | `CODE_ACCEPTED_DEFAULT_OFF / NO_CAPABILITY_CONCLUSION` |
+
+该门只确认 typed completeness 能区分完整答案、推导片段、截断和结构不匹配，不产生数学
+能力结论。下一步按新 spec 进入 `MATH-DEEP-FORMATION-PROBE-001`；必须使用 fresh 6 题、
+bank-off，并执行前三题 typed-complete=0 的立即停止门。工件见
+`docs/experiments/MATH-TYPED-PARSER-CODE-001/`。
+
+## 六点五十五、MATH-DEEP-FORMATION-PROBE-001（2026-09-10）
+
+| 窗口 | 结果 | 处置 |
+| --- | --- | --- |
+| Deep typed-answer formation | fresh 公开 OlymMATH 题首 3/6；3/3 `deep_primary` 在固定 1200 秒单题边界 timeout；typed-complete 0/6；0 次 review/continuation/critic；bank-off、3 workers | `NO_GO / NO_CAPABILITY_CONCLUSION` |
+
+前三题均无 model 返回，故立即触发预注册的 `first_three_typed_complete_zero` 停止门，
+后三题未发请求。每题只发出 1 次 `deep_primary`，请求 8192 tokens；没有答案库命中、
+没有 route violation，输出仍保持非空 `UNKNOWN` 契约。该结果证明本窗的 Deep formation
+健康门未通过；它不能区分远程模型推理、服务排队或网关层 timeout，也不产生数学能力
+结论。按 spec 不启动 `MATH-DEEP-TRAJECTORY-SMOKE-001`、Deep ability A/B、Hybrid 或
+submission promotion。完整工件见 `docs/experiments/MATH-DEEP-FORMATION-PROBE-001/`。
+
+## 六点五十六、MATH-HARNESS-SUBMISSION-OVERRIDE（2026-09-11）
+
+用户明确授权将 Constraint-Fit Harness、Deep lane、FSDF hybrid fallback 与
+`temporary_answer_bank` 开启并提交到远端。该配置覆盖 formation 的 `NO_GO` 结论，
+但不把 formation 失败转化为能力通过，也不补写 trajectory/ability A/B 证据；提交
+profile 的 bank 命中与模型路径仍须分开解读。当前配置为：Harness=on、Deep=on、
+hybrid=on、bank=on。该项是显式发布授权，不是实验晋升结论。
+
+## 六点四十六、COD-NUMERIC-QUAL-001（2026-09-09）
+
+| 候选 | 结果 | 处置 |
+|---|---|---|
+| `current_cod_numeric` vs `current_c0` | C0/legacy clean path；10 个新 OlymMATH numeric + 3 个非数值 parity；13/13 每臂 durable、0 任务 skip、0 顶层错误；P1 3/3 通过 | `ARCHIVED / NO_GO / NO_CAPABILITY_CONCLUSION` |
+
+CoD candidate 的 numeric native correct 为 `0/10`，baseline 为 `1/10`，出现 1 个
+`correct→incorrect`；平均 completion token 为 baseline 的约 102.0%，P95 wall-clock
+为约 119.4%，未达到预注册的 60% token / 70% 时延目标。`invalid + error` 未增加，
+native/contract 在本窗一致；这些均为本地 smoke 证据，不是官方能力结论。
+
+按停止规则不启动第二轮 A/B，不调 CoD prompt，不接入 FSDF，不修改
+`SUBMISSION_CONFIG`。若继续探索低成本路线，必须另立 `Re2` 的新 method ID、预注册和
+冻结题组；不得与 CoD 并行运行。完整工件见
+`docs/experiments/COD-NUMERIC-QUAL-001/`。
+
+## 六点四十五、FSDF-PROTOCOL-STABILITY-QUAL-001（2026-09-09）
+
+| 臂 | 结果 | 处置 |
+|---|---|---|
+| `fsdf_protocol_v1` vs `fsdf_multiline_handoff_v2` | 新冻结 OlymMATH hard10、同题 paired、10/10 每臂 durable、0 skip、0 顶层错误；v1 阶段 timeout 4、candidate 阶段 timeout 5 + D protocol failure 2 | `DIAGNOSTIC_ONLY / HEALTH_NOT_CLEAR / NO_CAPABILITY_CONCLUSION` |
+
+两臂均 5 calls、E `finish_reason=length` 10/10。candidate D→E 缺失事件 7/10（v1 4/10），E 终答形成 3/10（v1 7/10）；candidate 的两个协议失败均为 D `invalid_response`。native/contract 为本地近似判定，不能作为官方能力结论。按健康优先停止，不启动 fresh hard/能力窗口，不在同一题组调 Prompt、补跑或晋升。完整工件见
+`docs/experiments/FSDF-PROTOCOL-STABILITY-QUAL-001/`。

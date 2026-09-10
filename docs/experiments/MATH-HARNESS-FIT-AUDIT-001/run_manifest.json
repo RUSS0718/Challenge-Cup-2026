@@ -1,0 +1,31 @@
+{
+  "experiment_id": "MATH-HARNESS-FIT-AUDIT-001",
+  "phase": "fit_audit",
+  "status": "completed",
+  "method_id": "bounded_evidence_trajectory_selection_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "base_commit": "7da72874a0e3708958278c0f9f26c95bf5c03497",
+  "branch": "codex/fsdf-iterative-ab-001",
+  "remote_model_calls": 0,
+  "temporary_answer_bank": {
+    "capability": "off",
+    "used": false
+  },
+  "official_limits": {
+    "workers": 3,
+    "per_question_seconds": 1200,
+    "round_seconds": 21600
+  },
+  "artifacts": [
+    "protocol_snapshot.md",
+    "dataset_manifest.json",
+    "report.json",
+    "result.md"
+  ],
+  "release_actions": {
+    "submission_config_changed": false,
+    "commit_created": false,
+    "remote_pushed": false,
+    "official_submission_changed": false
+  }
+}
