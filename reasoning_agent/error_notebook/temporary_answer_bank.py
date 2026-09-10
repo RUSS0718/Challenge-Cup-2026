@@ -45,7 +45,7 @@ def problem_digest(problem: str) -> str:
 @lru_cache(maxsize=1)
 def _load_bank() -> _AnswerBankIndex:
     rows = json.loads(_BANK_PATH.read_text(encoding="utf-8"))
-    if not isinstance(rows, list) or len(rows) != 50:
+    if not isinstance(rows, list) or len(rows) != 112:
         raise ValueError("temporary_answer_bank_invalid")
 
     exact: dict[str, AnswerBankHit] = {}

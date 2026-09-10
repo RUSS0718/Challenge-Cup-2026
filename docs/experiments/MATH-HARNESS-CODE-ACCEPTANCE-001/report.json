@@ -1,0 +1,56 @@
+{
+  "experiment_id": "MATH-HARNESS-CODE-ACCEPTANCE-001",
+  "phase": "zero_model_code_acceptance",
+  "status": "CODE_ACCEPTED_TARGETED_SCOPE",
+  "method_id": "bounded_evidence_trajectory_selection_v1",
+  "remote_model_calls": 0,
+  "official_client_network_calls": 0,
+  "checks": {
+    "targeted_regression": {
+      "tests": 249,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": true
+    },
+    "py_compile": {
+      "files": ["reasoning_agent/math_harness.py", "user_agent.py"],
+      "passed": true
+    },
+    "official_client_constructor": {
+      "passed": true,
+      "chat_calls": 0,
+      "network_calls": 0
+    },
+    "minimum_harness_solve": {
+      "passed": true,
+      "final_response_non_empty": true,
+      "json_serializable": true,
+      "model_calls": 1
+    },
+    "default_off": {
+      "AgentConfig.enable_constraint_fit_harness": false,
+      "SUBMISSION_CONFIG.enable_constraint_fit_harness": false,
+      "passed": true
+    },
+    "full_repository_discover": {
+      "status": "environment_blocked",
+      "blocking_dependency": "mcp",
+      "declared_in_requirements": false,
+      "used_as_harness_gate": false
+    },
+    "git_diff_check": "PASS"
+  },
+  "source_sha256": {
+    "reasoning_agent/math_harness.py": "A21E75B2D37EC6D09D6788314FCB809C5071FE01DA5DFE9045FA4EE221E253D7",
+    "user_agent.py": "D91615B1AD5976EED7F001501A265DE7F8EB1D552DE1A444C1585B0021AFA398",
+    "tests/test_math_harness.py": "85756838C333CCA3F64ACB8177C8A49A2FDEC55A968E96841CB36466279CF59A",
+    "requirements.txt": "9B151042EB1E9E52F6476001AFDCDD7520F8D01CA82D6482E874052AEC509A59"
+  },
+  "independent_review": "not_run",
+  "capability_conclusion": "NONE",
+  "known_blockers": [
+    "Repository-wide discover remains environment-blocked by pre-existing mcp-only test dependency."
+  ],
+  "recorded_at": "2026-09-10T00:50:46+08:00"
+}

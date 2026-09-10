@@ -1,0 +1,31 @@
+{
+  "dataset_id": "math_harness_endpoint_preflight_v1",
+  "source_dataset": "sample_data/external_hard_sets/set_b_aime.jsonl",
+  "source_dataset_sha256": "E39108744B5B0548FCCFC28A089DDD1CCCD0821E7235A6F2E18FA74449CD8315",
+  "rows": 10,
+  "selection_ids": [
+    "aime-2024-I-4",
+    "aime-2024-I-3",
+    "aime-2024-I-8",
+    "aime-2024-I-12",
+    "aime-2024-I-11",
+    "aime-2024-I-2",
+    "aime-2024-II-6",
+    "aime-2024-I-7",
+    "aime-2024-II-3",
+    "aime-2024-I-1"
+  ],
+  "languages": {
+    "EN": 10
+  },
+  "answer_type": {
+    "integer": 10
+  },
+  "temporary_answer_bank_overlap": 0,
+  "known_overlap_checks": {
+    "CAR-002C-ENDPOINT-COMPATIBILITY-PROBE-001": "different source dataset and selection",
+    "CAR-002/CAR-002B": "different source dataset and selection"
+  },
+  "answers_loaded_into_prompt": false,
+  "frozen_reason": "fresh ordinary free-form endpoint extraction preflight; no capability conclusion"
+}

@@ -1,4 +1,4 @@
-"""Build the frozen 50-question bank from the reference eval_112 source."""
+"""Build the frozen team-created 112-question bank from the local eval_112 source."""
 
 from __future__ import annotations
 
@@ -13,13 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PRIVATE = ROOT / "reasoning_agent" / "error_notebook" / "eval_112.json"
 DEFAULT_OUTPUT = ROOT / "reasoning_agent" / "error_notebook" / "temporary_50_answer_bank.json"
 
-# Preserve the existing 30 eval112 entries and add the first 20 previously
-# unused reference questions. The explicit list makes the set reproducible.
-SELECTED_INDICES = (
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-    20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 44, 47,
-    52, 56, 64, 66, 72, 78, 89, 93, 100, 102, 105, 106,
-)
+# Keep every reference index; the range is deterministic and covers 0..111.
+SELECTED_INDICES = tuple(range(112))
 
 
 def normalize_problem(value: str) -> str:
@@ -50,7 +45,7 @@ def build(private_path: Path) -> list[dict[str, Any]]:
         seen.add(normalized)
         selected.append({"idx": idx, "problem": problem, "answer": answer.strip()})
 
-    if len(selected) != 50:
+    if len(selected) != 112:
         raise ValueError("entry_count")
     return selected
 

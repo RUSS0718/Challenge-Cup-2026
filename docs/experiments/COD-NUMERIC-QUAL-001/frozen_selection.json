@@ -1,0 +1,19 @@
+{
+  "set_a_olymmath_hard": [
+    "OlymMATH-HARD-28-EN",
+    "OlymMATH-HARD-2-ZH",
+    "OlymMATH-HARD-32-EN",
+    "OlymMATH-HARD-8-ZH",
+    "OlymMATH-HARD-24-EN",
+    "OlymMATH-HARD-1-ZH",
+    "OlymMATH-HARD-26-EN",
+    "OlymMATH-HARD-11-ZH",
+    "OlymMATH-HARD-52-EN",
+    "OlymMATH-HARD-15-ZH"
+  ],
+  "cod_numeric_parity": [
+    "cod-parity-proof-001",
+    "cod-parity-derivation-001",
+    "cod-parity-explanation-001"
+  ]
+}

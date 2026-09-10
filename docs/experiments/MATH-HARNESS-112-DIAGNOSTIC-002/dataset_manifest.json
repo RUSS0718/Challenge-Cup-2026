@@ -1,0 +1,11 @@
+{
+  "dataset_id": "public_regression_112",
+  "dataset_path": "sample_data/public_regression_112.jsonl",
+  "rows": 112,
+  "selection": "all_rows_in_frozen_file_order",
+  "source_same_as": "MATH-HARNESS-112-DIAGNOSTIC-001",
+  "parser_correction": "terminal scalar equation uses final RHS",
+  "temporary_answer_bank": "off",
+  "gold_passed_to_agent": false,
+  "frozen_reason": "user-authorized corrected diagnostic after actionable parser boundary finding; no capability conclusion"
+}

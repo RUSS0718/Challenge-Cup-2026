@@ -9,6 +9,8 @@ The variants deliberately change one concern at a time:
 * ``A+B+6144``: A+B and a single 6144-token retry only after no answer.
 * ``gated_retry``: B1 verification-gated retry at 4096 tokens.
 * ``gated_retry_8k``: the explicitly named B1+8k exploration arm.
+* ``current_cod_numeric``: C0/legacy path with a compact draft prompt on
+  calculation/fill-blank/choice only.
 
 Reports contain aggregate metrics and safe per-item diagnostics only.  Raw model
 responses are inspected in memory for marker/truncation rates and discarded.
@@ -16,6 +18,7 @@ responses are inspected in memory for marker/truncation rates and discarded.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -32,6 +35,7 @@ sys.path.insert(0, str(ROOT))
 from llm_client import InternChatClient  # noqa: E402
 from user_agent import (  # noqa: E402
     ANSWER_ONLY_POLICY_PROMPT,
+    COD_NUMERIC_PROMPT,
     POLICY_PROMPT,
     AgentConfig,
     ReasoningAgent,
@@ -115,6 +119,7 @@ def _attach_void_state(report: dict, breaker: CircuitBreaker) -> None:
 class Variant:
     name: str
     numeric_prompt: bool = False
+    cod_numeric: bool = False
     strict_salvage: bool = False
     token_retry: bool = False
     failure_backoff: bool = False
@@ -150,6 +155,11 @@ VARIANTS = {
     "current": Variant(
         "current", numeric_prompt=True, adaptive_voting=True, vote_k_max=5,
         vote_agree_threshold=3, max_tokens_override=4096,
+        max_calls_override=5, use_policy_prompt=True,
+    ),
+    "current_cod_numeric": Variant(
+        "current_cod_numeric", cod_numeric=True, adaptive_voting=True,
+        vote_k_max=5, vote_agree_threshold=3, max_tokens_override=4096,
         max_calls_override=5, use_policy_prompt=True,
     ),
     "hetero_k5": Variant(
@@ -202,6 +212,7 @@ def make_config(variant: Variant, temperature: float = 0.6) -> AgentConfig:
         enable_task_aware_prompt=True,
         enable_numeric_answer_only_prompt=not variant.numeric_prompt,
         enable_numeric_answer_first_prompt=variant.numeric_prompt,
+        enable_current_cod_numeric=variant.cod_numeric,
         enable_strict_numeric_salvage=variant.strict_salvage,
         enable_conditional_token_retry=variant.token_retry,
         conditional_retry_max_tokens=6144,
@@ -226,6 +237,8 @@ def budget_summary(variant: Variant, temperature: float = 0.6) -> dict:
         "retry_max_tokens": 6144 if variant.token_retry else (variant.max_tokens_override or 4096),
         "max_model_calls": variant.max_calls_override or (variant.vote_k_max if variant.adaptive_voting else 2),
         "numeric_prompt": variant.numeric_prompt,
+        "cod_numeric": variant.cod_numeric,
+        "cod_numeric_prompt_sha256": hashlib.sha256(COD_NUMERIC_PROMPT.encode("utf-8")).hexdigest(),
         "strict_salvage": variant.strict_salvage,
         "conditional_token_retry": variant.token_retry,
         "failure_retry_backoff": variant.failure_backoff,

@@ -1,0 +1,22 @@
+{
+  "experiment_id": "MATH-ENDPOINT-DIRECT-PROBE-001",
+  "started_at_utc": "2026-09-10T06:41:22.314047+00:00",
+  "method": "bare_InternChatClient_chat",
+  "cases": [
+    "plain_text",
+    "basic_math"
+  ],
+  "repetitions_per_case": 3,
+  "temperature": 0.0,
+  "max_tokens": 128,
+  "request_timeout_seconds": 90,
+  "retry_count": 1,
+  "thinking_mode": "official_default / client thinking_mode=None",
+  "temporary_answer_bank": "not imported",
+  "answers": "answers.jsonl",
+  "report": "report.json",
+  "result": "result.md",
+  "remote_model_calls": 6,
+  "capability_conclusion": "NONE",
+  "ended_at_utc": "2026-09-10T06:41:22.314047+00:00"
+}

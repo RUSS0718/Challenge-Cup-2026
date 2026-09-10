@@ -1,0 +1,15 @@
+{
+  "experiment_id": "MATH-TYPED-PARSER-CODE-001",
+  "phase": "typed_parser_code_acceptance",
+  "method_id": "typed_contract_adaptive_deep_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "status": "completed",
+  "remote_model_calls": 0,
+  "test_cases": 4,
+  "regression_tests": 231,
+  "py_compile": true,
+  "git_diff_check": true,
+  "temporary_answer_bank": "off",
+  "submission_config_changed": false,
+  "capability_conclusion": "NONE"
+}

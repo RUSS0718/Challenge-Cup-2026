@@ -47,7 +47,7 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertTrue(args.append_output)
     def test_declares_isolated_variants(self):
         self.assertEqual(
-            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "current", "hetero_k5", "legacy_4k_k5", "legacy_4k_k5_exit2", "legacy_4k_k5_length_pressure", "legacy_4k_k5_substitution", "legacy_4k_k5_answer_first", "baseline8k_k2", "single_8k_t0", "k3_8k"],
+            ["baseline86", "A", "B", "A+B", "A+B+6144", "failure_backoff", "answer_conflict_retry", "gated_retry", "gated_retry_8k", "temperature04", "temperature08", "adaptive_vote", "adaptive_vote08", "adaptive_vote_k5", "current", "current_cod_numeric", "hetero_k5", "legacy_4k_k5", "legacy_4k_k5_exit2", "legacy_4k_k5_length_pressure", "legacy_4k_k5_substitution", "legacy_4k_k5_answer_first", "baseline8k_k2", "single_8k_t0", "k3_8k"],
             list(VARIANTS),
         )
 
@@ -304,6 +304,15 @@ class ProtocolAbTest(unittest.TestCase):
         self.assertEqual(4096, config.max_tokens)
         self.assertIs(POLICY_PROMPT, config.policy_prompt)
         self.assertEqual(0.6, config.policy_temperature)
+
+    def test_current_cod_numeric_changes_only_numeric_prompt_flag(self):
+        baseline = make_config(VARIANTS["legacy_4k_k5"])
+        candidate = make_config(VARIANTS["current_cod_numeric"])
+        self.assertFalse(baseline.enable_current_cod_numeric)
+        self.assertTrue(candidate.enable_current_cod_numeric)
+        for field in ("max_tokens", "l0_max_tokens", "max_model_calls", "policy_temperature"):
+            self.assertEqual(getattr(baseline, field), getattr(candidate, field), field)
+        self.assertTrue(budget_summary(VARIANTS["current_cod_numeric"])["cod_numeric"])
 
     def test_hetero_k5_is_single_variable_over_current(self):
         base = make_config(VARIANTS["current"])

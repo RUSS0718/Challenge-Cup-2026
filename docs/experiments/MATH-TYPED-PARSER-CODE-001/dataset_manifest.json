@@ -1,0 +1,9 @@
+{
+  "experiment_id": "MATH-TYPED-PARSER-CODE-001",
+  "dataset_id": "typed_parser_shapes_and_smoke_negative_v1",
+  "positive_shape_cases": 6,
+  "negative_smoke_cases": 7,
+  "gold_passed_to_parser": false,
+  "remote_model_calls": 0,
+  "frozen_reason": "zero-model typed completeness and negative fixture acceptance"
+}
