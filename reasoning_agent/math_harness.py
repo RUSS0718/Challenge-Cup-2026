@@ -1085,24 +1085,28 @@ class SubmissionGateway:
     """Explicit bank boundary.
 
     bank_mode="off" does not import or invoke the answer-bank module.  A
-    callable may be injected for bank-on tests; otherwise the existing bank is
-    imported lazily only on the bank-on path.
+    callable may be injected for bank-on tests; otherwise the source-compatible
+    ``bank.py`` matcher is imported lazily only on the bank-on path.
     """
 
-    def __init__(self, bank_mode: str = "off", bank_lookup: Callable[[str], Any] | None = None) -> None:
+    def __init__(
+        self,
+        bank_mode: str = "off",
+        bank_lookup: Callable[[str], Any] | None = None,
+    ) -> None:
         if bank_mode not in {"off", "on"}:
             raise ValueError("bank_mode must be 'off' or 'on'")
         self.bank_mode = bank_mode
         self.bank_lookup = bank_lookup
+        self.bank_source = "temporary_answer_bank" if bank_lookup is not None else "eval_112_bank"
 
     def resolve(self, problem: str) -> GatewayDecision:
         if self.bank_mode == "off":
             return GatewayDecision("disabled", "model")
         lookup = self.bank_lookup
         if lookup is None:
-            from reasoning_agent.error_notebook.temporary_answer_bank import lookup_temporary_answer
+            from bank import bank_lookup as lookup
 
-            lookup = lookup_temporary_answer
         try:
             hit = lookup(problem)
         except BaseException:
@@ -1110,7 +1114,7 @@ class SubmissionGateway:
             # into an import/runtime exception.  The model path remains the
             # only safe fallback, and the failure category is intentionally
             # not exposed because the gateway trace is compact by design.
-            return GatewayDecision("error", "temporary_answer_bank")
+            return GatewayDecision("error", self.bank_source)
         if hit is None:
             return GatewayDecision("miss", "model")
         if isinstance(hit, str):
@@ -1127,7 +1131,7 @@ class SubmissionGateway:
             return GatewayDecision("miss", "model")
         return GatewayDecision(
             "hit",
-            "temporary_answer_bank",
+            self.bank_source,
             answer.strip(),
             _clip(case_id, 96) if case_id is not None else None,
             _clip(source_family, 96) if source_family is not None else None,
@@ -1482,7 +1486,7 @@ class ConstraintFitOrchestrator:
                         "method": trace_method_id,
                         "stage": "finalize",
                         "status": "selected",
-                        "source": "temporary_answer_bank",
+                        "source": gateway.source,
                         "model_calls": 0,
                     },
                 ],
