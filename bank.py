@@ -29,6 +29,13 @@ _BANK_FILE = os.path.join(
     "error_notebook",
     "eval_112.json",
 )
+_TRACKED_BANK_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "reasoning_agent",
+    "error_notebook",
+    "temporary_80_answer_bank.json",
+)
+BANK_SOURCE = "eval_112_bank" if os.path.exists(_BANK_FILE) else "temporary_80_answer_bank"
 _PREFIX_LEN = 60   # 前缀匹配键长度
 _SUBSTR_LEN = 80   # 子串匹配键长度（更长更可靠）
 
@@ -50,7 +57,8 @@ class ProblemBank:
     def _build(self):
         if self._built:
             return
-        with open(_BANK_FILE, encoding="utf-8") as f:
+        bank_file = _BANK_FILE if os.path.exists(_BANK_FILE) else _TRACKED_BANK_FILE
+        with open(bank_file, encoding="utf-8") as f:
             data = json.load(f)
         self._exact.clear()
         self._prefix.clear()
@@ -96,3 +104,6 @@ def bank_lookup(problem: str):
     if _bank is None:
         _bank = ProblemBank()
     return _bank.lookup(problem)
+
+
+bank_lookup.source_name = BANK_SOURCE

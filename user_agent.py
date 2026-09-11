@@ -387,6 +387,9 @@ class AgentConfig:
     # MATH-HARNESS-V1: outer constraint-fit route.  It is deliberately
     # default-off; local capability/health/A-B runs must set bank_mode=off.
     enable_constraint_fit_harness: bool = False
+    # BCOMP-001: local-only call lifecycle observation.  It is injected by
+    # tests/runners and remains off so the official solve path is unchanged.
+    enable_bounded_completion_observation: bool = False
     enable_constraint_fit_deep_lane: bool = False
     enable_constraint_fit_hybrid_router: bool = False
     harness_bank_mode: str = "off"
@@ -1221,7 +1224,7 @@ def run_answer_checks(
     return {"status": "pass", "mode": None, "detail": None}
 
 class ReasoningAgent:
-    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, constraint_fit_harness: Any | None = None, **_: Any) -> None:
+    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, constraint_fit_harness: Any | None = None, bounded_completion_observer: Any | None = None, **_: Any) -> None:
         self.client = client
         # Official platform path (config=None) uses the promoted submission
         # profile; explicitly passed configs (local experiments) win as-is.
@@ -1231,6 +1234,7 @@ class ReasoningAgent:
         self.sympy_adapter = sympy_adapter
         self.method_rag_retriever = method_rag_retriever
         self.constraint_fit_harness = constraint_fit_harness
+        self.bounded_completion_observer = bounded_completion_observer
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -1271,6 +1275,16 @@ class ReasoningAgent:
                     deep_critic_max_tokens=self.config.harness_deep_critic_max_tokens,
                     deep_max_model_calls=self.config.harness_deep_max_model_calls,
                 ),
+                call_observer=(
+                    self.bounded_completion_observer
+                    if self.config.enable_bounded_completion_observation
+                    else None
+                ),
+                observation_context={
+                    "run_id": str(metadata.get("run_id", "solve")),
+                    "item_id": str(metadata.get("item_id", metadata.get("idx", "unknown"))),
+                    "arm_id": str(metadata.get("arm_id", "harness")),
+                },
                 legacy_backend=(
                     FSDFLegacyBackendAdapter(self.client)
                     if self.config.enable_constraint_fit_hybrid_router

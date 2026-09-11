@@ -1,0 +1,131 @@
+{
+  "bcomp_version": "BCOMP-001",
+  "run_id": "BCOMP-001-ZERO-MODEL-001",
+  "method_id": "bounded_completion_foundations_v1",
+  "status": "completed",
+  "dry_run": true,
+  "zero_model_calls": true,
+  "capability_conclusion": "NONE",
+  "planned_requests": 3,
+  "dispatched_requests": 0,
+  "completed_requests": 0,
+  "skipped_requests": 3,
+  "timed_out_requests": 0,
+  "late_completions": 0,
+  "unrequested_not_model_errors": 3,
+  "resumed_completed": 3,
+  "max_active_workers_observed": 0,
+  "active_unresolved_calls": 0,
+  "requested_tokens": 0,
+  "planned_requested_tokens": 24576,
+  "planned_per_item_tokens": 8192,
+  "capacity_checks": {
+    "configuration_validated": true,
+    "planned_per_item_tokens": 8192,
+    "planned_token_upper_bound": 24576,
+    "per_item_token_budget_ok": true,
+    "per_item_time_budget_ok": true,
+    "window_item_capacity_estimate": 54,
+    "window_capacity_ok": true,
+    "stop_rules_frozen": true
+  },
+  "actual_completion_tokens": null,
+  "actual_token_records": 0,
+  "actual_token_coverage": null,
+  "finish_reason_counts": {},
+  "failure_category_counts": {},
+  "formation_status_counts": {},
+  "score_counts": {},
+  "full_cohort": {
+    "planned": 3,
+    "scored": 0,
+    "correct": 0,
+    "incorrect": 0,
+    "invalid": 0,
+    "unrequested": 3,
+    "accuracy_over_planned": 0.0,
+    "accuracy_over_scored": null
+  },
+  "first_three_formation_gate": {
+    "enabled": true,
+    "observed": 0,
+    "formed_count": 0,
+    "triggered": false
+  },
+  "average_latency_seconds": null,
+  "p95_latency_seconds": null,
+  "p95_includes_timeouts": false,
+  "timeout_censored_latency_count": 0,
+  "max_latency_seconds": null,
+  "elapsed_seconds": 0.0,
+  "stop_reason": "dry_run_no_dispatch",
+  "void": false,
+  "void_reasons": [],
+  "temporary_answer_bank": "off",
+  "actual_route": "constraint_fit_direct_probe",
+  "protocol": {
+    "parser_version": "host_parser_v1",
+    "scorer_version": "host_side_gold_v1",
+    "arm_order_policy": "fixed"
+  },
+  "deadline_capability_matrix": [
+    {
+      "name": "call_admission_deadline",
+      "execution_layer": "host scheduler",
+      "status": "supported",
+      "guarantee": "No new call is admitted unless its reserved wait and finalization allowance fit the remaining item and window budget.",
+      "verification": "FakeClock/BoundaryPolicy tests and runner manifest."
+    },
+    {
+      "name": "call_wait_deadline",
+      "execution_layer": "local bounded runner",
+      "status": "supported_local_only",
+      "guarantee": "A local worker is observed until the configured wait deadline; a blocked public client is not force-terminated by the inline solve seam.",
+      "verification": "Blocking-stub runner test; timeout remains recorded if the worker is still active."
+    },
+    {
+      "name": "local_work_unit_termination",
+      "execution_layer": "local runner",
+      "status": "unknown_after_block",
+      "guarantee": "A daemon worker can be bounded and accounted for, but an arbitrary synchronous client cannot be killed safely in-process.",
+      "verification": "Active-worker count, timeout event, and late completion event."
+    },
+    {
+      "name": "remote_cancellation",
+      "execution_layer": "official client/platform",
+      "status": "unsupported",
+      "guarantee": "The public chat contract exposes no cancellation handle; stopping local waiting does not claim remote cancellation.",
+      "verification": "No cancellation API is assumed; reports use remote_cancellation=unknown."
+    },
+    {
+      "name": "solve_return_deadline",
+      "execution_layer": "official runner/platform",
+      "status": "platform_owned",
+      "guarantee": "The host can refuse later work, but cannot force a synchronous injected client to return before it returns.",
+      "verification": "Platform runner timeout and local post-return timing only."
+    },
+    {
+      "name": "window_stop",
+      "execution_layer": "probe runner",
+      "status": "supported_for_dispatch",
+      "guarantee": "The runner stops dispatching new tasks at the window deadline or on an unresolved active call; pending tasks are marked skipped.",
+      "verification": "Planned/dispatched/skipped counts and stop_reason in report."
+    }
+  ],
+  "disposition": "CODE_ACCEPTED_ZERO_MODEL_NO_CAPABILITY_CONCLUSION",
+  "interface_checks": {
+    "public_client_signature": [
+      "self",
+      "messages",
+      "temperature",
+      "max_tokens"
+    ],
+    "public_client_contract_ok": true,
+    "reasoning_agent_constructed": true,
+    "solve_nonempty_final_response": true,
+    "solve_json_serializable": true,
+    "real_client_constructed": false,
+    "real_client_reason": "credentials and endpoint intentionally not used in zero-model acceptance"
+  },
+  "zero_model_acceptance": true
+}

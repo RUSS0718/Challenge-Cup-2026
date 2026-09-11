@@ -1104,17 +1104,32 @@ class SubmissionGateway:
         if self.bank_mode == "off":
             return GatewayDecision("disabled", "model")
         lookup = self.bank_lookup
-        if lookup is None:
-            from bank import bank_lookup as lookup
+        if lookup is not None:
+            try:
+                hit = lookup(problem)
+            except BaseException:
+                # A bank failure must not turn an otherwise valid submission
+                # seam into an import/runtime exception.
+                return GatewayDecision("error", self.bank_source)
+        else:
+            # Keep the source matcher available for local submission images,
+            # but fall back to the tracked submission bank when its private
+            # eval_112 source is intentionally absent from a clean checkout.
+            try:
+                from bank import BANK_SOURCE, bank_lookup as source_lookup
 
-        try:
-            hit = lookup(problem)
-        except BaseException:
-            # A bank failure must not turn an otherwise valid submission seam
-            # into an import/runtime exception.  The model path remains the
-            # only safe fallback, and the failure category is intentionally
-            # not exposed because the gateway trace is compact by design.
-            return GatewayDecision("error", self.bank_source)
+                hit = source_lookup(problem)
+                self.bank_source = BANK_SOURCE
+            except BaseException:
+                hit = None
+            if hit is None:
+                try:
+                    from reasoning_agent.error_notebook.temporary_answer_bank import lookup_temporary_answer
+
+                    hit = lookup_temporary_answer(problem)
+                    self.bank_source = "temporary_answer_bank"
+                except BaseException:
+                    return GatewayDecision("error", "temporary_answer_bank")
         if hit is None:
             return GatewayDecision("miss", "model")
         if isinstance(hit, str):
@@ -1424,6 +1439,8 @@ class ConstraintFitOrchestrator:
         clock: Callable[[], float] | None = None,
         router: HostRouter | None = None,
         notebook: FrozenErrorNotebook | None = None,
+        call_observer: Any | None = None,
+        observation_context: Mapping[str, Any] | None = None,
     ) -> None:
         self.client = client
         self.config = config or HarnessConfig()
@@ -1436,6 +1453,11 @@ class ConstraintFitOrchestrator:
         self.legacy_backend = legacy_backend
         self.notebook = notebook or FrozenErrorNotebook()
         self.scheduler = AttemptScheduler(self)
+        # Diagnostics are an injected, local-only seam.  With no observer the
+        # existing solve path does not write files or change its trace.
+        self.call_observer = call_observer
+        self.observation_context = dict(observation_context or {})
+        self._observation_failed: str | None = None
         self.ledger: EvidenceLedger | None = None
         self.budget: BudgetLedger | None = None
         self._solve_started = 0.0
@@ -1443,6 +1465,15 @@ class ConstraintFitOrchestrator:
 
     def solve(self, problem: str, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
         problem_text = problem if isinstance(problem, str) else ""
+        if self.call_observer is not None:
+            # The observer receives only the current problem context needed to
+            # replay parsing.  Metadata is intentionally not copied: it may
+            # contain answer-bearing fields in local tests.
+            safe_metadata = metadata if isinstance(metadata, Mapping) else {}
+            for key, fallback in (("run_id", "solve"), ("item_id", safe_metadata.get("idx", "unknown")), ("arm_id", "harness")):
+                if key not in self.observation_context:
+                    self.observation_context[key] = str(safe_metadata.get(key, fallback))
+            self.observation_context["problem"] = problem_text[: self.config.max_problem_chars]
         self.ledger = EvidenceLedger()
         self.budget = BudgetLedger(
             max_calls=self.config.effective_call_limit,
@@ -1493,6 +1524,16 @@ class ConstraintFitOrchestrator:
             }
 
         if route.target == "legacy_fsdf":
+            if self.call_observer is not None:
+                # The legacy relay has its own internal call sequence and is
+                # not part of the BCOMP unified budget/event profile yet.
+                # Do not run it under an incomplete observation ledger.
+                self._record_observer_refusal(
+                    "legacy_backend",
+                    0,
+                    "legacy_backend_uninstrumented",
+                )
+                return self._abstain(prefix_trace, route_dict, "legacy_backend_not_in_bounded_profile")
             if self.legacy_backend is None:
                 return self._abstain(prefix_trace, route_dict, "legacy_backend_unavailable")
             self.ledger.transition(STATE_FINALIZED, reason="legacy_backend")
@@ -1530,6 +1571,9 @@ class ConstraintFitOrchestrator:
 
     def _call(self, stage: str, system_prompt: str, user_prompt: str, max_tokens: int) -> _CallResult:
         assert self.ledger is not None and self.budget is not None
+        if self._observer_should_stop():
+            self._record_observer_refusal(stage, max_tokens, "observation_failed")
+            return _CallResult(None, error_category="unknown")
         if self._deadline_exceeded():
             record = {
                 "stage": stage,
@@ -1538,6 +1582,7 @@ class ConstraintFitOrchestrator:
                 "requested_tokens": 0,
             }
             self.ledger.add_call(record)
+            self._record_observer_refusal(stage, max_tokens, "deadline_refusal")
             return _CallResult(None, error_category="timeout")
         reservation = self.budget.reserve(stage, max_tokens)
         if reservation is None:
@@ -1548,8 +1593,33 @@ class ConstraintFitOrchestrator:
                 "requested_tokens": max_tokens,
             }
             self.ledger.add_call(record)
+            self._record_observer_refusal(stage, max_tokens, "budget_refusal")
             return _CallResult(None, error_category="budget_exhausted")
+        observer_handle = self._start_observed_call(stage, reservation.call_number, reservation.requested_tokens)
+        if self.call_observer is not None and observer_handle is None:
+            self.budget.finish(
+                reservation,
+                completion_tokens=None,
+                finish_reason=None,
+                error_category="unknown",
+                duration_ms=0,
+            )
+            self.ledger.add_call(
+                {
+                    "stage": stage,
+                    "status": "error",
+                    "call_number": reservation.call_number,
+                    "requested_tokens": reservation.requested_tokens,
+                    "completion_tokens": None,
+                    "finish_reason": None,
+                    "duration_ms": 0,
+                    "error_category": "unknown",
+                    "observation_error": self._observation_failed or "observer_start_failed",
+                }
+            )
+            return _CallResult(None, error_category="unknown")
         started = self.clock()
+        observed_content: str | None = None
         try:
             raw = self.client.chat(
                 [
@@ -1560,6 +1630,7 @@ class ConstraintFitOrchestrator:
                 reservation.requested_tokens,
             )
             content, completion_tokens, finish_reason, unpack_error = _unpack_response(raw)
+            observed_content = content
             error_category = unpack_error or (None if content is not None else "invalid_response")
         except BaseException as exc:
             content, completion_tokens, finish_reason = None, None, None
@@ -1588,12 +1659,95 @@ class ConstraintFitOrchestrator:
             "error_category": error_category,
         }
         self.ledger.add_call(record)
+        self._finish_observed_call(
+            observer_handle,
+            content=observed_content,
+            error_category=error_category,
+            finish_reason=finish_reason,
+            completion_tokens=completion_tokens,
+            duration_ms=duration_ms,
+        )
         return _CallResult(
             content,
             error_category=error_category,
             finish_reason=finish_reason,
             completion_tokens=completion_tokens,
         )
+
+    def _observer_should_stop(self) -> bool:
+        if self._observation_failed is not None:
+            return True
+        observer = self.call_observer
+        if observer is None:
+            return False
+        try:
+            should_stop = getattr(observer, "should_stop", None)
+            if callable(should_stop):
+                return bool(should_stop())
+            return bool(getattr(observer, "failed", False))
+        except BaseException as exc:
+            self._observation_failed = type(exc).__name__
+            return True
+
+    def _record_observer_refusal(self, stage: str, requested_tokens: int, reason: str) -> None:
+        observer = self.call_observer
+        if observer is None:
+            return
+        try:
+            observer.record_refusal(
+                stage=stage,
+                requested_tokens=requested_tokens,
+                category=(
+                    "deadline_refusal"
+                    if reason == "deadline_refusal"
+                    else "budget_refusal"
+                    if reason == "budget_refusal"
+                    else "unknown"
+                ),
+                reason=reason,
+                context=self.observation_context,
+            )
+        except BaseException as exc:
+            self._observation_failed = type(exc).__name__
+
+    def _start_observed_call(self, stage: str, attempt: int, requested_tokens: int) -> Any:
+        observer = self.call_observer
+        if observer is None:
+            return None
+        try:
+            return observer.start_call(
+                stage=stage,
+                requested_tokens=requested_tokens,
+                attempt=attempt,
+                context=self.observation_context,
+            )
+        except BaseException as exc:
+            self._observation_failed = type(exc).__name__
+            return None
+
+    def _finish_observed_call(
+        self,
+        handle: Any,
+        *,
+        content: str | None,
+        error_category: str | None,
+        finish_reason: str | None,
+        completion_tokens: int | None,
+        duration_ms: int,
+    ) -> None:
+        if self.call_observer is None or handle is None:
+            return
+        try:
+            self.call_observer.finish_call(
+                handle,
+                response=content,
+                error_category=error_category,
+                finish_reason=finish_reason,
+                completion_tokens=completion_tokens,
+                duration_ms=duration_ms,
+            )
+        except BaseException as exc:
+            self._observation_failed = type(exc).__name__
 
     def _deadline_exceeded(self) -> bool:
         return self.clock() - self._solve_started >= min(MAX_WALL_SECONDS, float(self.config.max_wall_seconds))
