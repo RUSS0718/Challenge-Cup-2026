@@ -167,6 +167,12 @@ def _error_category(exc: BaseException) -> str:
     return "model_error"
 
 
+def _prompt_problem(problem: str, reference_context: str) -> str:
+    if not reference_context or reference_context in problem:
+        return problem
+    return f"{problem}\n\n{reference_context}"
+
+
 # ── Independent Skill metadata loader ─────────────────────────────────────
 
 
@@ -872,9 +878,12 @@ class ForkEvidenceSynthesizeFinishRelay:
         self.memory_factory = memory_factory or SolveMemory
         self.host_context = host_context
         self.claim_executor = claim_executor
+        self._reference_context = ""
 
-    def solve(self, problem: str, problem_type: str) -> RelayResult:
+    def solve(self, problem: str, problem_type: str, *, reference_context: str = "") -> RelayResult:
         problem_text = problem if isinstance(problem, str) else str(problem)
+        self._reference_context = reference_context
+        prompt_problem = _prompt_problem(problem_text, reference_context)
         memory = self.memory_factory()
         memory.answer_type = problem_type
         memory.remaining_calls = 5
@@ -898,11 +907,11 @@ class ForkEvidenceSynthesizeFinishRelay:
             )
         started = self.clock()
         if problem_type == "calculation" and match_simple_arithmetic_expression(problem_text) is not None:
-            response = self._call(memory, trace, "l0", "直接计算并只输出 FINAL: <答案>。", problem_text, 0.6, L0_TOKEN_SEQUENCE[0], started)
+            response = self._call(memory, trace, "l0", "直接计算并只输出 FINAL: <答案>。", prompt_problem, 0.6, L0_TOKEN_SEQUENCE[0], started)
             final = self._extract_final(response)
             return self._result(memory, trace, final, "l0_final" if final != "UNKNOWN" else "unknown")
 
-        analysis_user = f"原题：\n{problem_text}\n\n{self.registry.catalog_text()}"
+        analysis_user = f"原题：\n{prompt_problem}\n\n{self.registry.catalog_text()}"
         if self.host_context is not None:
             analysis_user += "\n\n" + self.host_context.prompt_hints()
         response_a = self._call(memory, trace, "analyze", ANALYZE_PROMPT,
@@ -935,7 +944,7 @@ class ForkEvidenceSynthesizeFinishRelay:
         )
 
         response_b = self._call(memory, trace, "fork_b", FREE_BRANCH_PROMPT,
-                                self._branch_user(problem_text, memory, "B", self.host_context), 0.6, 2048, started)
+                                self._branch_user(problem_text, memory, "B", self.host_context, reference_context), 0.6, 2048, started)
         packet_b = _parse_branch_packet(response_b or "", "B")
         for claim_id, content in packet_b.claims:
             memory.add_claim(claim_id, content, "B")
@@ -945,7 +954,7 @@ class ForkEvidenceSynthesizeFinishRelay:
             memory.open_obligations.append(_clip(f"B: {packet_b.open_text}", 500))
 
         skill_context = skill_body if skill_body else "NONE（没有加载 Skill 正文；按互补自由求解）"
-        c_user = self._branch_user(problem_text, memory, "C", self.host_context) + (
+        c_user = self._branch_user(problem_text, memory, "C", self.host_context, reference_context) + (
             f"\n\n宿主加载的 Skill：{skill_name or 'NONE'}\n"
             f"Skill 正文（仅此一份）：\n{skill_context}"
         )
@@ -1039,7 +1048,7 @@ class ForkEvidenceSynthesizeFinishRelay:
                 )
 
         d_context = memory.render_for_d(MAX_PACKET_CHARS)
-        d_user = f"原题：\n{problem_text}\n\n结构化状态：\n{d_context}"
+        d_user = f"原题：\n{prompt_problem}\n\n结构化状态：\n{d_context}"
         if self.host_context is not None:
             d_user += "\n\n" + self.host_context.prompt_hints()
         response_d = self._call(memory, trace, "synthesize", EVIDENCE_SYNTHESIS_PROMPT,
@@ -1078,7 +1087,7 @@ class ForkEvidenceSynthesizeFinishRelay:
         e_context = memory.render_for_e(MAX_PACKET_CHARS)
         if not d_protocol_ok:
             e_context = "D_PROTOCOL: INVALID; final response will be rejected.\n" + e_context
-        e_user = f"原题：\n{problem_text}\n\nD/E 证据状态：\n{e_context}"
+        e_user = f"原题：\n{prompt_problem}\n\nD/E 证据状态：\n{e_context}"
         if self.host_context is not None:
             e_user += "\n\n" + self.host_context.prompt_hints()
         response_e = self._call(memory, trace, "finish", FINISH_PROMPT,
@@ -1094,12 +1103,13 @@ class ForkEvidenceSynthesizeFinishRelay:
         memory: SolveMemory,
         branch: str,
         host_context: HostLoopContext | None = None,
+        reference_context: str = "",
     ) -> str:
         analysis = (
             f"GOAL: {memory.goal}\nANSWER_TYPE: {memory.answer_type}\n"
             f"CONSTRAINTS: {' | '.join(memory.constraints[:6])}"
         )
-        text = f"原题：\n{problem}\n\nA 分析摘要：\n{_clip(analysis, 1_500)}\n\n当前分支：{branch}"
+        text = f"原题：\n{_prompt_problem(problem, reference_context)}\n\nA 分析摘要：\n{_clip(analysis, 1_500)}\n\n当前分支：{branch}"
         if host_context is not None:
             text += "\n\n" + host_context.prompt_hints()
         return text
@@ -1201,6 +1211,7 @@ class ForkEvidenceSynthesizeFinishRelay:
         max_tokens: int,
         started: float,
     ) -> str | None:
+        user_prompt = _prompt_problem(user_prompt, self._reference_context)
         if memory.remaining_calls <= 0:
             self._event(trace, memory, stage, "skipped", error_category="call_budget")
             return None

@@ -33,6 +33,12 @@ MAX_RESPONSE_CHARS = 24_000
 MAX_CANDIDATE_CHARS = 256
 MAX_REASON_CHARS = 240
 
+
+def _prompt_problem(problem: str, reference_context: str) -> str:
+    if not reference_context or reference_context in problem:
+        return problem
+    return f"{problem}\n\n{reference_context}"
+
 STATE_START = "start"
 STATE_ATTEMPT_A = "attempt_a"
 STATE_CANDIDATE_A = "candidate_a"
@@ -1112,24 +1118,13 @@ class SubmissionGateway:
                 # seam into an import/runtime exception.
                 return GatewayDecision("error", self.bank_source)
         else:
-            # Keep the source matcher available for local submission images,
-            # but fall back to the tracked submission bank when its private
-            # eval_112 source is intentionally absent from a clean checkout.
             try:
                 from bank import BANK_SOURCE, bank_lookup as source_lookup
 
                 hit = source_lookup(problem)
                 self.bank_source = BANK_SOURCE
             except BaseException:
-                hit = None
-            if hit is None:
-                try:
-                    from reasoning_agent.error_notebook.temporary_answer_bank import lookup_temporary_answer
-
-                    hit = lookup_temporary_answer(problem)
-                    self.bank_source = "temporary_answer_bank"
-                except BaseException:
-                    return GatewayDecision("error", "temporary_answer_bank")
+                return GatewayDecision("error", self.bank_source)
         if hit is None:
             return GatewayDecision("miss", "model")
         if isinstance(hit, str):
@@ -1299,7 +1294,13 @@ class FSDFLegacyBackendAdapter:
         self.client = client
         self.backend_factory = backend_factory
 
-    def solve(self, problem: str, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    def solve(
+        self,
+        problem: str,
+        metadata: Mapping[str, Any] | None = None,
+        *,
+        reference_context: str = "",
+    ) -> dict[str, Any]:
         del metadata
         try:
             if self.backend_factory is None:
@@ -1307,7 +1308,11 @@ class FSDFLegacyBackendAdapter:
                 from user_agent import classify_problem_type
 
                 backend = ForkSelectDeepenFinishRelay(self.client)
-                result = backend.solve(problem, classify_problem_type(problem)).as_dict()
+                result = backend.solve(
+                    problem,
+                    classify_problem_type(problem),
+                    reference_context=reference_context,
+                ).as_dict()
             else:
                 backend = self.backend_factory(self.client)
                 result = backend.solve(problem)
@@ -1462,9 +1467,17 @@ class ConstraintFitOrchestrator:
         self.budget: BudgetLedger | None = None
         self._solve_started = 0.0
         self._next_candidate_number = 1
+        self._reference_context = ""
 
-    def solve(self, problem: str, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    def solve(
+        self,
+        problem: str,
+        metadata: Mapping[str, Any] | None = None,
+        *,
+        reference_context: str = "",
+    ) -> dict[str, Any]:
         problem_text = problem if isinstance(problem, str) else ""
+        self._reference_context = reference_context
         if self.call_observer is not None:
             # The observer receives only the current problem context needed to
             # replay parsing.  Metadata is intentionally not copied: it may
@@ -1537,7 +1550,14 @@ class ConstraintFitOrchestrator:
             if self.legacy_backend is None:
                 return self._abstain(prefix_trace, route_dict, "legacy_backend_unavailable")
             self.ledger.transition(STATE_FINALIZED, reason="legacy_backend")
-            result = self.legacy_backend.solve(problem_text, metadata or {})
+            if reference_context:
+                result = self.legacy_backend.solve(
+                    problem_text,
+                    metadata or {},
+                    reference_context=reference_context,
+                )
+            else:
+                result = self.legacy_backend.solve(problem_text, metadata or {})
             if not isinstance(result, Mapping):
                 result = {}
             final = result.get("final_response", "UNKNOWN")
@@ -1563,14 +1583,25 @@ class ConstraintFitOrchestrator:
         if route.target != "harness":
             return self._abstain(prefix_trace, route_dict, "unsupported_route")
         if route.lane == "deep":
-            return self._solve_deep(problem_text[: self.config.max_problem_chars], route, prefix_trace)
+            return self._solve_deep(
+                problem_text[: self.config.max_problem_chars],
+                route,
+                prefix_trace,
+                reference_context,
+            )
         if route.lane != "direct":
             return self._abstain(prefix_trace, route_dict, "unsupported_lane")
 
-        return self._solve_harness(problem_text[: self.config.max_problem_chars], route, prefix_trace)
+        return self._solve_harness(
+            problem_text[: self.config.max_problem_chars],
+            route,
+            prefix_trace,
+            reference_context,
+        )
 
     def _call(self, stage: str, system_prompt: str, user_prompt: str, max_tokens: int) -> _CallResult:
         assert self.ledger is not None and self.budget is not None
+        user_prompt = _prompt_problem(user_prompt, self._reference_context)
         if self._observer_should_stop():
             self._record_observer_refusal(stage, max_tokens, "observation_failed")
             return _CallResult(None, error_category="unknown")
@@ -1783,17 +1814,24 @@ class ConstraintFitOrchestrator:
         self.ledger.add_candidates(candidates)
         self.ledger.add_typed_parse(state, parsed, candidates)
 
-    def _solve_deep(self, problem: str, route: RouteDecision, prefix_trace: list[dict[str, Any]]) -> dict[str, Any]:
+    def _solve_deep(
+        self,
+        problem: str,
+        route: RouteDecision,
+        prefix_trace: list[dict[str, Any]],
+        reference_context: str = "",
+    ) -> dict[str, Any]:
         assert self.ledger is not None and self.budget is not None
         parser = TypedParser()
         contract = route.contract
         all_candidates: list[Candidate] = []
+        prompt_problem = _prompt_problem(problem, reference_context)
 
         self.ledger.transition(STATE_DEEP_PRIMARY)
         primary = self.scheduler.call(
             "deep_primary",
             DEEP_PRIMARY_PROMPT,
-            f"题目：\n{problem}\n\n答案形状：{contract.answer_shape}\n请完整作答。",
+            f"题目：\n{prompt_problem}\n\n答案形状：{contract.answer_shape}\n请完整作答。",
             self.config.tokens_for("deep_primary"),
         )
         parsed_primary = parser.parse(primary.content, contract, finish_reason=primary.finish_reason)
@@ -1813,14 +1851,14 @@ class ConstraintFitOrchestrator:
             second = self.scheduler.call(
                 second_stage,
                 DEEP_CONTINUATION_PROMPT,
-                f"题目：\n{problem}\n\n已有候选：{_clip(primary_candidates[0].value, MAX_CANDIDATE_CHARS)}\n请完成核对。",
+                f"题目：\n{prompt_problem}\n\n已有候选：{_clip(primary_candidates[0].value, MAX_CANDIDATE_CHARS)}\n请完成核对。",
                 self.config.tokens_for("deep_continuation"),
             )
         else:
             second = self.scheduler.call(
                 second_stage,
                 DEEP_REVIEW_PROMPT,
-                f"题目：\n{problem}\n\n答案形状：{contract.answer_shape}\n请从头独立复核。",
+                f"题目：\n{prompt_problem}\n\n答案形状：{contract.answer_shape}\n请从头独立复核。",
                 self.config.tokens_for("deep_review"),
             )
         parsed_second = parser.parse(second.content, contract, finish_reason=second.finish_reason)
@@ -1879,7 +1917,7 @@ class ConstraintFitOrchestrator:
             critic = self.scheduler.call(
                 "deep_critic",
                 CRITIC_PROMPT,
-                self._critic_prompt(problem, complete_candidates),
+                self._critic_prompt(prompt_problem, complete_candidates),
                 self.config.tokens_for("deep_critic"),
             )
             decision, target, reason = self._parse_critic(critic.content, complete_candidates)
@@ -1893,14 +1931,21 @@ class ConstraintFitOrchestrator:
         # A single deep candidate is never promoted by candidate_unproven.
         return self._abstain(prefix_trace, route.as_dict(), "deep_typed_evidence_incomplete")
 
-    def _solve_harness(self, problem: str, route: RouteDecision, prefix_trace: list[dict[str, Any]]) -> dict[str, Any]:
+    def _solve_harness(
+        self,
+        problem: str,
+        route: RouteDecision,
+        prefix_trace: list[dict[str, Any]],
+        reference_context: str = "",
+    ) -> dict[str, Any]:
         assert self.ledger is not None and self.budget is not None
         all_candidates: list[Candidate] = []
+        prompt_problem = _prompt_problem(problem, reference_context)
         self.ledger.transition(STATE_ATTEMPT_A)
         first = self.scheduler.call(
             "attempt_a",
             ATTEMPT_A_PROMPT,
-            f"题目：\n{problem}\n\n请独立完成求解并给出唯一结论。",
+            f"题目：\n{prompt_problem}\n\n请独立完成求解并给出唯一结论。",
             self.config.tokens_for("attempt_a"),
         )
         parsed_a = HostParser().parse(
@@ -1928,7 +1973,7 @@ class ConstraintFitOrchestrator:
             continuation = self.scheduler.call(
                 "continuation",
                 CONTINUATION_PROMPT,
-                f"题目：\n{problem}\n\n已有候选：{candidates_a[0].value}\n请完成一次最短核对。",
+                f"题目：\n{prompt_problem}\n\n已有候选：{candidates_a[0].value}\n请完成一次最短核对。",
                 self.config.tokens_for("continuation"),
             )
             parsed_cont = HostParser().parse(
@@ -1961,7 +2006,7 @@ class ConstraintFitOrchestrator:
         second = self.scheduler.call(
             "attempt_b",
             ATTEMPT_B_PROMPT,
-            f"题目：\n{problem}\n\n请从头独立复核并给出唯一结论。",
+            f"题目：\n{prompt_problem}\n\n请从头独立复核并给出唯一结论。",
             self.config.tokens_for("attempt_b"),
         )
         parsed_b = HostParser().parse(
@@ -2005,7 +2050,7 @@ class ConstraintFitOrchestrator:
         critic = self.scheduler.call(
             "critic",
             CRITIC_PROMPT,
-            self._critic_prompt(problem, unique),
+            self._critic_prompt(prompt_problem, unique),
             self.config.tokens_for("critic"),
         )
         critic_decision, critic_target, critic_reason = self._parse_critic(critic.content, unique)
@@ -2022,7 +2067,7 @@ class ConstraintFitOrchestrator:
             repair = self.scheduler.call(
                 "repair",
                 REPAIR_PROMPT,
-                self._repair_prompt(problem, critic_target, critic_reason),
+                self._repair_prompt(prompt_problem, critic_target, critic_reason),
                 self.config.tokens_for("repair"),
             )
             parsed_repair = HostParser().parse(
