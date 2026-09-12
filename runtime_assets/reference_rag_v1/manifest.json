@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "model": "Qwen/Qwen3-Embedding-0.6B",
+  "collection": "math_rag_v1",
+  "corpus_count": 15383,
+  "assembled_files": {
+    "model/model.safetensors": {
+      "size": 1191586416,
+      "sha256": "0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd",
+      "parts": 18,
+      "chunk_size": 67108864
+    },
+    "chroma/chroma.sqlite3": {
+      "size": 235622400,
+      "sha256": "1fc8d9dca0b78c039b0fff7afcfc05fe097366e1b0d5c27d2844d7cac34216e1",
+      "parts": 4,
+      "chunk_size": 67108864
+    }
+  },
+  "bundle_sha256": "d2558bed2a1f3e4e4f1ad4f6e198b15dc0997052a262714ebb008902d9c2ba9d"
+}
