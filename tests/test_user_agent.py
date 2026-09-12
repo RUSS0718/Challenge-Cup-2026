@@ -1154,8 +1154,8 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_harness)
         self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_deep_lane)
         self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_hybrid_router)
-        self.assertTrue(SUBMISSION_CONFIG.enable_temporary_answer_bank)
-        self.assertEqual("on", SUBMISSION_CONFIG.harness_bank_mode)
+        self.assertFalse(SUBMISSION_CONFIG.enable_temporary_answer_bank)
+        self.assertEqual("off", SUBMISSION_CONFIG.harness_bank_mode)
         self.assertFalse(SUBMISSION_CONFIG.enable_fesf_v1)
         self.assertFalse(SUBMISSION_CONFIG.enable_fesf_exact_eval)
 

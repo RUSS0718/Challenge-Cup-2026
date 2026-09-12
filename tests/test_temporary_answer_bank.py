@@ -14,11 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 BANK_PATH = ROOT / "reasoning_agent" / "error_notebook" / "temporary_50_answer_bank.json"
 
 
-class FailClient:
-    def chat(self, messages, temperature, max_tokens):
-        raise AssertionError("an exact bank hit must not call the model")
-
-
 class ScriptedClient:
     def __init__(self):
         self.calls = 0
@@ -38,17 +33,17 @@ class TemporaryAnswerBankTest(unittest.TestCase):
         self.assertEqual(set(range(112)), {row["idx"] for row in rows})
         self.assertTrue(all(set(row) == {"idx", "problem", "answer"} for row in rows))
 
-    def test_exact_hit_returns_answer_without_model_call(self):
+    def test_reasoning_agent_no_longer_uses_top_level_bank(self):
         selected = json.loads(BANK_PATH.read_text(encoding="utf-8"))[0]
         hit = lookup_temporary_answer(" \n" + selected["problem"] + "\n")
         self.assertIsNotNone(hit)
         self.assertEqual(selected["answer"], hit.answer)
 
         result = ReasoningAgent(
-            FailClient(), AgentConfig(enable_temporary_answer_bank=True)
+            ScriptedClient(), AgentConfig(enable_temporary_answer_bank=True)
         ).solve(selected["problem"], {})
-        self.assertEqual(selected["answer"], result["final_response"])
-        self.assertEqual("exact_hit", result["trace"][0]["status"])
+        self.assertEqual("7", result["final_response"])
+        self.assertEqual(1, result["trace"][-1]["model_calls"])
 
     def test_normalization_matches_reference_bank(self):
         self.assertEqual("abc数学", normalize_lookup_problem(" A B\nC 数 学 "))
@@ -74,8 +69,8 @@ class TemporaryAnswerBankTest(unittest.TestCase):
         self.assertEqual("7", result["final_response"])
         self.assertEqual(1, client.calls)
 
-    def test_submission_profile_enables_first_gate(self):
-        self.assertTrue(SUBMISSION_CONFIG.enable_temporary_answer_bank)
+    def test_submission_profile_disables_first_gate(self):
+        self.assertFalse(SUBMISSION_CONFIG.enable_temporary_answer_bank)
 
 
 if __name__ == "__main__":
