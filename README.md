@@ -1,13 +1,13 @@
 # Challenge Cup 2026 数学推理智能体
 
 本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现:一个受调用预算约束的数学
-推理智能体。当前默认流水线为分层题面匹配（命中则直接返回）→ 题型识别 →
+推理智能体。当前默认流水线为语义参考 RAG → 题型/学科分类 → 学科 Skill →
 FSDF（Analyze–Fork–Select/Deepen–Finish）→ 规范化输出，同时保持赛事规定的
 单文件入口与公开 client 契约。
 
-> 当前状态（2026-09-08）：默认提交路径为 `fork_select_deepen_finish_v1`，并在
-> FSDF 之前启用已提交的分层题面匹配。FSDF v1 仍无新的数学能力结论；CAR、FESF、
-> Claim DSL、Host Loop、RAG、工具、MCP 和其他实验路径保持关闭。
+> 当前状态（2026-09-12）：默认提交路径先执行 `reference-example RAG`，再做题型/学科分类，
+> 注入经过安全投影的 18 学科 Skill，最后进入 Constraint-Fit/FSDF。旧 `method_rag`、
+> 答案 bank、CAR、FESF、Claim DSL、Host Loop、工具和 MCP 仍不属于默认路径。
 
 ## 当前 Agent 架构
 
@@ -16,9 +16,10 @@ FSDF（Analyze–Fork–Select/Deepen–Finish）→ 规范化输出，同时保
 
 ```mermaid
 flowchart TD
-    entry["ReasoningAgent.solve(problem, metadata)"] --> bank["分层题面匹配(命中则直接返回)"]
-    bank --> classify["P0 题型识别(纯文本,六类)"]
-    classify --> analyze["A Analyze"]
+    entry["ReasoningAgent.solve(problem, metadata)"] --> rag["语义参考 RAG"]
+    rag --> classify["P0 分类<br/>答案形态 + 学科 + 风险"]
+    classify --> skill["18 学科 Skill<br/>安全运行时投影"]
+    skill --> analyze["A Analyze"]
     analyze --> fork["B/C Fork"]
     fork --> deepen["D Select/Deepen"]
     deepen --> finish["E Finish"]
@@ -28,8 +29,9 @@ flowchart TD
 
 | 层 | 在役实现 | 备注 |
 | --- | --- | --- |
-| 题面匹配 | NFC/去空白/大小写归一化；全文、唯一前缀、唯一子串三层匹配 | 常开；未命中继续求解 |
-| 题型识别 | 纯文本规则六分类,不读 metadata | 常开 |
+| 语义参考 RAG | Qwen3-Embedding-0.6B + Chroma 15,383 条 | 默认先检索；只注入有界参考，不直接替换答案 |
+| 题型/学科分类 | 纯文本规则六类答案形态 + 18 学科词汇路由 | 常开；不读 metadata |
+| 学科 Skill | Intern1 18 份手册的安全投影，按题面选择模块 | 默认注入；过滤具体题答案段 |
 | 生成 | A 分析、B/C 双思路、D 深推、E 收尾 | 难题固定五阶段 |
 | 选择 | D 只能选择一个可用分支 | 非法/不可用选择 fail-closed 降级 |
 | 预算 | 每题最多5次模型调用 | `[2048,2048,2048,8192,4096]`，合计18432 |
@@ -42,8 +44,7 @@ flowchart TD
 外层 opt-in 路径接入；候选实现为
 `bounded_evidence_trajectory_selection_v1`。它使用有限 A/B 轨迹、Evidence Ledger、
 保守选择、截断单次恢复和 5 次/16384 token 硬预算。FSDF 仍保留为 legacy backend；
-提交 profile 开启 Harness、Deep lane、hybrid router 与 matcher；能力/健康/A-B 路径仍强制
-bank-off。
+提交 profile 开启 Harness、Deep lane、hybrid router、RAG 和 Skill；答案 bank 从正式路径移除。
 
 该候选已完成双轴 Router、typed parser 和 Deep 状态机的零模型代码验收；随后按新 spec
 执行 fresh 6 题 formation probe，但首 3 题均在固定 1200 秒 `deep_primary` 边界超时，
@@ -110,16 +111,18 @@ flowchart LR
 
 ## 提交配置与实验开关板
 
-官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到
-`SUBMISSION_CONFIG`：先尝试分层题面匹配，未命中后进入 `fork_select_deepen_finish_v1`，
-最多5次调用、合计18432 token。题型识别、task-aware prompt、异构候选、k5 自适应投票
-和答案优先提示保持在役；CAR、FESF、RAG、工具、MCP、contextual、refine、salvage
-和 SymPy 保持关闭。
+官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到当前分支的
+`SUBMISSION_CONFIG`：先执行 reference-example RAG，再做题型/学科分类和 Skill 投影；随后由 Constraint-Fit Router 分流，
+direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fallback。
+当前这是分支上的显式 canary 配置；Deep formation 与 Direct Health 均未过健康门，
+尚未形成能力 A/B 证据，main 发布面不随此分支自动改变。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
-| `enable_fork_select_deepen_finish` | ✅ | 当前默认路径，仅完成代码验收 |
-| `enable_temporary_answer_bank` | ✅ | 团队自建 `eval_112` 题面匹配；未命中继续 FSDF；不是官方题集 |
+| `enable_fork_select_deepen_finish` | ✅ | Constraint-Fit 的 FSDF legacy fallback |
+| `enable_reference_rag` | ✅ | intern1 语义相似题参考；检索失败降级为空参考 |
+| `enable_reference_skills` | ✅ | Intern1 18 学科手册的安全运行时投影 |
+| `enable_temporary_answer_bank` | ⬜ | 默认路径已移除；底层旧 gateway 仅保留显式测试兼容 |
 | `enable_contextual_answer_reconstruction` | ⬜ | 历史实验路径 |
 | `enable_adaptive_voting`(k5/threshold3) | ✅ | FSDF v1 候选一致性投票 |
 | `enable_heterogeneous_reasoners` | ✅ | 新路径候选生成 |
