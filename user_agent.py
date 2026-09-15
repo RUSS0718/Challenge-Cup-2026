@@ -509,7 +509,7 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_step_revision=False,
     enable_method_rag=False,
     enable_reference_rag=False,
-    enable_reference_skills=True,
+    enable_reference_skills=False,
     enable_deterministic_solver=False,
     enable_numeric_answer_first_prompt=True,
     enable_numeric_answer_only_prompt=False,
@@ -523,7 +523,7 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_sympy_evidence=False,
     enable_temporary_answer_bank=False,
     # Explicitly authorized submission profile: the outer Harness and its
-    # Deep lane is enabled, with Skill context preceding it.
+    # Deep lane is enabled without RAG/Skill context in the submission profile.
     enable_constraint_fit_harness=True,
     enable_constraint_fit_deep_lane=True,
     enable_constraint_fit_hybrid_router=True,
