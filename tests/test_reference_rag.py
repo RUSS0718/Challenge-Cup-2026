@@ -16,8 +16,8 @@ class FakeDatabase:
 
 
 class ReferenceRagTest(unittest.TestCase):
-    def test_submission_profile_enables_reference_rag(self):
-        self.assertTrue(SUBMISSION_CONFIG.enable_reference_rag)
+    def test_submission_profile_disables_reference_rag(self):
+        self.assertFalse(SUBMISSION_CONFIG.enable_reference_rag)
         self.assertTrue(SUBMISSION_CONFIG.enable_reference_skills)
         self.assertFalse(SUBMISSION_CONFIG.enable_temporary_answer_bank)
 

@@ -322,7 +322,7 @@ class AgentConfig:
     method_rag_top_k: int = 2
     method_rag_max_context_chars: int = 4000
     # Intern1 reference-example RAG. It is separate from the rejected
-    # method-card experiment; the submission profile enables it.
+    # method-card experiment; the submission profile keeps it disabled.
     enable_reference_rag: bool = False
     reference_rag_top_k: int = 2
     reference_rag_max_context_chars: int = 4000
@@ -508,7 +508,7 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_step_verification=False,
     enable_step_revision=False,
     enable_method_rag=False,
-    enable_reference_rag=True,
+    enable_reference_rag=False,
     enable_reference_skills=True,
     enable_deterministic_solver=False,
     enable_numeric_answer_first_prompt=True,
@@ -523,7 +523,7 @@ SUBMISSION_CONFIG = AgentConfig(
     enable_sympy_evidence=False,
     enable_temporary_answer_bank=False,
     # Explicitly authorized submission profile: the outer Harness and its
-    # Deep lane are enabled, with RAG/Skill context preceding it.
+    # Deep lane is enabled, with Skill context preceding it.
     enable_constraint_fit_harness=True,
     enable_constraint_fit_deep_lane=True,
     enable_constraint_fit_hybrid_router=True,
