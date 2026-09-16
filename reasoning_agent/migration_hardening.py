@@ -89,8 +89,9 @@ LOW_ENTROPY_PURPOSES = PREFILL_PURPOSES
 
 
 _SENSITIVE_TEXT = re.compile(
-    r"(?:raw[\s_-]*(?:prompt|response)|\bprompt\b|\bresponse\b|"
-    r"credential|api[\s_-]*key|access[\s_-]*token|password|\bsecret\b|\bgold\b)",
+    r"(?:raw[\s_-]*(?:prompt|response)|"
+    r"(?<![A-Za-z])(?:prompt|response|secret|gold)(?![A-Za-z])|"
+    r"credential|api[\s_-]*key|access[\s_-]*token|password)",
     re.IGNORECASE,
 )
 _ASSET_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$")
@@ -190,10 +191,10 @@ class CandidateRecord:
         return {
             "candidate_id": _clip(self.candidate_id, 64),
             "value": _json_safe(self.value),
-            "source": _clip(self.source, 64),
-            "extraction_status": _clip(self.extraction_status, 64),
-            "answer_type": _clip(self.answer_type, 64),
-            "verification_status": _clip(self.verification_status, 64),
+            "source": _summary(self.source, 64),
+            "extraction_status": _summary(self.extraction_status, 64),
+            "answer_type": _summary(self.answer_type, 64),
+            "verification_status": _summary(self.verification_status, 64),
         }
 
 
@@ -222,7 +223,7 @@ class BudgetCallRecord:
     def as_dict(self) -> dict[str, Any]:
         record = {
             "call_number": self.call_number,
-            "stage": _clip(self.stage, 64),
+            "stage": _summary(self.stage, 64),
             "requested_tokens": self.requested_tokens,
             "actual_tokens": self.actual_tokens,
             "finish": _clip(self.finish, 32),
@@ -236,7 +237,7 @@ class BudgetCallRecord:
                 "finish_reason": self.finish,
                 "duration_ms": int(self.duration * 1000),
                 "status": "error" if self.error else "ok",
-                "error_category": self.error,
+                "error_category": _summary(self.error, 64) if self.error else None,
             }
         )
         return record
@@ -613,7 +614,7 @@ class HardeningLedger:
                 continue
             value = payload[key]
             if key in {"stage"}:
-                clean[key] = _clip(value, 64)
+                clean[key] = _summary(value, 64)
             elif key in {"finish", "finish_reason", "error", "error_category", "prefill_status"}:
                 clean[key] = _summary(value, 64)
             elif key in {"requested_tokens", "actual_tokens", "completion_tokens", "duration_ms"}:
@@ -623,7 +624,7 @@ class HardeningLedger:
             elif key in {"call_number"}:
                 clean[key] = value if isinstance(value, int) and value >= 0 else None
             else:
-                clean[key] = bool(value) if key.startswith("prefill_") else _clip(value, 32)
+                clean[key] = bool(value) if key.startswith("prefill_") else _summary(value, 32)
         self.calls.append(clean)
 
     @property
@@ -691,7 +692,7 @@ class EvidenceRecord:
             raise ValueError("invalid_evidence_status")
         object.__setattr__(self, "status", status)
         object.__setattr__(self, "candidate_id", _clip(self.candidate_id, 64))
-        object.__setattr__(self, "source", _clip(self.source, 64))
+        object.__setattr__(self, "source", _summary(self.source, 64))
         object.__setattr__(self, "summary", _summary(self.summary))
         object.__setattr__(self, "error", _summary(self.error, 64) if self.error else None)
         object.__setattr__(
@@ -1140,7 +1141,7 @@ class PrefillResult:
             "logical_calls": self.logical_calls,
             "error_category": self.error_category,
             "completion_tokens": self.completion_tokens,
-            "finish_reason": self.finish_reason,
+            "finish_reason": _summary(self.finish_reason, 32) if self.finish_reason else None,
         }
 
 

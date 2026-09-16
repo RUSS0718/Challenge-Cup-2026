@@ -152,6 +152,18 @@ class MigrationHardeningTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             ledger.transition("invented_state")
 
+    def test_trace_redacts_sensitive_compatibility_fields(self):
+        ledger = HardeningLedger()
+        ledger.add_call(
+            {
+                "stage": "PRIVATE_RESPONSE",
+                "status": "PRIVATE_RESPONSE",
+                "finish_reason": "PRIVATE_RESPONSE",
+                "error_category": "PRIVATE_RESPONSE",
+            }
+        )
+        self.assertNotIn("PRIVATE_RESPONSE", json.dumps(ledger.trace()))
+
     def test_ledgers_are_solve_local(self):
         first = HardeningLedger()
         second = HardeningLedger()
