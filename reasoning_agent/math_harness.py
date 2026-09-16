@@ -1809,16 +1809,133 @@ class ConstraintFitOrchestrator:
         started = self.clock()
         observed_content: str | None = None
         prefill_result = None
+        fallback_records: list[dict[str, Any]] = []
         try:
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ]
+            fallback_capacity = (
+                self.budget.calls_used < self.budget.max_calls
+                and self.budget.requested_tokens + reservation.requested_tokens
+                <= self.budget.total_tokens
+                and (
+                    self._hardening_budget is None
+                    or (
+                        self._hardening_budget.calls_used < self._hardening_budget.max_calls
+                        and self._hardening_budget.requested_tokens + reservation.requested_tokens
+                        <= self._hardening_budget.total_tokens
+                    )
+                )
+            )
+
+            def fallback_call() -> Any:
+                fallback_stage = f"{stage}_fallback"
+                fallback_hardening_reservation = None
+                if self._hardening_budget is not None:
+                    fallback_hardening_reservation = self._hardening_budget.reserve(
+                        fallback_stage,
+                        reservation.requested_tokens,
+                    )
+                    if fallback_hardening_reservation is None:
+                        raise RuntimeError("prefill_fallback_budget_exhausted")
+                fallback_reservation = self.budget.reserve(
+                    fallback_stage,
+                    reservation.requested_tokens,
+                )
+                if fallback_reservation is None:
+                    if fallback_hardening_reservation is not None and self._hardening_budget is not None:
+                        self._hardening_budget.finish(
+                            fallback_hardening_reservation,
+                            error_category="budget_exhausted",
+                            duration_ms=0,
+                        )
+                    raise RuntimeError("prefill_fallback_budget_exhausted")
+                fallback_handle = self._start_observed_call(
+                    fallback_stage,
+                    fallback_reservation.call_number,
+                    fallback_reservation.requested_tokens,
+                )
+                if self.call_observer is not None and fallback_handle is None:
+                    self.budget.finish(
+                        fallback_reservation,
+                        error_category="unknown",
+                        duration_ms=0,
+                    )
+                    if fallback_hardening_reservation is not None and self._hardening_budget is not None:
+                        self._hardening_budget.finish(
+                            fallback_hardening_reservation,
+                            error_category="unknown",
+                            duration_ms=0,
+                        )
+                    raise RuntimeError("prefill_fallback_observer_failed")
+                fallback_started = self.clock()
+                fallback_content = None
+                fallback_completion = None
+                fallback_finish = None
+                fallback_error = None
+                try:
+                    fallback_raw = self.client.chat(
+                        messages,
+                        self.config.temperature,
+                        fallback_reservation.requested_tokens,
+                    )
+                    fallback_content, fallback_completion, fallback_finish, fallback_unpack_error = _unpack_response(fallback_raw)
+                    fallback_error = fallback_unpack_error or (
+                        None if fallback_content is not None else "invalid_response"
+                    )
+                except BaseException as exc:
+                    fallback_raw = None
+                    fallback_unpack_error = None
+                    fallback_error = _error_category(exc)
+                fallback_duration_ms = int(max(0.0, (self.clock() - fallback_started) * 1000.0))
+                if fallback_error is None and self._deadline_exceeded():
+                    fallback_content = None
+                    fallback_error = "timeout"
+                self.budget.finish(
+                    fallback_reservation,
+                    completion_tokens=fallback_completion,
+                    finish_reason=fallback_finish,
+                    error_category=fallback_error,
+                    duration_ms=fallback_duration_ms,
+                )
+                if fallback_hardening_reservation is not None and self._hardening_budget is not None:
+                    self._hardening_budget.finish(
+                        fallback_hardening_reservation,
+                        completion_tokens=fallback_completion,
+                        finish_reason=fallback_finish,
+                        error_category=fallback_error,
+                        duration_ms=fallback_duration_ms,
+                    )
+                fallback_record = {
+                    "stage": fallback_stage,
+                    "status": "error" if fallback_error else "ok",
+                    "call_number": fallback_reservation.call_number,
+                    "requested_tokens": fallback_reservation.requested_tokens,
+                    "completion_tokens": fallback_completion,
+                    "finish_reason": fallback_finish,
+                    "duration_ms": fallback_duration_ms,
+                    "error_category": fallback_error,
+                }
+                fallback_records.append(fallback_record)
+                self._finish_observed_call(
+                    fallback_handle,
+                    content=fallback_content,
+                    error_category=fallback_error,
+                    finish_reason=fallback_finish,
+                    completion_tokens=fallback_completion,
+                    duration_ms=fallback_duration_ms,
+                )
+                if fallback_error:
+                    raise RuntimeError(f"prefill_fallback_{fallback_error}")
+                return fallback_raw
+
             if (
                 prefill
                 and prefill_purpose
                 and self.config.enable_migration_hardening
                 and self.config.enable_prefill
+                and fallback_capacity
             ):
                 prefill_result = PrefillAdapter().call(
                     self.client,
@@ -1827,6 +1944,7 @@ class ConstraintFitOrchestrator:
                     reservation.requested_tokens,
                     prefill=prefill,
                     purpose=prefill_purpose,
+                    fallback_call=fallback_call,
                 )
                 content = prefill_result.content
                 completion_tokens = prefill_result.completion_tokens
@@ -1850,19 +1968,27 @@ class ConstraintFitOrchestrator:
             # safe to use, even if the client returned a plausible answer.
             content = None
             error_category = "timeout"
+        first_completion_tokens = completion_tokens
+        first_finish_reason = finish_reason
+        first_error_category = error_category
+        if prefill_result is not None and prefill_result.fallback and prefill_result.physical_calls >= 2:
+            first_completion_tokens = prefill_result.attempt_completion_tokens
+            first_finish_reason = prefill_result.attempt_finish_reason or prefill_result.status.split("_", 1)[0]
+            if error_category is None:
+                first_error_category = None
         self.budget.finish(
             reservation,
-            completion_tokens=completion_tokens,
-            finish_reason=finish_reason,
-            error_category=error_category,
+            completion_tokens=first_completion_tokens,
+            finish_reason=first_finish_reason,
+            error_category=first_error_category,
             duration_ms=duration_ms,
         )
         if hardening_reservation is not None and self._hardening_budget is not None:
             self._hardening_budget.finish(
                 hardening_reservation,
-                completion_tokens=completion_tokens,
-                finish_reason=finish_reason,
-                error_category=error_category,
+                completion_tokens=first_completion_tokens,
+                finish_reason=first_finish_reason,
+                error_category=first_error_category,
                 duration_ms=duration_ms,
             )
         record = {
@@ -1887,6 +2013,10 @@ class ConstraintFitOrchestrator:
         self.ledger.add_call(record)
         if self._hardening_ledger is not None:
             self._hardening_ledger.add_call(record)
+        for fallback_record in fallback_records:
+            self.ledger.add_call(fallback_record)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.add_call(fallback_record)
         self._finish_observed_call(
             observer_handle,
             content=observed_content,

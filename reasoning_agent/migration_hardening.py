@@ -483,7 +483,7 @@ class HardeningBudget:
             "remaining_ms": int(remaining["wall_seconds"] * 1000),
             "actual_completion_tokens": sum(actual) if actual else None,
             "actual_token_records": len(actual),
-            "records": [dict(record) for record in self.records],
+            "records": sorted((dict(record) for record in self.records), key=lambda record: record.get("call_number", 0)),
             "pending_calls": sorted(self._pending),
             "refusals": [dict(refusal) for refusal in self.refusals],
         }
@@ -686,7 +686,10 @@ class HardeningLedger:
             "conflicts": [_json_safe(item) for item in self.conflicts[:MAX_TRACE_ITEMS]],
             "evidence": [dict(item) for item in self.evidence[:MAX_TRACE_ITEMS]],
             "audit_hints": list(self.audit_hints[:8]),
-            "calls": [dict(item) for item in self.calls[:MAX_TRACE_ITEMS]],
+            "calls": sorted(
+                (dict(item) for item in self.calls[:MAX_TRACE_ITEMS]),
+                key=lambda item: item.get("call_number", 0),
+            ),
             "playoffs": [dict(item) for item in self.playoffs[:1]],
             "route": route_clean,
             "budget": budget.summary() if budget is not None else None,
@@ -776,6 +779,50 @@ def adapt_evidence(
             "unattributed_result",
             error="evidence_unattributed",
             candidate_ids=ids,
+        )
+
+    if not isinstance(result, Mapping) and hasattr(result, "status") and hasattr(result, "adapter"):
+        raw_status = str(getattr(result, "status", "")).strip().upper()
+        status = {
+            "EXACT": EVIDENCE_SUPPORT,
+            "SUPPORT": EVIDENCE_SUPPORT,
+            "REFUTED": EVIDENCE_CONTRADICT,
+            "CONTRADICT": EVIDENCE_CONTRADICT,
+            "UNKNOWN": EVIDENCE_INCONCLUSIVE,
+            "INCONCLUSIVE": EVIDENCE_INCONCLUSIVE,
+        }.get(raw_status)
+        claim_id = str(getattr(result, "claim_id", "") or "")
+        if candidate_id and claim_id and claim_id != candidate_id:
+            return EvidenceRecord(
+                _clip(candidate_id, 64),
+                EVIDENCE_INCONCLUSIVE,
+                _clip(source, 64),
+                "candidate_binding_failed",
+                error="candidate_mismatch",
+                candidate_ids=ids,
+            )
+        if status is None:
+            return EvidenceRecord(
+                _clip(candidate_id, 64),
+                EVIDENCE_INCONCLUSIVE,
+                _clip(source, 64),
+                "status_missing",
+                error="status_missing",
+                candidate_ids=ids,
+            )
+        safe_adapter = type(result).__module__.endswith("fesf_verifiers.adapters")
+        return adapt_evidence(
+            {
+                "status": status,
+                "source": str(getattr(result, "adapter", source) or source),
+                "summary": getattr(result, "evidence", ""),
+                "deterministic": bool(trusted or safe_adapter),
+                "error": getattr(result, "error", ""),
+            },
+            candidate_id=candidate_id or claim_id,
+            source=source,
+            candidate_ids=ids,
+            trusted=trusted or safe_adapter,
         )
 
     if not isinstance(result, Mapping):
@@ -1174,6 +1221,9 @@ class PrefillResult:
     completion_tokens: int | None = None
     finish_reason: str | None = None
     physical_calls: int = 0
+    attempt_completion_tokens: int | None = None
+    attempt_finish_reason: str | None = None
+    attempt_error_category: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -1186,11 +1236,14 @@ class PrefillResult:
             "completion_tokens": self.completion_tokens,
             "finish_reason": _summary(self.finish_reason, 32) if self.finish_reason else None,
             "physical_calls": self.physical_calls,
+            "attempt_completion_tokens": self.attempt_completion_tokens,
+            "attempt_finish_reason": _summary(self.attempt_finish_reason, 32) if self.attempt_finish_reason else None,
+            "attempt_error_category": self.attempt_error_category,
         }
 
 
 class PrefillAdapter:
-    """Try optional prefill once and fall back in the same logical call."""
+    """Try a low-entropy seed through the public three-argument client."""
 
     def call(
         self,
@@ -1201,6 +1254,7 @@ class PrefillAdapter:
         *,
         prefill: str,
         purpose: str,
+        fallback_call: Callable[[], Any] | None = None,
     ) -> PrefillResult:
         if purpose not in PREFILL_PURPOSES:
             return PrefillResult(
@@ -1225,20 +1279,14 @@ class PrefillAdapter:
                 "prefill_invalid",
             )
         try:
-            raw = client.chat(messages, temperature, max_tokens, prefill=seed)
+            seeded_messages = [
+                *messages,
+                {"role": "assistant", "content": seed},
+            ]
+            raw = client.chat(seeded_messages, temperature, max_tokens)
             content = self._content(raw)
             status = self._status(raw, content, seed)
-            if status in {"echo", "ignored"}:
-                return self._ordinary(
-                    client,
-                    messages,
-                    temperature,
-                    max_tokens,
-                    status=f"{status}_fallback",
-                    error_category=f"prefill_{status}",
-                    physical_calls=2,
-                )
-            return PrefillResult(
+            first = PrefillResult(
                 content,
                 status,
                 True,
@@ -1250,6 +1298,19 @@ class PrefillAdapter:
                 self._finish_reason(raw),
                 1,
             )
+            if status == "continuation":
+                return first
+            return self._ordinary(
+                client,
+                messages,
+                temperature,
+                max_tokens,
+                status=f"{status}_fallback",
+                error_category=f"prefill_{status}",
+                physical_calls=2,
+                fallback_call=fallback_call,
+                attempt=first,
+            )
         except TypeError as exc:
             return self._ordinary(
                 client,
@@ -1259,6 +1320,7 @@ class PrefillAdapter:
                 status="type_error_fallback",
                 error_category=_error_category(exc),
                 physical_calls=2,
+                fallback_call=fallback_call,
             )
         except Exception as exc:
             return self._ordinary(
@@ -1269,6 +1331,7 @@ class PrefillAdapter:
                 status="exception_fallback",
                 error_category=_error_category(exc),
                 physical_calls=2,
+                fallback_call=fallback_call,
             )
 
     def chat(self, *args: Any, **kwargs: Any) -> PrefillResult:
@@ -1284,9 +1347,11 @@ class PrefillAdapter:
         status: str,
         error_category: str,
         physical_calls: int = 2,
+        fallback_call: Callable[[], Any] | None = None,
+        attempt: PrefillResult | None = None,
     ) -> PrefillResult:
         try:
-            raw = client.chat(messages, temperature, max_tokens)
+            raw = fallback_call() if fallback_call is not None else client.chat(messages, temperature, max_tokens)
             content = self._content(raw)
             return PrefillResult(
                 content,
@@ -1294,11 +1359,14 @@ class PrefillAdapter:
                 True,
                 False,
                 True,
-                1,
+                2,
                 None if content is not None else "invalid_response",
                 self._completion_tokens(raw),
                 self._finish_reason(raw),
                 physical_calls,
+                attempt_completion_tokens=attempt.completion_tokens if attempt else None,
+                attempt_finish_reason=attempt.finish_reason if attempt else None,
+                attempt_error_category=error_category,
             )
         except Exception as exc:
             return PrefillResult(
@@ -1307,11 +1375,14 @@ class PrefillAdapter:
                 True,
                 False,
                 True,
-                1,
+                2,
                 _error_category(exc) or error_category,
                 None,
                 None,
                 physical_calls,
+                attempt_completion_tokens=attempt.completion_tokens if attempt else None,
+                attempt_finish_reason=attempt.finish_reason if attempt else None,
+                attempt_error_category=error_category,
             )
 
     @staticmethod

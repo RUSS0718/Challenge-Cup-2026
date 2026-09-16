@@ -32,6 +32,7 @@ from reasoning_agent.migration_hardening import (
     STATE_FINALIZED,
 )
 from reasoning_agent.math_harness import ConstraintFitOrchestrator, HarnessConfig
+from reasoning_agent.fesf_verifiers.adapters import VerificationResult
 
 
 class Client:
@@ -49,17 +50,17 @@ class PrefillClient(Client):
         super().__init__(response)
         self.mode = mode
 
-    def chat(self, messages, temperature, max_tokens, **kwargs):
-        self.calls.append((messages, temperature, max_tokens, kwargs))
-        if self.mode == "type_error":
-            if kwargs:
-                raise TypeError("prefill unsupported")
-            return self.response
+    def chat(self, messages, temperature, max_tokens):
+        self.calls.append((messages, temperature, max_tokens))
+        seeded = bool(messages and messages[-1].get("role") == "assistant")
+        seed = messages[-1]["content"] if seeded else ""
+        if self.mode == "type_error" and seeded:
+            raise TypeError("prefill unsupported")
         if self.mode == "ignore":
-            return "ignored" if kwargs else "ordinary"
+            return "ignored" if seeded else "ordinary"
         if self.mode == "echo":
-            return kwargs["prefill"] if kwargs else "ordinary"
-        return kwargs["prefill"] + self.response
+            return seed if seeded else "ordinary"
+        return seed + self.response if seeded else "ordinary"
 
 
 class FakeClock:
@@ -71,9 +72,9 @@ class FakeClock:
 
 
 class ExplodingPrefillClient(Client):
-    def chat(self, messages, temperature, max_tokens, **kwargs):
-        self.calls.append((messages, temperature, max_tokens, kwargs))
-        if kwargs:
+    def chat(self, messages, temperature, max_tokens):
+        self.calls.append((messages, temperature, max_tokens))
+        if messages and messages[-1].get("role") == "assistant":
             raise RuntimeError("PRIVATE_RESPONSE")
         return "ordinary"
 
@@ -193,6 +194,8 @@ class MigrationHardeningTest(unittest.TestCase):
         ).evaluate("A")
         self.assertEqual("inconclusive", bound.status)
         self.assertEqual("candidate_mismatch", bound.error)
+        safe = EvidenceAdapter(lambda _: VerificationResult("EXACT", "finite-domain", "A", "finite equality"))
+        self.assertEqual("support", safe.evaluate("A").status)
 
     def test_evidence_accepts_only_explicit_attributable_three_states(self):
         self.assertEqual(
@@ -332,11 +335,11 @@ class MigrationHardeningTest(unittest.TestCase):
 
     def test_prefill_supports_continue_echo_ignore_and_type_error_fallback(self):
         messages = [{"role": "user", "content": "select"}]
-        for mode, expected in (("continue", "continued"), ("echo", "echoed"), ("ignore", "ignored")):
+        for mode in ("continue", "echo", "ignore"):
             client = PrefillClient(" body", mode=mode)
             result = PrefillAdapter().call(client, messages, 0.0, 32, prefill="SELECT: ", purpose="selection")
             self.assertEqual({"continue": "continuation", "echo": "echo_fallback", "ignore": "ignored_fallback"}[mode], result.status)
-            self.assertEqual(1, result.logical_calls)
+            self.assertEqual(1 if mode == "continue" else 2, result.logical_calls)
             self.assertEqual(1 if mode == "continue" else 2, result.physical_calls)
         client = PrefillClient("ordinary", mode="type_error")
         result = PrefillAdapter().call(client, messages, 0.0, 32, prefill="SELECT: ", purpose="selection")
@@ -355,7 +358,7 @@ class MigrationHardeningTest(unittest.TestCase):
         self.assertFalse(result.attempted)
         self.assertEqual(0, len(client.calls))
 
-    def test_prefill_exception_also_falls_back_without_extra_logical_call(self):
+    def test_prefill_exception_also_falls_back_with_bounded_calls(self):
         client = ExplodingPrefillClient("ordinary")
         result = PrefillAdapter().call(
             client,
@@ -368,7 +371,7 @@ class MigrationHardeningTest(unittest.TestCase):
         self.assertEqual("exception_fallback", result.status)
         self.assertTrue(result.fallback)
         self.assertFalse(result.used)
-        self.assertEqual(1, result.logical_calls)
+        self.assertEqual(2, result.logical_calls)
         self.assertEqual(2, len(client.calls))
         json.dumps(result.as_dict())
 
@@ -480,27 +483,28 @@ class HarnessIntegrationTest(unittest.TestCase):
         self.assertEqual(2, len(hardening["candidates"]))
         self.assertIn("repair", [event["state"] for event in hardening["states"]])
 
-    def test_prefill_type_error_falls_back_with_one_logical_call(self):
+    def test_prefill_type_error_falls_back_with_bounded_calls(self):
         client = Client()
         client.response = ["最终答案：8", "最终答案：9", "SELECT: B"]
 
-        def chat(messages, temperature, max_tokens, **kwargs):
-            client.calls.append((messages, temperature, max_tokens, kwargs))
-            if kwargs:
+        def chat(messages, temperature, max_tokens):
+            client.calls.append((messages, temperature, max_tokens))
+            if messages and messages[-1].get("role") == "assistant":
                 raise TypeError("prefill unsupported")
             return client.response.pop(0)
 
         client.chat = chat
         config = HarnessConfig(
             early_stop=False,
-            max_model_calls=3,
-            total_token_budget=10240,
+            max_model_calls=4,
+            total_token_budget=12288,
             enable_migration_hardening=True,
             enable_prefill=True,
         )
         result = ConstraintFitOrchestrator(client, config=config).solve("计算 3+4")
         self.assertEqual("9", result["final_response"])
         hardening = self._hardening_trace(result)
+        self.assertEqual(4, hardening["budget"]["calls"])
         critic = next(call for call in hardening["calls"] if call["stage"] == "critic")
         self.assertEqual("type_error_fallback", critic["prefill_status"])
         self.assertTrue(critic["prefill_fallback"])
