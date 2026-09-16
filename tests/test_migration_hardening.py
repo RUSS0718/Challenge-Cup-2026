@@ -56,9 +56,9 @@ class PrefillClient(Client):
                 raise TypeError("prefill unsupported")
             return self.response
         if self.mode == "ignore":
-            return self.response
+            return "ignored" if kwargs else "ordinary"
         if self.mode == "echo":
-            return kwargs["prefill"]
+            return kwargs["prefill"] if kwargs else "ordinary"
         return kwargs["prefill"] + self.response
 
 
@@ -151,6 +151,8 @@ class MigrationHardeningTest(unittest.TestCase):
         self.assertEqual("not applicable", trace["evidence"][0]["summary"])
         with self.assertRaises(ValueError):
             ledger.transition("invented_state")
+        with self.assertRaisesRegex(ValueError, "invalid_state_transition"):
+            HardeningLedger().transition("repair")
 
     def test_trace_redacts_sensitive_compatibility_fields(self):
         ledger = HardeningLedger()
@@ -200,15 +202,19 @@ class MigrationHardeningTest(unittest.TestCase):
             ).status,
         )
         supported = adapt_evidence(
-            {"status": EVIDENCE_SUPPORT, "provider": "finite-check", "summary": "equal"},
+            {"status": EVIDENCE_SUPPORT, "provider": "finite-check", "summary": "equal", "deterministic": True},
             candidate_id="A",
         )
         contradicted = adapt_evidence(
-            {"status": EVIDENCE_CONTRADICT, "source": "finite-check", "summary": "counterexample"},
+            {"status": EVIDENCE_CONTRADICT, "source": "finite-check", "summary": "counterexample", "trusted": True},
             candidate_id="B",
         )
         self.assertEqual(EVIDENCE_SUPPORT, supported.status)
         self.assertEqual(EVIDENCE_CONTRADICT, contradicted.status)
+        self.assertEqual(
+            EVIDENCE_INCONCLUSIVE,
+            adapt_evidence({"status": EVIDENCE_SUPPORT, "source": "model", "summary": "looks right"}).status,
+        )
         self.assertEqual(
             EVIDENCE_INCONCLUSIVE,
             adapt_evidence({"status": "exact", "source": "wrong-alias"}).status,
@@ -329,13 +335,15 @@ class MigrationHardeningTest(unittest.TestCase):
         for mode, expected in (("continue", "continued"), ("echo", "echoed"), ("ignore", "ignored")):
             client = PrefillClient(" body", mode=mode)
             result = PrefillAdapter().call(client, messages, 0.0, 32, prefill="SELECT: ", purpose="selection")
-            self.assertEqual({"continue": "continuation", "echo": "echo", "ignore": "ignored"}[mode], result.status)
+            self.assertEqual({"continue": "continuation", "echo": "echo_fallback", "ignore": "ignored_fallback"}[mode], result.status)
             self.assertEqual(1, result.logical_calls)
+            self.assertEqual(1 if mode == "continue" else 2, result.physical_calls)
         client = PrefillClient("ordinary", mode="type_error")
         result = PrefillAdapter().call(client, messages, 0.0, 32, prefill="SELECT: ", purpose="selection")
         self.assertEqual("type_error_fallback", result.status)
         self.assertTrue(result.fallback)
         self.assertEqual(2, len(client.calls))
+        self.assertEqual(2, result.physical_calls)
 
     def test_prefill_is_not_used_for_high_entropy_purpose(self):
         client = Client("ordinary")
@@ -496,6 +504,7 @@ class HarnessIntegrationTest(unittest.TestCase):
         critic = next(call for call in hardening["calls"] if call["stage"] == "critic")
         self.assertEqual("type_error_fallback", critic["prefill_status"])
         self.assertTrue(critic["prefill_fallback"])
+        self.assertEqual(2, critic["physical_calls"])
 
     def test_same_orchestrator_serializes_solve_local_state(self):
         class SerialClient:

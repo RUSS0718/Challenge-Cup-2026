@@ -1393,6 +1393,7 @@ class _CallResult:
         prefill_status: str | None = None,
         prefill_used: bool = False,
         prefill_fallback: bool = False,
+        prefill_physical_calls: int = 1,
     ) -> None:
         self.content = content
         self.error_category = error_category
@@ -1401,6 +1402,7 @@ class _CallResult:
         self.prefill_status = prefill_status
         self.prefill_used = bool(prefill_used)
         self.prefill_fallback = bool(prefill_fallback)
+        self.prefill_physical_calls = max(0, int(prefill_physical_calls))
 
 
 def _unpack_response(response: Any) -> tuple[str | None, int | None, str | None, str | None]:
@@ -1718,6 +1720,17 @@ class ConstraintFitOrchestrator:
             return _CallResult(None, error_category="timeout")
         hardening_reservation = None
         if self._hardening_budget is not None:
+            hardening_state = (
+                "attempt"
+                if stage in {"attempt_a", "attempt_b", "deep_primary", "deep_review"}
+                else "continuation"
+                if stage in {"continuation", "deep_continuation"}
+                else "repair"
+                if stage in {"repair", "process_repair"}
+                else None
+            )
+            if hardening_state is not None and self._hardening_ledger is not None:
+                self._hardening_ledger.transition(hardening_state, reason=stage)
             hardening_reservation = self._hardening_budget.reserve(stage, max_tokens)
             if hardening_reservation is None:
                 record = {
@@ -1747,6 +1760,8 @@ class ConstraintFitOrchestrator:
                 "requested_tokens": max_tokens,
             }
             self.ledger.add_call(record)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.add_call(record)
             self._record_observer_refusal(stage, max_tokens, "budget_refusal")
             return _CallResult(None, error_category="budget_exhausted")
         observer_handle = self._start_observed_call(stage, reservation.call_number, reservation.requested_tokens)
@@ -1866,6 +1881,7 @@ class ConstraintFitOrchestrator:
                     "prefill_status": prefill_result.status,
                     "prefill_used": prefill_result.used,
                     "prefill_fallback": prefill_result.fallback,
+                    "physical_calls": prefill_result.physical_calls,
                 }
             )
         self.ledger.add_call(record)
@@ -1887,6 +1903,7 @@ class ConstraintFitOrchestrator:
             prefill_status=prefill_result.status if prefill_result is not None else None,
             prefill_used=prefill_result.used if prefill_result is not None else False,
             prefill_fallback=prefill_result.fallback if prefill_result is not None else False,
+            prefill_physical_calls=prefill_result.physical_calls if prefill_result is not None else 1,
         )
 
     def _observer_should_stop(self) -> bool:

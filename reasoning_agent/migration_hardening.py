@@ -55,6 +55,18 @@ STATES = frozenset(
     }
 )
 HARDENING_STATES = STATES
+STATE_TRANSITIONS = {
+    STATE_START: frozenset({STATE_START, STATE_ATTEMPT, STATE_CANDIDATE, STATE_SELECTED, STATE_FINALIZED, STATE_ABSTAINED}),
+    STATE_ATTEMPT: frozenset({STATE_ATTEMPT, STATE_CANDIDATE, STATE_CONFLICT, STATE_CONTINUATION, STATE_REPAIR, STATE_ABSTAINED}),
+    STATE_CANDIDATE: frozenset({STATE_ATTEMPT, STATE_CANDIDATE, STATE_VERIFIED, STATE_CONFLICT, STATE_REPAIR, STATE_CONTINUATION, STATE_SELECTED, STATE_ABSTAINED, STATE_FINALIZED}),
+    STATE_VERIFIED: frozenset({STATE_VERIFIED, STATE_SELECTED, STATE_REPAIR, STATE_FINALIZED}),
+    STATE_CONFLICT: frozenset({STATE_ATTEMPT, STATE_CANDIDATE, STATE_VERIFIED, STATE_REPAIR, STATE_SELECTED, STATE_ABSTAINED}),
+    STATE_REPAIR: frozenset({STATE_REPAIR, STATE_CANDIDATE, STATE_VERIFIED, STATE_SELECTED, STATE_ABSTAINED}),
+    STATE_CONTINUATION: frozenset({STATE_CANDIDATE, STATE_VERIFIED, STATE_SELECTED, STATE_ABSTAINED}),
+    STATE_SELECTED: frozenset({STATE_SELECTED, STATE_FINALIZED}),
+    STATE_ABSTAINED: frozenset({STATE_FINALIZED}),
+    STATE_FINALIZED: frozenset(),
+}
 
 
 class EvidenceStatus(str, Enum):
@@ -453,6 +465,11 @@ class HardeningBudget:
 
     def summary(self) -> dict[str, Any]:
         remaining = self.remaining()
+        actual = [
+            record["actual_tokens"]
+            for record in self.records
+            if isinstance(record.get("actual_tokens"), int)
+        ]
         return {
             "calls": self.calls_used,
             "call_limit": self.max_calls,
@@ -464,6 +481,8 @@ class HardeningBudget:
             "wall_deadline": self.wall_deadline,
             "elapsed_ms": int(self.elapsed_seconds * 1000),
             "remaining_ms": int(remaining["wall_seconds"] * 1000),
+            "actual_completion_tokens": sum(actual) if actual else None,
+            "actual_token_records": len(actual),
             "records": [dict(record) for record in self.records],
             "pending_calls": sorted(self._pending),
             "refusals": [dict(refusal) for refusal in self.refusals],
@@ -486,8 +505,8 @@ class HardeningLedger:
     def transition(self, state: str, *, reason: str = "") -> None:
         if state not in STATES:
             raise ValueError("invalid_state")
-        if self.state == STATE_FINALIZED and state != STATE_FINALIZED:
-            raise ValueError("ledger_finalized")
+        if state not in STATE_TRANSITIONS[self.state]:
+            raise ValueError("invalid_state_transition")
         self.state = state
         if len(self.states) < MAX_TRACE_ITEMS:
             event = {"state": state}
@@ -607,6 +626,7 @@ class HardeningLedger:
             "prefill_status",
             "prefill_used",
             "prefill_fallback",
+            "physical_calls",
         }
         clean: dict[str, Any] = {}
         for key in allowed:
@@ -617,7 +637,7 @@ class HardeningLedger:
                 clean[key] = _summary(value, 64)
             elif key in {"finish", "finish_reason", "error", "error_category", "prefill_status"}:
                 clean[key] = _summary(value, 64)
-            elif key in {"requested_tokens", "actual_tokens", "completion_tokens", "duration_ms"}:
+            elif key in {"requested_tokens", "actual_tokens", "completion_tokens", "duration_ms", "physical_calls"}:
                 clean[key] = value if isinstance(value, int) and value >= 0 else None
             elif key in {"finished_at", "duration"}:
                 clean[key] = float(value) if isinstance(value, (int, float)) else None
@@ -720,6 +740,7 @@ def adapt_evidence(
     candidate_id: str = "",
     source: str = "",
     candidate_ids: Iterable[str] = (),
+    trusted: bool = False,
 ) -> EvidenceRecord:
     """Accept only an explicit lower-case three-state, attributable result."""
 
@@ -736,7 +757,9 @@ def adapt_evidence(
             )
         record_source = result.source or source
         record_id = candidate_id or result.candidate_id
-        if result.status in EVIDENCE_STATUSES and record_source:
+        if result.status in EVIDENCE_STATUSES and record_source and (
+            result.status == EVIDENCE_INCONCLUSIVE or result.deterministic or trusted
+        ):
             return EvidenceRecord(
                 record_id,
                 result.status,
@@ -798,6 +821,22 @@ def adapt_evidence(
             error="evidence_unattributed",
             candidate_ids=ids,
         )
+    is_trusted = bool(
+        trusted
+        or result.get("deterministic")
+        or result.get("trusted")
+        or result.get("computed")
+        or result.get("verified")
+    )
+    if status in {EVIDENCE_SUPPORT, EVIDENCE_CONTRADICT} and not is_trusted:
+        return EvidenceRecord(
+            _clip(candidate_id, 64),
+            EVIDENCE_INCONCLUSIVE,
+            record_source,
+            "evidence_untrusted",
+            error="evidence_untrusted",
+            candidate_ids=ids,
+        )
     summary = result.get("summary") or result.get("evidence") or result.get("reason")
     return EvidenceRecord(
         _clip(candidate_id, 64),
@@ -821,9 +860,11 @@ class EvidenceAdapter:
         provider: Callable[[Any], Any] | None = None,
         *,
         name: str = "verifier",
+        trusted: bool = False,
     ) -> None:
         self.provider = provider
         self.name = _clip(name, 64)
+        self.trusted = bool(trusted)
 
     def evaluate(
         self,
@@ -859,6 +900,7 @@ class EvidenceAdapter:
             candidate_id=candidate_id,
             source=record_source,
             candidate_ids=candidate_ids,
+            trusted=self.trusted,
         )
 
     check = evaluate
@@ -1051,7 +1093,7 @@ class DeterministicPlayoff:
 
         evidence: list[dict[str, Any]] = []
         statuses: list[str] = []
-        adapter = EvidenceAdapter(self.checker, name="deterministic_playoff")
+        adapter = EvidenceAdapter(self.checker, name="deterministic_playoff", trusted=True)
         for row, candidate_id, typed_value in zip(rows, ids, normalized):
             probe = {
                 "candidate_id": candidate_id,
@@ -1131,6 +1173,7 @@ class PrefillResult:
     error_category: str | None = None
     completion_tokens: int | None = None
     finish_reason: str | None = None
+    physical_calls: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -1142,6 +1185,7 @@ class PrefillResult:
             "error_category": self.error_category,
             "completion_tokens": self.completion_tokens,
             "finish_reason": _summary(self.finish_reason, 32) if self.finish_reason else None,
+            "physical_calls": self.physical_calls,
         }
 
 
@@ -1184,6 +1228,16 @@ class PrefillAdapter:
             raw = client.chat(messages, temperature, max_tokens, prefill=seed)
             content = self._content(raw)
             status = self._status(raw, content, seed)
+            if status in {"echo", "ignored"}:
+                return self._ordinary(
+                    client,
+                    messages,
+                    temperature,
+                    max_tokens,
+                    status=f"{status}_fallback",
+                    error_category=f"prefill_{status}",
+                    physical_calls=2,
+                )
             return PrefillResult(
                 content,
                 status,
@@ -1194,6 +1248,7 @@ class PrefillAdapter:
                 None if content is not None else "invalid_response",
                 self._completion_tokens(raw),
                 self._finish_reason(raw),
+                1,
             )
         except TypeError as exc:
             return self._ordinary(
@@ -1203,6 +1258,7 @@ class PrefillAdapter:
                 max_tokens,
                 status="type_error_fallback",
                 error_category=_error_category(exc),
+                physical_calls=2,
             )
         except Exception as exc:
             return self._ordinary(
@@ -1212,35 +1268,11 @@ class PrefillAdapter:
                 max_tokens,
                 status="exception_fallback",
                 error_category=_error_category(exc),
+                physical_calls=2,
             )
 
     def chat(self, *args: Any, **kwargs: Any) -> PrefillResult:
         return self.call(*args, **kwargs)
-
-    def _ordinary_without_prefill(
-        self,
-        client: Any,
-        messages: list[dict[str, str]],
-        temperature: float,
-        max_tokens: int,
-        error_category: str,
-    ) -> PrefillResult:
-        try:
-            raw = client.chat(messages, temperature, max_tokens)
-            content = self._content(raw)
-            return PrefillResult(
-                content,
-                "not_applicable",
-                False,
-                False,
-                False,
-                1,
-                None if content is not None else error_category,
-                self._completion_tokens(raw),
-                self._finish_reason(raw),
-            )
-        except Exception as exc:
-            return PrefillResult(None, "error", False, False, False, 1, _error_category(exc))
 
     def _ordinary(
         self,
@@ -1251,6 +1283,7 @@ class PrefillAdapter:
         *,
         status: str,
         error_category: str,
+        physical_calls: int = 2,
     ) -> PrefillResult:
         try:
             raw = client.chat(messages, temperature, max_tokens)
@@ -1265,6 +1298,7 @@ class PrefillAdapter:
                 None if content is not None else "invalid_response",
                 self._completion_tokens(raw),
                 self._finish_reason(raw),
+                physical_calls,
             )
         except Exception as exc:
             return PrefillResult(
@@ -1275,6 +1309,9 @@ class PrefillAdapter:
                 True,
                 1,
                 _error_category(exc) or error_category,
+                None,
+                None,
+                physical_calls,
             )
 
     @staticmethod
@@ -1429,6 +1466,7 @@ __all__ = [
     "STATE_ABSTAINED",
     "STATE_FINALIZED",
     "STATES",
+    "STATE_TRANSITIONS",
     "HARDENING_STATES",
     "CandidateRecord",
     "Candidate",
