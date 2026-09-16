@@ -16,9 +16,27 @@ from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 import math
 import re
+import threading
 import time
 import unicodedata
 from typing import Any, Callable, Iterable, Mapping
+
+from reasoning_agent.migration_hardening import (
+    DeterministicPlayoff,
+    EvidenceAdapter,
+    EvidenceRecord,
+    HardeningBudget,
+    HardeningLedger,
+    PrefillAdapter,
+    ProcessAuditParser,
+    EVIDENCE_CONTRADICT,
+    EVIDENCE_INCONCLUSIVE,
+    EVIDENCE_SUPPORT,
+    PLAYOFF_A,
+    PLAYOFF_B,
+    PLAYOFF_BOTH,
+    PLAYOFF_NEITHER,
+)
 
 
 HARNESS_VERSION = "MATH-HARNESS-V1"
@@ -525,6 +543,13 @@ class HarnessConfig:
     deep_max_model_calls: int = 3
     enable_typed_tools: bool = False
     max_problem_chars: int = MAX_PROBLEM_CHARS
+    # Issue #19 migration hardening is opt-in and does not alter the default
+    # Harness/FSDF submission profile.
+    enable_migration_hardening: bool = False
+    enable_deterministic_playoff: bool = False
+    enable_process_audit: bool = False
+    enable_prefill: bool = False
+    process_audit_max_tokens: int = 2_048
 
     def __post_init__(self) -> None:
         if self.bank_mode not in {"off", "on"}:
@@ -1365,11 +1390,17 @@ class _CallResult:
         error_category: str | None = None,
         finish_reason: str | None = None,
         completion_tokens: int | None = None,
+        prefill_status: str | None = None,
+        prefill_used: bool = False,
+        prefill_fallback: bool = False,
     ) -> None:
         self.content = content
         self.error_category = error_category
         self.finish_reason = finish_reason
         self.completion_tokens = completion_tokens
+        self.prefill_status = prefill_status
+        self.prefill_used = bool(prefill_used)
+        self.prefill_fallback = bool(prefill_fallback)
 
 
 def _unpack_response(response: Any) -> tuple[str | None, int | None, str | None, str | None]:
@@ -1404,8 +1435,24 @@ class AttemptScheduler:
     def __init__(self, harness: "ConstraintFitOrchestrator") -> None:
         self.harness = harness
 
-    def call(self, stage: str, system_prompt: str, user_prompt: str, max_tokens: int) -> _CallResult:
-        return self.harness._call(stage, system_prompt, user_prompt, max_tokens)
+    def call(
+        self,
+        stage: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int,
+        *,
+        prefill: str | None = None,
+        prefill_purpose: str | None = None,
+    ) -> _CallResult:
+        return self.harness._call(
+            stage,
+            system_prompt,
+            user_prompt,
+            max_tokens,
+            prefill=prefill,
+            prefill_purpose=prefill_purpose,
+        )
 
 
 ATTEMPT_A_PROMPT = """你是数学推理求解器。独立解决题目，先完成必要计算，再给出唯一结论。
@@ -1422,6 +1469,9 @@ CRITIC_PROMPT = """你是保守的数学冲突裁决器。题目与候选均由�
 若选择 REPAIR，下一句必须给出简短、具体的错误摘要。"""
 REPAIR_PROMPT = """你是数学修正器。根据题目、指定候选和宿主给出的明确错误摘要重新核对。
 只输出一个修正后的唯一答案及必要的最短依据，不要输出多个候选或 Thinking Process。"""
+PROCESS_AUDIT_PROMPT = """你是数学过程审计员。只检查给定解答的关键计算、边界和结论完整性，不能创造或替换答案。
+最后一行必须且只能为 AUDIT: COMPLETE、AUDIT: REPAIR 或 AUDIT: INCONCLUSIVE。
+若为 REPAIR，另写一行 HINT: 后接一个具体、简短的修复提示；不要输出完整解答。"""
 
 DEEP_PRIMARY_PROMPT = """你是深度数学求解器。先完整解决题目并检查关键条件，再给出符合指定答案形状的唯一终答。
 不要只给一个未经推导的猜测；不要输出多个互相冲突的答案。最后单独一行写 Final answer: <完整答案>。"""
@@ -1446,6 +1496,7 @@ class ConstraintFitOrchestrator:
         notebook: FrozenErrorNotebook | None = None,
         call_observer: Any | None = None,
         observation_context: Mapping[str, Any] | None = None,
+        playoff_checker: Callable[[Mapping[str, Any]], Any] | None = None,
     ) -> None:
         self.client = client
         self.config = config or HarnessConfig()
@@ -1468,8 +1519,27 @@ class ConstraintFitOrchestrator:
         self._solve_started = 0.0
         self._next_candidate_number = 1
         self._reference_context = ""
+        self._hardening_ledger: HardeningLedger | None = None
+        self._hardening_budget: HardeningBudget | None = None
+        self._hardening_playoff_checker = playoff_checker
+        self._hardening_playoff: DeterministicPlayoff | None = None
+        self._hardening_repair_used = False
+        # The existing orchestrator keeps its ledger solve-local on the
+        # instance; serialize reuse of one instance so concurrent callers
+        # cannot interleave those fields.
+        self._solve_lock = threading.RLock()
 
     def solve(
+        self,
+        problem: str,
+        metadata: Mapping[str, Any] | None = None,
+        *,
+        reference_context: str = "",
+    ) -> dict[str, Any]:
+        with self._solve_lock:
+            return self._solve(problem, metadata, reference_context=reference_context)
+
+    def _solve(
         self,
         problem: str,
         metadata: Mapping[str, Any] | None = None,
@@ -1496,6 +1566,21 @@ class ConstraintFitOrchestrator:
         self._solve_started = self.clock()
         self._next_candidate_number = 1
         self.ledger.transition(STATE_START)
+        if self.config.enable_migration_hardening:
+            self._hardening_ledger = HardeningLedger()
+            self._hardening_budget = HardeningBudget(
+                max_calls=self.config.effective_call_limit,
+                total_tokens=self.config.token_limit,
+                max_wall_seconds=self.config.max_wall_seconds,
+                clock=self.clock,
+            )
+            self._hardening_playoff = DeterministicPlayoff(self._hardening_playoff_checker)
+            self._hardening_repair_used = False
+            self._hardening_ledger.transition("start")
+        else:
+            self._hardening_ledger = None
+            self._hardening_budget = None
+            self._hardening_playoff = None
 
         gateway = self.gateway.resolve(problem_text)
         gateway_trace: dict[str, Any] = {
@@ -1520,12 +1605,16 @@ class ConstraintFitOrchestrator:
         if gateway.status == "hit":
             self.ledger.transition(STATE_SELECTED, reason="answer_bank_hit")
             self.ledger.transition(STATE_FINALIZED)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.transition("selected", reason="answer_bank_hit")
+                self._hardening_ledger.transition("finalized")
             return {
                 "final_response": gateway.answer,
                 "extracted_answer": normalize_value(gateway.answer),
                 "trace": prefix_trace
                 + [
                     self.ledger.trace(self.budget, route=route_dict),
+                    *self._hardening_trace(route_dict),
                     {
                         "method": trace_method_id,
                         "stage": "finalize",
@@ -1550,6 +1639,8 @@ class ConstraintFitOrchestrator:
             if self.legacy_backend is None:
                 return self._abstain(prefix_trace, route_dict, "legacy_backend_unavailable")
             self.ledger.transition(STATE_FINALIZED, reason="legacy_backend")
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.transition("finalized", reason="legacy_backend")
             if reference_context:
                 result = self.legacy_backend.solve(
                     problem_text,
@@ -1572,6 +1663,7 @@ class ConstraintFitOrchestrator:
                 "trace": prefix_trace
                 + [
                     self.ledger.trace(self.budget, route=route_dict),
+                    *self._hardening_trace(route_dict),
                     {
                         "method": METHOD_ID,
                         "stage": "finalize",
@@ -1599,7 +1691,16 @@ class ConstraintFitOrchestrator:
             reference_context,
         )
 
-    def _call(self, stage: str, system_prompt: str, user_prompt: str, max_tokens: int) -> _CallResult:
+    def _call(
+        self,
+        stage: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int,
+        *,
+        prefill: str | None = None,
+        prefill_purpose: str | None = None,
+    ) -> _CallResult:
         assert self.ledger is not None and self.budget is not None
         user_prompt = _prompt_problem(user_prompt, self._reference_context)
         if self._observer_should_stop():
@@ -1615,8 +1716,30 @@ class ConstraintFitOrchestrator:
             self.ledger.add_call(record)
             self._record_observer_refusal(stage, max_tokens, "deadline_refusal")
             return _CallResult(None, error_category="timeout")
+        hardening_reservation = None
+        if self._hardening_budget is not None:
+            hardening_reservation = self._hardening_budget.reserve(stage, max_tokens)
+            if hardening_reservation is None:
+                record = {
+                    "stage": stage,
+                    "status": "skipped",
+                    "reason": "migration_hardening_budget_exhausted",
+                    "requested_tokens": max_tokens,
+                    "error_category": "budget_exhausted",
+                }
+                self.ledger.add_call(record)
+                if self._hardening_ledger is not None:
+                    self._hardening_ledger.add_call(record)
+                self._record_observer_refusal(stage, max_tokens, "budget_refusal")
+                return _CallResult(None, error_category="budget_exhausted")
         reservation = self.budget.reserve(stage, max_tokens)
         if reservation is None:
+            if hardening_reservation is not None and self._hardening_budget is not None:
+                self._hardening_budget.finish(
+                    hardening_reservation,
+                    error_category="budget_exhausted",
+                    duration_ms=0,
+                )
             record = {
                 "stage": stage,
                 "status": "skipped",
@@ -1635,6 +1758,12 @@ class ConstraintFitOrchestrator:
                 error_category="unknown",
                 duration_ms=0,
             )
+            if hardening_reservation is not None and self._hardening_budget is not None:
+                self._hardening_budget.finish(
+                    hardening_reservation,
+                    error_category="unknown",
+                    duration_ms=0,
+                )
             self.ledger.add_call(
                 {
                     "stage": stage,
@@ -1648,19 +1777,53 @@ class ConstraintFitOrchestrator:
                     "observation_error": self._observation_failed or "observer_start_failed",
                 }
             )
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.add_call(
+                    {
+                        "stage": stage,
+                        "status": "error",
+                        "call_number": reservation.call_number,
+                        "requested_tokens": reservation.requested_tokens,
+                        "completion_tokens": None,
+                        "finish_reason": None,
+                        "duration_ms": 0,
+                        "error_category": "unknown",
+                    }
+                )
             return _CallResult(None, error_category="unknown")
         started = self.clock()
         observed_content: str | None = None
+        prefill_result = None
         try:
-            raw = self.client.chat(
-                [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                self.config.temperature,
-                reservation.requested_tokens,
-            )
-            content, completion_tokens, finish_reason, unpack_error = _unpack_response(raw)
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            if (
+                prefill
+                and prefill_purpose
+                and self.config.enable_migration_hardening
+                and self.config.enable_prefill
+            ):
+                prefill_result = PrefillAdapter().call(
+                    self.client,
+                    messages,
+                    self.config.temperature,
+                    reservation.requested_tokens,
+                    prefill=prefill,
+                    purpose=prefill_purpose,
+                )
+                content = prefill_result.content
+                completion_tokens = prefill_result.completion_tokens
+                finish_reason = prefill_result.finish_reason
+                unpack_error = prefill_result.error_category
+            else:
+                raw = self.client.chat(
+                    messages,
+                    self.config.temperature,
+                    reservation.requested_tokens,
+                )
+                content, completion_tokens, finish_reason, unpack_error = _unpack_response(raw)
             observed_content = content
             error_category = unpack_error or (None if content is not None else "invalid_response")
         except BaseException as exc:
@@ -1679,6 +1842,14 @@ class ConstraintFitOrchestrator:
             error_category=error_category,
             duration_ms=duration_ms,
         )
+        if hardening_reservation is not None and self._hardening_budget is not None:
+            self._hardening_budget.finish(
+                hardening_reservation,
+                completion_tokens=completion_tokens,
+                finish_reason=finish_reason,
+                error_category=error_category,
+                duration_ms=duration_ms,
+            )
         record = {
             "stage": stage,
             "status": "error" if error_category else "ok",
@@ -1689,7 +1860,17 @@ class ConstraintFitOrchestrator:
             "duration_ms": duration_ms,
             "error_category": error_category,
         }
+        if prefill_result is not None:
+            record.update(
+                {
+                    "prefill_status": prefill_result.status,
+                    "prefill_used": prefill_result.used,
+                    "prefill_fallback": prefill_result.fallback,
+                }
+            )
         self.ledger.add_call(record)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.add_call(record)
         self._finish_observed_call(
             observer_handle,
             content=observed_content,
@@ -1703,6 +1884,9 @@ class ConstraintFitOrchestrator:
             error_category=error_category,
             finish_reason=finish_reason,
             completion_tokens=completion_tokens,
+            prefill_status=prefill_result.status if prefill_result is not None else None,
+            prefill_used=prefill_result.used if prefill_result is not None else False,
+            prefill_fallback=prefill_result.fallback if prefill_result is not None else False,
         )
 
     def _observer_should_stop(self) -> bool:
@@ -1796,8 +1980,24 @@ class ConstraintFitOrchestrator:
         assert self.ledger is not None
         self.ledger.transition(state, reason=parsed.reason_summary)
         self.ledger.add_candidates(candidates)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("candidate", reason=parsed.reason_summary)
+            for candidate in candidates:
+                self._hardening_ledger.add_candidate(
+                    candidate.candidate_id,
+                    candidate.value,
+                    source=candidate.source,
+                    extraction_status=candidate.extraction_status,
+                    answer_type=candidate.answer_type,
+                    verification_status=candidate.verification_status,
+                )
+                if candidate.source in {"repair", "process_repair"}:
+                    self._hardening_repair_used = True
         if parsed.status == CANDIDATE_CONFLICT:
             self.ledger.add_conflict(candidates)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.transition("conflict", reason=parsed.reason_summary)
+                self._hardening_ledger.add_conflict(candidates)
 
     def _adopt_typed_candidate(self, parsed: TypedParseResult, source: str) -> list[Candidate]:
         candidate = parsed.candidate
@@ -1813,6 +2013,120 @@ class ConstraintFitOrchestrator:
         self.ledger.transition(state, reason=parsed.reason)
         self.ledger.add_candidates(candidates)
         self.ledger.add_typed_parse(state, parsed, candidates)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("candidate", reason=parsed.reason)
+            for candidate in candidates:
+                self._hardening_ledger.add_candidate(
+                    candidate.candidate_id,
+                    candidate.value,
+                    source=candidate.source,
+                    extraction_status=candidate.extraction_status,
+                    answer_type=candidate.answer_type,
+                    verification_status=candidate.verification_status,
+                )
+
+    def _run_deterministic_playoff(self, candidates: list[Candidate]) -> Any | None:
+        if (
+            self._hardening_ledger is None
+            or not self.config.enable_deterministic_playoff
+            or self._hardening_playoff is None
+        ):
+            return None
+        result = self._hardening_playoff.run(
+            [
+                {
+                    "candidate_id": candidate.candidate_id,
+                    "value": candidate.value,
+                    "normalized_value": candidate.normalized_value,
+                }
+                for candidate in candidates
+            ]
+        )
+        self._hardening_ledger.add_playoff(result)
+        for evidence in result.evidence:
+            status = evidence.get("status")
+            if status not in {EVIDENCE_SUPPORT, EVIDENCE_CONTRADICT, EVIDENCE_INCONCLUSIVE}:
+                status = EVIDENCE_INCONCLUSIVE
+            self._hardening_ledger.add_evidence(
+                EvidenceRecord(
+                    str(evidence.get("candidate_id", "")),
+                    status,
+                    str(evidence.get("source", "deterministic_playoff")),
+                    str(evidence.get("summary", "playoff_check")),
+                    bool(evidence.get("deterministic", False)),
+                    evidence.get("error"),
+                )
+            )
+        return result
+
+    def _run_process_audit(
+        self,
+        problem: str,
+        candidate: Candidate,
+        all_candidates: list[Candidate],
+    ) -> Candidate:
+        if (
+            self._hardening_ledger is None
+            or not self.config.enable_process_audit
+            or not candidate.response
+        ):
+            return candidate
+        self._hardening_ledger.transition("candidate", reason="process_audit")
+        audit = self.scheduler.call(
+            "process_audit",
+            PROCESS_AUDIT_PROMPT,
+            f"题目：\n{problem}\n\n解答：\n{candidate.response}",
+            self.config.process_audit_max_tokens,
+            prefill=("AUDIT: " if self.config.enable_prefill else None),
+            prefill_purpose=("evidence_state" if self.config.enable_prefill else None),
+        )
+        parsed = ProcessAuditParser().parse(audit.content)
+        for hint in parsed.hints:
+            self._hardening_ledger.add_audit_hint(hint)
+        self._hardening_ledger.add_evidence(
+            EvidenceRecord(
+                candidate.candidate_id,
+                EVIDENCE_INCONCLUSIVE,
+                "process_audit",
+                parsed.summary,
+                False,
+                None if parsed.status == "complete" else parsed.status,
+            )
+        )
+        if parsed.status != "repair" or self._hardening_repair_used or not parsed.hints:
+            return candidate
+        self._hardening_repair_used = True
+        self._hardening_ledger.transition("repair", reason="process_audit_hint")
+        repair = self.scheduler.call(
+            "process_repair",
+            REPAIR_PROMPT,
+            self._repair_prompt(problem, candidate, parsed.hints[0]),
+            self.config.tokens_for("repair"),
+        )
+        parsed_repair = HostParser().parse(
+            repair.content,
+            problem=problem,
+            source="process_repair",
+            finish_reason=repair.finish_reason,
+        )
+        repaired = self._new_candidates(parsed_repair, "process_repair")
+        all_candidates.extend(repaired)
+        self._record_parsed("candidate_repair", parsed_repair, repaired)
+        if len(repaired) != 1:
+            return candidate
+        repaired[0].verification_status = "unverified"
+        self.ledger.update_candidate(repaired[0])
+        return repaired[0]
+
+    def _hardening_trace(self, route: Mapping[str, Any]) -> list[dict[str, Any]]:
+        if self._hardening_ledger is None:
+            return []
+        return [
+            self._hardening_ledger.trace(
+                budget=self._hardening_budget,
+                route=route,
+            )
+        ]
 
     def _solve_deep(
         self,
@@ -1885,6 +2199,7 @@ class ConstraintFitOrchestrator:
                 second_candidates[0],
                 all_candidates,
                 "deep_continuation_agreement",
+                problem=problem,
             )
 
         complete_candidates = [
@@ -1910,22 +2225,49 @@ class ConstraintFitOrchestrator:
                     complete_candidates[0],
                     all_candidates,
                     "deep_continuation_agreement" if second_is_continuation else "independent_agreement",
+                    problem=problem,
                 )
             self.ledger.transition(STATE_CONFLICT, reason="deep_typed_conflict")
             self.ledger.add_conflict(complete_candidates)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.transition("conflict", reason="deep_typed_conflict")
+                self._hardening_ledger.add_conflict(complete_candidates)
+            playoff = self._run_deterministic_playoff(complete_candidates)
+            if playoff is not None:
+                if playoff.decision in {PLAYOFF_A, PLAYOFF_B}:
+                    target = complete_candidates[0 if playoff.decision == PLAYOFF_A else 1]
+                    target.verification_status = "verified"
+                    target.extraction_status = CANDIDATE_VERIFIED
+                    self.ledger.update_candidate(target)
+                    return self._select(
+                        prefix_trace,
+                        route.as_dict(),
+                        target,
+                        all_candidates,
+                        "deterministic_playoff",
+                        problem=problem,
+                    )
+                if playoff.decision in {PLAYOFF_BOTH, PLAYOFF_NEITHER}:
+                    return self._abstain(
+                        prefix_trace,
+                        route.as_dict(),
+                        "deterministic_playoff_unresolved",
+                    )
             self.ledger.transition(STATE_DEEP_CRITIC, reason="deep_conflict")
             critic = self.scheduler.call(
                 "deep_critic",
                 CRITIC_PROMPT,
                 self._critic_prompt(prompt_problem, complete_candidates),
                 self.config.tokens_for("deep_critic"),
+                prefill=("SELECT: " if self.config.enable_prefill else None),
+                prefill_purpose=("selection" if self.config.enable_prefill else None),
             )
             decision, target, reason = self._parse_critic(critic.content, complete_candidates)
             if decision == "select" and target is not None:
                 target.verification_status = "verified"
                 target.extraction_status = CANDIDATE_VERIFIED
                 self.ledger.update_candidate(target)
-                return self._select(prefix_trace, route.as_dict(), target, all_candidates, "deep_critic_selected")
+                return self._select(prefix_trace, route.as_dict(), target, all_candidates, "deep_critic_selected", problem=problem)
             return self._abstain(prefix_trace, route.as_dict(), "deep_critic_unresolved_conflict")
 
         # A single deep candidate is never promoted by candidate_unproven.
@@ -1966,6 +2308,7 @@ class ConstraintFitOrchestrator:
                 candidates_a[0],
                 all_candidates,
                 "candidate_unproven",
+                problem=problem,
             )
 
         if len(candidates_a) == 1 and parsed_a.status == CANDIDATE_TRUNCATED:
@@ -1992,6 +2335,7 @@ class ConstraintFitOrchestrator:
                     candidates_a[0],
                     all_candidates,
                     "continuation_agreement",
+                    problem=problem,
                 )
             if not cont_candidates and not _has_conflict(candidates_a):
                 return self._select(
@@ -2000,6 +2344,7 @@ class ConstraintFitOrchestrator:
                     candidates_a[0],
                     all_candidates,
                     "truncated_candidate_fallback",
+                    problem=problem,
                 )
 
         self.ledger.transition(STATE_ATTEMPT_B, reason="first_attempt_missing_conflicting_or_untrusted")
@@ -2040,18 +2385,45 @@ class ConstraintFitOrchestrator:
                 candidate,
                 all_candidates,
                 reason,
+                problem=problem,
             )
         if not unique:
             return self._abstain(prefix_trace, route.as_dict(), "no_extractable_candidate")
 
         self.ledger.transition(STATE_CONFLICT, reason="conflicting_candidates_retained")
         self.ledger.add_conflict(unique)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("conflict", reason="conflicting_candidates_retained")
+            self._hardening_ledger.add_conflict(unique)
+        playoff = self._run_deterministic_playoff(unique)
+        if playoff is not None:
+            if playoff.decision in {PLAYOFF_A, PLAYOFF_B}:
+                target = unique[0 if playoff.decision == PLAYOFF_A else 1]
+                target.verification_status = "verified"
+                target.extraction_status = CANDIDATE_VERIFIED
+                self.ledger.update_candidate(target)
+                return self._select(
+                    prefix_trace,
+                    route.as_dict(),
+                    target,
+                    all_candidates,
+                    "deterministic_playoff",
+                    problem=problem,
+                )
+            if playoff.decision in {PLAYOFF_BOTH, PLAYOFF_NEITHER}:
+                return self._abstain(
+                    prefix_trace,
+                    route.as_dict(),
+                    "deterministic_playoff_unresolved",
+                )
         self.ledger.transition(STATE_CRITIC, reason="genuine_conflict")
         critic = self.scheduler.call(
             "critic",
             CRITIC_PROMPT,
             self._critic_prompt(prompt_problem, unique),
             self.config.tokens_for("critic"),
+            prefill=("SELECT: " if self.config.enable_prefill else None),
+            prefill_purpose=("selection" if self.config.enable_prefill else None),
         )
         critic_decision, critic_target, critic_reason = self._parse_critic(critic.content, unique)
         if critic_decision == "select" and critic_target is not None:
@@ -2061,6 +2433,7 @@ class ConstraintFitOrchestrator:
                 critic_target,
                 all_candidates,
                 "critic_selected",
+                problem=problem,
             )
         if critic_decision == "repair" and critic_target is not None and critic_reason:
             self.ledger.transition(STATE_REPAIR, reason="critic_explicitly_diagnosed_error")
@@ -2091,6 +2464,7 @@ class ConstraintFitOrchestrator:
                     repaired[0],
                     all_candidates,
                     "critic_repair",
+                    problem=problem,
                 )
         return self._abstain(prefix_trace, route.as_dict(), "critic_unresolved_conflict")
 
@@ -2132,18 +2506,37 @@ class ConstraintFitOrchestrator:
         candidate: Candidate,
         all_candidates: list[Candidate],
         source: str,
+        *,
+        problem: str | None = None,
     ) -> dict[str, Any]:
         assert self.ledger is not None and self.budget is not None
+        if problem is not None and self._hardening_ledger is not None:
+            candidate = self._run_process_audit(problem, candidate, all_candidates)
+            if candidate.verification_status == "verified":
+                self._hardening_ledger.transition("verified", reason=source)
+            self._hardening_ledger.transition("selected", reason=source)
+            self._hardening_ledger.add_candidate(
+                candidate.candidate_id,
+                candidate.value,
+                source=candidate.source,
+                extraction_status=candidate.extraction_status,
+                answer_type=candidate.answer_type,
+                verification_status=candidate.verification_status,
+            )
         self.ledger.transition(STATE_SELECTED, reason=source)
         self.ledger.update_candidate(candidate)
         self.ledger.transition(STATE_FINALIZED)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("finalized")
         final = _strip_math_wrappers(candidate.value) or "UNKNOWN"
+        hardening_trace = self._hardening_trace(route)
         return {
             "final_response": final,
             "extracted_answer": candidate.normalized_value if final != "UNKNOWN" else "",
             "trace": prefix_trace
                 + [
                     self.ledger.trace(self.budget, route=route),
+                    *hardening_trace,
                     {
                         "method": DEEP_METHOD_ID if route.get("lane") == "deep" else METHOD_ID,
                     "stage": "finalize",
@@ -2171,12 +2564,16 @@ class ConstraintFitOrchestrator:
         self.ledger.transition(STATE_ABSTAINED, reason=reason)
         self.ledger.open_questions.append(_clip(reason, MAX_REASON_CHARS))
         self.ledger.transition(STATE_FINALIZED)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("abstained", reason=reason)
+            self._hardening_ledger.transition("finalized")
         return {
             "final_response": "UNKNOWN",
             "extracted_answer": "",
             "trace": prefix_trace
                 + [
                     self.ledger.trace(self.budget, route=route),
+                    *self._hardening_trace(route),
                     {
                         "method": DEEP_METHOD_ID if route.get("lane") == "deep" else METHOD_ID,
                     "stage": "finalize",

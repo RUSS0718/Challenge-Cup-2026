@@ -414,6 +414,13 @@ class AgentConfig:
     harness_deep_continuation_max_tokens: int = 4096
     harness_deep_critic_max_tokens: int = 4096
     harness_deep_max_model_calls: int = 3
+    # Issue #19 migration hardening is independently opt-in and remains
+    # outside SUBMISSION_CONFIG until its code gates are complete.
+    enable_constraint_fit_migration_hardening: bool = False
+    enable_constraint_fit_deterministic_playoff: bool = False
+    enable_constraint_fit_process_audit: bool = False
+    enable_constraint_fit_prefill: bool = False
+    harness_process_audit_max_tokens: int = 2048
     # FESF v1 is enabled in the current local evaluation profile.  The
     # rollback profile remains available through explicit runner arms.
     enable_fesf_v1: bool = False
@@ -1291,6 +1298,11 @@ class ReasoningAgent:
                     deep_continuation_max_tokens=self.config.harness_deep_continuation_max_tokens,
                     deep_critic_max_tokens=self.config.harness_deep_critic_max_tokens,
                     deep_max_model_calls=self.config.harness_deep_max_model_calls,
+                    enable_migration_hardening=self.config.enable_constraint_fit_migration_hardening,
+                    enable_deterministic_playoff=self.config.enable_constraint_fit_deterministic_playoff,
+                    enable_process_audit=self.config.enable_constraint_fit_process_audit,
+                    enable_prefill=self.config.enable_constraint_fit_prefill,
+                    process_audit_max_tokens=self.config.harness_process_audit_max_tokens,
                 ),
                 call_observer=(
                     self.bounded_completion_observer
