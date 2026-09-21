@@ -33,6 +33,9 @@ def ok(answer: str) -> str:
 def experimental_base() -> AgentConfig:
     return dataclasses.replace(
         SUBMISSION_CONFIG,
+        enable_constraint_fit_harness=False,
+        enable_constraint_fit_deep_lane=False,
+        enable_constraint_fit_hybrid_router=False,
         enable_contextual_answer_reconstruction=False,
         enable_fork_select_deepen_finish=False,
         enable_fesf_v1=False,

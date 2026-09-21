@@ -175,7 +175,7 @@ class ErrorNotebookTest(unittest.TestCase):
                 )
                 self.assertEqual(1, run.returncode, path.name + run.stdout + run.stderr)
 
-    def test_runtime_solve_only_lazy_imports_read_only_temporary_bank(self):
+    def test_runtime_solve_does_not_import_top_level_temporary_bank(self):
         import ast
         import sys
         from pathlib import Path as PathType
@@ -196,10 +196,7 @@ class ErrorNotebookTest(unittest.TestCase):
             for node in ast.walk(tree)
             if isinstance(node, ast.ImportFrom) and "error_notebook" in (node.module or "")
         }
-        self.assertEqual(
-            {"reasoning_agent.error_notebook.temporary_answer_bank"},
-            notebook_imports,
-        )
+        self.assertEqual(set(), notebook_imports)
         self.assertFalse(any("schema" in module for module in notebook_imports))
 
         class Scripted:
