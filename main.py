@@ -1,3 +1,5 @@
+"""Local JSONL runner for the competition reasoning agent."""
+
 import argparse
 import asyncio
 import json
@@ -6,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from llm_client import InternChatClient
+from reasoning_agent.profiles import available_profiles, build_profile_config
 from user_agent import ReasoningAgent
 
 
@@ -56,9 +59,17 @@ def build_output_record(item: Dict, agent_result: Dict) -> Dict:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse input/output paths and the local runtime profile selector."""
+
     parser = argparse.ArgumentParser(description="Competition sample reasoning agent.")
     parser.add_argument("--input_file", required=True, help="Path to input JSONL.")
     parser.add_argument("--output_dir", required=True, help="Directory for per-problem JSON outputs.")
+    parser.add_argument(
+        "--profile",
+        choices=available_profiles(),
+        default="submission",
+        help="Local feature profile; defaults to the official submission profile.",
+    )
     return parser.parse_args()
 
 
@@ -100,16 +111,21 @@ async def process_item(
 
 
 async def run(args: argparse.Namespace) -> None:
+    """Run the selected profile over every input problem."""
+
     input_path = Path(args.input_file)
     output_dir = Path(args.output_dir)
 
     items = load_jsonl(input_path)
 
     client = InternChatClient()
-    agent = ReasoningAgent(client=client)
+    agent = ReasoningAgent(client=client, config=build_profile_config(args.profile))
     semaphore = asyncio.Semaphore(LOCAL_MAX_CONCURRENCY)
 
-    print(f"Loaded {len(items)} items. Max concurrency: {LOCAL_MAX_CONCURRENCY}.")
+    print(
+        f"Loaded {len(items)} items. Profile: {args.profile}. "
+        f"Max concurrency: {LOCAL_MAX_CONCURRENCY}."
+    )
     tasks = [process_item(agent, item, output_dir, semaphore) for item in items]
     await asyncio.gather(*tasks)
     print(f"Saved outputs to {output_dir}")
