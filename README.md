@@ -1,13 +1,13 @@
 # Challenge Cup 2026 数学推理智能体
 
 本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现:一个受调用预算约束的数学
-推理智能体。当前默认流水线为语义参考 RAG → 题型/学科分类 → 学科 Skill →
-FSDF（Analyze–Fork–Select/Deepen–Finish）→ 规范化输出，同时保持赛事规定的
-单文件入口与公开 client 契约。
+推理智能体。当前提交 profile 的默认流水线为题型/答案形态分类 →
+Constraint-Fit Harness（Direct/Deep/FSDF fallback）→ 规范化输出，同时保持赛事
+规定的单文件入口与公开 client 契约。
 
-> 当前状态（2026-09-12）：默认提交路径先执行 `reference-example RAG`，再做题型/学科分类，
-> 注入经过安全投影的 18 学科 Skill，最后进入 Constraint-Fit/FSDF。旧 `method_rag`、
-> 答案 bank、CAR、FESF、Claim DSL、Host Loop、工具和 MCP 仍不属于默认路径。
+> 当前状态（2026-09-21）：默认提交路径关闭 reference-example RAG、Skill 和答案 bank，
+> 先做题型/答案形态分类，再进入 Constraint-Fit/FSDF。CAR、FESF、Claim DSL、Host Loop、
+> 工具和 MCP 保留为显式实验层，不属于默认路径。
 
 ## 当前 Agent 架构
 
@@ -16,35 +16,35 @@ FSDF（Analyze–Fork–Select/Deepen–Finish）→ 规范化输出，同时保
 
 ```mermaid
 flowchart TD
-    entry["ReasoningAgent.solve(problem, metadata)"] --> rag["语义参考 RAG"]
-    rag --> classify["P0 分类<br/>答案形态 + 学科 + 风险"]
-    classify --> skill["18 学科 Skill<br/>安全运行时投影"]
-    skill --> analyze["A Analyze"]
-    analyze --> fork["B/C Fork"]
-    fork --> deepen["D Select/Deepen"]
-    deepen --> finish["E Finish"]
-    finish --> finalize["final_response 组装"]
+    entry["ReasoningAgent.solve(problem, metadata)"] --> classify["题型/答案形态分类<br/>风险与置信度"]
+    classify --> harness["Constraint-Fit Harness"]
+    harness --> direct["Direct"]
+    harness --> deep["Deep typed lane"]
+    harness --> fsdf["FSDF legacy fallback"]
+    direct --> finalize["保守选择 / UNKNOWN"]
+    deep --> finalize
+    fsdf --> finalize
     finalize --> out["final_response + extracted_answer + trace"]
 ```
 
 | 层 | 在役实现 | 备注 |
 | --- | --- | --- |
-| 语义参考 RAG | Qwen3-Embedding-0.6B + Chroma 15,383 条 | 默认先检索；只注入有界参考，不直接替换答案 |
+| 语义参考 RAG | Qwen3-Embedding-0.6B + Chroma 15,383 条 | 代码保留；提交 profile 默认关闭 |
 | 题型/学科分类 | 纯文本规则六类答案形态 + 18 学科词汇路由 | 常开；不读 metadata |
-| 学科 Skill | Intern1 18 份手册的安全投影，按题面选择模块 | 默认注入；过滤具体题答案段 |
-| 生成 | A 分析、B/C 双思路、D 深推、E 收尾 | 难题固定五阶段 |
-| 选择 | D 只能选择一个可用分支 | 非法/不可用选择 fail-closed 降级 |
-| 预算 | 每题最多5次模型调用 | `[2048,2048,2048,8192,4096]`，合计18432 |
-| 表示 | 允许 handoff 字段 + `HANDOFF_INCOMPLETE` | `UNKNOWN` fail-closed |
+| 学科 Skill | Intern1 18 份手册的安全投影 | 代码保留；提交 profile 默认关闭 |
+| 生成/路由 | Direct A/B、Deep primary/review、FSDF A/B/C/D/E | 由 HostRouter 按合同分流 |
+| 选择 | Evidence Ledger + HostParser/TypedParser | 非法、冲突或不可验证时 `UNKNOWN` |
+| 预算 | Harness 每题最多 5 次模型调用 | Harness 总预算 16,384 tokens；FSDF 有自身有界预算 |
+| 表示 | 结构化候选、typed parse、handoff | `UNKNOWN` fail-closed |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
 
 ### Constraint-Fit Math Harness（MATH-HARNESS-V1，提交 profile 开启）
 
-新 Harness 位于 `reasoning_agent/math_harness.py`，通过 `ReasoningAgent.solve()` 作为
-外层 opt-in 路径接入；候选实现为
+新 Harness 位于 `reasoning_agent/math_harness.py`，通过 `ReasoningAgent.solve()` 接入；
+候选实现为
 `bounded_evidence_trajectory_selection_v1`。它使用有限 A/B 轨迹、Evidence Ledger、
 保守选择、截断单次恢复和 5 次/16384 token 硬预算。FSDF 仍保留为 legacy backend；
-提交 profile 开启 Harness、Deep lane、hybrid router、RAG 和 Skill；答案 bank 从正式路径移除。
+提交 profile 开启 Harness、Deep lane、hybrid router；RAG、Skill 和答案 bank 不进入正式路径。
 
 该候选已完成双轴 Router、typed parser 和 Deep 状态机的零模型代码验收；随后按新 spec
 执行 fresh 6 题 formation probe，但首 3 题均在固定 1200 秒 `deep_primary` 边界超时，
@@ -68,7 +68,7 @@ flowchart LR
         release["发布线克隆<br/>canary/revert 操作面"]
     end
     subgraph loop["实验闭环(每窗一变量)"]
-        branch["工作分支 codex/b1-4k-canary<br/>23 变体 + 380 测试"]
+        branch["实验/整理分支<br/>scoped commit + 冻结集"]
         runner["evaluate_protocol_ab.py<br/>240s / workers=3 / 交错配对"]
         sets["冻结集 complex48 / medium60<br/>public112 / dev(探针)"]
         judge2["判定:void 门(错误率>10%整窗作废)<br/>→ 正确率/成本/卫生门 → 逐题配对"]
@@ -83,8 +83,11 @@ flowchart LR
 ## 项目目录结构
 
 ```text
-├── user_agent.py                        # Agent 核心:ReasoningAgent + 全部实验开关
-├── reasoning_agent/math_harness.py       # MATH-HARNESS-V1 外层 Harness（默认关闭）
+├── user_agent.py                        # Agent 兼容 facade: ReasoningAgent + 配置
+├── reasoning_agent/answer_parsing.py      # 纯答案抽取、规范化与确定性检查
+├── reasoning_agent/harness_contracts.py   # Harness 合同、候选与 typed parser
+├── reasoning_agent/math_harness.py       # MATH-HARNESS-V1 编排、预算与路由
+├── reasoning_agent/profiles.py            # 本地 submission/agent-default profile
 ├── llm_client.py                        # 书生 API client(本地评测用)
 ├── main.py                              # 本地逐题 runner
 ├── scripts/
@@ -95,7 +98,7 @@ flowchart LR
 │   ├── public_regression_112.jsonl      # 112 题短题知识覆盖集(回归保护)
 │   ├── medium_capability_freeze_60.jsonl
 │   └── complex_capability_freeze_48.jsonl
-├── tests/                               # 本地回归测试(当前全量 739 项,4 项跳过)
+├── tests/                               # 本地回归测试(当前全量 874 项,4 项跳过)
 ├── docs/
 │   ├── excluded_approaches.md           # 淘汰方案单一事实源
 │   ├── ARCHIVE_INDEX.md                 # 当前/历史文档分类索引
@@ -104,6 +107,7 @@ flowchart LR
 │   ├── experiments/                     # 本地与官方评测报告与工件(78+)
 │   ├── adr/                             # 关键决策记录
 │   ├── agents/                          # 工作流约定
+│   ├── architecture_evolution.md        # 版本/架构演进总表
 │   └── branches_map.md                  # 分支与发布面地图
 ├── method_cards.jsonl 等                 # opt-in 实验离线资产
 └── tmp/                                 # 原始工件与临时复核数据(untracked)
@@ -112,7 +116,7 @@ flowchart LR
 ## 提交配置与实验开关板
 
 官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到当前分支的
-`SUBMISSION_CONFIG`：先执行 reference-example RAG，再做题型/学科分类和 Skill 投影；随后由 Constraint-Fit Router 分流，
+`SUBMISSION_CONFIG`：reference-example RAG 与 Skill 保持关闭，先做题型/学科分类，随后由 Constraint-Fit Router 分流，
 direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fallback。
 当前这是分支上的显式 canary 配置；Deep formation 与 Direct Health 均未过健康门，
 尚未形成能力 A/B 证据，main 发布面不随此分支自动改变。
@@ -120,8 +124,8 @@ direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fa
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
 | `enable_fork_select_deepen_finish` | ✅ | Constraint-Fit 的 FSDF legacy fallback |
-| `enable_reference_rag` | ✅ | intern1 语义相似题参考；检索失败降级为空参考 |
-| `enable_reference_skills` | ✅ | Intern1 18 学科手册的安全运行时投影 |
+| `enable_reference_rag` | ⬜ | 提交路径关闭；仅显式实验配置启用 |
+| `enable_reference_skills` | ⬜ | 提交路径关闭；仅显式实验配置启用 |
 | `enable_temporary_answer_bank` | ⬜ | 默认路径已移除；底层旧 gateway 仅保留显式测试兼容 |
 | `enable_contextual_answer_reconstruction` | ⬜ | 历史实验路径 |
 | `enable_adaptive_voting`(k5/threshold3) | ✅ | FSDF v1 候选一致性投票 |
@@ -174,6 +178,18 @@ $env:INTERN_API_KEY = "your-api-key"
 python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs
 ```
 
+本地 runner 可用一个 profile 开关整组切换功能；默认仍是官方提交 profile，
+`agent-default` 仅用于关闭实验路径的本地对照：
+
+```powershell
+python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs --profile submission
+python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs --profile agent-default
+```
+
+该开关只影响本地 `main.py` runner；官方仍通过
+`ReasoningAgent(client=official_client)` 使用 `SUBMISSION_CONFIG`，不会被本地
+profile 按钮或命令行参数隐式改变。
+
 ## 本地评测与实验纪律
 
 - **主力 runner**:`scripts/evaluate_protocol_ab.py`(多臂交错配对、240s 超时、
@@ -198,16 +214,18 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 ## 当前路线
 
-- **在役**：分层题面匹配 + `fork_select_deepen_finish_v1`；匹配层只对已提交题库命中，
-  FSDF 仍无新的真实能力结论。
-- **运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`）。
-- **发布状态**：用户已授权默认切换并合并 GitCode；官方结果仍需单独核验。
-- **已淘汰**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
+- **当前 checkout**：Constraint-Fit Harness 的 Direct/Deep/FSDF fallback seam；
+  reference RAG、Skill、答案 bank 和历史候选均默认关闭，尚未形成新的数学能力结论。
+- **历史运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`），仅作为历史发布/回滚参照。
+- **发布状态**：当前是本地整理分支，未自动改变 GitCode/main 或赛事作品；远端发布面单独记录。
+- **已归档/排除**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
   P1 salvage、G 门控、TIR/回代验证、32k 天花板。
 - **暂不引入**:LLM-as-judge 本地判分、PRM 组件、LangGraph/AgentScope、
   联网工具与任意代码执行。
 
-详细证据与决策记录见:`docs/experiments/`(六轮官方与全部本地报告)、
+详细证据与决策记录见按实验 ID 分类的 `docs/experiments/`、
+[架构演进总表](docs/architecture_evolution.md)、
+[每日官方评测归档](docs/official_evaluations/)、
 [docs/excluded_approaches.md](docs/excluded_approaches.md)、
 [docs/adr/](docs/adr/)、[docs/branches_map.md](docs/branches_map.md)。
 
@@ -219,7 +237,7 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 1. 将可复现版本推送到队伍 AtomGit 组织仓库的 `main` 分支(走发布线克隆)。
 2. 在作品页面保持关联与提交状态。
-3. 每轮结果按五数判读并记入 `docs/experiments/官方评测记录.md`,回滚条件
+3. 每轮结果按五数判读并记入 `docs/official_evaluations/README.md`,回滚条件
    在发布记录中预写。
 
 提交、推送和作品页面操作都应单独确认。本地数据集结果只用于研发,不代表

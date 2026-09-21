@@ -37,7 +37,7 @@ adaptive vote 仍走普通 Prompt，无法实现其声称的 Alternative。`18f4
 
 ## 发布后
 
-1. 下一次官方原始日志必须归档并补入 `官方评测记录.md`；
+1. 下一次官方原始日志必须归档并补入 `../official_evaluations/README.md`；
 2. 与 Run #4 同时比较 correct、invalid、截断率、runner error、attempts 和总耗时；
 3. 不用本次发布动作替代本地 A/B；
 4. 若官方 correct 回退、总时限风险恶化或 runner error 明显增加，回滚到 `242c480`。

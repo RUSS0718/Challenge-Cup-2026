@@ -20,7 +20,7 @@
 
 ## 一、官方评测处置（配置级）
 
-权威数字见 [`docs/experiments/官方评测记录.md`](experiments/官方评测记录.md)。
+权威数字见 [`docs/official_evaluations/README.md`](official_evaluations/README.md)。
 
 | 方案 | 官方结果 | 处置 |
 | --- | --- | --- |
