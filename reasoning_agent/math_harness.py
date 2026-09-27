@@ -34,6 +34,7 @@ from reasoning_agent.migration_hardening import (
     PLAYOFF_BOTH,
     PLAYOFF_NEITHER,
 )
+from reasoning_agent.diagnostic_trace import summarize_agent_trace
 from reasoning_agent.harness_contracts import (
     ANSWER_CHOICE,
     ANSWER_DERIVATION,
@@ -618,6 +619,8 @@ class FSDFLegacyBackendAdapter:
         extracted = result.get("extracted_answer", "")
         if not isinstance(extracted, str):
             extracted = ""
+        raw_trace = result.get("trace", [])
+        legacy_trace = summarize_agent_trace(raw_trace)
         return {
             "final_response": final,
             "extracted_answer": extracted,
@@ -627,9 +630,8 @@ class FSDFLegacyBackendAdapter:
                     "stage": "legacy_backend",
                     "backend": "fsdf_v1",
                     "status": "completed" if final != "UNKNOWN" else "unknown",
-                    "source_trace_events": len(result.get("trace", []))
-                    if isinstance(result.get("trace", []), list)
-                    else 0,
+                    "source_trace_events": len(raw_trace) if isinstance(raw_trace, list) else 0,
+                    "legacy_trace": legacy_trace,
                 }
             ],
         }
@@ -906,6 +908,7 @@ class ConstraintFitOrchestrator:
                 result = self.legacy_backend.solve(problem_text, metadata or {})
             if not isinstance(result, Mapping):
                 result = {}
+            legacy_trace = summarize_agent_trace(result.get("trace"))
             final = result.get("final_response", "UNKNOWN")
             if not isinstance(final, str) or not final.strip():
                 final = "UNKNOWN"
@@ -919,6 +922,12 @@ class ConstraintFitOrchestrator:
                 + [
                     self.ledger.trace(self.budget, route=route_dict),
                     *self._hardening_trace(route_dict),
+                    {
+                        "method": METHOD_ID,
+                        "stage": "legacy_backend",
+                        "status": "returned",
+                        "legacy_trace": legacy_trace,
+                    },
                     {
                         "method": METHOD_ID,
                         "stage": "finalize",

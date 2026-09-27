@@ -10,6 +10,7 @@ from reasoning_agent.math_harness import (
     ConstraintFitOrchestrator,
     EvidenceLedger,
     FrozenErrorNotebook,
+    FSDFLegacyBackendAdapter,
     HarnessConfig,
     HostParser,
     HostRouter,
@@ -312,7 +313,15 @@ class MathHarnessOrchestratorTest(unittest.TestCase):
                 return {
                     "final_response": "legacy proof",
                     "extracted_answer": "",
-                    "trace": [],
+                    "trace": [
+                        {
+                            "method": "legacy_fixture",
+                            "stage": "D",
+                            "status": "failed",
+                            "error_category": "timeout",
+                            "raw_response": "private response",
+                        }
+                    ],
                 }
 
         client = ScriptedClient([])
@@ -323,6 +332,41 @@ class MathHarnessOrchestratorTest(unittest.TestCase):
         self.assertEqual("legacy proof", result["final_response"])
         self.assertEqual([], client.calls)
         self.assertTrue(any(event.get("stage") == "route" and event["target"] == "legacy_fsdf" for event in result["trace"]))
+        legacy_event = next(event for event in result["trace"] if event.get("stage") == "legacy_backend")
+        self.assertEqual("returned", legacy_event["status"])
+        self.assertEqual("D", legacy_event["legacy_trace"][0]["stage"])
+        self.assertEqual("timeout", legacy_event["legacy_trace"][0]["error_category"])
+        self.assertNotIn("private response", json.dumps(result, ensure_ascii=False))
+
+    def test_fsdf_adapter_preserves_only_sanitized_stage_trace(self):
+        """Keep allowlisted legacy stage data while removing response text."""
+        class Legacy:
+            """Return one legacy event containing a deliberately unsafe field."""
+
+            def solve(self, _problem):
+                """Provide a minimal result for adapter sanitization."""
+                return {
+                    "final_response": "UNKNOWN",
+                    "extracted_answer": "",
+                    "trace": [
+                        {
+                            "method": "fsdf_fixture",
+                            "stage": "D",
+                            "status": "failed",
+                            "error_category": "timeout",
+                            "raw_response": "private response",
+                        }
+                    ],
+                }
+
+        result = FSDFLegacyBackendAdapter(
+            ScriptedClient([]), backend_factory=lambda _client: Legacy()
+        ).solve("fixture")
+
+        trace = result["trace"][0]["legacy_trace"]
+        self.assertEqual("D", trace[0]["stage"])
+        self.assertEqual("timeout", trace[0]["error_category"])
+        self.assertNotIn("private response", json.dumps(result, ensure_ascii=False))
 
     def test_response_after_wall_limit_is_fail_closed(self):
         class Clock:

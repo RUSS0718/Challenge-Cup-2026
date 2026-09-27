@@ -1,17 +1,36 @@
+import hashlib
 import json
 import os
 import time
-from typing import Dict, List
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List
 from urllib.parse import urlparse
 
 import requests
 
 
 DEFAULT_API_BASE = "https://chat.intern-ai.org.cn/api/v1/chat/completions"
-# The legacy ``intern-s2-preview`` alias now points to a smaller model.  Use
-# the explicit 397B identifier for local experiments; callers can still pin a
-# different provider-supported model with INTERN_MODEL.
-DEFAULT_MODEL = "intern-s2-preview-397b"
+# The provider's API identifier for the current Intern-S2 model.
+DEFAULT_MODEL = "intern-s2"
+
+
+def _load_local_env() -> None:
+    """Load simple KEY=VALUE settings from the repository .env, overriding Windows values."""
+    env_path = Path(__file__).with_name(".env")
+    if not env_path.is_file():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        name, value = name.strip(), value.strip()
+        if name:
+            os.environ[name] = value
+
+
+_load_local_env()
 
 
 class ChatClientError(RuntimeError):
@@ -59,6 +78,11 @@ class InternChatClient:
         # 13.2 token A/B: per-call wall-clock latency (aligned with the lists above,
         # appended once per successful chat call so before/after slicing works).
         self.latencies: List[float] = []
+        # Sanitized per-attempt metadata for local diagnosis; never stores
+        # authorization headers, prompts, or response content.
+        self.request_diagnostics: List[dict[str, Any]] = []
+        self._logical_call_count = 0
+        self._request_sequence = 0
         self.last_failure_category: str | None = None
         self.last_failure_type: str | None = None
 
@@ -81,9 +105,37 @@ class InternChatClient:
             "Authorization": self.authorization,
         }
 
+        message_bytes = json.dumps(
+            messages, ensure_ascii=False, sort_keys=True, default=str
+        ).encode("utf-8")
+        logical_call_index = self._logical_call_count
+        self._logical_call_count += 1
+        request_metadata = {
+            "logical_call_index": logical_call_index,
+            "request_model_id": self.model,
+            "api_host": urlparse(self.api_base).netloc,
+            "thinking_mode": self.thinking_mode,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "timeout_seconds": self.timeout,
+            "attempts_configured": self.retry,
+            "message_count": len(messages),
+            "message_roles": [str(message.get("role", "")) for message in messages],
+            "messages_sha256": hashlib.sha256(message_bytes).hexdigest(),
+        }
         last_category = "request"
         started = time.perf_counter()
         for attempt in range(self.retry):
+            attempt_started = time.perf_counter()
+            request_event: dict[str, Any] = {
+                **request_metadata,
+                "request_sequence": self._request_sequence,
+                "attempt_index": attempt + 1,
+                "started_at_utc": datetime.now(timezone.utc).isoformat(),
+                "status": "pending",
+            }
+            response = None
+            failure: BaseException | None = None
             try:
                 response = requests.post(
                     self.api_base,
@@ -94,40 +146,89 @@ class InternChatClient:
                 response.raise_for_status()
                 data = response.json()
                 choice = data["choices"][0]
-                self.finish_reasons.append(choice.get("finish_reason") or "")
+                finish_reason = choice.get("finish_reason") or ""
+                request_event.update(
+                    status="success",
+                    http_status=response.status_code,
+                    response_id=data.get("id") if isinstance(data.get("id"), str) else None,
+                    response_model_id=(
+                        data.get("model") if isinstance(data.get("model"), str) else None
+                    ),
+                    finish_reason=finish_reason,
+                )
+                self.finish_reasons.append(finish_reason)
                 usage = data.get("usage") or {}
                 try:
-                    self.completion_tokens.append(int(usage.get("completion_tokens") or 0))
+                    completion_tokens = int(usage.get("completion_tokens") or 0)
                 except (TypeError, ValueError):
-                    self.completion_tokens.append(0)
+                    completion_tokens = 0
+                self.completion_tokens.append(completion_tokens)
+                for usage_field in ("prompt_tokens", "total_tokens"):
+                    try:
+                        request_event[usage_field] = int(usage.get(usage_field) or 0)
+                    except (TypeError, ValueError):
+                        request_event[usage_field] = None
+                request_event["completion_tokens"] = completion_tokens
                 content = choice["message"]["content"]
                 self.raw_contents.append(content if isinstance(content, str) else "")
+                request_event["response_content_chars"] = (
+                    len(content) if isinstance(content, str) else None
+                )
                 self.latencies.append(time.perf_counter() - started)
                 return content
             except requests.Timeout as exc:
                 last_category = "timeout"
+                failure = exc
                 self._record_failure(last_category, exc)
             except requests.exceptions.ProxyError as exc:
                 last_category = "proxy"
+                failure = exc
                 self._record_failure(last_category, exc)
             except requests.exceptions.SSLError as exc:
                 last_category = "tls"
+                failure = exc
                 self._record_failure(last_category, exc)
             except requests.ConnectionError as exc:
                 last_category = "connectivity"
+                failure = exc
                 self._record_failure(last_category, exc)
             except requests.HTTPError as exc:
                 last_category = "http_status"
+                failure = exc
                 self._record_failure(last_category, exc)
             except (KeyError, TypeError, ValueError) as exc:
                 last_category = "invalid_response"
+                failure = exc
                 self._record_failure(last_category, exc)
             except requests.RequestException as exc:
                 last_category = "request"
+                failure = exc
                 self._record_failure(last_category, exc)
-                if attempt + 1 < self.retry:
-                    time.sleep(2**attempt)
-                continue
+            except Exception as exc:
+                failure = exc
+                last_category = "client_exception"
+                self._record_failure(last_category, exc)
+                raise
+            finally:
+                request_event["duration_seconds"] = round(
+                    time.perf_counter() - attempt_started, 3
+                )
+                if failure is not None:
+                    failure_response = (
+                        response if response is not None else getattr(failure, "response", None)
+                    )
+                    request_event.update(
+                        status="error",
+                        error_category=last_category,
+                        error_type=type(failure).__name__,
+                        http_status=(
+                            getattr(failure_response, "status_code", None)
+                            if failure_response is not None
+                            else None
+                        ),
+                    )
+                self.request_diagnostics.append(request_event)
+                self._request_sequence += 1
             if attempt + 1 < self.retry:
                 time.sleep(2**attempt)
 

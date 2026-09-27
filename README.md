@@ -168,9 +168,15 @@ python -m pip install -r requirements.txt
 本地调用需要配置书生 API:
 
 ```powershell
-$env:INTERN_API_KEY = "your-api-key"
-# 可选:$env:INTERN_MODEL = "intern-s2-preview-397b"
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+notepad .env
 ```
+
+在 `.env` 中填写 `INTERN_API_KEY`；本地评测模型固定为
+`INTERN_MODEL=intern-s2`。`llm_client.py` 会自动加载仓库根目录的
+`.env`，其中的值优先于同名 Windows 环境变量。`.env` 已被 Git 忽略，不要提交密钥。
+`INTERN_API_BASE` 默认使用官方兼容端点；超时、重试和 thinking 模式按各实验协议设置，
+不要为了方便写成会改变冻结实验的全局覆盖值。
 
 运行 3 道快速冒烟题:
 

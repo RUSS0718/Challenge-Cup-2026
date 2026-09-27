@@ -41,12 +41,50 @@ class InternChatClientTest(unittest.TestCase):
                 client.chat([], 0.0, 1)
         self.assertEqual("timeout", context.exception.category)
 
-    def test_default_model_is_explicit_397b_and_snapshot_is_safe(self):
+    def test_default_model_is_intern_s2_and_snapshot_is_safe(self):
         with _patch_env(INTERN_API_KEY="test", remove=["INTERN_MODEL"]):
             client = InternChatClient()
         snapshot = client.diagnostic_snapshot()
-        self.assertEqual("intern-s2-preview-397b", snapshot["model"])
+        self.assertEqual("intern-s2", snapshot["model"])
         self.assertNotIn("test", str(snapshot))
+
+    def test_request_diagnostics_capture_retry_without_prompt_or_response(self):
+        """Keep retry metadata while excluding prompts, answers, and errors."""
+        import requests
+
+        response = requests.Response()
+        response.status_code = 200
+        response._content = (
+            b'{"id":"request-1","model":"intern-s2",'
+            b'"choices":[{"message":{"content":"private answer"},"finish_reason":"stop"}],'
+            b'"usage":{"prompt_tokens":17,"completion_tokens":3,"total_tokens":20}}'
+        )
+        with _patch_env(INTERN_API_KEY="private key", INTERN_MODEL="intern-s2"):
+            client = InternChatClient(timeout=4, retry=2)
+        with patch(
+            "llm_client.requests.post",
+            side_effect=[requests.Timeout("private failure detail"), response],
+        ) as post:
+            self.assertEqual("private answer", client.chat([{"role": "user", "content": "private prompt"}], 0.1, 64))
+
+        self.assertEqual(2, post.call_count)
+        self.assertEqual(2, len(client.request_diagnostics))
+        failed, succeeded = client.request_diagnostics
+        self.assertEqual("error", failed["status"])
+        self.assertEqual("timeout", failed["error_category"])
+        self.assertEqual("Timeout", failed["error_type"])
+        self.assertEqual(1, failed["attempt_index"])
+        self.assertEqual("success", succeeded["status"])
+        self.assertEqual(2, succeeded["attempt_index"])
+        self.assertEqual("intern-s2", succeeded["request_model_id"])
+        self.assertEqual("intern-s2", succeeded["response_model_id"])
+        self.assertEqual("stop", succeeded["finish_reason"])
+        self.assertEqual(17, succeeded["prompt_tokens"])
+        self.assertEqual(3, succeeded["completion_tokens"])
+        self.assertEqual(20, succeeded["total_tokens"])
+        serialized = str(client.request_diagnostics)
+        for private_value in ("private key", "private prompt", "private answer", "private failure detail"):
+            self.assertNotIn(private_value, serialized)
 
     def test_tls_error_has_distinct_sanitized_category(self):
         with _patch_env(INTERN_API_KEY="test"):
@@ -70,6 +108,8 @@ class InternChatClientTest(unittest.TestCase):
         self.assertEqual("http_status", context.exception.category)
         self.assertEqual("HTTPError:401", context.exception.detail)
         self.assertEqual("HTTPError:401", client.diagnostic_snapshot()["last_failure_type"])
+        self.assertEqual("http_status", client.request_diagnostics[0]["error_category"])
+        self.assertEqual(401, client.request_diagnostics[0]["http_status"])
 
     def test_thinking_mode_is_optional_and_added_only_when_configured(self):
         with _patch_env(INTERN_API_KEY="test", INTERN_THINKING_MODE="false"):
