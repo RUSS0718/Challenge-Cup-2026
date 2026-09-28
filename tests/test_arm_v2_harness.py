@@ -2,6 +2,8 @@
 
 import unittest
 
+from reasoning_agent.arm_v21_verification import VerificationResult
+from reasoning_agent.skill_guidance import SkillRouteDecision
 from reasoning_agent.math_harness import ConstraintFitOrchestrator, HarnessConfig
 
 
@@ -81,6 +83,12 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual(["off", "off"], [call["reasoning_mode"] for call in client.calls])
         self.assertTrue(self._summary(result)["agreement"])
         self.assertTrue(self._summary(result)["second_sample_triggered"])
+        self.assertEqual("deep_contract", self._summary(result)["second_sample_trigger_reason"])
+        self.assertEqual("EQUIVALENT", self._summary(result)["a_b_relation"])
+        self.assertEqual("confirmed", self._summary(result)["second_sample_outcome"])
+        self.assertEqual("consensus", self._summary(result)["final_source"])
+        self.assertEqual("typed_complete", self._summary(result)["primary_parse"]["status"])
+        self.assertEqual(1, self._summary(result)["primary_parse"]["candidate_count"])
 
     def test_conflict_uses_a_b_only_resolver(self):
         client = ModeAwareClient([
@@ -96,6 +104,8 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertTrue(self._summary(result)["resolver_triggered"])
         self.assertTrue(self._summary(result)["conflict"])
         self.assertEqual("A", self._summary(result)["resolver_decision"])
+        self.assertEqual("resolver_a", self._summary(result)["final_source"])
+        self.assertEqual("candidate_a", self._summary(result)["resolver"]["selected_source"])
 
     def test_timeout_uses_compact_salvage_without_entering_trust_on_failure(self):
         client = ModeAwareClient([
@@ -128,6 +138,86 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual(2, len(self._ledger(result)["candidates"]))
         self.assertEqual("UNKNOWN", self._summary(result)["resolver_decision"])
         self.assertTrue(self._summary(result)["safe_fallback_used"])
+
+    def test_fragment_is_not_a_safe_candidate_and_exposes_failure_reason(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: x_s", "finish_reason": "stop"},
+            {"content": "Final answer: x_s", "finish_reason": "stop"},
+        ])
+        result = ConstraintFitOrchestrator(client, config=_config()).solve("求一个数", {})
+
+        summary = self._summary(result)
+        self.assertEqual("UNKNOWN", result["final_response"])
+        self.assertEqual("second_sample_incomplete", result["final_failure_reason"])
+        self.assertFalse(summary["primary_candidate"]["answer_complete"])
+        self.assertEqual("primary_incomplete", summary["second_sample_trigger_reason"])
+        self.assertEqual("NO_VALID_PAIR", summary["a_b_relation"])
+        self.assertIsNone(summary["safe_candidate"])
+        self.assertFalse(summary["resolver_triggered"])
+
+    def test_deterministic_verifier_selects_existing_candidate_before_resolver(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+            {"content": "Final answer: {3,4}", "finish_reason": "stop"},
+        ])
+        orchestrator = ConstraintFitOrchestrator(client, config=_config())
+
+        class SelectA:
+            def verify(self, candidate_a, candidate_b, problem):
+                return VerificationResult("A", candidate_a.candidate_id, "cheap_falsification")
+
+        orchestrator.deterministic_verifier = SelectA()
+        result = orchestrator.solve("求所有可能的值", {})
+
+        summary = self._summary(result)
+        self.assertEqual("{1,2}", result["final_response"])
+        self.assertEqual(2, len(client.calls))
+        self.assertEqual("A", summary["verification"]["status"])
+        self.assertFalse(summary["resolver_triggered"])
+        self.assertEqual("candidate_a", summary["final_source"])
+
+    def test_verifier_exception_fails_open_to_resolver(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+            {"content": "Final answer: {3,4}", "finish_reason": "stop"},
+            "A",
+        ])
+        orchestrator = ConstraintFitOrchestrator(client, config=_config())
+
+        class BrokenVerifier:
+            def verify(self, candidate_a, candidate_b, problem):
+                raise RuntimeError("not applicable")
+
+        orchestrator.deterministic_verifier = BrokenVerifier()
+        result = orchestrator.solve("求所有可能的值", {})
+
+        summary = self._summary(result)
+        self.assertEqual(3, len(client.calls))
+        self.assertEqual("UNKNOWN", summary["verification"]["status"])
+        self.assertTrue(summary["resolver_triggered"])
+
+    def test_skill_guidance_is_only_injected_into_primary_by_default(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+        ])
+        orchestrator = ConstraintFitOrchestrator(
+            client,
+            config=_config(arm_enable_skill_guidance=True),
+        )
+
+        class Router:
+            def route(self, problem, contract):
+                return SkillRouteDecision("demo", 0.9, "test_route")
+
+            def guidance(self, decision):
+                return "先检查对称性"
+
+        orchestrator.skill_router = Router()
+        orchestrator.solve("求所有可能的值", {})
+
+        self.assertIn("先检查对称性", client.calls[0]["messages"][0]["content"] + client.calls[0]["messages"][1]["content"])
+        self.assertNotIn("先检查对称性", client.calls[1]["messages"][0]["content"] + client.calls[1]["messages"][1]["content"])
 
 
 if __name__ == "__main__":

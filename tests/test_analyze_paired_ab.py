@@ -68,6 +68,15 @@ class PairedCountsTest(unittest.TestCase):
             self.assertEqual(1, counts["c"])
             self.assertEqual(0, counts["b"])
 
+    def test_result_contains_transition_attribution(self):
+        rows = [
+            {"variant": "baseline86", "idx": 1, "verdict": "invalid"},
+            {"variant": "adaptive_vote", "idx": 1, "verdict": "correct", "final_source": "safe_candidate"},
+        ]
+        counts = paired_counts(rows, "baseline86", "adaptive_vote")
+        self.assertEqual(1, counts["transition_matrix"]["invalid → correct"])
+        self.assertEqual("safe_candidate", counts["item_attribution"][0]["candidate_final_source"])
+
 
 if __name__ == "__main__":
     unittest.main()

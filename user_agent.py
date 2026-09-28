@@ -464,6 +464,8 @@ class AgentConfig:
     # v2.1 changes only this request-local solver control for ON/OFF runs.
     arm_solver_reasoning_mode: str = "off"
     arm_finalization_margin_seconds: float = 15.0
+    arm_enable_skill_guidance: bool = False
+    arm_enable_skill_for_second: bool = False
     arm_enable_skill_audit: bool = False
     arm_max_skill_audits: int = 1
     arm_timeout_recovery_mode: str = "none"
@@ -720,6 +722,8 @@ class ReasoningAgent:
                     arm_v2_mode=self.config.arm_v2_mode,
                     arm_solver_reasoning_mode=self.config.arm_solver_reasoning_mode,
                     arm_finalization_margin_seconds=self.config.arm_finalization_margin_seconds,
+                    arm_enable_skill_guidance=self.config.arm_enable_skill_guidance,
+                    arm_enable_skill_for_second=self.config.arm_enable_skill_for_second,
                     arm_enable_skill_audit=self.config.arm_enable_skill_audit,
                     arm_max_skill_audits=self.config.arm_max_skill_audits,
                     arm_timeout_recovery_mode=self.config.arm_timeout_recovery_mode,

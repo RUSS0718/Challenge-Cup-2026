@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import math
+from types import SimpleNamespace
 from typing import Any
 
+from reasoning_agent.arm_v21_diagnostics import candidate_diagnostics, parse_diagnostics
 from reasoning_agent.harness_contracts import Candidate
+from reasoning_agent.inference_policy import ReasoningMode
+from reasoning_agent.math_harness import ATTEMPT_A_PROMPT, ATTEMPT_B_PROMPT
 from reasoning_agent.safe_candidate import SafeCandidateState
 from reasoning_agent.skill_audit import SkillAuditResult
 
@@ -22,6 +27,212 @@ class ARMV21StateSupport:
         margin = float(getattr(self.harness.config, "arm_finalization_margin_seconds", 15.0))
         return self.remaining_wall_seconds() <= margin
 
+    def effective_timeout_seconds(self, configured_timeout: int | None) -> int | None:
+        """Clamp one request to the remaining solve budget minus finalization."""
+        margin = float(getattr(self.harness.config, "arm_finalization_margin_seconds", 15.0))
+        available = self.remaining_wall_seconds() - margin
+        if available <= 0:
+            return None
+        effective = math.floor(available)
+        if configured_timeout is not None:
+            effective = min(effective, int(configured_timeout))
+        return max(1, effective)
+
+    @staticmethod
+    def _record_parse(summary: dict[str, Any], name: str, parsed: Any, candidates: list[Any]) -> None:
+        """Store the bounded parser contract for one ARM sample."""
+        summary[name] = parse_diagnostics(parsed, candidates)
+
+    @staticmethod
+    def _record_candidate(summary: dict[str, Any], name: str, candidate: Any) -> None:
+        """Store the bounded candidate contract for one ARM sample."""
+        summary[name] = candidate_diagnostics(candidate)
+
+    @staticmethod
+    def _candidate_summary(candidate: Candidate | None) -> dict[str, Any] | None:
+        """Return bounded candidate telemetry for the result trace."""
+        result = candidate_diagnostics(candidate)
+        if result is not None:
+            result["valid"] = result["structural_validity"] == "valid"
+        return result
+
+    @staticmethod
+    def _append_summary(trace: list[dict[str, Any]], summary: dict[str, Any]) -> None:
+        """Append one complete final-decision record to the solve trace."""
+        summary["final"] = {
+            "source": summary.get("final_source"),
+            "failure_reason": summary.get("final_failure_reason"),
+        }
+        trace.append(summary)
+
+    def _call(
+        self,
+        stage: str,
+        prompt: str,
+        problem: str,
+        max_tokens: int,
+        reasoning_mode: ReasoningMode,
+        route: Any,
+        *,
+        source: str,
+        timeout_seconds: int | None = None,
+    ) -> tuple[Any, list[Candidate]]:
+        """Apply v2.1 deadline clamping before using the shared scheduler."""
+        effective_timeout = self.effective_timeout_seconds(timeout_seconds)
+        if effective_timeout is None:
+            record = {
+                "stage": stage,
+                "status": "skipped",
+                "reason": "finalization_margin",
+                "requested_tokens": 0,
+                "error_category": "timeout",
+                "finish_reason": None,
+                "completion_tokens": None,
+                "duration_ms": 0,
+            }
+            if reasoning_mode != "inherit":
+                record["reasoning_mode"] = reasoning_mode
+            if self.harness.ledger is not None:
+                self.harness.ledger.add_call(record)
+            self._last_call_result = SimpleNamespace(
+                content=None,
+                error_category="timeout",
+                finish_reason=None,
+            )
+            return SimpleNamespace(
+                status="missing",
+                truncated=False,
+                reason_summary="deadline_without_request",
+            ), []
+        return super()._call(
+            stage,
+            prompt,
+            problem,
+            max_tokens,
+            reasoning_mode,
+            route,
+            source=source,
+            timeout_seconds=effective_timeout,
+        )
+
+    def _primary_prompt(
+        self,
+        problem: str,
+        route: Any,
+        trace: list[dict[str, Any]],
+        summary: dict[str, Any],
+    ) -> str:
+        """Inject only explicit method guidance into the independent A prompt."""
+        if not bool(getattr(self.harness.config, "arm_enable_skill_guidance", False)):
+            trace.append({"method": "arm_harness_v2", "stage": "skill_guidance", "status": "disabled"})
+            return ATTEMPT_A_PROMPT
+        try:
+            decision = self.skill_router.route(problem, route.contract)
+            skill_id = getattr(decision, "skill_id", None)
+            guidance = self.skill_router.guidance(decision) if skill_id else ""
+            guidance = str(guidance or "").strip()
+            trace.append(
+                {
+                    "method": "arm_harness_v2",
+                    "stage": "skill_guidance",
+                    "status": "injected" if skill_id and guidance else "no_skill",
+                    "skill_id": skill_id,
+                    "confidence": float(getattr(decision, "confidence", 0.0)),
+                    "reason": str(getattr(decision, "reason", ""))[:240],
+                }
+            )
+            if skill_id and guidance:
+                summary["skill_guidance"] = {
+                    "skill_id": str(skill_id),
+                    "confidence": float(getattr(decision, "confidence", 0.0)),
+                }
+                return f"{ATTEMPT_A_PROMPT}\n\n方法指导（仅供推理，不是答案）：\n{guidance[:4000]}"
+        except BaseException as exc:
+            trace.append(
+                {
+                    "method": "arm_harness_v2",
+                    "stage": "skill_guidance",
+                    "status": "error",
+                    "reason": f"router_error:{type(exc).__name__}",
+                }
+            )
+        return ATTEMPT_A_PROMPT
+
+    def _second_prompt(
+        self,
+        problem: str,
+        route: Any,
+        trace: list[dict[str, Any]],
+        summary: dict[str, Any],
+    ) -> str:
+        """Use an independently routed skill only when explicitly enabled."""
+        if not bool(getattr(self.harness.config, "arm_enable_skill_for_second", False)):
+            return ATTEMPT_B_PROMPT
+        try:
+            decision = self.skill_router.route(problem, route.contract)
+            skill_id = getattr(decision, "skill_id", None)
+            guidance = str(self.skill_router.guidance(decision) if skill_id else "").strip()
+            trace.append(
+                {
+                    "method": "arm_harness_v2",
+                    "stage": "second_skill_guidance",
+                    "status": "injected" if skill_id and guidance else "no_skill",
+                    "skill_id": skill_id,
+                    "confidence": float(getattr(decision, "confidence", 0.0)),
+                    "reason": str(getattr(decision, "reason", ""))[:240],
+                }
+            )
+            if skill_id and guidance:
+                summary["second_skill_guidance"] = {"skill_id": str(skill_id)}
+                return f"{ATTEMPT_B_PROMPT}\n\n方法指导（独立 B）：\n{guidance[:4000]}"
+        except BaseException as exc:
+            trace.append(
+                {
+                    "method": "arm_harness_v2",
+                    "stage": "second_skill_guidance",
+                    "status": "error",
+                    "reason": f"router_error:{type(exc).__name__}",
+                }
+            )
+        return ATTEMPT_B_PROMPT
+
+    @staticmethod
+    def _second_sample_trigger_reason(primary: Candidate | None, decision: Any, route: Any) -> str:
+        """Explain why B ran without consulting any gold answer."""
+        if primary is None:
+            return "primary_missing"
+        if getattr(primary, "answer_complete", True) is False:
+            return "primary_incomplete"
+        if getattr(primary, "structural_validity", "") != "valid":
+            return "primary_invalid"
+        if getattr(route.contract, "route_confidence", "") == "low":
+            return "low_route_confidence"
+        if getattr(route.contract, "reasoning_risk", "") == "deep":
+            return "deep_contract"
+        confidence = str(getattr(decision, "confidence", "low"))
+        return "primary_medium_trust" if confidence == "medium" else "primary_low_trust"
+
+    def _run_verification(self, candidate_a: Candidate, candidate_b: Candidate, problem: str) -> dict[str, Any]:
+        """Run the cheap verifier and fail open to the LLM resolver."""
+        try:
+            result = self.deterministic_verifier.verify(candidate_a, candidate_b, problem)
+            status = str(getattr(result, "status", "UNKNOWN")).upper()
+            candidate_id = getattr(result, "candidate_id", None)
+            reason = str(getattr(result, "reason", ""))[:240]
+            if status not in {"A", "B", "UNKNOWN", "NOT_APPLICABLE"}:
+                status, candidate_id, reason = "UNKNOWN", None, "invalid_verification_result"
+            if status == "A" and candidate_id != candidate_a.candidate_id:
+                status, candidate_id, reason = "UNKNOWN", None, "verification_candidate_mismatch"
+            if status == "B" and candidate_id != candidate_b.candidate_id:
+                status, candidate_id, reason = "UNKNOWN", None, "verification_candidate_mismatch"
+            return {"status": status, "candidate_id": candidate_id, "reason": reason}
+        except BaseException as exc:
+            return {
+                "status": "UNKNOWN",
+                "candidate_id": None,
+                "reason": f"verifier_error:{type(exc).__name__}",
+            }
+
     @staticmethod
     def _checkpoint(
         candidate: Candidate | None,
@@ -30,7 +241,11 @@ class ARMV21StateSupport:
         stage: str,
     ) -> bool:
         """Checkpoint a complete, structurally valid candidate before risky work."""
-        if candidate is None or bool(getattr(parsed, "truncated", False)):
+        if (
+            candidate is None
+            or bool(getattr(parsed, "truncated", False))
+            or getattr(candidate, "answer_complete", True) is False
+        ):
             return False
         return safe_state.update(
             candidate,
@@ -53,6 +268,7 @@ class ARMV21StateSupport:
         if (
             candidate is None
             or candidate.structural_validity != "valid"
+            or getattr(candidate, "answer_complete", True) is False
             or decision is None
             or not bool(getattr(config, "arm_enable_skill_audit", False))
             or int(getattr(config, "arm_max_skill_audits", 0)) <= 0
@@ -104,9 +320,14 @@ class ARMV21StateSupport:
     ) -> dict[str, Any]:
         """Return the checkpointed candidate after optional work fails."""
         safe = safe_state.get()
+        summary["safe_candidate"] = candidate_diagnostics(safe)
         if safe is not None:
             summary["safe_fallback_used"] = True
-            summary["final_source"] = "safe_candidate"
+            summary["final_source"] = (
+                "deadline_fallback" if reason.startswith("deadline_") else "safe_candidate"
+            )
+            summary["fallback_reason"] = reason
+            summary["final_failure_reason"] = None
             trace.append(
                 {
                     "method": "arm_harness_v2",
@@ -115,7 +336,7 @@ class ARMV21StateSupport:
                     "source": safe_state.source,
                 }
             )
-            trace.append(summary)
+            self._append_summary(trace, summary)
             return self.harness._select(
                 trace,
                 route_data,
@@ -124,5 +345,9 @@ class ARMV21StateSupport:
                 "arm_v2_safe_candidate_fallback",
             )
         summary["final_source"] = "abstain"
-        trace.append(summary)
-        return self.harness._abstain(trace, route_data, reason)
+        summary["final_failure_reason"] = reason
+        self._append_summary(trace, summary)
+        result = self.harness._abstain(trace, route_data, reason)
+        result["final_failure_reason"] = reason
+        result["final_source"] = "abstain"
+        return result

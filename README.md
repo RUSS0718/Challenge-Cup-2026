@@ -208,8 +208,10 @@ python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-off --run-id ARM
 python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-on --run-id ARM-V21-ON-112-ACCURACY-001
 ```
 
-每题会在非空、非 UNKNOWN 答复前持续重试；完整答复后由本地 evaluator 评分，标准答案不发送给模型。
-数据集缺失或不是 112 条唯一题目时 runner 会直接失败；本地结果不自动触发提交晋升。
+每题严格只执行一次 `solve()`，结果状态为 `complete`、`incomplete` 或 `error`；失败题也会写入
+`answers.jsonl` 和 aggregate denominator，并保留 `final_failure_reason`。完整答复由本地 evaluator
+评分，标准答案不发送给模型。报告同时记录 second-sample、resolver、safe-candidate 和 final-source
+telemetry；数据集缺失或不是 112 条唯一题目时 runner 会直接失败。本地结果不自动触发提交晋升。
 
 ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
 profile 会显式发送 `thinking_mode=true`，运行前应按冻结实验协议检查 endpoint 健康。

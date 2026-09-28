@@ -22,6 +22,7 @@ class ARMV21ProfilesTest(unittest.TestCase):
         self.assertEqual("off", config.arm_solver_reasoning_mode)
         self.assertFalse(config.arm_allow_thinking_on)
         self.assertFalse(config.arm_enable_skill_audit)
+        self.assertEqual(600, config.arm_primary_timeout_seconds)
 
     def test_on_profile_is_single_variable(self):
         off = asdict(build_profile_config(PROFILE_ARM_V21_OFF))
@@ -34,6 +35,9 @@ class ARMV21ProfilesTest(unittest.TestCase):
         skill = build_profile_config(PROFILE_ARM_V21_OFF_SKILL)
         off = build_profile_config(PROFILE_ARM_V21_OFF)
         self.assertTrue(skill.arm_enable_skill_audit)
+        self.assertTrue(skill.arm_enable_skill_guidance)
+        self.assertFalse(skill.arm_enable_skill_for_second)
+        self.assertFalse(off.arm_enable_skill_guidance)
         self.assertEqual(off.arm_solver_reasoning_mode, skill.arm_solver_reasoning_mode)
         self.assertEqual(off.arm_v2_mode, skill.arm_v2_mode)
 

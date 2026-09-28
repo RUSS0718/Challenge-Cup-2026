@@ -58,6 +58,8 @@ class SafeCandidateState:
         """Apply the structural, placeholder, and empty-value safe gate."""
         if candidate is None or candidate.structural_validity != "valid":
             return False
+        if getattr(candidate, "answer_complete", True) is False:
+            return False
         value = str(candidate.normalized_value or candidate.value or "").strip()
         if not value or _is_placeholder(value) or value.upper() == "TBD":
             return False

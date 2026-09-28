@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
+from reasoning_agent.answer_completeness import assess_answer_completeness
+from reasoning_agent.arm_v21_diagnostics import pair_relation, second_sample_outcome
+from reasoning_agent.arm_v21_verification import DeterministicVerifier
 from reasoning_agent.arm_harness import AdaptiveReasoningHarness
 from reasoning_agent.candidate_trust import CandidateTrustPolicy
 from reasoning_agent.candidate_validation import validate_candidate_shape
@@ -22,8 +25,8 @@ from reasoning_agent.harness_contracts import (
     STATE_CRITIC,
     value_equivalence,
 )
-from reasoning_agent.inference_policy import ComputePolicy, ReasoningMode
-from reasoning_agent.math_harness import ATTEMPT_A_PROMPT, ATTEMPT_B_PROMPT, BudgetLedger
+from reasoning_agent.inference_policy import ComputePolicy
+from reasoning_agent.math_harness import ATTEMPT_A_PROMPT, BudgetLedger
 from reasoning_agent.runtime_policy import (
     RuntimeRecoveryPolicy,
     classify_runtime_failure,
@@ -31,6 +34,7 @@ from reasoning_agent.runtime_policy import (
 from reasoning_agent.arm_v21_support import ARMV21StateSupport
 from reasoning_agent.safe_candidate import SafeCandidateState
 from reasoning_agent.skill_audit import SkillAuditor
+from reasoning_agent.skill_guidance import SkillRouter
 
 
 ARM_COMPACT_SALVAGE_PROMPT = """请直接重新求解并尽快形成最终答案。
@@ -62,6 +66,10 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         self.solver_mode = getattr(config, "arm_solver_reasoning_mode", "off")
         provided_auditor = getattr(harness, "skill_auditor", None)
         self.skill_auditor = provided_auditor if provided_auditor is not None else SkillAuditor()
+        provided_verifier = getattr(harness, "deterministic_verifier", None)
+        self.deterministic_verifier = provided_verifier or DeterministicVerifier()
+        provided_router = getattr(harness, "skill_router", None)
+        self.skill_router = provided_router or SkillRouter()
 
     @staticmethod
     def _build_compute_policy(config: Any) -> ComputePolicy:
@@ -101,12 +109,35 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             "agreement": False,
             "conflict": False,
             "resolver_triggered": False,
+            "resolver_decision": None,
             "runtime_recovery_action": None,
             "skill_triggered": False,
             "skill_status": None,
             "safe_fallback_used": False,
             "deadline_finalized": False,
             "final_source": None,
+            "final_failure_reason": None,
+            "primary_parse": {"status": "not_run", "reason": "not_started", "truncated": False, "candidate_count": 0},
+            "primary_candidate": None,
+            "candidate_a": None,
+            "second_parse": {"status": "not_run", "reason": "not_triggered", "truncated": False, "candidate_count": 0},
+            "second_candidate": None,
+            "candidate_b": None,
+            "safe_candidate": None,
+            "a_b_relation": "NO_VALID_PAIR",
+            "pair_relation": "NO_VALID_PAIR",
+            "second_sample_trigger_reason": None,
+            "second_sample_outcome": "no_value",
+            "resolver": {
+                "candidate_a_value": None,
+                "candidate_b_value": None,
+                "candidate_a_trust": None,
+                "candidate_b_trust": None,
+                "resolver_decision": None,
+                "selected_source": None,
+                "resolver_verdict": None,
+            },
+            "verification": {"status": "NOT_APPLICABLE", "candidate_id": None, "reason": "not_run"},
         }
         trace.append(
             {
@@ -119,6 +150,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 "allow_resolver": policy.allow_resolver,
                 "allow_thinking_on": policy.allow_thinking_on,
                 "solver_reasoning_mode": self.solver_mode,
+                "skill_guidance_enabled": bool(getattr(self.harness.config, "arm_enable_skill_guidance", False)),
                 "skill_audit_enabled": bool(getattr(self.harness.config, "arm_enable_skill_audit", False)),
             }
         )
@@ -131,7 +163,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         self.harness.ledger.transition(STATE_ATTEMPT_A)
         parsed_a, candidates_a = self._call(
             "arm_v2_primary",
-            ATTEMPT_A_PROMPT,
+            self._primary_prompt(problem, route, trace, summary),
             problem,
             self.harness.config.tokens_for("attempt_a"),
             self.solver_mode,
@@ -141,6 +173,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         )
         call_a = self._last_call_result
         self._record(STATE_CANDIDATE_A, parsed_a, candidates_a)
+        self._record_parse(summary, "primary_parse", parsed_a, candidates_a)
 
         runtime_failure = classify_runtime_failure(call_a)
         if runtime_failure is not None:
@@ -157,11 +190,15 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 self.solver_mode,
             )
             if classify_runtime_failure(call_a) is not None:
-                trace.append(summary)
-                return self.harness._abstain(trace, route_data, "runtime_recovery_failed")
+                return self._return_safe_or_abstain(
+                    trace, route_data, summary, safe_state, candidates_a, "runtime_recovery_failed"
+                )
+            self._record_parse(summary, "primary_parse", parsed_a, candidates_a)
 
         primary, primary_decision = self._evaluate_one(candidates_a, parsed_a, call_a)
         summary["candidate_a"] = self._candidate_summary(primary)
+        summary["primary_candidate"] = self._candidate_summary(primary)
+        summary["safe_candidate"] = self._candidate_summary(safe_state.get())
         if self._checkpoint(primary, parsed_a, safe_state, "candidate_a"):
             summary["safe_candidate_source"] = safe_state.source
             trace.append(
@@ -172,10 +209,11 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                     "checkpoint_stage": safe_state.checkpoint_stage,
                 }
             )
+        summary["safe_candidate"] = self._candidate_summary(safe_state.get())
         if primary_decision is not None and primary_decision.trusted:
             summary["early_stop"] = True
             summary["final_source"] = "candidate_a"
-            trace.append(summary)
+            self._append_summary(trace, summary)
             return self.harness._select(
                 trace,
                 route_data,
@@ -204,8 +242,8 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 confidence="high",
                 checkpoint_stage="skill_supported",
             )
-            summary["final_source"] = "candidate_a_skill_supported"
-            trace.append(summary)
+            summary["final_source"] = "skill_supported"
+            self._append_summary(trace, summary)
             return self.harness._select(
                 trace,
                 route_data,
@@ -229,10 +267,13 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             )
 
         summary["second_sample_triggered"] = True
+        summary["second_sample_trigger_reason"] = self._second_sample_trigger_reason(
+            primary, primary_decision, route
+        )
         self.harness.ledger.transition(STATE_ATTEMPT_B, reason="candidate_trust_gate")
         parsed_b, candidates_b = self._call(
             "arm_v2_second_sample",
-            ATTEMPT_B_PROMPT,
+            self._second_prompt(problem, route, trace, summary),
             problem,
             self.harness.config.tokens_for("attempt_b"),
             self.solver_mode,
@@ -242,6 +283,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         )
         call_b = self._last_call_result
         self._record(STATE_CANDIDATE_B, parsed_b, candidates_b)
+        self._record_parse(summary, "second_parse", parsed_b, candidates_b)
         if classify_runtime_failure(call_b) is not None:
             return self._return_safe_or_abstain(
                 trace,
@@ -254,6 +296,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
 
         secondary, secondary_decision = self._evaluate_one(candidates_b, parsed_b, call_b)
         summary["candidate_b"] = self._candidate_summary(secondary)
+        summary["second_candidate"] = self._candidate_summary(secondary)
         if self._checkpoint(secondary, parsed_b, safe_state, "candidate_b"):
             summary["safe_candidate_source"] = safe_state.source
             trace.append(
@@ -264,11 +307,27 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                     "checkpoint_stage": safe_state.checkpoint_stage,
                 }
             )
-        primary_valid = primary if primary is not None and primary.structural_validity == "valid" else None
-        secondary_valid = secondary if secondary is not None and secondary.structural_validity == "valid" else None
+        primary_valid = (
+            primary
+            if primary is not None
+            and primary.structural_validity == "valid"
+            and primary.answer_complete
+            else None
+        )
+        secondary_valid = (
+            secondary
+            if secondary is not None
+            and secondary.structural_validity == "valid"
+            and secondary.answer_complete
+            else None
+        )
+        summary["a_b_relation"] = pair_relation(primary_valid, secondary_valid)
+        summary["pair_relation"] = summary["a_b_relation"]
+        summary["second_sample_outcome"] = second_sample_outcome(summary["a_b_relation"])
+        summary["safe_candidate"] = self._candidate_summary(safe_state.get())
         if primary_valid is None and secondary_decision is not None and secondary_decision.trusted:
             summary["final_source"] = "candidate_b"
-            trace.append(summary)
+            self._append_summary(trace, summary)
             return self.harness._select(
                 trace,
                 route_data,
@@ -296,8 +355,8 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 candidate.trust_reason = "independent_agreement"
                 self.harness.ledger.update_candidate(candidate)
             summary["agreement"] = True
-            summary["final_source"] = "candidate_b"
-            trace.append(summary)
+            summary["final_source"] = "consensus"
+            self._append_summary(trace, summary)
             return self.harness._select(
                 trace,
                 route_data,
@@ -345,15 +404,45 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 [*candidates_a, *candidates_b],
                 "deadline_before_resolver",
             )
+        verification = self._run_verification(primary_valid, secondary_valid, problem)
+        summary["verification"] = verification
+        if verification["status"] in {"A", "B"}:
+            selected = primary_valid if verification["status"] == "A" else secondary_valid
+            selected.verification_status = "deterministic_verified"
+            selected.trust_confidence = "high"
+            selected.trust_reason = verification["reason"] or "deterministic_verification"
+            self.harness.ledger.update_candidate(selected)
+            summary["final_source"] = "candidate_a" if verification["status"] == "A" else "candidate_b"
+            self._append_summary(trace, summary)
+            return self.harness._select(
+                trace,
+                route_data,
+                selected,
+                [*candidates_a, *candidates_b],
+                "arm_v2_deterministic_verification",
+                problem=problem,
+            )
         self.harness.ledger.transition(STATE_CRITIC, reason="arm_v2_conflict")
         summary["resolver_triggered"] = True
         resolver_tokens = min(1_024, self.harness.budget.total_tokens - self.harness.budget.requested_tokens)
+        resolver_timeout = self.effective_timeout_seconds(None)
+        if resolver_timeout is None:
+            summary["deadline_finalized"] = True
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "deadline_before_resolver",
+            )
         resolver = self.harness.scheduler.call(
             "arm_v2_resolver",
             ARM_V2_RESOLVER_PROMPT,
             self.harness._critic_prompt(problem, [primary_valid, secondary_valid]),
             resolver_tokens,
             reasoning_mode="off",
+            timeout_seconds=resolver_timeout,
         )
         if classify_runtime_failure(resolver) is not None:
             return self._return_safe_or_abstain(
@@ -366,6 +455,17 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             )
         decision = self._parse_resolver(resolver.content)
         summary["resolver_decision"] = decision
+        summary["resolver"].update(
+            {
+                "candidate_a_value": primary_valid.normalized_value,
+                "candidate_b_value": secondary_valid.normalized_value,
+                "candidate_a_trust": primary_valid.trust_confidence,
+                "candidate_b_trust": secondary_valid.trust_confidence,
+                "resolver_decision": decision,
+                "selected_source": f"candidate_{decision.lower()}" if decision in {"A", "B"} else None,
+                "resolver_verdict": None,
+            }
+        )
         if decision == "A":
             selected = primary_valid
         elif decision == "B":
@@ -383,8 +483,8 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         selected.trust_confidence = "medium"
         selected.trust_reason = "bounded_resolver_selected"
         self.harness.ledger.update_candidate(selected)
-        summary["final_source"] = f"candidate_{decision.lower()}"
-        trace.append(summary)
+        summary["final_source"] = f"resolver_{decision.lower()}"
+        self._append_summary(trace, summary)
         return self.harness._select(
             trace,
             route_data,
@@ -452,6 +552,8 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         if len(candidates) != 1:
             for candidate in candidates:
                 candidate.structural_validity = "invalid"
+                candidate.answer_complete = False
+                candidate.answer_complete_reason = "multiple_candidates"
                 candidate.trust_confidence = "low"
                 candidate.trust_reason = "multiple_candidates"
                 self.harness.ledger.update_candidate(candidate)
@@ -459,6 +561,14 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         candidate = candidates[0]
         valid, _reason = validate_candidate_shape(candidate, candidate.answer_type)
         candidate.structural_validity = "valid" if valid else "invalid"
+        complete, complete_reason = assess_answer_completeness(
+            candidate,
+            answer_shape=self._current_route_contract.answer_shape,
+            parsed=parsed,
+        )
+        candidate.answer_complete = complete
+        candidate.answer_complete_reason = complete_reason
+        self.harness.ledger.update_candidate(candidate)
         decision = self.trust_policy.evaluate(
             contract=self._current_route_contract,
             candidate=candidate,
@@ -477,22 +587,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         first = text[0].strip().upper() if text else ""
         if first in {"A", "B", "UNKNOWN"}:
             return first
-        if first in {"SELECT: A", "SELECT: B"}:
-            return first[-1]
         return "UNKNOWN"
-
-    @staticmethod
-    def _candidate_summary(candidate: Candidate | None) -> dict[str, Any] | None:
-        """Return bounded candidate telemetry for the result trace."""
-        if candidate is None:
-            return None
-        return {
-            "value": str(candidate.normalized_value or candidate.value)[:256],
-            "valid": candidate.structural_validity == "valid",
-            "trust": candidate.trust_confidence,
-            "trust_reason": candidate.trust_reason[:240],
-        }
-
 
 def policy_name(mode: str) -> str:
     """Name the v2 compute lane without exposing a new host route."""

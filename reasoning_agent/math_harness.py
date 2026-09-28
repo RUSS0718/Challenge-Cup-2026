@@ -161,6 +161,8 @@ class HarnessConfig:
     arm_v2_mode: str = "selective"
     arm_solver_reasoning_mode: str = "off"
     arm_finalization_margin_seconds: float = 15.0
+    arm_enable_skill_guidance: bool = False
+    arm_enable_skill_for_second: bool = False
     arm_enable_skill_audit: bool = False
     arm_max_skill_audits: int = 1
     arm_timeout_recovery_mode: str = "none"
@@ -1073,6 +1075,10 @@ class ConstraintFitOrchestrator:
                 "status": "skipped",
                 "reason": "wall_clock_limit",
                 "requested_tokens": 0,
+                "error_category": "timeout",
+                "finish_reason": None,
+                "completion_tokens": None,
+                "duration_ms": 0,
             }
             if reasoning_mode != "inherit":
                 record["reasoning_mode"] = reasoning_mode
@@ -1102,6 +1108,9 @@ class ConstraintFitOrchestrator:
                     "reason": "migration_hardening_budget_exhausted",
                     "requested_tokens": max_tokens,
                     "error_category": "budget_exhausted",
+                    "finish_reason": None,
+                    "completion_tokens": None,
+                    "duration_ms": 0,
                 }
                 if reasoning_mode != "inherit":
                     record["reasoning_mode"] = reasoning_mode
@@ -1125,6 +1134,10 @@ class ConstraintFitOrchestrator:
                 "status": "skipped",
                 "reason": "budget_exhausted",
                 "requested_tokens": max_tokens,
+                "error_category": "budget_exhausted",
+                "finish_reason": None,
+                "completion_tokens": None,
+                "duration_ms": 0,
             }
             if reasoning_mode != "inherit":
                 record["reasoning_mode"] = reasoning_mode

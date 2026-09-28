@@ -23,6 +23,7 @@ PROFILE_ARM_V2_SALVAGE: Final = "arm-v2-salvage"
 PROFILE_ARM_V21_OFF: Final = "arm-v2.1-off"
 PROFILE_ARM_V21_ON: Final = "arm-v2.1-on"
 PROFILE_ARM_V21_OFF_SKILL: Final = "arm-v2.1-off-skill"
+ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
     PROFILE_AGENT_DEFAULT,
@@ -114,6 +115,9 @@ def build_profile_config(profile: str) -> AgentConfig:
             arm_v2_mode="selective",
             arm_solver_reasoning_mode=solver_mode,
             arm_allow_thinking_on=False,
+            arm_primary_timeout_seconds=ARM_V21_REQUEST_TIMEOUT_SECONDS,
+            arm_enable_skill_guidance=enable_skill,
+            arm_enable_skill_for_second=False,
             arm_enable_skill_audit=enable_skill,
             arm_max_skill_audits=1,
             arm_default_lane="adaptive",

@@ -33,6 +33,8 @@ class CandidateTrustPolicy:
         valid, _reason = validate_candidate_shape(candidate, getattr(candidate, "answer_type", "unknown"))
         if not valid:
             return CandidateTrustDecision(False, "low", True, "structurally_invalid")
+        if getattr(candidate, "answer_complete", True) is False:
+            return CandidateTrustDecision(False, "low", True, "answer_incomplete")
         if bool(getattr(parsed, "truncated", False)):
             return CandidateTrustDecision(False, "low", True, "truncated")
         if getattr(call_result, "finish_reason", None) != "stop":

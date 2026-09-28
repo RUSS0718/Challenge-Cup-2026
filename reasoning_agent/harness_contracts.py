@@ -505,6 +505,8 @@ class Candidate:
     response: str = field(default="", repr=False)
     reasoning_mode: str = "inherit"
     structural_validity: str = "unassessed"
+    answer_complete: bool = True
+    answer_complete_reason: str = ""
     trust_confidence: str = "unknown"
     trust_reason: str = ""
 
@@ -520,6 +522,8 @@ class Candidate:
             "proof_status": self.proof_status,
             "verification_status": self.verification_status,
             "structural_validity": self.structural_validity,
+            "answer_complete": bool(self.answer_complete),
+            "answer_complete_reason": _clip(self.answer_complete_reason, MAX_REASON_CHARS),
             "trust_confidence": self.trust_confidence,
             "trust_reason": _clip(self.trust_reason, MAX_REASON_CHARS),
             "checks": [dict(check) for check in self.checks[:4]],
@@ -661,6 +665,16 @@ class HostParser:
             )
 
         truncated = _response_is_truncated(text, finish_reason, provisional)
+        if len(provisional) == 1 and expected == ANSWER_SCALAR:
+            from reasoning_agent.answer_completeness import assess_answer_completeness
+
+            complete, complete_reason = assess_answer_completeness(
+                provisional[0],
+                answer_shape=ANSWER_SHAPE_SINGLE_NUMERIC,
+                parsed=type("ParsedProbe", (), {"truncated": truncated})(),
+            )
+            provisional[0].answer_complete = complete
+            provisional[0].answer_complete_reason = complete_reason
         if provisional and truncated:
             for candidate in provisional:
                 candidate.extraction_status = CANDIDATE_TRUNCATED
@@ -850,4 +864,15 @@ class TypedParser:
         if truncated:
             candidate.extraction_status = CANDIDATE_TRUNCATED
             return TypedParseResult(contract.answer_shape, "typed_incomplete", False, candidate, True, "truncated_typed_candidate")
+        from reasoning_agent.answer_completeness import assess_answer_completeness
+
+        complete, complete_reason = assess_answer_completeness(
+            candidate,
+            answer_shape=contract.answer_shape,
+            parsed=type("TypedProbe", (), {"truncated": False, "typed_complete": True})(),
+        )
+        candidate.answer_complete = complete
+        candidate.answer_complete_reason = complete_reason
+        if not complete:
+            return TypedParseResult(contract.answer_shape, "typed_incomplete", False, candidate, False, complete_reason)
         return TypedParseResult(contract.answer_shape, "typed_complete", True, candidate, False, "typed_complete")

@@ -41,6 +41,55 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
                 self.assertFalse(runner.has_complete_answer({"final_response": final}))
         self.assertTrue(runner.has_complete_answer({"final_response": "Final answer: 42"}))
 
+    def test_second_sample_gain_loss_uses_paired_verdict_fields(self):
+        report = runner.summarize_timing(
+            [
+                {
+                    "status": "complete",
+                    "complete_answer": True,
+                    "verdict": "correct",
+                    "baseline_verdict": "incorrect",
+                    "candidate_verdict": "correct",
+                    "second_sample_triggered": True,
+                    "pair_relation": "CONFLICT",
+                    "duration_seconds": 1,
+                    "model_calls": 2,
+                },
+                {
+                    "status": "complete",
+                    "complete_answer": True,
+                    "verdict": "incorrect",
+                    "baseline_verdict": "correct",
+                    "candidate_verdict": "incorrect",
+                    "second_sample_triggered": True,
+                    "pair_relation": "CONFLICT",
+                    "duration_seconds": 1,
+                    "model_calls": 2,
+                },
+            ],
+            2,
+        )
+        self.assertEqual(1, report["correct_gain_from_second_sample"])
+        self.assertEqual(1, report["correct_loss_from_second_sample"])
+
+    def test_second_sample_gain_loss_reports_zero_when_unchanged(self):
+        report = runner.summarize_timing(
+            [{
+                "status": "complete",
+                "complete_answer": True,
+                "verdict": "correct",
+                "baseline_verdict": "correct",
+                "candidate_verdict": "correct",
+                "second_sample_triggered": True,
+                "pair_relation": "EQUIVALENT",
+                "duration_seconds": 1,
+                "model_calls": 2,
+            }],
+            1,
+        )
+        self.assertEqual(0, report["correct_gain_from_second_sample"])
+        self.assertEqual(0, report["correct_loss_from_second_sample"])
+
     def _dataset(self, directory: Path) -> Path:
         path = directory / "eval_112.json"
         path.write_text(
@@ -77,6 +126,8 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
             self.assertEqual("ACCURACY_COMPLETE", report["disposition"])
             self.assertEqual(112, report["correct_count"])
             self.assertEqual(1.0, report["accuracy"])
+            self.assertIn("second_sample_trigger_rate", report)
+            self.assertIn("correct_gain_from_second_sample", report)
             self.assertEqual(112, len(clients))
             second = runner.run_timing(
                 profile="arm-v2.1-off",
@@ -92,12 +143,12 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
             self.assertEqual("off", manifest["solver_reasoning_mode"])
             self.assertEqual(1, manifest["workers"])
 
-    def test_incomplete_answer_is_retried_until_complete(self):
+    def test_incomplete_answer_is_recorded_and_next_item_runs_once(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             dataset = self._dataset(root)
             clients = []
-            agent_calls = []
+            solve_calls = []
 
             def client_factory():
                 client = FakeClient()
@@ -105,11 +156,10 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
                 return client
 
             def agent_factory(client, config):
-                agent_calls.append(client)
-
                 class RetryingFakeAgent(FakeAgent):
                     def solve(self, problem, metadata):
-                        if len(agent_calls) == 1:
+                        solve_calls.append(metadata["idx"])
+                        if metadata["idx"] == 0:
                             return {"final_response": "UNKNOWN", "extracted_answer": "", "trace": []}
                         return super().solve(problem, metadata)
 
@@ -127,11 +177,14 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
             answers = [json.loads(line) for line in (run_dir / "answers.jsonl").read_text(encoding="utf-8").splitlines()]
             attempts = [json.loads(line) for line in (run_dir / "attempts.jsonl").read_text(encoding="utf-8").splitlines()]
             self.assertEqual(112, len(answers))
-            self.assertEqual(113, len(attempts))
+            self.assertEqual(112, len(attempts))
             self.assertFalse(attempts[0]["complete_answer"])
-            self.assertTrue(attempts[1]["complete_answer"])
-            self.assertEqual(112, report["complete_answer_count"])
-            self.assertEqual(113, len(clients))
+            self.assertEqual("incomplete", attempts[0]["status"])
+            self.assertEqual("incomplete_without_failure_reason", attempts[0]["final_failure_reason"])
+            self.assertEqual(111, report["complete_answer_count"])
+            self.assertEqual(112, len(clients))
+            self.assertEqual(list(range(112)), solve_calls)
+            self.assertFalse(json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))["retry_until_complete"])
 
 
 if __name__ == "__main__":
