@@ -458,6 +458,12 @@ class AgentConfig:
     # default-off; local capability/health/A-B runs must set bank_mode=off.
     enable_constraint_fit_harness: bool = False
     enable_arm_harness: bool = False
+    arm_harness_version: str = "v1"
+    arm_v2_mode: str = "selective"
+    arm_timeout_recovery_mode: str = "none"
+    arm_primary_timeout_seconds: int | None = None
+    arm_salvage_timeout_seconds: int = 15
+    arm_salvage_max_tokens: int = 1024
     arm_allow_thinking_on: bool = False
     arm_default_lane: str = "adaptive"
     arm_fast_max_calls: int = 2
@@ -695,6 +701,12 @@ class ReasoningAgent:
                     enable_prefill=self.config.enable_constraint_fit_prefill,
                     process_audit_max_tokens=self.config.harness_process_audit_max_tokens,
                     enable_arm_harness=self.config.enable_arm_harness,
+                    arm_harness_version=self.config.arm_harness_version,
+                    arm_v2_mode=self.config.arm_v2_mode,
+                    arm_timeout_recovery_mode=self.config.arm_timeout_recovery_mode,
+                    arm_primary_timeout_seconds=self.config.arm_primary_timeout_seconds,
+                    arm_salvage_timeout_seconds=self.config.arm_salvage_timeout_seconds,
+                    arm_salvage_max_tokens=self.config.arm_salvage_max_tokens,
                     arm_allow_thinking_on=self.config.arm_allow_thinking_on,
                     arm_default_lane=self.config.arm_default_lane,
                     arm_fast_max_calls=self.config.arm_fast_max_calls,

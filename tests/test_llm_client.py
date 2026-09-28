@@ -181,6 +181,22 @@ class InternChatClientTest(unittest.TestCase):
         }
         self.assertEqual({"off": False, "on": True}, diagnostics)
 
+    def test_request_local_timeout_overrides_transport_without_mutating_default(self):
+        """Use a request timeout only for one call and retain the client default."""
+        import requests
+
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b'{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}'
+        with _patch_env(INTERN_API_KEY="test", remove=["INTERN_THINKING_MODE"]):
+            client = InternChatClient(timeout=60, retry=1)
+        with patch("llm_client.requests.post", return_value=response) as post:
+            self.assertEqual("ok", client.chat([], 0.0, 1, timeout_seconds=15))
+
+        self.assertEqual(15, post.call_args.kwargs["timeout"])
+        self.assertEqual(60, client.timeout)
+        self.assertEqual(15, client.request_diagnostics[0]["timeout_seconds"])
+
 
 if __name__ == "__main__":
     unittest.main()

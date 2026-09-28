@@ -157,6 +157,12 @@ class HarnessConfig:
     enable_prefill: bool = False
     process_audit_max_tokens: int = 2_048
     enable_arm_harness: bool = False
+    arm_harness_version: str = "v1"
+    arm_v2_mode: str = "selective"
+    arm_timeout_recovery_mode: str = "none"
+    arm_primary_timeout_seconds: int | None = None
+    arm_salvage_timeout_seconds: int = 15
+    arm_salvage_max_tokens: int = 1_024
     arm_allow_thinking_on: bool = False
     arm_default_lane: str = "adaptive"
     arm_fast_max_calls: int = 2
@@ -175,6 +181,16 @@ class HarnessConfig:
             raise ValueError("total_token_budget must be positive")
         if not math.isfinite(float(self.max_wall_seconds)) or float(self.max_wall_seconds) <= 0:
             raise ValueError("max_wall_seconds must be positive")
+        if self.arm_harness_version not in {"v1", "v2"}:
+            raise ValueError("invalid_arm_harness_version")
+        if self.arm_v2_mode not in {"single", "selective", "long_timeout", "salvage"}:
+            raise ValueError("invalid_arm_v2_mode")
+        if self.arm_timeout_recovery_mode not in {"repeat", "longer_first", "compact_salvage", "none"}:
+            raise ValueError("invalid_arm_timeout_recovery_mode")
+        if self.arm_primary_timeout_seconds is not None and int(self.arm_primary_timeout_seconds) <= 0:
+            raise ValueError("arm_primary_timeout_seconds_must_be_positive")
+        if int(self.arm_salvage_timeout_seconds) <= 0 or int(self.arm_salvage_max_tokens) <= 0:
+            raise ValueError("arm_salvage_limits_must_be_positive")
         if self.arm_default_lane not in {"adaptive", "fast_off", "deep_on", "static"}:
             raise ValueError("invalid_arm_default_lane")
         if any(int(value) < 1 for value in (
@@ -735,6 +751,7 @@ class AttemptScheduler:
         max_tokens: int,
         *,
         reasoning_mode: ReasoningMode = "inherit",
+        timeout_seconds: int | None = None,
         prefill: str | None = None,
         prefill_purpose: str | None = None,
     ) -> _CallResult:
@@ -745,6 +762,7 @@ class AttemptScheduler:
             user_prompt,
             max_tokens,
             reasoning_mode=reasoning_mode,
+            timeout_seconds=timeout_seconds,
             prefill=prefill,
             prefill_purpose=prefill_purpose,
         )
@@ -921,9 +939,15 @@ class ConstraintFitOrchestrator:
             }
 
         if self.config.enable_arm_harness:
-            from reasoning_agent.arm_harness import AdaptiveReasoningHarness
+            if self.config.arm_harness_version == "v2":
+                from reasoning_agent.arm_harness_v2 import AdaptiveReliabilityHarness
 
-            return AdaptiveReasoningHarness(self).solve(
+                arm_harness = AdaptiveReliabilityHarness(self)
+            else:
+                from reasoning_agent.arm_harness import AdaptiveReasoningHarness
+
+                arm_harness = AdaptiveReasoningHarness(self)
+            return arm_harness.solve(
                 problem_text[: self.config.max_problem_chars],
                 route,
                 prefix_trace,
@@ -1010,6 +1034,7 @@ class ConstraintFitOrchestrator:
         max_tokens: int,
         *,
         reasoning_mode: ReasoningMode = "inherit",
+        timeout_seconds: int | None = None,
         prefill: str | None = None,
         prefill_purpose: str | None = None,
     ) -> _CallResult:
@@ -1217,11 +1242,18 @@ class ConstraintFitOrchestrator:
                 fallback_finish = None
                 fallback_error = None
                 try:
+                    fallback_kwargs = (
+                        {"reasoning_mode": reasoning_mode}
+                        if reasoning_mode != "inherit"
+                        else {}
+                    )
+                    if timeout_seconds is not None:
+                        fallback_kwargs["timeout_seconds"] = timeout_seconds
                     fallback_raw = self.client.chat(
                         messages,
                         call_policy.temperature,
                         fallback_reservation.requested_tokens,
-                        **({"reasoning_mode": reasoning_mode} if reasoning_mode != "inherit" else {}),
+                        **fallback_kwargs,
                     )
                     fallback_content, fallback_completion, fallback_finish, fallback_unpack_error = _unpack_response(fallback_raw)
                     fallback_error = fallback_unpack_error or (
@@ -1260,6 +1292,8 @@ class ConstraintFitOrchestrator:
                     "duration_ms": fallback_duration_ms,
                     "error_category": fallback_error,
                 }
+                if timeout_seconds is not None:
+                    fallback_record["timeout_seconds"] = timeout_seconds
                 if reasoning_mode != "inherit":
                     fallback_record["reasoning_mode"] = reasoning_mode
                 fallback_records.append(fallback_record)
@@ -1296,11 +1330,18 @@ class ConstraintFitOrchestrator:
                 finish_reason = prefill_result.finish_reason
                 unpack_error = prefill_result.error_category
             else:
+                request_kwargs = (
+                    {"reasoning_mode": reasoning_mode}
+                    if reasoning_mode != "inherit"
+                    else {}
+                )
+                if timeout_seconds is not None:
+                    request_kwargs["timeout_seconds"] = timeout_seconds
                 raw = self.client.chat(
                     messages,
                     call_policy.temperature,
                     reservation.requested_tokens,
-                    **({"reasoning_mode": reasoning_mode} if reasoning_mode != "inherit" else {}),
+                    **request_kwargs,
                 )
                 content, completion_tokens, finish_reason, unpack_error = _unpack_response(raw)
             observed_content = content
@@ -1347,6 +1388,8 @@ class ConstraintFitOrchestrator:
             "duration_ms": duration_ms,
             "error_category": error_category,
         }
+        if timeout_seconds is not None:
+            record["timeout_seconds"] = timeout_seconds
         if reasoning_mode != "inherit":
             record["reasoning_mode"] = reasoning_mode
         if prefill_result is not None:

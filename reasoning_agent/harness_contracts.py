@@ -504,6 +504,9 @@ class Candidate:
     reason_summary: str = "candidate_extracted"
     response: str = field(default="", repr=False)
     reasoning_mode: str = "inherit"
+    structural_validity: str = "unassessed"
+    trust_confidence: str = "unknown"
+    trust_reason: str = ""
 
     def ledger_dict(self) -> dict[str, Any]:
         """Return safe candidate metadata, including a mode only when explicit."""
@@ -516,6 +519,9 @@ class Candidate:
             "extraction_status": self.extraction_status,
             "proof_status": self.proof_status,
             "verification_status": self.verification_status,
+            "structural_validity": self.structural_validity,
+            "trust_confidence": self.trust_confidence,
+            "trust_reason": _clip(self.trust_reason, MAX_REASON_CHARS),
             "checks": [dict(check) for check in self.checks[:4]],
             "reason_summary": _clip(self.reason_summary, MAX_REASON_CHARS),
         }

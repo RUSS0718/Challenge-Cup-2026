@@ -11,6 +11,10 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_OFF,
     PROFILE_ARM_ON,
     PROFILE_ARM_STATIC,
+    PROFILE_ARM_V2_LONG_TIMEOUT,
+    PROFILE_ARM_V2_SALVAGE,
+    PROFILE_ARM_V2_SELECTIVE,
+    PROFILE_ARM_V2_SINGLE,
     PROFILE_SUBMISSION,
     available_profiles,
     build_profile_config,
@@ -30,6 +34,10 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_ON,
                 PROFILE_ARM_STATIC,
                 PROFILE_ARM_ADAPTIVE,
+                PROFILE_ARM_V2_SINGLE,
+                PROFILE_ARM_V2_SELECTIVE,
+                PROFILE_ARM_V2_LONG_TIMEOUT,
+                PROFILE_ARM_V2_SALVAGE,
             ),
             available_profiles(),
         )
@@ -62,6 +70,21 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("static", static.arm_default_lane)
         self.assertEqual("adaptive", adaptive.arm_default_lane)
         self.assertFalse(SUBMISSION_CONFIG.enable_arm_harness)
+
+    def test_arm_v2_profiles_are_experiment_only(self):
+        single = build_profile_config(PROFILE_ARM_V2_SINGLE)
+        selective = build_profile_config(PROFILE_ARM_V2_SELECTIVE)
+        long_timeout = build_profile_config(PROFILE_ARM_V2_LONG_TIMEOUT)
+        salvage = build_profile_config(PROFILE_ARM_V2_SALVAGE)
+
+        self.assertTrue(single.enable_arm_harness)
+        self.assertEqual("v2", single.arm_harness_version)
+        self.assertEqual("single", single.arm_v2_mode)
+        self.assertEqual("selective", selective.arm_v2_mode)
+        self.assertEqual("long_timeout", long_timeout.arm_v2_mode)
+        self.assertEqual("salvage", salvage.arm_v2_mode)
+        self.assertEqual("compact_salvage", salvage.arm_timeout_recovery_mode)
+        self.assertEqual("v1", SUBMISSION_CONFIG.arm_harness_version)
 
     def test_unknown_profile_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "unknown_profile"):

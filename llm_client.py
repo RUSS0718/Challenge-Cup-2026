@@ -96,8 +96,12 @@ class InternChatClient:
         max_tokens: int = 4096,
         *,
         reasoning_mode: ReasoningMode = "inherit",
+        timeout_seconds: int | None = None,
     ) -> str:
-        """Send one request; an explicit mode overrides, but never mutates, the client default."""
+        """Send one request with optional request-local mode and timeout overrides."""
+        effective_timeout = self.timeout if timeout_seconds is None else int(timeout_seconds)
+        if effective_timeout <= 0:
+            raise ValueError("timeout_seconds_must_be_positive")
         payload = {
             "model": self.model,
             "messages": messages,
@@ -125,7 +129,7 @@ class InternChatClient:
             "thinking_mode": effective_thinking_mode,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "timeout_seconds": self.timeout,
+            "timeout_seconds": effective_timeout,
             "attempts_configured": self.retry,
             "message_count": len(messages),
             "message_roles": [str(message.get("role", "")) for message in messages],
@@ -149,7 +153,7 @@ class InternChatClient:
                     self.api_base,
                     headers=headers,
                     data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                    timeout=self.timeout,
+                    timeout=effective_timeout,
                 )
                 response.raise_for_status()
                 data = response.json()

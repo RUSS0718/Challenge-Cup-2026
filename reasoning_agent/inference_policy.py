@@ -21,6 +21,7 @@ from reasoning_agent.harness_contracts import (
 
 
 ReasoningMode = Literal["inherit", "off", "on"]
+CandidateConfidence = Literal["low", "medium", "high"]
 ARMLane = Literal["fast_off", "adaptive", "deep_on"]
 ARM_DEFAULT_LANES = frozenset({"adaptive", "fast_off", "deep_on", "static"})
 
@@ -45,6 +46,32 @@ class SolvePolicy:
     max_calls: int
     token_budget: int
     reason: str
+
+
+@dataclass(frozen=True)
+class CandidateTrustDecision:
+    """Record trust separately from parseability and mathematical proof."""
+
+    trusted: bool
+    confidence: CandidateConfidence
+    needs_second_sample: bool
+    reason: str
+
+
+@dataclass(frozen=True)
+class ComputePolicy:
+    """Bound the calls, tokens, and recovery actions available to one solve."""
+
+    max_calls: int
+    token_budget: int
+    wall_time_budget: float
+    allow_second_sample: bool
+    allow_resolver: bool
+    allow_thinking_on: bool
+
+    def __post_init__(self) -> None:
+        if self.max_calls < 1 or self.token_budget < 1 or self.wall_time_budget <= 0:
+            raise ValueError("compute_policy_budgets_must_be_positive")
 
 
 class ReasoningModePolicy:
@@ -119,7 +146,7 @@ class ReasoningModePolicy:
 
 
 def candidate_is_stable(parsed: Any, candidates: Sequence[Any]) -> bool:
-    """Return true only for one complete, untruncated parsed candidate."""
+    """Return the legacy v1 parseability predicate for compatibility."""
     status = getattr(parsed, "status", None)
     typed_complete = bool(getattr(parsed, "typed_complete", False))
     return (
@@ -127,6 +154,11 @@ def candidate_is_stable(parsed: Any, candidates: Sequence[Any]) -> bool:
         and not bool(getattr(parsed, "truncated", False))
         and (status == CANDIDATE_PARSED or typed_complete)
     )
+
+
+def candidate_is_parseable(parsed: Any, candidates: Sequence[Any]) -> bool:
+    """Expose v2's parseability name without granting mathematical trust."""
+    return candidate_is_stable(parsed, candidates)
 
 
 def should_escalate(

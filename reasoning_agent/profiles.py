@@ -16,6 +16,10 @@ PROFILE_ARM_OFF: Final = "arm-off"
 PROFILE_ARM_ON: Final = "arm-on"
 PROFILE_ARM_STATIC: Final = "arm-static"
 PROFILE_ARM_ADAPTIVE: Final = "arm-adaptive"
+PROFILE_ARM_V2_SINGLE: Final = "arm-v2-single"
+PROFILE_ARM_V2_SELECTIVE: Final = "arm-v2-selective"
+PROFILE_ARM_V2_LONG_TIMEOUT: Final = "arm-v2-long-timeout"
+PROFILE_ARM_V2_SALVAGE: Final = "arm-v2-salvage"
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
     PROFILE_AGENT_DEFAULT,
@@ -23,6 +27,10 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_ON,
     PROFILE_ARM_STATIC,
     PROFILE_ARM_ADAPTIVE,
+    PROFILE_ARM_V2_SINGLE,
+    PROFILE_ARM_V2_SELECTIVE,
+    PROFILE_ARM_V2_LONG_TIMEOUT,
+    PROFILE_ARM_V2_SALVAGE,
 )
 
 
@@ -63,6 +71,26 @@ def build_profile_config(profile: str) -> AgentConfig:
             enable_arm_harness=True,
             arm_allow_thinking_on=allow_on,
             arm_default_lane=lane,
+        )
+    arm_v2_profiles = {
+        PROFILE_ARM_V2_SINGLE: ("single", "none", None),
+        PROFILE_ARM_V2_SELECTIVE: ("selective", "none", None),
+        PROFILE_ARM_V2_LONG_TIMEOUT: ("long_timeout", "none", 60),
+        PROFILE_ARM_V2_SALVAGE: ("salvage", "compact_salvage", 30),
+    }
+    if normalized in arm_v2_profiles:
+        mode, recovery_mode, primary_timeout = arm_v2_profiles[normalized]
+        return AgentConfig(
+            enable_constraint_fit_harness=True,
+            enable_constraint_fit_deep_lane=True,
+            enable_constraint_fit_hybrid_router=False,
+            enable_arm_harness=True,
+            arm_harness_version="v2",
+            arm_v2_mode=mode,
+            arm_timeout_recovery_mode=recovery_mode,
+            arm_primary_timeout_seconds=primary_timeout,
+            arm_allow_thinking_on=False,
+            arm_default_lane="adaptive",
         )
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

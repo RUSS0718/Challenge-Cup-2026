@@ -247,6 +247,7 @@ class AdaptiveReasoningHarness:
         route: Any,
         *,
         source: str,
+        timeout_seconds: int | None = None,
     ) -> tuple[Any, list[Any]]:
         """Run and parse one call while attaching its selected mode to candidates."""
         contract = route.contract.as_dict()
@@ -259,6 +260,7 @@ class AdaptiveReasoningHarness:
             "请形成唯一答案。",
             max_tokens,
             reasoning_mode=reasoning_mode,
+            timeout_seconds=timeout_seconds,
         )
         self._last_call_result = call_result
         if route.contract.answer_shape in {ANSWER_SHAPE_SINGLE_NUMERIC, ANSWER_SHAPE_UNKNOWN}:
