@@ -89,9 +89,11 @@
 ## 团队自建 112 题集
 
 `reasoning_agent/error_notebook/eval_112.json` 是团队自行编写/整理、仿官方格式制作的
-answer-bearing 内部题集，不是官方评测题，也不是隐藏测试数据。它可以用于团队离线评测、
-人工错误审计，以及在明确启用 `temporary_answer_bank` 时构建提交答案库；题面和答案不得
-混入 capability/health/A-B 的 bank-off 运行，bank 命中必须与模型能力分开统计。
+answer-bearing 内部题集，不是官方评测题，也不是隐藏测试数据。用户于 2026-09-28 作出
+长期授权：本地实验可将该文件的 `problem` 字段发送到已配置的外部模型 API。API 请求、
+metadata、日志和答案库不得包含 `answer`/gold；标准答案只留在本地评估器评分。该题集也可用于
+离线评测、人工错误审计，以及在明确启用 `temporary_answer_bank` 时构建提交答案库；bank 命中
+必须与模型能力分开统计。
 
 该文件继续保持本地受控、不得被 Git 跟踪；在线 `solve()` 默认不读取它，除非显式配置的
 submission answer-bank 路径被启用。真正的官方隐藏题、标准答案和 judger 内部信息仍受上方
@@ -128,11 +130,11 @@ submission answer-bank 路径被启用。真正的官方隐藏题、标准答案
 
 ## 普适性优先：拒绝答题能力过拟合
 
-本仓库本地数据分为：`sample_data/public_regression_112.jsonl`（18 方向短题
-知识覆盖集，当前 112 题均被题型分类器识别为 `calculation`）与
-`sample_data/dev.jsonl`（3 题快速冒烟测试）。它们仅用于调试与对照实验，
-**不是**隐藏评测题库。任何为抬高开发集单题分而对"答题能力"做的特化，都有
-过拟合风险，默认**拒绝**。
+本仓库本地 112 题测试集统一使用：
+`reasoning_agent/error_notebook/eval_112.json`。`sample_data/dev.jsonl`（3 题）
+只用于快速冒烟测试；此前的 `sample_data/public_regression_112.jsonl` 已移除，
+不再作为本地测试依赖。以上数据均不是隐藏评测题库。任何为抬高开发集单题分而对
+"答题能力"做的特化，都有过拟合风险，默认**拒绝**。
 
 112 题集合不能单独证明证明题、推导/解释、长题面、跨方向混合题或 P3
 验证/修正的收益。后续复杂能力冻结集必须与 RAG 语料隔离，不得据其逐题调

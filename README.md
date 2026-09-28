@@ -95,10 +95,10 @@ flowchart LR
 │   └── evaluate_dev.py                  # 单配置 evaluator 与消融 CLI
 ├── sample_data/
 │   ├── dev.jsonl                        # 3 题冒烟集
-│   ├── public_regression_112.jsonl      # 112 题短题知识覆盖集(回归保护)
 │   ├── medium_capability_freeze_60.jsonl
 │   └── complex_capability_freeze_48.jsonl
-├── tests/                               # 本地回归测试(当前全量 874 项,4 项跳过)
+├── reasoning_agent/error_notebook/eval_112.json # 本地 112 题测试集
+├── tests/                               # 本地回归测试(当前全量 945 项,4 项跳过)
 ├── docs/
 │   ├── excluded_approaches.md           # 淘汰方案单一事实源
 │   ├── ARCHIVE_INDEX.md                 # 当前/历史文档分类索引
@@ -198,6 +198,18 @@ python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/2026092
 python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-agent-default --profile agent-default
 python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-arm-adaptive --profile arm-adaptive
 ```
+
+ARM-Harness v2.1 的串行 accuracy-first runner 使用固定的
+`reasoning_agent/error_notebook/eval_112.json`，并提供
+`arm-v2.1-off`、`arm-v2.1-on` 和 `arm-v2.1-off-skill` 三个显式 profile：
+
+```powershell
+python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-off --run-id ARM-V21-OFF-112-ACCURACY-001
+python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-on --run-id ARM-V21-ON-112-ACCURACY-001
+```
+
+每题会在非空、非 UNKNOWN 答复前持续重试；完整答复后由本地 evaluator 评分，标准答案不发送给模型。
+数据集缺失或不是 112 条唯一题目时 runner 会直接失败；本地结果不自动触发提交晋升。
 
 ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
 profile 会显式发送 `thinking_mode=true`，运行前应按冻结实验协议检查 endpoint 健康。
