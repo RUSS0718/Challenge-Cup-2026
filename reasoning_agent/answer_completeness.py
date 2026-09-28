@@ -23,6 +23,7 @@ from reasoning_agent.harness_contracts import (
 
 _BARE_SYMBOL = re.compile(r"^[A-Za-z](?:[A-Za-z0-9_']*)$")
 _FUNCTION_DEFINITION = re.compile(r"^[A-Za-z][A-Za-z0-9_']*\s*\([^)]*\)\s*=")
+_FINAL_ANSWER_MARKER = re.compile(r"(?im)^\s*(?:\*\*)?\s*(?:final\s+answer|最终答案)\s*[:：]")
 
 
 def assess_answer_completeness(
@@ -39,6 +40,11 @@ def assess_answer_completeness(
     """
     if candidate is None:
         return False, "no_candidate"
+    source = str(getattr(candidate, "source", ""))
+    if source in {"arm_primary", "arm_second", "arm_salvage", "arm_runtime_retry"}:
+        response = str(getattr(candidate, "response", "") or "")
+        if not _FINAL_ANSWER_MARKER.search(response):
+            return False, "missing_final_answer_marker"
     if bool(getattr(parsed, "truncated", False)) or bool(getattr(candidate, "truncated", False)):
         return False, "truncated"
     if getattr(parsed, "typed_complete", True) is False:

@@ -60,6 +60,18 @@ class ARMV21CompletenessTest(unittest.TestCase):
         self.assertFalse(parsed.candidates[0].answer_complete)
         self.assertEqual("bare_symbol_fragment", parsed.candidates[0].answer_complete_reason)
 
+    def test_arm_candidate_requires_explicit_final_answer_marker(self):
+        candidate = _candidate("42")
+        candidate.source = "arm_primary"
+        candidate.response = "Therefore, the result is 42."
+        complete, reason = assess_answer_completeness(
+            candidate,
+            answer_shape=ANSWER_SHAPE_SINGLE_NUMERIC,
+            parsed=ParsedResponse([], "parsed", "scalar", False, "candidate_extracted"),
+        )
+        self.assertFalse(complete)
+        self.assertEqual("missing_final_answer_marker", reason)
+
 
 if __name__ == "__main__":
     unittest.main()

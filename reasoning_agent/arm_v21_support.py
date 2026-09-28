@@ -9,9 +9,16 @@ from typing import Any
 from reasoning_agent.arm_v21_diagnostics import candidate_diagnostics, parse_diagnostics
 from reasoning_agent.harness_contracts import Candidate
 from reasoning_agent.inference_policy import ReasoningMode
-from reasoning_agent.math_harness import ATTEMPT_A_PROMPT, ATTEMPT_B_PROMPT
 from reasoning_agent.safe_candidate import SafeCandidateState
 from reasoning_agent.skill_audit import SkillAuditResult
+
+
+ARM_V21_PRIMARY_PROMPT = """你是数学推理求解器。独立解决题目，先完成必要计算，再给出唯一结论。
+不要输出 Thinking Process、计划或多个候选；推导应简洁。
+最后单独一行且必须使用：Final answer: <完整答案>"""
+ARM_V21_SECOND_PROMPT = """你是独立的数学复核求解器。不要参考先前回答；从原题重新计算，检查定义域、边界和算术。
+只给一个最可信的结论及最少量理由。
+最后单独一行且必须使用：Final answer: <完整答案>"""
 
 
 class ARMV21StateSupport:
@@ -125,7 +132,7 @@ class ARMV21StateSupport:
         """Inject only explicit method guidance into the independent A prompt."""
         if not bool(getattr(self.harness.config, "arm_enable_skill_guidance", False)):
             trace.append({"method": "arm_harness_v2", "stage": "skill_guidance", "status": "disabled"})
-            return ATTEMPT_A_PROMPT
+            return ARM_V21_PRIMARY_PROMPT
         try:
             decision = self.skill_router.route(problem, route.contract)
             skill_id = getattr(decision, "skill_id", None)
@@ -146,7 +153,7 @@ class ARMV21StateSupport:
                     "skill_id": str(skill_id),
                     "confidence": float(getattr(decision, "confidence", 0.0)),
                 }
-                return f"{ATTEMPT_A_PROMPT}\n\n方法指导（仅供推理，不是答案）：\n{guidance[:4000]}"
+                return f"方法指导（仅供推理，不是答案）：\n{guidance[:4000]}\n\n{ARM_V21_PRIMARY_PROMPT}"
         except BaseException as exc:
             trace.append(
                 {
@@ -156,7 +163,7 @@ class ARMV21StateSupport:
                     "reason": f"router_error:{type(exc).__name__}",
                 }
             )
-        return ATTEMPT_A_PROMPT
+        return ARM_V21_PRIMARY_PROMPT
 
     def _second_prompt(
         self,
@@ -167,7 +174,7 @@ class ARMV21StateSupport:
     ) -> str:
         """Use an independently routed skill only when explicitly enabled."""
         if not bool(getattr(self.harness.config, "arm_enable_skill_for_second", False)):
-            return ATTEMPT_B_PROMPT
+            return ARM_V21_SECOND_PROMPT
         try:
             decision = self.skill_router.route(problem, route.contract)
             skill_id = getattr(decision, "skill_id", None)
@@ -184,7 +191,7 @@ class ARMV21StateSupport:
             )
             if skill_id and guidance:
                 summary["second_skill_guidance"] = {"skill_id": str(skill_id)}
-                return f"{ATTEMPT_B_PROMPT}\n\n方法指导（独立 B）：\n{guidance[:4000]}"
+                return f"方法指导（独立 B）：\n{guidance[:4000]}\n\n{ARM_V21_SECOND_PROMPT}"
         except BaseException as exc:
             trace.append(
                 {
@@ -194,7 +201,7 @@ class ARMV21StateSupport:
                     "reason": f"router_error:{type(exc).__name__}",
                 }
             )
-        return ATTEMPT_B_PROMPT
+        return ARM_V21_SECOND_PROMPT
 
     @staticmethod
     def _second_sample_trigger_reason(primary: Candidate | None, decision: Any, route: Any) -> str:

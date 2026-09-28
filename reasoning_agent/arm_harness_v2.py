@@ -26,12 +26,12 @@ from reasoning_agent.harness_contracts import (
     value_equivalence,
 )
 from reasoning_agent.inference_policy import ComputePolicy
-from reasoning_agent.math_harness import ATTEMPT_A_PROMPT, BudgetLedger
+from reasoning_agent.math_harness import BudgetLedger
 from reasoning_agent.runtime_policy import (
     RuntimeRecoveryPolicy,
     classify_runtime_failure,
 )
-from reasoning_agent.arm_v21_support import ARMV21StateSupport
+from reasoning_agent.arm_v21_support import ARMV21StateSupport, ARM_V21_PRIMARY_PROMPT
 from reasoning_agent.safe_candidate import SafeCandidateState
 from reasoning_agent.skill_audit import SkillAuditor
 from reasoning_agent.skill_guidance import SkillRouter
@@ -531,7 +531,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         prompt = (
             ARM_COMPACT_SALVAGE_PROMPT
             if decision.action == "compact_salvage"
-            else ATTEMPT_A_PROMPT
+            else ARM_V21_PRIMARY_PROMPT
         )
         recovered_parsed, recovered_candidates = self._call(
             "arm_v2_runtime_recovery",

@@ -72,6 +72,15 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual("high", candidate["trust_confidence"])
         self.assertTrue(self._summary(result)["early_stop"])
 
+    def test_primary_and_second_prompts_require_explicit_final_answer(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,-1}", "finish_reason": "stop"},
+            {"content": "Final answer: {-1,1}", "finish_reason": "stop"},
+        ])
+        ConstraintFitOrchestrator(client, config=_config()).solve("求满足 x^2=1 的所有解", {})
+        self.assertIn("Final answer:", client.calls[0]["messages"][0]["content"])
+        self.assertIn("Final answer:", client.calls[1]["messages"][0]["content"])
+
     def test_high_risk_candidate_gets_one_blind_second_sample(self):
         client = ModeAwareClient([
             {"content": "Final answer: {1,-1}", "finish_reason": "stop"},

@@ -41,6 +41,30 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
                 self.assertFalse(runner.has_complete_answer({"final_response": final}))
         self.assertTrue(runner.has_complete_answer({"final_response": "Final answer: 42"}))
 
+    def test_trace_fields_preserve_full_bounded_arm_diagnostics(self):
+        result = {
+            "final_response": "42",
+            "trace": [{
+                "stage": "arm_v2_summary",
+                "primary_parse": {"status": "parsed", "candidate_count": 1},
+                "primary_candidate": {"answer_complete": True, "trust_reason": "direct"},
+                "second_parse": {"status": "not_run"},
+                "second_candidate": None,
+                "safe_candidate": {"value": "42"},
+                "verification": {"status": "NOT_APPLICABLE"},
+                "resolver": {"resolver_decision": None, "resolver_verdict": None},
+                "final": {"source": "candidate_a"},
+                "final_source": "candidate_a",
+            }],
+        }
+        fields = runner._trace_fields(result)
+        self.assertEqual("parsed", fields["primary_parse"]["status"])
+        self.assertTrue(fields["primary_candidate"]["answer_complete"])
+        self.assertEqual("42", fields["safe_candidate"]["value"])
+        self.assertEqual("NOT_APPLICABLE", fields["verification"]["status"])
+        self.assertIsNone(fields["resolver"]["resolver_decision"])
+        self.assertEqual("candidate_a", fields["arm_v2_summary"]["final"]["source"])
+
     def test_second_sample_gain_loss_uses_paired_verdict_fields(self):
         report = runner.summarize_timing(
             [
@@ -181,6 +205,7 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
             self.assertFalse(attempts[0]["complete_answer"])
             self.assertEqual("incomplete", attempts[0]["status"])
             self.assertEqual("incomplete_without_failure_reason", attempts[0]["final_failure_reason"])
+            self.assertEqual("incomplete", answers[0]["status"])
             self.assertEqual(111, report["complete_answer_count"])
             self.assertEqual(112, len(clients))
             self.assertEqual(list(range(112)), solve_calls)

@@ -136,8 +136,16 @@ def _trace_fields(result: Mapping[str, Any]) -> dict[str, Any]:
         "candidate_count": candidate_count,
         "final_source": summary.get("final_source") or finalize.get("source"),
         "safe_fallback_used": safe_fallback,
-        "status": summary.get("status"),
         "final_failure_reason": result.get("final_failure_reason") or summary.get("final_failure_reason"),
+        "arm_v2_summary": dict(summary) if isinstance(summary, Mapping) else {},
+        "primary_parse": summary.get("primary_parse") if isinstance(summary, Mapping) else None,
+        "primary_candidate": summary.get("primary_candidate") if isinstance(summary, Mapping) else None,
+        "second_parse": summary.get("second_parse") if isinstance(summary, Mapping) else None,
+        "second_candidate": summary.get("second_candidate") if isinstance(summary, Mapping) else None,
+        "safe_candidate": summary.get("safe_candidate") if isinstance(summary, Mapping) else None,
+        "verification": summary.get("verification") if isinstance(summary, Mapping) else None,
+        "resolver": summary.get("resolver") if isinstance(summary, Mapping) else None,
+        "final": summary.get("final") if isinstance(summary, Mapping) else None,
         "primary_candidate_value": (
             summary.get("primary_candidate", {}).get("value")
             if isinstance(summary.get("primary_candidate"), Mapping)
