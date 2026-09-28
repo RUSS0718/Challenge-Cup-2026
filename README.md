@@ -87,7 +87,7 @@ flowchart LR
 ├── reasoning_agent/answer_parsing.py      # 纯答案抽取、规范化与确定性检查
 ├── reasoning_agent/harness_contracts.py   # Harness 合同、候选与 typed parser
 ├── reasoning_agent/math_harness.py       # MATH-HARNESS-V1 编排、预算与路由
-├── reasoning_agent/profiles.py            # 本地 submission/agent-default profile
+├── reasoning_agent/profiles.py            # 本地 submission、agent-default、ARM 实验 profile
 ├── llm_client.py                        # 书生 API client(本地评测用)
 ├── main.py                              # 本地逐题 runner
 ├── scripts/
@@ -184,13 +184,19 @@ notepad .env
 python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs
 ```
 
-本地 runner 可用一个 profile 开关整组切换功能；默认仍是官方提交 profile，
-`agent-default` 仅用于关闭实验路径的本地对照：
+本地 runner 可用 profile 开关整组切换功能；默认仍是官方提交 profile。
+`arm-off`、`arm-on`、`arm-static` 和 `arm-adaptive` 是显式本地实验配置，
+不会改变官方提交配置：
 
 ```powershell
 python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs --profile submission
 python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs --profile agent-default
+python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs --profile arm-adaptive
 ```
+
+ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
+profile 会显式发送 `thinking_mode=true`，运行前应按冻结实验协议检查 endpoint 健康。
+默认 `SUBMISSION_CONFIG` 不启用 ARM，代码路径不代表数学能力或官方成绩提升。
 
 该开关只影响本地 `main.py` runner；官方仍通过
 `ReasoningAgent(client=official_client)` 使用 `SUBMISSION_CONFIG`，不会被本地

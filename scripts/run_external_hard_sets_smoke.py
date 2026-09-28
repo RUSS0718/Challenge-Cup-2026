@@ -165,7 +165,7 @@ def math_verify_ok(pred: str, gold: str) -> bool | None:
     try:
         proc = subprocess.run(
             [sys.executable, str(helper), payload],
-            capture_output=True, text=True, timeout=60, encoding="utf-8",
+            capture_output=True, text=True, timeout=60, encoding="utf-8", errors="replace",
         )
         out = proc.stdout.strip()
         if not out:
@@ -241,6 +241,12 @@ TRACE_KEEP = frozenset({
     "skill_choice_parsed", "applicability", "error", "execution_status",
     "claim_known", "binding_ok", "tool_request_valid", "evidence_consumed",
     "protocol_error",
+    # ARM-HARNESS-V1 bounded telemetry.  These fields contain only route,
+    # budget, candidate metadata, and request lifecycle status; prompts and
+    # response bodies are intentionally excluded.
+    "arm_policy", "arm_escalation", "arm_lane", "initial_mode",
+    "escalation_mode", "reasoning_mode", "requested_tokens", "from", "to",
+    "candidate_ids", "lane",
 })
 
 _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
@@ -250,25 +256,116 @@ _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
 
 
 def compact_trace(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{k: entry[k] for k in entry if k in TRACE_KEEP} for entry in trace]
+    compacted = []
+    for entry in trace:
+        if entry.get("stage") == "evidence_ledger":
+            # Project the ARM ledger onto a small allowlist. In particular,
+            # omit candidate values, parser response text, and any unbounded
+            # objects while retaining mode, budget, and lifecycle evidence.
+            ledger: dict[str, Any] = {
+                key: entry[key]
+                for key in ("method", "harness_version", "stage")
+                if key in entry
+            }
+            ledger["candidates"] = [
+                {
+                    key: candidate[key]
+                    for key in (
+                        "candidate_id", "source", "reasoning_mode",
+                        "answer_type", "extraction_status", "verification_status",
+                    )
+                    if key in candidate
+                }
+                for candidate in entry.get("candidates") or []
+                if isinstance(candidate, dict)
+            ]
+            ledger["calls"] = [
+                {
+                    key: call[key]
+                    for key in (
+                        "call_number", "stage", "requested_tokens", "completion_tokens",
+                        "finish_reason", "duration_ms", "status", "error_category",
+                        "reasoning_mode",
+                    )
+                    if key in call
+                }
+                for call in entry.get("calls") or []
+                if isinstance(call, dict)
+            ]
+            budget = entry.get("budget")
+            if isinstance(budget, dict):
+                ledger["budget"] = {
+                    key: budget[key]
+                    for key in (
+                        "calls", "call_limit", "requested_tokens", "token_limit",
+                        "remaining_requested_tokens", "actual_completion_tokens",
+                        "actual_token_records", "budget_violated",
+                    )
+                    if key in budget
+                }
+            compacted.append(ledger)
+        else:
+            compacted.append({k: entry[k] for k in entry if k in TRACE_KEEP})
+    return compacted
 
 
-def client_diagnostics(client: Any) -> dict[str, list[Any]]:
+def client_diagnostics(
+    client: Any,
+    trace: list[dict[str, Any]] | None = None,
+) -> dict[str, list[Any]]:
     """Per-task public client diagnostics (call-ordered, bounded).
 
     Each task owns its client, so the lists align with that task's calls even
     under workers=3.  Missing attributes degrade to empty lists instead of
     guessing from response text.
     """
-    def bounded(name: str) -> list[Any]:
+    def bounded(name: str, limit: int = 8) -> list[Any]:
         values = getattr(client, name, None)
         if not isinstance(values, list):
             return []
-        return list(values[:8])
+        return list(values[:limit])
+
+    # The client deliberately does not receive stage labels.  Join its
+    # logical-call index to the solve-local budget ledger, which uses the same
+    # one-based order, without retaining prompts or response content.
+    stages: dict[int, str] = {}
+    for event in trace or []:
+        if event.get("stage") != "evidence_ledger":
+            continue
+        for call in event.get("calls") or []:
+            try:
+                stages[int(call.get("call_number"))] = str(call.get("stage") or "")
+            except (TypeError, ValueError):
+                continue
+        break
+    request_events = bounded("request_diagnostics", 16)
+    requests: list[dict[str, Any]] = []
+    for event in request_events:
+        if not isinstance(event, dict):
+            continue
+        try:
+            logical_index = int(event.get("logical_call_index"))
+        except (TypeError, ValueError):
+            logical_index = -1
+        requests.append({
+            "logical_call_index": logical_index,
+            "request_sequence": event.get("request_sequence"),
+            "stage": stages.get(logical_index + 1, ""),
+            "reasoning_mode": event.get("reasoning_mode"),
+            "thinking_mode": event.get("thinking_mode"),
+            "status": event.get("status"),
+            "requested_tokens": event.get("max_tokens"),
+            "completion_tokens": event.get("completion_tokens"),
+            "finish_reason": event.get("finish_reason"),
+            "duration_seconds": event.get("duration_seconds"),
+            "error_category": event.get("error_category"),
+        })
 
     return {
         "finish_reasons": bounded("finish_reasons"),
         "completion_tokens": bounded("completion_tokens"),
+        "latencies": bounded("latencies"),
+        "requests": requests,
     }
 
 
@@ -315,7 +412,7 @@ def _arm_overrides(enabled: tuple[str, ...] = ()) -> dict[str, bool]:
             **{flag: True for flag in enabled}}
 
 
-ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
+ARM_DEFINITIONS: dict[str, dict[str, Any]] = {
     "v1": _arm_overrides(),
     # C0/legacy baseline and its single prompt-only CoD candidate.  Both arms
     # are explicitly bank-off and keep the non-FSDF answering path.
@@ -467,6 +564,64 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     )),
 }
 
+# ARM-HARNESS-V1 profiles.  They share the same outer harness and bank-off
+# policy; only the request-level reasoning-mode lane differs.  Keeping these
+# definitions here lets the runner clone SUBMISSION_CONFIG without mutating
+# the official default path.
+ARM_HARNESS_BASE = {
+    **_arm_overrides(),
+    "enable_constraint_fit_harness": True,
+    "enable_constraint_fit_deep_lane": True,
+    "enable_constraint_fit_hybrid_router": False,
+    "enable_arm_harness": True,
+    "enable_fork_select_deepen_finish": False,
+    "enable_adaptive_candidate_first": False,
+    "enable_adaptive_dual_candidate_consensus": False,
+    "enable_adaptive_voting": False,
+    "enable_heterogeneous_reasoners": False,
+    "enable_numeric_answer_first_prompt": False,
+    "enable_contextual_answer_reconstruction": False,
+    "enable_typed_answer_capsule": False,
+    "enable_condition_checked_selection": False,
+    "enable_plan_solve_compact": False,
+    "enable_fesf_v1": False,
+    "enable_fesf_exact_eval": False,
+    "enable_fesf_claim_dsl": False,
+    "enable_method_rag": False,
+    "enable_reference_rag": False,
+    "enable_reference_skills": False,
+    "enable_host_intake": False,
+    "enable_bounded_obligation_extractor": False,
+    "enable_constraint_fit_migration_hardening": False,
+    "enable_constraint_fit_deterministic_playoff": False,
+    "enable_constraint_fit_process_audit": False,
+    "enable_constraint_fit_prefill": False,
+    "harness_bank_mode": "off",
+    "enable_temporary_answer_bank": False,
+}
+ARM_DEFINITIONS.update({
+    "arm-off": {
+        **ARM_HARNESS_BASE,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+    "arm-on": {
+        **ARM_HARNESS_BASE,
+        "arm_allow_thinking_on": True,
+        "arm_default_lane": "deep_on",
+    },
+    "arm-static": {
+        **ARM_HARNESS_BASE,
+        "arm_allow_thinking_on": True,
+        "arm_default_lane": "static",
+    },
+    "arm-adaptive": {
+        **ARM_HARNESS_BASE,
+        "arm_allow_thinking_on": True,
+        "arm_default_lane": "adaptive",
+    },
+})
+
 
 def arm_config(arm: str) -> Any:
     if arm not in ARM_DEFINITIONS:
@@ -485,6 +640,13 @@ ARM_THINKING_MODE: dict[str, bool | None] = {
     "v2hd_bs_hs_tkoff": False,
     "v2hd_hs_sr": False,
     "v2hd_hs_tkh": False,
+    # ARM controls thinking per request through reasoning_mode.  Keeping the
+    # client default at None prevents a process-level switch from contaminating
+    # the paired window.
+    "arm-off": None,
+    "arm-on": None,
+    "arm-static": None,
+    "arm-adaptive": None,
 }
 
 
@@ -569,13 +731,62 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         isinstance(final_response, str) and final_response.strip()
         and final_response.strip().upper() != "UNKNOWN"
     )
-    client_diag = client_diagnostics(client)
+    client_diag = client_diagnostics(client, compact_trace_rows)
+    arm_policy = next(
+        (event for event in compact_trace_rows if event.get("stage") == "arm_policy"),
+        {},
+    )
+    arm_escalations = [
+        event for event in compact_trace_rows
+        if event.get("stage") == "arm_escalation"
+    ]
+    evidence = next(
+        (event for event in compact_trace_rows if event.get("stage") == "evidence_ledger"),
+        {},
+    )
+    candidates = [
+        {
+            key: candidate[key]
+            for key in ("candidate_id", "source", "reasoning_mode", "extraction_status", "verification_status")
+            if key in candidate
+        }
+        for candidate in evidence.get("candidates") or []
+        if isinstance(candidate, dict)
+    ]
+    request_modes = [
+        request.get("reasoning_mode")
+        for request in client_diag["requests"]
+        if request.get("reasoning_mode") in {"off", "on", "inherit"}
+    ]
+    request_errors = [
+        request.get("error_category")
+        for request in client_diag["requests"]
+        if request.get("status") == "error" and request.get("error_category")
+    ]
+    if status == "ok" and request_errors:
+        # The harness may intentionally convert a client failure into UNKNOWN;
+        # preserve that answer behavior but expose the request failure at the
+        # runner level so timeout/error counts are not hidden as plain invalids.
+        status = f"error:{request_errors[-1]}"
     record = {
         "set_id": task["set_id"],
         "item_id": item["item_id"],
         "arm": arm,
         "pair_order": task.get("pair_order", ""),
-        "thinking_mode": "off" if arm_thinking_mode(arm) is False else "default",
+        "thinking_mode": (
+            "request_scoped" if arm.startswith("arm-")
+            else "off" if arm_thinking_mode(arm) is False
+            else "default"
+        ),
+        "arm_lane": arm_policy.get("lane", ""),
+        "arm_policy": arm_policy,
+        "arm_escalation": arm_escalations,
+        "initial_mode": arm_policy.get("initial_mode", ""),
+        "escalation_mode": arm_policy.get("escalation_mode", ""),
+        "reasoning_modes": request_modes,
+        "candidate_telemetry": candidates,
+        "candidate_count": len(candidates),
+        "token_budget": arm_policy.get("token_budget"),
         "problem_group_id": item.get("problem_group_id", ""),
         "language": item.get("language", ""),
         "domain": item["domain"],
@@ -596,6 +807,8 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "trace": compact_trace_rows,
         "client_finish_reasons": client_diag["finish_reasons"],
         "client_completion_tokens": client_diag["completion_tokens"],
+        "client_request_diagnostics": client_diag["requests"],
+        "request_error_categories": request_errors,
     }
     # Qualification labels are scorer-only metadata.  ``solve`` above only
     # receives problem text and an index, so this field cannot enter any model
@@ -856,6 +1069,21 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     def stats(subset: list[dict[str, Any]]) -> dict[str, Any]:
         n = len(subset)
+        request_events = [
+            request
+            for row in subset
+            for request in row.get("client_request_diagnostics", [])
+        ]
+        request_errors = [request for request in request_events if request.get("status") == "error"]
+        request_timeouts = [
+            request for request in request_errors
+            if request.get("error_category") == "timeout"
+        ]
+        request_latencies = [
+            float(request["duration_seconds"])
+            for request in request_events
+            if isinstance(request.get("duration_seconds"), (int, float))
+        ]
         completion_tokens = [
             sum(
                 int(token)
@@ -890,6 +1118,27 @@ def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "mean_completion_tokens": round(sum(completion_tokens) / n, 1) if n else 0,
             "p95_completion_tokens": nearest_rank_p95(completion_tokens),
             "total_completion_tokens": sum(completion_tokens),
+            "request_n": len(request_events),
+            "request_error_n": len(request_errors),
+            "request_timeout_n": len(request_timeouts),
+            "request_error_rate": round(len(request_errors) / len(request_events), 4) if request_events else 0,
+            "timeout_rate": round(len(request_timeouts) / len(request_events), 4) if request_events else 0,
+            "mean_request_latency_s": round(sum(request_latencies) / len(request_latencies), 2) if request_latencies else None,
+            "p95_request_latency_s": nearest_rank_p95(request_latencies),
+            "arm_escalation_n": sum(
+                any(event.get("status") == "triggered" for event in (r.get("arm_escalation") or []))
+                for r in subset
+            ),
+            "arm_escalation_rate": round(
+                sum(
+                    any(event.get("status") == "triggered" for event in (r.get("arm_escalation") or []))
+                    for r in subset
+                ) / n, 4
+            ) if n else 0,
+            "candidate_formation_n": sum(bool(r.get("candidate_telemetry")) for r in subset),
+            "candidate_formation_rate": round(
+                sum(bool(r.get("candidate_telemetry")) for r in subset) / n, 4
+            ) if n else 0,
         }
         s["native_accuracy"] = round(s["native_correct"] / n, 4) if n else 0
         # 完整判定对比：correct 数一致不代表逐题判定一致。
@@ -1096,7 +1345,11 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         if set(arms).intersection({"current_c0", "current_cod_numeric"}) else None,
         "arm_flags": {arm: dict(ARM_DEFINITIONS[arm]) for arm in arms},
         "arm_thinking_modes": {
-            arm: "off" if arm_thinking_mode(arm) is False else "default"
+            arm: (
+                "request_scoped" if arm.startswith("arm-")
+                else "off" if arm_thinking_mode(arm) is False
+                else "default"
+            )
             for arm in arms
         },
         "fesf_skill_sha256": {

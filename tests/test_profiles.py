@@ -7,6 +7,10 @@ from unittest.mock import patch
 from main import parse_args
 from reasoning_agent.profiles import (
     PROFILE_AGENT_DEFAULT,
+    PROFILE_ARM_ADAPTIVE,
+    PROFILE_ARM_OFF,
+    PROFILE_ARM_ON,
+    PROFILE_ARM_STATIC,
     PROFILE_SUBMISSION,
     available_profiles,
     build_profile_config,
@@ -18,7 +22,17 @@ class ProfileConfigTest(unittest.TestCase):
     """Keep local profile selection explicit and side-effect free."""
 
     def test_available_profiles_are_stable(self):
-        self.assertEqual((PROFILE_SUBMISSION, PROFILE_AGENT_DEFAULT), available_profiles())
+        self.assertEqual(
+            (
+                PROFILE_SUBMISSION,
+                PROFILE_AGENT_DEFAULT,
+                PROFILE_ARM_OFF,
+                PROFILE_ARM_ON,
+                PROFILE_ARM_STATIC,
+                PROFILE_ARM_ADAPTIVE,
+            ),
+            available_profiles(),
+        )
 
     def test_submission_profile_is_an_independent_copy(self):
         config = build_profile_config(PROFILE_SUBMISSION)
@@ -32,6 +46,22 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertFalse(config.enable_fork_select_deepen_finish)
         self.assertFalse(config.enable_constraint_fit_harness)
         self.assertFalse(config.enable_reference_rag)
+        self.assertFalse(config.enable_arm_harness)
+
+    def test_arm_profiles_are_explicit_and_submission_stays_off(self):
+        off = build_profile_config(PROFILE_ARM_OFF)
+        on = build_profile_config(PROFILE_ARM_ON)
+        static = build_profile_config(PROFILE_ARM_STATIC)
+        adaptive = build_profile_config(PROFILE_ARM_ADAPTIVE)
+
+        self.assertTrue(off.enable_arm_harness)
+        self.assertFalse(off.arm_allow_thinking_on)
+        self.assertEqual("adaptive", off.arm_default_lane)
+        self.assertTrue(on.arm_allow_thinking_on)
+        self.assertEqual("deep_on", on.arm_default_lane)
+        self.assertEqual("static", static.arm_default_lane)
+        self.assertEqual("adaptive", adaptive.arm_default_lane)
+        self.assertFalse(SUBMISSION_CONFIG.enable_arm_harness)
 
     def test_unknown_profile_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "unknown_profile"):

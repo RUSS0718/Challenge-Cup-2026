@@ -1,10 +1,12 @@
+"""Local Intern-S2 client with request-scoped reasoning and safe diagnostics."""
+
 import hashlib
 import json
 import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 from urllib.parse import urlparse
 
 import requests
@@ -13,6 +15,7 @@ import requests
 DEFAULT_API_BASE = "https://chat.intern-ai.org.cn/api/v1/chat/completions"
 # The provider's API identifier for the current Intern-S2 model.
 DEFAULT_MODEL = "intern-s2"
+ReasoningMode = Literal["inherit", "off", "on"]
 
 
 def _load_local_env() -> None:
@@ -91,15 +94,19 @@ class InternChatClient:
         messages: List[Dict[str, str]],
         temperature: float = 0.2,
         max_tokens: int = 4096,
+        *,
+        reasoning_mode: ReasoningMode = "inherit",
     ) -> str:
+        """Send one request; an explicit mode overrides, but never mutates, the client default."""
         payload = {
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        if self.thinking_mode is not None:
-            payload["thinking_mode"] = self.thinking_mode
+        effective_thinking_mode = self._resolve_reasoning_mode(reasoning_mode)
+        if effective_thinking_mode is not None:
+            payload["thinking_mode"] = effective_thinking_mode
         headers = {
             "Content-Type": "application/json",
             "Authorization": self.authorization,
@@ -114,7 +121,8 @@ class InternChatClient:
             "logical_call_index": logical_call_index,
             "request_model_id": self.model,
             "api_host": urlparse(self.api_base).netloc,
-            "thinking_mode": self.thinking_mode,
+            "reasoning_mode": reasoning_mode,
+            "thinking_mode": effective_thinking_mode,
             "temperature": temperature,
             "max_tokens": max_tokens,
             "timeout_seconds": self.timeout,
@@ -149,7 +157,7 @@ class InternChatClient:
                 finish_reason = choice.get("finish_reason") or ""
                 request_event.update(
                     status="success",
-                    http_status=response.status_code,
+                    http_status=getattr(response, "status_code", None),
                     response_id=data.get("id") if isinstance(data.get("id"), str) else None,
                     response_model_id=(
                         data.get("model") if isinstance(data.get("model"), str) else None
@@ -233,6 +241,16 @@ class InternChatClient:
                 time.sleep(2**attempt)
 
         raise ChatClientError(last_category, self.last_failure_type)
+
+    def _resolve_reasoning_mode(self, reasoning_mode: ReasoningMode) -> bool | None:
+        """Resolve an explicit request mode against the unchanged client default."""
+        if reasoning_mode == "off":
+            return False
+        if reasoning_mode == "on":
+            return True
+        if reasoning_mode == "inherit":
+            return self.thinking_mode
+        raise ValueError("invalid_reasoning_mode")
 
     def diagnostic_snapshot(self) -> dict[str, str | None]:
         """Return safe local diagnostics; never includes credentials or prompts."""

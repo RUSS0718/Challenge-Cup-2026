@@ -1,0 +1,191 @@
+{
+  "run_id": "ARM-HEALTH-PROBE-001",
+  "pools_dir": "sample_data/external_hard_sets",
+  "pool_sha256": {
+    "set_a_olymmath_hard.jsonl": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+    "set_b_aime.jsonl": "e39108744b5b0548fccfc28a089ddd1cccd0821e7235a6f2e18fa74449cd8315",
+    "set_c_hle_math.jsonl": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8"
+  },
+  "custom_pool_sha256": {
+    "cod_numeric_parity.jsonl": null
+  },
+  "qualification_file": null,
+  "qualification_sha256": null,
+  "seed": 20260928,
+  "workers": 3,
+  "request_timeout_seconds": 30,
+  "hard_stop_minutes": 12.0,
+  "sample_size_per_set": 3,
+  "sample_sizes": {
+    "set_a_olymmath_hard": 3,
+    "set_b_aime": 3,
+    "set_c_hle_math": 3
+  },
+  "fixed_items": {
+    "set_a_olymmath_hard": [
+      "OlymMATH-HARD-13-EN",
+      "OlymMATH-HARD-84-ZH",
+      "OlymMATH-HARD-32-ZH"
+    ],
+    "set_b_aime": [
+      "aime-25",
+      "aime-2024-II-2",
+      "aime-15"
+    ],
+    "set_c_hle_math": [
+      "hle-673b5fdff0294e2cbdb5bebb",
+      "hle-6720204c18dac989ee5554d4",
+      "hle-67371dc7fb093fc159cc78e8"
+    ]
+  },
+  "sampled_items": {
+    "set_a_olymmath_hard": [
+      "OlymMATH-HARD-13-EN",
+      "OlymMATH-HARD-84-ZH",
+      "OlymMATH-HARD-32-ZH"
+    ],
+    "set_b_aime": [
+      "aime-25",
+      "aime-2024-II-2",
+      "aime-15"
+    ],
+    "set_c_hle_math": [
+      "hle-673b5fdff0294e2cbdb5bebb",
+      "hle-6720204c18dac989ee5554d4",
+      "hle-67371dc7fb093fc159cc78e8"
+    ]
+  },
+  "arms": [
+    "arm-off",
+    "arm-on"
+  ],
+  "arm_assignment": "round_robin_over_seeded_shuffle",
+  "pairing": "paired",
+  "thinking_mode": "default",
+  "prompt_hashes": {
+    "cod_numeric": "5e4fdaf4dade16f609be49b876ada8791fadd99be5c9209c525a6409930a9121"
+  },
+  "preflight_sha256": null,
+  "arm_flags": {
+    "arm-off": {
+      "enable_current_cod_numeric": false,
+      "enable_fsdf_diagnostics_v2": false,
+      "enable_fsdf_multiline_handoff_v2": false,
+      "enable_fsdf_final_confirmation_v2": false,
+      "enable_fsdf_finish_prompt_v2": false,
+      "enable_fsdf_handoff_first_d": false,
+      "enable_fsdf_d_result_to_e": false,
+      "enable_fsdf_de_budget_swap": false,
+      "enable_fsdf_finish_compact_final": false,
+      "enable_fsdf_mandatory_final_d": false,
+      "enable_fsdf_finish_handoff_share": false,
+      "enable_fsdf_handoff_open_first_e": false,
+      "enable_fsdf_finish_handoff_share_v2": false,
+      "enable_fsdf_e_budget_up": false,
+      "enable_fsdf_deep_candidate_fallback": false,
+      "enable_fsdf_skill_routes": false,
+      "enable_fsdf_skill_harness": false,
+      "enable_fesf_v1": false,
+      "enable_fesf_exact_eval": false,
+      "enable_fesf_claim_dsl": false,
+      "enable_constraint_fit_harness": true,
+      "enable_constraint_fit_deep_lane": true,
+      "enable_constraint_fit_hybrid_router": false,
+      "enable_arm_harness": true,
+      "enable_fork_select_deepen_finish": false,
+      "enable_adaptive_candidate_first": false,
+      "enable_adaptive_dual_candidate_consensus": false,
+      "enable_adaptive_voting": false,
+      "enable_heterogeneous_reasoners": false,
+      "enable_numeric_answer_first_prompt": false,
+      "enable_contextual_answer_reconstruction": false,
+      "enable_typed_answer_capsule": false,
+      "enable_condition_checked_selection": false,
+      "enable_plan_solve_compact": false,
+      "enable_method_rag": false,
+      "enable_reference_rag": false,
+      "enable_reference_skills": false,
+      "enable_host_intake": false,
+      "enable_bounded_obligation_extractor": false,
+      "enable_constraint_fit_migration_hardening": false,
+      "enable_constraint_fit_deterministic_playoff": false,
+      "enable_constraint_fit_process_audit": false,
+      "enable_constraint_fit_prefill": false,
+      "harness_bank_mode": "off",
+      "enable_temporary_answer_bank": false,
+      "arm_allow_thinking_on": false,
+      "arm_default_lane": "adaptive"
+    },
+    "arm-on": {
+      "enable_current_cod_numeric": false,
+      "enable_fsdf_diagnostics_v2": false,
+      "enable_fsdf_multiline_handoff_v2": false,
+      "enable_fsdf_final_confirmation_v2": false,
+      "enable_fsdf_finish_prompt_v2": false,
+      "enable_fsdf_handoff_first_d": false,
+      "enable_fsdf_d_result_to_e": false,
+      "enable_fsdf_de_budget_swap": false,
+      "enable_fsdf_finish_compact_final": false,
+      "enable_fsdf_mandatory_final_d": false,
+      "enable_fsdf_finish_handoff_share": false,
+      "enable_fsdf_handoff_open_first_e": false,
+      "enable_fsdf_finish_handoff_share_v2": false,
+      "enable_fsdf_e_budget_up": false,
+      "enable_fsdf_deep_candidate_fallback": false,
+      "enable_fsdf_skill_routes": false,
+      "enable_fsdf_skill_harness": false,
+      "enable_fesf_v1": false,
+      "enable_fesf_exact_eval": false,
+      "enable_fesf_claim_dsl": false,
+      "enable_constraint_fit_harness": true,
+      "enable_constraint_fit_deep_lane": true,
+      "enable_constraint_fit_hybrid_router": false,
+      "enable_arm_harness": true,
+      "enable_fork_select_deepen_finish": false,
+      "enable_adaptive_candidate_first": false,
+      "enable_adaptive_dual_candidate_consensus": false,
+      "enable_adaptive_voting": false,
+      "enable_heterogeneous_reasoners": false,
+      "enable_numeric_answer_first_prompt": false,
+      "enable_contextual_answer_reconstruction": false,
+      "enable_typed_answer_capsule": false,
+      "enable_condition_checked_selection": false,
+      "enable_plan_solve_compact": false,
+      "enable_method_rag": false,
+      "enable_reference_rag": false,
+      "enable_reference_skills": false,
+      "enable_host_intake": false,
+      "enable_bounded_obligation_extractor": false,
+      "enable_constraint_fit_migration_hardening": false,
+      "enable_constraint_fit_deterministic_playoff": false,
+      "enable_constraint_fit_process_audit": false,
+      "enable_constraint_fit_prefill": false,
+      "harness_bank_mode": "off",
+      "enable_temporary_answer_bank": false,
+      "arm_allow_thinking_on": true,
+      "arm_default_lane": "deep_on"
+    }
+  },
+  "arm_thinking_modes": {
+    "arm-off": "request_scoped",
+    "arm-on": "request_scoped"
+  },
+  "fesf_skill_sha256": {
+    "reasoning_agent/fesf_skills/exact-evaluation/SKILL.md": "951fcfa30d7d0c3151062971f0b5e995835f5a10c17b3565900e63d8bb068355",
+    "reasoning_agent/fesf_skills/exact-evaluation/cases.jsonl": "cb8b8d3a65a9abd2045a904c6564a02652aae0216334cd3cc65e607c053064fa"
+  },
+  "method": "Explicit arm definitions: fsdf_v1_tkoff is the FSDF v1 anchor; fesf_v1_tkoff_exact_eval is FESF v1 plus the independently qualified exact-evaluation Skill; fesf_v1_tkoff_claim_dsl adds opt-in Claim DSL on that FESF path. Existing v2 arms remain exploratory diagnostics and are not capability conclusions.",
+  "git_head": "6fff4bd3fec2972e4481863322ac9854e99aa4cb",
+  "source_sha256": {
+    "reasoning_agent/fork_evidence_synthesize_finish.py": "8439e5ada36f603315ab224bb173c0cf27c4938430a81192b209542b4e6c5707",
+    "reasoning_agent/fesf_memory/solve_state.py": "36a6351996d65e66edbeffc05e931e4a2e8e298cad0bcef7b95e7d5882c33402",
+    "reasoning_agent/fesf_verifiers/claim_dsl.py": "8ee5326ae74b29f1263d2bd4d37a906d028a3216679d89397d27d4b97ae98b51",
+    "reasoning_agent/fesf_verifiers/claim_executor.py": "50b1491f1e8b20c04a2af817c65b8c4c42c0e107e69c41bf8235145ab330e734",
+    "scripts/run_external_hard_sets_smoke.py": "c5d37831284718baf1d5ac208972a523a645d26185d8b693988319073825afc7",
+    "user_agent.py": "5e5c223f34e96abfe9f33d1a487a85c9a487578effdf21ed6ffb17f93ccc44f1"
+  },
+  "worktree_snapshot": "dirty_changes_hashed_above; .git is read-only in this runner",
+  "start_unix": 1790557950.0249696,
+  "n_tasks": 18,
+  "n_pending": 18
+}

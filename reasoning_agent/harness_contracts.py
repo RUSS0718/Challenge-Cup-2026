@@ -490,6 +490,8 @@ def _unique_candidates(candidates: Iterable["Candidate"]) -> list["Candidate"]:
 @dataclass
 
 class Candidate:
+    """A bounded answer candidate and the inference mode that produced it."""
+
     candidate_id: str
     value: str
     normalized_value: str
@@ -501,9 +503,11 @@ class Candidate:
     checks: list[dict[str, Any]] = field(default_factory=list)
     reason_summary: str = "candidate_extracted"
     response: str = field(default="", repr=False)
+    reasoning_mode: str = "inherit"
 
     def ledger_dict(self) -> dict[str, Any]:
-        return {
+        """Return safe candidate metadata, including a mode only when explicit."""
+        entry = {
             "candidate_id": self.candidate_id,
             "value": _clip(self.value, MAX_CANDIDATE_CHARS),
             "normalized_value": _clip(self.normalized_value, MAX_CANDIDATE_CHARS),
@@ -515,6 +519,9 @@ class Candidate:
             "checks": [dict(check) for check in self.checks[:4]],
             "reason_summary": _clip(self.reason_summary, MAX_REASON_CHARS),
         }
+        if self.reasoning_mode != "inherit":
+            entry["reasoning_mode"] = self.reasoning_mode
+        return entry
 
 
 @dataclass

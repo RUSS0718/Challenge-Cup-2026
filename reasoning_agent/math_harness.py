@@ -35,6 +35,7 @@ from reasoning_agent.migration_hardening import (
     PLAYOFF_NEITHER,
 )
 from reasoning_agent.diagnostic_trace import summarize_agent_trace
+from reasoning_agent.inference_policy import CallPolicy, ReasoningMode
 from reasoning_agent.harness_contracts import (
     ANSWER_CHOICE,
     ANSWER_DERIVATION,
@@ -155,6 +156,15 @@ class HarnessConfig:
     enable_process_audit: bool = False
     enable_prefill: bool = False
     process_audit_max_tokens: int = 2_048
+    enable_arm_harness: bool = False
+    arm_allow_thinking_on: bool = False
+    arm_default_lane: str = "adaptive"
+    arm_fast_max_calls: int = 2
+    arm_adaptive_max_calls: int = 3
+    arm_deep_max_calls: int = 3
+    arm_fast_token_budget: int = 8_192
+    arm_adaptive_token_budget: int = 16_384
+    arm_deep_token_budget: int = 16_384
 
     def __post_init__(self) -> None:
         if self.bank_mode not in {"off", "on"}:
@@ -165,6 +175,21 @@ class HarnessConfig:
             raise ValueError("total_token_budget must be positive")
         if not math.isfinite(float(self.max_wall_seconds)) or float(self.max_wall_seconds) <= 0:
             raise ValueError("max_wall_seconds must be positive")
+        if self.arm_default_lane not in {"adaptive", "fast_off", "deep_on", "static"}:
+            raise ValueError("invalid_arm_default_lane")
+        if any(int(value) < 1 for value in (
+            self.arm_fast_max_calls,
+            self.arm_adaptive_max_calls,
+            self.arm_deep_max_calls,
+            self.arm_fast_token_budget,
+            self.arm_adaptive_token_budget,
+            self.arm_deep_token_budget,
+        )):
+            raise ValueError("arm_budgets_must_be_positive")
+        if self.enable_arm_harness and (
+            self.enable_migration_hardening or self.enable_prefill
+        ):
+            raise ValueError("arm_harness_cannot_combine_migration_hardening")
 
     @property
     def call_limit(self) -> int:
@@ -196,10 +221,13 @@ class HarnessConfig:
 
 @dataclass
 class CallReservation:
+    """One budgeted request, including the inference mode that was selected."""
+
     call_number: int
     stage: str
     requested_tokens: int
     started_at: float
+    reasoning_mode: ReasoningMode
 
 
 class BudgetLedger:
@@ -216,7 +244,13 @@ class BudgetLedger:
         self.budget_violated = False
         self.records: list[dict[str, Any]] = []
 
-    def reserve(self, stage: str, requested_tokens: int) -> CallReservation | None:
+    def reserve(
+        self,
+        stage: str,
+        requested_tokens: int,
+        reasoning_mode: ReasoningMode = "inherit",
+    ) -> CallReservation | None:
+        """Reserve one call and its full requested-token cost before dispatch."""
         requested = max(0, int(requested_tokens))
         if requested <= 0:
             return None
@@ -226,7 +260,7 @@ class BudgetLedger:
             return None
         self.calls_used += 1
         self.requested_tokens += requested
-        return CallReservation(self.calls_used, stage, requested, self.clock())
+        return CallReservation(self.calls_used, stage, requested, self.clock(), reasoning_mode)
 
     def finish(
         self,
@@ -246,18 +280,19 @@ class BudgetLedger:
                 self.budget_violated = True
         else:
             actual = None
-        self.records.append(
-            {
-                "call_number": reservation.call_number,
-                "stage": reservation.stage,
-                "requested_tokens": reservation.requested_tokens,
-                "completion_tokens": actual,
-                "finish_reason": _clip(finish_reason, 32) if finish_reason else None,
-                "duration_ms": max(0, int(duration_ms)),
-                "status": "error" if error_category else "ok",
-                "error_category": error_category,
-            }
-        )
+        record = {
+            "call_number": reservation.call_number,
+            "stage": reservation.stage,
+            "requested_tokens": reservation.requested_tokens,
+            "completion_tokens": actual,
+            "finish_reason": _clip(finish_reason, 32) if finish_reason else None,
+            "duration_ms": max(0, int(duration_ms)),
+            "status": "error" if error_category else "ok",
+            "error_category": error_category,
+        }
+        if reservation.reasoning_mode != "inherit":
+            record["reasoning_mode"] = reservation.reasoning_mode
+        self.records.append(record)
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -699,14 +734,17 @@ class AttemptScheduler:
         user_prompt: str,
         max_tokens: int,
         *,
+        reasoning_mode: ReasoningMode = "inherit",
         prefill: str | None = None,
         prefill_purpose: str | None = None,
     ) -> _CallResult:
+        """Dispatch a stage with an optional request-local reasoning mode."""
         return self.harness._call(
             stage,
             system_prompt,
             user_prompt,
             max_tokens,
+            reasoning_mode=reasoning_mode,
             prefill=prefill,
             prefill_purpose=prefill_purpose,
         )
@@ -882,6 +920,15 @@ class ConstraintFitOrchestrator:
                 ],
             }
 
+        if self.config.enable_arm_harness:
+            from reasoning_agent.arm_harness import AdaptiveReasoningHarness
+
+            return AdaptiveReasoningHarness(self).solve(
+                problem_text[: self.config.max_problem_chars],
+                route,
+                prefix_trace,
+            )
+
         if route.target == "legacy_fsdf":
             if self.call_observer is not None:
                 # The legacy relay has its own internal call sequence and is
@@ -962,13 +1009,26 @@ class ConstraintFitOrchestrator:
         user_prompt: str,
         max_tokens: int,
         *,
+        reasoning_mode: ReasoningMode = "inherit",
         prefill: str | None = None,
         prefill_purpose: str | None = None,
     ) -> _CallResult:
+        """Run one reserved client request and record only bounded diagnostics."""
         assert self.ledger is not None and self.budget is not None
+        call_policy = CallPolicy(
+            stage=stage,
+            reasoning_mode=reasoning_mode,
+            max_tokens=max_tokens,
+            temperature=self.config.temperature,
+        )
+        stage = call_policy.stage
+        max_tokens = call_policy.max_tokens
+        reasoning_mode = call_policy.reasoning_mode
         user_prompt = _prompt_problem(user_prompt, self._reference_context)
         if self._observer_should_stop():
-            self._record_observer_refusal(stage, max_tokens, "observation_failed")
+            self._record_observer_refusal(
+                stage, max_tokens, "observation_failed", reasoning_mode=reasoning_mode
+            )
             return _CallResult(None, error_category="unknown")
         if self._deadline_exceeded():
             record = {
@@ -977,8 +1037,12 @@ class ConstraintFitOrchestrator:
                 "reason": "wall_clock_limit",
                 "requested_tokens": 0,
             }
+            if reasoning_mode != "inherit":
+                record["reasoning_mode"] = reasoning_mode
             self.ledger.add_call(record)
-            self._record_observer_refusal(stage, max_tokens, "deadline_refusal")
+            self._record_observer_refusal(
+                stage, max_tokens, "deadline_refusal", reasoning_mode=reasoning_mode
+            )
             return _CallResult(None, error_category="timeout")
         hardening_reservation = None
         if self._hardening_budget is not None:
@@ -1002,12 +1066,16 @@ class ConstraintFitOrchestrator:
                     "requested_tokens": max_tokens,
                     "error_category": "budget_exhausted",
                 }
+                if reasoning_mode != "inherit":
+                    record["reasoning_mode"] = reasoning_mode
                 self.ledger.add_call(record)
                 if self._hardening_ledger is not None:
                     self._hardening_ledger.add_call(record)
-                self._record_observer_refusal(stage, max_tokens, "budget_refusal")
+                self._record_observer_refusal(
+                    stage, max_tokens, "budget_refusal", reasoning_mode=reasoning_mode
+                )
                 return _CallResult(None, error_category="budget_exhausted")
-        reservation = self.budget.reserve(stage, max_tokens)
+        reservation = self.budget.reserve(stage, max_tokens, reasoning_mode)
         if reservation is None:
             if hardening_reservation is not None and self._hardening_budget is not None:
                 self._hardening_budget.finish(
@@ -1021,12 +1089,21 @@ class ConstraintFitOrchestrator:
                 "reason": "budget_exhausted",
                 "requested_tokens": max_tokens,
             }
+            if reasoning_mode != "inherit":
+                record["reasoning_mode"] = reasoning_mode
             self.ledger.add_call(record)
             if self._hardening_ledger is not None:
                 self._hardening_ledger.add_call(record)
-            self._record_observer_refusal(stage, max_tokens, "budget_refusal")
+            self._record_observer_refusal(
+                stage, max_tokens, "budget_refusal", reasoning_mode=reasoning_mode
+            )
             return _CallResult(None, error_category="budget_exhausted")
-        observer_handle = self._start_observed_call(stage, reservation.call_number, reservation.requested_tokens)
+        observer_handle = self._start_observed_call(
+            stage,
+            reservation.call_number,
+            reservation.requested_tokens,
+            reasoning_mode=reasoning_mode,
+        )
         if self.call_observer is not None and observer_handle is None:
             self.budget.finish(
                 reservation,
@@ -1041,19 +1118,20 @@ class ConstraintFitOrchestrator:
                     error_category="unknown",
                     duration_ms=0,
                 )
-            self.ledger.add_call(
-                {
-                    "stage": stage,
-                    "status": "error",
-                    "call_number": reservation.call_number,
-                    "requested_tokens": reservation.requested_tokens,
-                    "completion_tokens": None,
-                    "finish_reason": None,
-                    "duration_ms": 0,
-                    "error_category": "unknown",
-                    "observation_error": self._observation_failed or "observer_start_failed",
-                }
-            )
+            record = {
+                "stage": stage,
+                "status": "error",
+                "call_number": reservation.call_number,
+                "requested_tokens": reservation.requested_tokens,
+                "completion_tokens": None,
+                "finish_reason": None,
+                "duration_ms": 0,
+                "error_category": "unknown",
+                "observation_error": self._observation_failed or "observer_start_failed",
+            }
+            if reasoning_mode != "inherit":
+                record["reasoning_mode"] = reasoning_mode
+            self.ledger.add_call(record)
             if self._hardening_ledger is not None:
                 self._hardening_ledger.add_call(
                     {
@@ -1104,6 +1182,7 @@ class ConstraintFitOrchestrator:
                 fallback_reservation = self.budget.reserve(
                     fallback_stage,
                     reservation.requested_tokens,
+                    reasoning_mode,
                 )
                 if fallback_reservation is None:
                     if fallback_hardening_reservation is not None and self._hardening_budget is not None:
@@ -1117,6 +1196,7 @@ class ConstraintFitOrchestrator:
                     fallback_stage,
                     fallback_reservation.call_number,
                     fallback_reservation.requested_tokens,
+                    reasoning_mode=reasoning_mode,
                 )
                 if self.call_observer is not None and fallback_handle is None:
                     self.budget.finish(
@@ -1139,8 +1219,9 @@ class ConstraintFitOrchestrator:
                 try:
                     fallback_raw = self.client.chat(
                         messages,
-                        self.config.temperature,
+                        call_policy.temperature,
                         fallback_reservation.requested_tokens,
+                        **({"reasoning_mode": reasoning_mode} if reasoning_mode != "inherit" else {}),
                     )
                     fallback_content, fallback_completion, fallback_finish, fallback_unpack_error = _unpack_response(fallback_raw)
                     fallback_error = fallback_unpack_error or (
@@ -1179,6 +1260,8 @@ class ConstraintFitOrchestrator:
                     "duration_ms": fallback_duration_ms,
                     "error_category": fallback_error,
                 }
+                if reasoning_mode != "inherit":
+                    fallback_record["reasoning_mode"] = reasoning_mode
                 fallback_records.append(fallback_record)
                 self._finish_observed_call(
                     fallback_handle,
@@ -1215,8 +1298,9 @@ class ConstraintFitOrchestrator:
             else:
                 raw = self.client.chat(
                     messages,
-                    self.config.temperature,
+                    call_policy.temperature,
                     reservation.requested_tokens,
+                    **({"reasoning_mode": reasoning_mode} if reasoning_mode != "inherit" else {}),
                 )
                 content, completion_tokens, finish_reason, unpack_error = _unpack_response(raw)
             observed_content = content
@@ -1263,6 +1347,8 @@ class ConstraintFitOrchestrator:
             "duration_ms": duration_ms,
             "error_category": error_category,
         }
+        if reasoning_mode != "inherit":
+            record["reasoning_mode"] = reasoning_mode
         if prefill_result is not None:
             record.update(
                 {
@@ -1313,7 +1399,15 @@ class ConstraintFitOrchestrator:
             self._observation_failed = type(exc).__name__
             return True
 
-    def _record_observer_refusal(self, stage: str, requested_tokens: int, reason: str) -> None:
+    def _record_observer_refusal(
+        self,
+        stage: str,
+        requested_tokens: int,
+        reason: str,
+        *,
+        reasoning_mode: ReasoningMode = "inherit",
+    ) -> None:
+        """Record a rejected call without retaining prompt or answer content."""
         observer = self.call_observer
         if observer is None:
             return
@@ -1329,12 +1423,23 @@ class ConstraintFitOrchestrator:
                     else "unknown"
                 ),
                 reason=reason,
-                context=self.observation_context,
+                context={
+                    **self.observation_context,
+                    **({"reasoning_mode": reasoning_mode} if reasoning_mode != "inherit" else {}),
+                },
             )
         except BaseException as exc:
             self._observation_failed = type(exc).__name__
 
-    def _start_observed_call(self, stage: str, attempt: int, requested_tokens: int) -> Any:
+    def _start_observed_call(
+        self,
+        stage: str,
+        attempt: int,
+        requested_tokens: int,
+        *,
+        reasoning_mode: ReasoningMode = "inherit",
+    ) -> Any:
+        """Start an observer event with a copy of the request-local context."""
         observer = self.call_observer
         if observer is None:
             return None
@@ -1343,7 +1448,10 @@ class ConstraintFitOrchestrator:
                 stage=stage,
                 requested_tokens=requested_tokens,
                 attempt=attempt,
-                context=self.observation_context,
+                context={
+                    **self.observation_context,
+                    **({"reasoning_mode": reasoning_mode} if reasoning_mode != "inherit" else {}),
+                },
             )
         except BaseException as exc:
             self._observation_failed = type(exc).__name__

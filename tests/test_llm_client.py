@@ -1,4 +1,6 @@
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
+import json
 import os
 import unittest
 from unittest.mock import patch
@@ -112,6 +114,7 @@ class InternChatClientTest(unittest.TestCase):
         self.assertEqual(401, client.request_diagnostics[0]["http_status"])
 
     def test_thinking_mode_is_optional_and_added_only_when_configured(self):
+        """Keep inherited mode behavior when no request override is given."""
         with _patch_env(INTERN_API_KEY="test", INTERN_THINKING_MODE="false"):
             client = InternChatClient(timeout=1, retry=1)
         import requests
@@ -121,6 +124,62 @@ class InternChatClientTest(unittest.TestCase):
         with patch("llm_client.requests.post", return_value=response) as post:
             self.assertEqual("ok", client.chat([], 0.0, 1))
         self.assertFalse(post.call_args.kwargs["data"].find(b'"thinking_mode": false') < 0)
+
+    def test_request_mode_overrides_default_without_mutating_it(self):
+        """Send explicit OFF and ON values per request while retaining the default."""
+        import requests
+
+        response = requests.Response()
+        response.status_code = 200
+        response._content = b'{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}'
+        with _patch_env(INTERN_API_KEY="test", remove=["INTERN_THINKING_MODE"]):
+            client = InternChatClient(timeout=1, retry=1, thinking_mode=True)
+        with patch("llm_client.requests.post", return_value=response) as post:
+            self.assertEqual("ok", client.chat([], 0.0, 1, reasoning_mode="off"))
+            self.assertEqual("ok", client.chat([], 0.0, 1, reasoning_mode="on"))
+
+        payloads = [json.loads(call.kwargs["data"]) for call in post.call_args_list]
+        self.assertEqual([False, True], [payload["thinking_mode"] for payload in payloads])
+        self.assertTrue(client.thinking_mode)
+        self.assertEqual(["off", "on"], [event["reasoning_mode"] for event in client.request_diagnostics])
+        self.assertEqual([False, True], [event["thinking_mode"] for event in client.request_diagnostics])
+
+    def test_concurrent_request_modes_do_not_cross_contaminate(self):
+        """Keep two calls on one client isolated when their requests overlap."""
+        import requests
+
+        from threading import Barrier
+
+        barrier = Barrier(2)
+
+        def post(_url, *, headers, data, timeout):
+            """Wait for the peer request and echo its resolved boolean mode."""
+            payload = json.loads(data)
+            barrier.wait(timeout=2)
+            response = requests.Response()
+            response.status_code = 200
+            content = "on" if payload["thinking_mode"] else "off"
+            response._content = (
+                f'{{"choices":[{{"message":{{"content":"{content}"}},'
+                f'"finish_reason":"stop"}}]}}'
+            ).encode("utf-8")
+            return response
+
+        with _patch_env(INTERN_API_KEY="test", remove=["INTERN_THINKING_MODE"]):
+            client = InternChatClient(timeout=2, retry=1)
+        with patch("llm_client.requests.post", side_effect=post):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                off = pool.submit(client.chat, [], 0.0, 1, reasoning_mode="off")
+                on = pool.submit(client.chat, [], 0.0, 1, reasoning_mode="on")
+                results = {off.result(timeout=3), on.result(timeout=3)}
+
+        self.assertEqual({"off", "on"}, results)
+        self.assertIsNone(client.thinking_mode)
+        diagnostics = {
+            event["reasoning_mode"]: event["thinking_mode"]
+            for event in client.request_diagnostics
+        }
+        self.assertEqual({"off": False, "on": True}, diagnostics)
 
 
 if __name__ == "__main__":

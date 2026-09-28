@@ -327,6 +327,8 @@ def classify_problem_type(problem: str) -> str:
 
 @dataclass
 class AgentConfig:
+    """Select an agent path and its per-solve resource limits."""
+
     # ── P0 stop-bleeding defaults ─────────────────────────────────────────
     # Official runs showed 1024-token truncation fanning one question into ~7
     # model calls (~98.7% finish_reason=length) with near-zero accuracy.
@@ -455,6 +457,15 @@ class AgentConfig:
     # MATH-HARNESS-V1: outer constraint-fit route.  It is deliberately
     # default-off; local capability/health/A-B runs must set bank_mode=off.
     enable_constraint_fit_harness: bool = False
+    enable_arm_harness: bool = False
+    arm_allow_thinking_on: bool = False
+    arm_default_lane: str = "adaptive"
+    arm_fast_max_calls: int = 2
+    arm_adaptive_max_calls: int = 3
+    arm_deep_max_calls: int = 3
+    arm_fast_token_budget: int = 8192
+    arm_adaptive_token_budget: int = 16384
+    arm_deep_token_budget: int = 16384
     # BCOMP-001: local-only call lifecycle observation.  It is injected by
     # tests/runners and remains off so the official solve path is unchanged.
     enable_bounded_completion_observation: bool = False
@@ -683,6 +694,15 @@ class ReasoningAgent:
                     enable_process_audit=self.config.enable_constraint_fit_process_audit,
                     enable_prefill=self.config.enable_constraint_fit_prefill,
                     process_audit_max_tokens=self.config.harness_process_audit_max_tokens,
+                    enable_arm_harness=self.config.enable_arm_harness,
+                    arm_allow_thinking_on=self.config.arm_allow_thinking_on,
+                    arm_default_lane=self.config.arm_default_lane,
+                    arm_fast_max_calls=self.config.arm_fast_max_calls,
+                    arm_adaptive_max_calls=self.config.arm_adaptive_max_calls,
+                    arm_deep_max_calls=self.config.arm_deep_max_calls,
+                    arm_fast_token_budget=self.config.arm_fast_token_budget,
+                    arm_adaptive_token_budget=self.config.arm_adaptive_token_budget,
+                    arm_deep_token_budget=self.config.arm_deep_token_budget,
                 ),
                 call_observer=(
                     self.bounded_completion_observer
