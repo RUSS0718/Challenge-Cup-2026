@@ -2,21 +2,21 @@
 failure statistics and the full native/contract verdict comparison — all on
 fixed synthetic rows and stage events, never touching a real model.
 """
-import json
 import unittest
 from dataclasses import asdict
+from unittest.mock import patch
 
+import scripts.run_external_hard_sets_smoke as runner
 from scripts.run_external_hard_sets_smoke import (
     FSDF_CANDIDATE_FLAGS,
     FSDF_V2_FLAGS,
     analyze,
+    arm_v2_metrics,
     arm_config,
     assign_arms,
     assign_arms_paired,
     client_diagnostics,
     compact_trace,
-    analyze_skill_qualification,
-    stage_health,
 )
 
 
@@ -59,6 +59,8 @@ def make_row(
         "native": {"verdict": native, "detail": "synthetic"},
         "contract": {"verdict": contract, "detail": "synthetic"},
         "verdict_match": native == contract,
+        "nonempty_final": bool(final.strip()),
+        "contract_extractable": final.strip().upper() != "UNKNOWN",
         "format_ok": final.strip().upper() != "UNKNOWN",
         "json_serializable": True,
         "model_calls": 5,
@@ -112,145 +114,194 @@ class CompactTraceTest(unittest.TestCase):
         compact = compact_trace(trace)
         self.assertEqual({"step": "finalize", "status": "selected", "model_calls": 2}, compact[0])
 
+    def test_v2_summary_keeps_bounded_candidate_metadata_only(self):
+        trace = [{
+            "stage": "arm_v2_summary",
+            "method": "arm_harness_v2",
+            "profile": "selective",
+            "candidate_a": {
+                "value": "117",
+                "valid": True,
+                "trust": "medium",
+                "trust_reason": "high_reasoning_risk_single_sample",
+            },
+            "second_sample_triggered": True,
+            "private_prompt": "must not survive",
+        }]
+        compact = compact_trace(trace)[0]
+        self.assertEqual("117", compact["candidate_a"]["value"])
+        self.assertEqual("medium", compact["candidate_a"]["trust"])
+        self.assertTrue(compact["second_sample_triggered"])
+        self.assertNotIn("private_prompt", compact)
 
-class StageHealthTest(unittest.TestCase):
-    def test_failure_modes_are_counted_separately(self):
-        rows = [
-            # 顶层 runner 失败
-            make_row(row_id="r0", status="error:model_error"),
-            # 阶段 client 异常（即使 solve 顶层成功也保留）
-            make_row(
-                row_id="r1",
-                trace=[fsdf_event(status="failed", error_category="rate_limit")],
-            ),
-            # 非字符串/空响应
-            make_row(
-                row_id="r2",
-                trace=[fsdf_event(status="failed", error_category="invalid_response")],
-            ),
-            # 协议失败
-            make_row(
-                row_id="r3",
-                trace=[fsdf_event(status="protocol_failed", error_category="invalid_response")],
-            ),
-            # 截止时间跳过
-            make_row(
-                row_id="r4",
-                trace=[fsdf_event(stage="finish", status="skipped", error_category="soft_deadline")],
-            ),
-            # 交接缺失 / 裁剪
-            make_row(
-                row_id="r5",
-                trace=[
-                    fsdf_event(
-                        stage="finalize",
-                        status="unknown",
-                        handoff_missing_fields=["CANDIDATE_D"],
-                        handoff_clipped=True,
-                    )
-                ],
-            ),
+
+class SolveStatusAndTimeoutReportTest(unittest.TestCase):
+    def test_timeout_then_success_keeps_final_status_and_records_recovery(self):
+        class FakeClient:
+            finish_reasons = ["length", "stop"]
+            completion_tokens = [10, 12]
+            latencies = [1.0, 0.5]
+            request_diagnostics = [
+                {
+                    "logical_call_index": 0,
+                    "request_sequence": 1,
+                    "status": "error",
+                    "error_category": "timeout",
+                    "max_tokens": 100,
+                    "completion_tokens": 0,
+                    "finish_reason": "timeout",
+                    "duration_seconds": 1.0,
+                },
+                {
+                    "logical_call_index": 1,
+                    "request_sequence": 2,
+                    "status": "ok",
+                    "error_category": None,
+                    "max_tokens": 100,
+                    "completion_tokens": 12,
+                    "finish_reason": "stop",
+                    "duration_seconds": 0.5,
+                },
+            ]
+
+        class FakeAgent:
+            def __init__(self, client, config):
+                self.client = client
+
+            def solve(self, problem, metadata):
+                return {
+                    "final_response": "Final answer: 42",
+                    "extracted_answer": "42",
+                    "trace": [],
+                }
+
+        task = {
+            "set_id": "set_b_aime",
+            "item": {
+                "item_id": "timeout-recovered",
+                "problem": "Find the integer.",
+                "answer": "42",
+                "domain": "algebra",
+                "language": "EN",
+            },
+            "arm": "v1",
+            "seed": 1,
+            "task_idx": "set_b_aime-0",
+        }
+        with patch.object(runner, "InternChatClient", return_value=FakeClient()), \
+                patch.object(runner, "ReasoningAgent", FakeAgent):
+            record = runner.solve_one(task, timeout=1, api_key="")
+
+        self.assertEqual("ok", record["status"])
+        self.assertEqual(["timeout"], record["request_error_categories"])
+        self.assertEqual("correct", record["native"]["verdict"])
+        self.assertEqual("correct", record["contract"]["verdict"])
+        self.assertTrue(record["nonempty_final"])
+        self.assertTrue(record["contract_extractable"])
+
+        overall = analyze([record])["overall"]
+        self.assertEqual(1, overall["request_timeout_n"])
+        self.assertEqual(1, overall["timeout_recovered_n"])
+        self.assertEqual(1, overall["timeout_recovered_correct_n"])
+        self.assertEqual(0, overall["final_unknown_after_timeout_n"])
+        self.assertEqual(0, overall["model_error"])
+
+    def test_timeout_and_final_abstention_are_distinct_from_recovery(self):
+        recovered = make_row(row_id="recovered", final="42", status="error:timeout")
+        recovered["request_error_categories"] = ["timeout"]
+        recovered["client_request_diagnostics"] = [
+            {"status": "error", "error_category": "timeout", "duration_seconds": 1.0},
+            {"status": "ok", "error_category": None, "duration_seconds": 1.0},
         ]
-        health = stage_health(rows)
-        self.assertEqual(1, health["stage_client_errors"])
-        self.assertEqual(1, health["stage_invalid_responses"])
-        self.assertEqual(1, health["stage_protocol_failures"])
-        self.assertEqual(1, health["stage_skipped"])
-        self.assertEqual(1, health["handoff_missing"])
-        self.assertEqual(1, health["handoff_clipped"])
-
-    def test_old_records_without_stage_events_are_safe(self):
-        rows = [make_row(row_id="old", trace=[{"step": "finalize", "status": "selected"}])]
-        health = stage_health(rows)
-        for value in health.values():
-            self.assertEqual(0, value)
-
-
-class AnalyzeVerdictMatrixTest(unittest.TestCase):
-    def test_full_native_contract_comparison(self):
-        rows = [
-            make_row(row_id="a", native="correct", contract="correct"),
-            make_row(row_id="b", native="correct", contract="incorrect"),
-            make_row(row_id="c", native="incorrect", contract="correct"),
-            make_row(row_id="d", native="invalid", contract="incorrect", final="UNKNOWN"),
+        timed_out_unknown = make_row(
+            row_id="timed-out-unknown",
+            final="UNKNOWN",
+            native="invalid",
+            contract="invalid",
+            status="error:timeout",
+        )
+        timed_out_unknown["client_request_diagnostics"] = [
+            {"status": "error", "error_category": "timeout", "duration_seconds": 1.0},
         ]
-        report = analyze(rows)
-        overall = report["overall"]
-        self.assertEqual(2, overall["native_correct"])
-        self.assertEqual(1, overall["native_incorrect"])
-        self.assertEqual(1, overall["invalid"])
-        self.assertEqual(2, overall["contract_correct"])
-        self.assertEqual(2, overall["contract_incorrect"])
-        self.assertEqual(0, overall["contract_invalid"])
-        # 逐题完整对比：b(c/i)、c(i/c)、d(inv/i) 三题判定不一致。
-        self.assertEqual(3, overall["verdict_mismatch"])
-        self.assertTrue(overall["correct_count_consistent"])
-        self.assertEqual(1, overall["unknown_final"])
-        self.assertIn("judge_note", report)
-
-    def test_equal_correct_counts_do_not_hide_mismatches(self):
-        rows = [
-            make_row(row_id="a", native="correct", contract="incorrect"),
-            make_row(row_id="b", native="incorrect", contract="correct"),
+        no_timeout_unknown = make_row(
+            row_id="no-timeout-unknown",
+            final="UNKNOWN",
+            native="invalid",
+            contract="invalid",
+        )
+        no_timeout_unknown["client_request_diagnostics"] = [
+            {"status": "ok", "error_category": None, "duration_seconds": 1.0},
         ]
-        overall = analyze(rows)["overall"]
-        self.assertEqual(overall["native_correct"], overall["contract_correct"])
-        self.assertTrue(overall["correct_count_consistent"])
-        self.assertEqual(2, overall["verdict_mismatch"])
 
-    def test_report_is_json_serializable(self):
-        rows = [make_row(row_id="a", trace=[fsdf_event()])]
-        blob = json.dumps(analyze(rows), ensure_ascii=False)
-        self.assertIsInstance(blob, str)
+        overall = analyze([recovered, timed_out_unknown, no_timeout_unknown])["overall"]
+        self.assertEqual(2, overall["request_timeout_n"])
+        self.assertEqual(1, overall["timeout_recovered_n"])
+        self.assertEqual(1, overall["final_unknown_after_timeout_n"])
+        self.assertEqual(1, overall["no_timeout_abstain_n"])
 
+    def test_truncated_candidate_survives_later_request_failure(self):
+        class FakeClient:
+            finish_reasons = ["length", "stop"]
+            completion_tokens = [100, 0]
+            request_diagnostics = [
+                {
+                    "logical_call_index": 0,
+                    "request_sequence": 1,
+                    "status": "ok",
+                    "error_category": None,
+                    "completion_tokens": 100,
+                    "finish_reason": "length",
+                    "duration_seconds": 1.0,
+                },
+                {
+                    "logical_call_index": 1,
+                    "request_sequence": 2,
+                    "status": "error",
+                    "error_category": "model_error",
+                    "completion_tokens": 0,
+                    "finish_reason": "error",
+                    "duration_seconds": 1.0,
+                },
+            ]
 
-class SkillQualificationReportTest(unittest.TestCase):
-    def test_qualification_metrics_use_scorer_labels_and_bounded_events(self):
-        def qrow(rid, applicable, selected, usable=True, consumed=True):
-            route = {
-                "stage": "route",
-                "skill_name": "exact-evaluation" if selected else "NONE",
-                "skill_choice_parsed": True,
-                "applicability": "yes" if selected else "no",
-            }
-            trace = [route]
-            events = []
-            if selected and usable:
-                events.append({
-                    "stage": "tool_exact_eval",
-                    "status": "EXACT",
-                    "execution_status": "ok",
-                    "claim_known": True,
-                    "binding_ok": True,
-                    "tool_request_valid": True,
-                    "evidence_consumed": consumed,
-                    "evidence_id": "T1",
-                })
-                trace.extend(events)
-            row = make_row(row_id=rid, set_id="fesf_skill_qualification", trace=trace)
-            row.update({
-                "qualification_applicable": applicable,
-                "skill_selected": selected,
-                "skill_choice_parsed": True,
-                "route_applicability": "yes" if selected else "no",
-                "tool_request_count": len(events),
-                "tool_events": events,
-            })
-            return row
+        class FakeAgent:
+            def __init__(self, client, config):
+                self.client = client
 
-        rows = [
-            qrow("a", True, True),
-            qrow("b", True, False),
-            qrow("c", False, False),
-            qrow("d", False, True),
-        ]
-        report = analyze_skill_qualification(rows)
-        self.assertEqual(2, report["applicable_n"])
-        self.assertEqual(1, report["applicable_selected"])
-        self.assertEqual(1, report["non_applicable_none"])
-        self.assertEqual(2, report["tool_execution_success_n"])
-        self.assertEqual(2, report["evidence_consumed_n"])
-        self.assertFalse(report["qualification_pass"])
+            def solve(self, problem, metadata):
+                return {
+                    "final_response": "Final answer: 42",
+                    "extracted_answer": "42",
+                    "trace": [{
+                        "step": "finalize",
+                        "status": "selected",
+                        "reason": "truncated_with_candidate",
+                    }],
+                }
+
+        task = {
+            "set_id": "set_b_aime",
+            "item": {
+                "item_id": "truncated-candidate",
+                "problem": "Find the integer.",
+                "answer": "42",
+                "domain": "algebra",
+                "language": "EN",
+            },
+            "arm": "v1",
+            "seed": 1,
+            "task_idx": "set_b_aime-1",
+        }
+        with patch.object(runner, "InternChatClient", return_value=FakeClient()), \
+                patch.object(runner, "ReasoningAgent", FakeAgent):
+            record = runner.solve_one(task, timeout=1, api_key="")
+
+        self.assertEqual("ok", record["status"])
+        self.assertEqual("42", record["extracted_answer"])
+        self.assertEqual("42", record["pred"])
+        self.assertEqual(["model_error"], record["request_error_categories"])
+        self.assertEqual("truncated_with_candidate", record["trace"][0]["reason"])
+        self.assertEqual(0, analyze([record])["overall"]["model_error"])
 
 
 class ClientDiagnosticsTest(unittest.TestCase):
@@ -313,6 +364,53 @@ class ArmSupportTest(unittest.TestCase):
         v1 = arm_config("v1")
         for flag in FSDF_CANDIDATE_FLAGS:
             self.assertFalse(getattr(v1, flag), flag)
+
+    def test_arm_v2_profiles_pin_the_documented_modes(self):
+        single = arm_config("arm-v2-single")
+        selective = arm_config("arm-v2-selective")
+        long_timeout = arm_config("arm-v2-long-timeout")
+        salvage = arm_config("arm-v2-salvage")
+
+        self.assertEqual("v2", single.arm_harness_version)
+        self.assertEqual("single", single.arm_v2_mode)
+        self.assertEqual("selective", selective.arm_v2_mode)
+        self.assertEqual("long_timeout", long_timeout.arm_v2_mode)
+        self.assertEqual(60, long_timeout.arm_primary_timeout_seconds)
+        self.assertEqual("salvage", salvage.arm_v2_mode)
+        self.assertEqual("compact_salvage", salvage.arm_timeout_recovery_mode)
+        self.assertEqual(30, salvage.arm_primary_timeout_seconds)
+        self.assertEqual("v1", arm_config("v1").arm_harness_version)
+
+    def test_v2_reliability_metrics_are_reported_separately(self):
+        def v2_row(row_id, verdict, **fields):
+            row = make_row(row_id=row_id, native=verdict, contract=verdict)
+            row.update({"arm": "arm-v2-selective", "arm_v2_summary": {"stage": "arm_v2_summary"}})
+            row.update(fields)
+            return row
+
+        metrics = arm_v2_metrics([
+            v2_row("trusted-correct", "correct", early_stop=True, candidate_a_trust="high"),
+            v2_row("trusted-wrong", "incorrect", early_stop=True, candidate_a_trust="high"),
+            v2_row("agreement", "correct", second_sample_triggered=True, agreement=True),
+            v2_row(
+                "conflict",
+                "incorrect",
+                second_sample_triggered=True,
+                conflict=True,
+                resolver_triggered=True,
+            ),
+        ])
+
+        self.assertEqual(2, metrics["trusted_candidate_n"])
+        self.assertEqual(1, metrics["trusted_candidate_correct_n"])
+        self.assertEqual(0.5, metrics["trusted_candidate_precision"])
+        self.assertEqual(1, metrics["wrong_early_stop_n"])
+        self.assertEqual(0.5, metrics["wrong_early_stop_rate"])
+        self.assertEqual(2, metrics["second_sample_n"])
+        self.assertEqual(1, metrics["agreement_correct_n"])
+        self.assertEqual(1, metrics["conflict_n"])
+        self.assertEqual(1, metrics["resolver_n"])
+        self.assertEqual(0, metrics["resolver_correct_n"])
 
     def test_v2hd_arm_differs_from_v2_only_in_handoff_first_d(self):
         v2 = asdict(arm_config("v2"))

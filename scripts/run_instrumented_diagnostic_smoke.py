@@ -71,7 +71,7 @@ def _score(result: dict[str, Any], item: dict[str, Any]) -> tuple[dict[str, Any]
         return None, None
     pred = evaluator.extract_for_judge(result)
     native = evaluator.judge(pred, str(gold), str(family))
-    contract = evaluator.contract_check(str(result.get("final_response") or ""), str(gold))
+    contract = evaluator.contract_check(str(result.get("final_response") or ""), str(gold), str(family))
     return native, contract
 
 

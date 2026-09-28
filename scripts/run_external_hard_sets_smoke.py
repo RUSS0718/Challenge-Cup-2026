@@ -23,12 +23,10 @@ import hashlib
 import json
 import os
 import random
-import re
-import subprocess
 import sys
 import threading
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -36,19 +34,34 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from llm_client import InternChatClient
+from llm_client import DEFAULT_MODEL, InternChatClient
+from scripts.external_hard_sets_artifacts import (
+    ExternalHardSetsArtifactStore,
+    current_git_commit,
+)
 from user_agent import (
     COD_NUMERIC_PROMPT,
     SUBMISSION_CONFIG,
     ReasoningAgent,
-    answer_equivalence,
     extract_answer_first,
     extract_final_answer,
+)
+from scripts.external_hard_sets_reporting import (
+    analyze,
+    analyze_claim_dsl_qualification,
+    analyze_skill_qualification,
+    arm_v2_metrics,
+    contract_check,
+    extract_contract_answer,
+    is_unknown_final,
+    judge,
+    math_verify_ok,
+    normalize_answer,
+    stage_health,
 )
 
 POOLS_DIR = ROOT / "sample_data" / "external_hard_sets"
 WRITE_LOCK = threading.Lock()
-INTEGER_RE = re.compile(r"-?\d+")
 SAMPLE_SIZE = 50
 DOMAIN_FLOOR = 2
 
@@ -146,80 +159,6 @@ def sample_set(rows: list[dict[str, Any]], set_id: str, seed: int, size: int) ->
     return picked[:size]
 
 
-def normalize_answer(text: str) -> str:
-    t = str(text or "").strip().strip("$").strip()
-    t = t.replace("\\left", "").replace("\\right", "").replace("\\!", "").replace("\\,", "")
-    t = t.replace("dfrac", "frac").replace("tfrac", "frac")
-    t = re.sub(r"\\text\{[^}]*\}", "", t)
-    t = re.sub(r"\s+", "", t)
-    t = t.rstrip(".")
-    if re.fullmatch(r"-?\d{1,3}(,\d{3})+", t):
-        t = t.replace(",", "")
-    return t.lower()
-
-
-def math_verify_ok(pred: str, gold: str) -> bool | None:
-    """One-shot Math-Verify via the repo subprocess helper (Windows-safe)."""
-    helper = ROOT / "scripts" / "_math_verify_once.py"
-    payload = json.dumps({"pred": pred, "gold": gold})
-    try:
-        proc = subprocess.run(
-            [sys.executable, str(helper), payload],
-            capture_output=True, text=True, timeout=60, encoding="utf-8", errors="replace",
-        )
-        out = proc.stdout.strip()
-        if not out:
-            return None
-        return bool(json.loads(out).get("ok"))
-    except Exception:
-        return None
-
-
-def judge(pred: str, gold: str, family: str) -> dict[str, str]:
-    """Official-style verdict: correct / incorrect / invalid + which check fired."""
-    if not pred or pred.strip().upper() in {"UNKNOWN", "未能生成有效数学答案。"}:
-        return {"verdict": "invalid", "detail": "empty_or_unknown"}
-    if family == "AIME":
-        matches = INTEGER_RE.findall(pred or "")
-        if not matches:
-            return {"verdict": "invalid", "detail": "pred_not_int"}
-        try:
-            ok = int(matches[-1]) == int(str(gold).strip())
-        except ValueError:
-            return {"verdict": "invalid", "detail": "gold_not_int"}
-        return {"verdict": "correct" if ok else "incorrect", "detail": "aime_integer_exact"}
-    if normalize_answer(pred) == normalize_answer(gold):
-        return {"verdict": "correct", "detail": "normalized_string"}
-    mv = math_verify_ok(pred, gold)
-    if mv:
-        return {"verdict": "correct", "detail": "math_verify"}
-    if mv is None and re.fullmatch(r"-?\d+", normalize_answer(pred)) and normalize_answer(pred) == normalize_answer(gold):
-        return {"verdict": "correct", "detail": "int_string"}
-    equiv = answer_equivalence(pred, str(gold))
-    if equiv == "EQUIVALENT":
-        return {"verdict": "correct", "detail": "answer_equivalence"}
-    return {"verdict": "incorrect", "detail": "no_check_matched"}
-
-
-def contract_check(final_response: str, gold: str) -> dict[str, str]:
-    """Strict submission-contract extraction on final_response only."""
-    if not final_response or final_response.strip().upper() in {"UNKNOWN", "未能生成有效数学答案。"}:
-        return {"verdict": "invalid"}
-    extracted = extract_answer_first(final_response) or extract_final_answer(final_response) or ""
-    if not extracted:
-        return {"verdict": "invalid"}
-    family_gold = str(gold)
-    if normalize_answer(extracted) == normalize_answer(family_gold):
-        return {"verdict": "correct"}
-    mv = math_verify_ok(extracted, family_gold)
-    if mv:
-        return {"verdict": "correct"}
-    equiv = answer_equivalence(extracted, family_gold)
-    if equiv == "EQUIVALENT":
-        return {"verdict": "correct"}
-    return {"verdict": "incorrect"}
-
-
 # P0 (FSDF-RELIABILITY-V2): keep stage/failure-category/fallback/budget fields
 # in compacted traces so stage health stays attributable after serialization.
 # Unknown keys are still dropped, so older baseline traces compact unchanged.
@@ -247,7 +186,48 @@ TRACE_KEEP = frozenset({
     "arm_policy", "arm_escalation", "arm_lane", "initial_mode",
     "escalation_mode", "reasoning_mode", "requested_tokens", "from", "to",
     "candidate_ids", "lane",
+    # ARM-HARNESS-V2 policy and runtime recovery telemetry.  Candidate values
+    # are retained only through the bounded summary projection below.
+    "profile", "max_calls", "token_budget", "allow_second_sample",
+    "allow_resolver", "allow_thinking_on", "failure", "action",
 })
+
+
+def _compact_arm_v2_candidate(value: Any) -> dict[str, Any] | None:
+    """Keep only bounded candidate metadata from the v2 summary event."""
+
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, Any] = {}
+    if "value" in value:
+        result["value"] = str(value["value"] or "")[:256]
+    if "valid" in value:
+        result["valid"] = bool(value["valid"])
+    if "trust" in value:
+        result["trust"] = str(value["trust"] or "")[:32]
+    if "trust_reason" in value:
+        result["trust_reason"] = str(value["trust_reason"] or "")[:240]
+    return result
+
+
+def _compact_arm_v2_summary(entry: dict[str, Any]) -> dict[str, Any]:
+    """Project v2 decision telemetry without retaining prompts or responses."""
+
+    compacted: dict[str, Any] = {
+        key: entry[key]
+        for key in (
+            "method", "stage", "profile", "early_stop", "second_sample_triggered",
+            "agreement", "conflict", "resolver_triggered", "resolver_decision",
+            "runtime_recovery_action", "final_source",
+        )
+        if key in entry
+    }
+    for key in ("candidate_a", "candidate_b"):
+        if key in entry:
+            candidate = _compact_arm_v2_candidate(entry[key])
+            if candidate is not None:
+                compacted[key] = candidate
+    return compacted
 
 _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
     "model_error", "timeout", "rate_limit", "http_status", "request",
@@ -304,6 +284,8 @@ def compact_trace(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     if key in budget
                 }
             compacted.append(ledger)
+        elif entry.get("stage") == "arm_v2_summary":
+            compacted.append(_compact_arm_v2_summary(entry))
         else:
             compacted.append({k: entry[k] for k in entry if k in TRACE_KEEP})
     return compacted
@@ -622,6 +604,48 @@ ARM_DEFINITIONS.update({
     },
 })
 
+# ARM-HARNESS-V2 experiment arms.  They use the same bank-off harness base as
+# v1, but pin the v2 compute/recovery policy so an experiment cannot inherit a
+# future submission-profile change.
+ARM_DEFINITIONS.update({
+    "arm-v2-single": {
+        **ARM_HARNESS_BASE,
+        "arm_harness_version": "v2",
+        "arm_v2_mode": "single",
+        "arm_timeout_recovery_mode": "none",
+        "arm_primary_timeout_seconds": None,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+    "arm-v2-selective": {
+        **ARM_HARNESS_BASE,
+        "arm_harness_version": "v2",
+        "arm_v2_mode": "selective",
+        "arm_timeout_recovery_mode": "none",
+        "arm_primary_timeout_seconds": None,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+    "arm-v2-long-timeout": {
+        **ARM_HARNESS_BASE,
+        "arm_harness_version": "v2",
+        "arm_v2_mode": "long_timeout",
+        "arm_timeout_recovery_mode": "none",
+        "arm_primary_timeout_seconds": 60,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+    "arm-v2-salvage": {
+        **ARM_HARNESS_BASE,
+        "arm_harness_version": "v2",
+        "arm_v2_mode": "salvage",
+        "arm_timeout_recovery_mode": "compact_salvage",
+        "arm_primary_timeout_seconds": 30,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+})
+
 
 def arm_config(arm: str) -> Any:
     if arm not in ARM_DEFINITIONS:
@@ -647,6 +671,10 @@ ARM_THINKING_MODE: dict[str, bool | None] = {
     "arm-on": None,
     "arm-static": None,
     "arm-adaptive": None,
+    "arm-v2-single": None,
+    "arm-v2-selective": None,
+    "arm-v2-long-timeout": None,
+    "arm-v2-salvage": None,
 }
 
 
@@ -714,7 +742,7 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     pred = extract_for_judge(result)
     family = FAMILIES[task["set_id"]]
     native = judge(pred, item["answer"], family)
-    contract = contract_check(final_response, item["answer"])
+    contract = contract_check(final_response, item["answer"], family)
     compact_trace_rows = compact_trace(trace)
     # trace hygiene: the API key must never appear anywhere in the serialized result
     serializable = True
@@ -727,10 +755,9 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     except (TypeError, ValueError):
         serializable = False
         status = status if status != "ok" else "error:not_serializable"
-    format_ok = bool(
-        isinstance(final_response, str) and final_response.strip()
-        and final_response.strip().upper() != "UNKNOWN"
-    )
+    nonempty_final = isinstance(final_response, str) and bool(final_response.strip())
+    contract_extractable = bool(extract_contract_answer(final_response, family))
+    format_ok = contract_extractable
     client_diag = client_diagnostics(client, compact_trace_rows)
     arm_policy = next(
         (event for event in compact_trace_rows if event.get("stage") == "arm_policy"),
@@ -740,6 +767,12 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         event for event in compact_trace_rows
         if event.get("stage") == "arm_escalation"
     ]
+    v2_summary = next(
+        (event for event in compact_trace_rows if event.get("stage") == "arm_v2_summary"),
+        {},
+    )
+    v2_candidate_a = v2_summary.get("candidate_a") or {}
+    v2_candidate_b = v2_summary.get("candidate_b") or {}
     evidence = next(
         (event for event in compact_trace_rows if event.get("stage") == "evidence_ledger"),
         {},
@@ -763,10 +796,9 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         for request in client_diag["requests"]
         if request.get("status") == "error" and request.get("error_category")
     ]
-    if status == "ok" and request_errors:
-        # The harness may intentionally convert a client failure into UNKNOWN;
-        # preserve that answer behavior but expose the request failure at the
-        # runner level so timeout/error counts are not hidden as plain invalids.
+    if status == "ok" and request_errors and is_unknown_final(final_response):
+        # A request error is a request-level diagnostic.  It becomes a final
+        # solve error only when no usable final response survived.
         status = f"error:{request_errors[-1]}"
     record = {
         "set_id": task["set_id"],
@@ -781,6 +813,21 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "arm_lane": arm_policy.get("lane", ""),
         "arm_policy": arm_policy,
         "arm_escalation": arm_escalations,
+        "arm_v2_summary": v2_summary,
+        "candidate_a": v2_candidate_a.get("value"),
+        "candidate_a_valid": v2_candidate_a.get("valid"),
+        "candidate_a_trust": v2_candidate_a.get("trust"),
+        "candidate_b": v2_candidate_b.get("value"),
+        "candidate_b_valid": v2_candidate_b.get("valid"),
+        "candidate_b_trust": v2_candidate_b.get("trust"),
+        "early_stop": bool(v2_summary.get("early_stop")),
+        "second_sample_triggered": bool(v2_summary.get("second_sample_triggered")),
+        "agreement": bool(v2_summary.get("agreement")),
+        "conflict": bool(v2_summary.get("conflict")),
+        "resolver_triggered": bool(v2_summary.get("resolver_triggered")),
+        "resolver_decision": v2_summary.get("resolver_decision"),
+        "runtime_recovery_action": v2_summary.get("runtime_recovery_action"),
+        "final_source": v2_summary.get("final_source"),
         "initial_mode": arm_policy.get("initial_mode", ""),
         "escalation_mode": arm_policy.get("escalation_mode", ""),
         "reasoning_modes": request_modes,
@@ -800,6 +847,8 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "native": native,
         "contract": contract,
         "verdict_match": native["verdict"] == contract["verdict"],
+        "nonempty_final": nonempty_final,
+        "contract_extractable": contract_extractable,
         "format_ok": format_ok,
         "json_serializable": serializable,
         "model_calls": calls,
@@ -830,356 +879,6 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     return record
 
 
-def stage_health(rows: list[dict[str, Any]]) -> dict[str, int]:
-    """Separate counters for stage-level failures visible in compacted traces.
-
-    A solve can return successfully while stages failed internally; these
-    counts survive precisely because ``stage``/``error_category`` are kept in
-    the compact trace.  Historical artifacts that already dropped fields are
-    never back-filled.
-    """
-    counters = {
-        "stage_client_errors": 0,
-        "stage_invalid_responses": 0,
-        "stage_protocol_failures": 0,
-        "stage_skipped": 0,
-        "legacy_client_errors": 0,
-        "legacy_timeouts": 0,
-        "legacy_invalid_responses": 0,
-        "legacy_skipped": 0,
-        "handoff_missing": 0,
-        "handoff_clipped": 0,
-    }
-    for row in rows:
-        for event in row.get("trace") or []:
-            status = event.get("status")
-            category = event.get("error_category")
-            if status == "failed":
-                if category == "invalid_response":
-                    counters["stage_invalid_responses"] += 1
-                elif category in _STAGE_CLIENT_ERROR_CATEGORIES:
-                    counters["stage_client_errors"] += 1
-            elif status == "protocol_failed":
-                counters["stage_protocol_failures"] += 1
-            elif status == "skipped":
-                counters["stage_skipped"] += 1
-            if event.get("step") == "generate_candidate" and status == "skipped":
-                reason = str(event.get("reason") or "").lower()
-                if "timeout" in reason:
-                    counters["legacy_timeouts"] += 1
-                elif "invalid_response" in reason:
-                    counters["legacy_invalid_responses"] += 1
-                elif "model_call_failed" in reason or "model_error" in reason:
-                    counters["legacy_client_errors"] += 1
-                else:
-                    counters["legacy_skipped"] += 1
-            if event.get("handoff_missing_fields"):
-                counters["handoff_missing"] += 1
-            if event.get("handoff_clipped"):
-                counters["handoff_clipped"] += 1
-    return counters
-
-
-def analyze_skill_qualification(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Score the scorer-only 12/12 Skill qualification labels.
-
-    The model sees only ``problem`` and an opaque index.  All fields used here
-    are copied from the answer record after the solve and therefore cannot be a
-    routing shortcut.  Denominators are exposed so a no-selection/no-request
-    run cannot look like a passing zero.
-    """
-    qrows = [row for row in rows if "qualification_applicable" in row]
-
-    def selected(row: dict[str, Any]) -> bool:
-        return bool(row.get("skill_selected"))
-
-    def tool_events(row: dict[str, Any]) -> list[dict[str, Any]]:
-        return list(row.get("tool_events") or [])
-
-    n = len(qrows)
-    applicable = [row for row in qrows if row.get("qualification_applicable") is True]
-    non_applicable = [row for row in qrows if row.get("qualification_applicable") is False]
-    selected_applicable = [row for row in applicable if selected(row)]
-    selected_non_applicable = [row for row in non_applicable if selected(row)]
-    parsed = sum(1 for row in qrows if row.get("skill_choice_parsed"))
-    matches = sum(1 for row in qrows if selected(row) == bool(row.get("qualification_applicable")))
-
-    events = [event for row in qrows for event in tool_events(row)]
-    complete_rows = sum(
-        1
-        for row in selected_applicable
-        if any(
-            event.get("claim_known")
-            and event.get("binding_ok")
-            and event.get("tool_request_valid")
-            for event in tool_events(row)
-        )
-    )
-    valid_requests = [event for event in events if event.get("tool_request_valid")]
-    execution_successes = [
-        event for event in valid_requests
-        if event.get("execution_status") == "ok"
-        and event.get("status") in {"EXACT", "REFUTED"}
-    ]
-    usable_evidence = [
-        event for event in events
-        if event.get("tool_request_valid")
-        and event.get("binding_ok")
-        and event.get("status") in {"EXACT", "REFUTED"}
-    ]
-    consumed = [event for event in usable_evidence if event.get("evidence_consumed")]
-    wrong_deterministic = sum(
-        1
-        for event in events
-        if event.get("status") in {"EXACT", "REFUTED"}
-        and (
-            not event.get("tool_request_valid")
-            or not event.get("binding_ok")
-            or event.get("execution_status") != "ok"
-        )
-    )
-
-    def ratio(numerator: int, denominator: int) -> float | None:
-        return round(numerator / denominator, 4) if denominator else None
-
-    applicable_selection_rate = ratio(sum(1 for row in applicable if selected(row)), len(applicable))
-    non_applicable_none_rate = ratio(
-        sum(1 for row in non_applicable if not selected(row)), len(non_applicable)
-    )
-    artifact_rate = ratio(complete_rows, len(selected_applicable))
-    valid_request_rate = ratio(len(valid_requests), len(events))
-    execution_rate = ratio(len(execution_successes), len(valid_requests))
-    consumed_rate = ratio(len(consumed), len(usable_evidence))
-    d_protocol_failures = sum(
-        1
-        for row in qrows
-        for event in row.get("trace") or []
-        if event.get("stage") == "synthesize" and event.get("status") == "protocol_failed"
-    )
-
-    gates = {
-        "applicable_selection_ge_10_of_12": len(applicable) == 12 and sum(1 for row in applicable if selected(row)) >= 10,
-        "non_applicable_none_ge_11_of_12": len(non_applicable) == 12 and sum(1 for row in non_applicable if not selected(row)) >= 11,
-        "artifact_complete_ge_80pct": artifact_rate is not None and artifact_rate >= 0.8,
-        "tool_execution_success_ge_90pct": execution_rate is not None and execution_rate >= 0.9,
-        "evidence_consumed_ge_80pct": consumed_rate is not None and consumed_rate >= 0.8,
-        "wrong_supported_or_refuted_zero": wrong_deterministic == 0,
-        # Q is a single candidate arm by design; there is no baseline from
-        # which to estimate a causal reversal.  The observed count is zero and
-        # the later paired capability windows remain the causal gate.
-        "skill_attributable_correct_to_incorrect_zero": True,
-    }
-    return {
-        "n": n,
-        "applicable_n": len(applicable),
-        "non_applicable_n": len(non_applicable),
-        "skill_choice_parse_rate": ratio(parsed, n),
-        "applicable_selected": sum(1 for row in applicable if selected(row)),
-        "applicable_selection_rate": applicable_selection_rate,
-        "non_applicable_none": sum(1 for row in non_applicable if not selected(row)),
-        "non_applicable_none_rate": non_applicable_none_rate,
-        "applicability_match_rate": ratio(matches, n),
-        "selected_applicable_n": len(selected_applicable),
-        "required_artifact_complete": complete_rows,
-        "required_artifact_complete_rate": artifact_rate,
-        "tool_request_n": len(events),
-        "tool_request_valid_n": len(valid_requests),
-        "tool_request_valid_rate": valid_request_rate,
-        "tool_execution_success_n": len(execution_successes),
-        "tool_execution_success_rate": execution_rate,
-        "usable_evidence_n": len(usable_evidence),
-        "evidence_consumed_n": len(consumed),
-        "evidence_consumed_by_d_rate": consumed_rate,
-        "wrong_supported_or_refuted": wrong_deterministic,
-        "skill_attributable_correct_to_incorrect": 0,
-        "d_protocol_failures": d_protocol_failures,
-        "gates": gates,
-        "qualification_pass": all(gates.values()),
-        "causal_note": "single FESF arm; reversal count is observed-zero/not-estimable until paired capability windows",
-    }
-
-
-def analyze_claim_dsl_qualification(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Score Claim DSL telemetry.  Labels never enter model messages."""
-
-    qrows = [row for row in rows if row.get("arm") == "fesf_v1_tkoff_claim_dsl" or "claim_dsl_events" in row]
-    events = [event for row in qrows for event in (row.get("claim_dsl_events") or [])]
-    verify_events = [event for event in events if event.get("evidence_id")]
-    parse_ok = sum(1 for event in events if event.get("execution_status") == "ok")
-    bound = sum(1 for event in verify_events if event.get("binding_ok") and event.get("claim_known"))
-    exact = sum(1 for event in verify_events if event.get("status") == "EXACT")
-    refuted = sum(1 for event in verify_events if event.get("status") == "REFUTED")
-    unknown = sum(1 for event in verify_events if event.get("status") == "UNKNOWN")
-    wrong = sum(
-        1
-        for event in verify_events
-        if event.get("status") in {"EXACT", "REFUTED"}
-        and (
-            not event.get("binding_ok")
-            or not event.get("claim_known")
-            or event.get("execution_status") != "ok"
-        )
-    )
-    unknown_upgraded = sum(
-        1
-        for event in verify_events
-        if event.get("status") == "UNKNOWN" and event.get("evidence_consumed")
-    )
-    max_calls = max((int(row.get("model_calls") or 0) for row in qrows), default=0)
-    top_errors = sum(1 for row in qrows if str(row.get("status", "")).startswith("error"))
-
-    def ratio(numerator: int, denominator: int) -> float | None:
-        return round(numerator / denominator, 4) if denominator else None
-
-    gates = {
-        "wrong_exact_or_refuted_zero": wrong == 0,
-        "unknown_not_consumed": unknown_upgraded == 0,
-        "max_calls_le_5": max_calls <= 5,
-        "top_level_error_lt_10pct": (top_errors / len(qrows) < 0.10) if qrows else False,
-    }
-    return {
-        "n": len(qrows),
-        "claim_dsl_event_n": len(events),
-        "verify_event_n": len(verify_events),
-        "parse_or_execute_ok_n": parse_ok,
-        "bound_n": bound,
-        "exact_n": exact,
-        "refuted_n": refuted,
-        "unknown_n": unknown,
-        "wrong_exact_or_refuted": wrong,
-        "unknown_consumed": unknown_upgraded,
-        "max_calls": max_calls,
-        "top_level_errors": top_errors,
-        "parse_ok_rate": ratio(parse_ok, len(events)),
-        "bound_rate": ratio(bound, len(verify_events)),
-        "gates": gates,
-        "qualification_pass": all(gates.values()),
-        "causal_note": "single Claim DSL arm; no paired baseline, not a capability conclusion",
-    }
-
-
-def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    out: dict[str, Any] = {"overall": {}, "by_set": {}}
-
-    def nearest_rank_p95(values: list[float | int]) -> float | None:
-        if not values:
-            return None
-        ordered = sorted(values)
-        return ordered[max(1, int(len(ordered) * 0.95 + 0.999)) - 1]
-
-    def stats(subset: list[dict[str, Any]]) -> dict[str, Any]:
-        n = len(subset)
-        request_events = [
-            request
-            for row in subset
-            for request in row.get("client_request_diagnostics", [])
-        ]
-        request_errors = [request for request in request_events if request.get("status") == "error"]
-        request_timeouts = [
-            request for request in request_errors
-            if request.get("error_category") == "timeout"
-        ]
-        request_latencies = [
-            float(request["duration_seconds"])
-            for request in request_events
-            if isinstance(request.get("duration_seconds"), (int, float))
-        ]
-        completion_tokens = [
-            sum(
-                int(token)
-                for token in row.get("client_completion_tokens", [])
-                if isinstance(token, (int, float))
-            )
-            for row in subset
-        ]
-        s: dict[str, Any] = {
-            "n": n,
-            "native_correct": sum(1 for r in subset if r["native"]["verdict"] == "correct"),
-            "native_incorrect": sum(1 for r in subset if r["native"]["verdict"] == "incorrect"),
-            "invalid": sum(1 for r in subset if r["native"]["verdict"] == "invalid"),
-            "contract_correct": sum(1 for r in subset if r["contract"]["verdict"] == "correct"),
-            "contract_incorrect": sum(1 for r in subset if r["contract"]["verdict"] == "incorrect"),
-            "contract_invalid": sum(1 for r in subset if r["contract"]["verdict"] == "invalid"),
-            "verdict_mismatch": sum(
-                1 for r in subset
-                if r.get("native", {}).get("verdict") != r.get("contract", {}).get("verdict")
-            ),
-            "format_ok": sum(1 for r in subset if r["format_ok"]),
-            "serializable": sum(1 for r in subset if r["json_serializable"]),
-            "model_error": sum(1 for r in subset if str(r["status"]).startswith("error")),
-            "unknown_final": sum(
-                1 for r in subset
-                if str(r.get("final_response", "")).strip().upper() == "UNKNOWN"
-            ),
-            "mean_calls": round(sum(r["model_calls"] for r in subset) / n, 2) if n else 0,
-            "max_calls": max((r["model_calls"] for r in subset), default=0),
-            "mean_duration_s": round(sum(r["duration_seconds"] for r in subset) / n, 1) if n else 0,
-            "p95_duration_s": nearest_rank_p95([float(r["duration_seconds"]) for r in subset]),
-            "mean_completion_tokens": round(sum(completion_tokens) / n, 1) if n else 0,
-            "p95_completion_tokens": nearest_rank_p95(completion_tokens),
-            "total_completion_tokens": sum(completion_tokens),
-            "request_n": len(request_events),
-            "request_error_n": len(request_errors),
-            "request_timeout_n": len(request_timeouts),
-            "request_error_rate": round(len(request_errors) / len(request_events), 4) if request_events else 0,
-            "timeout_rate": round(len(request_timeouts) / len(request_events), 4) if request_events else 0,
-            "mean_request_latency_s": round(sum(request_latencies) / len(request_latencies), 2) if request_latencies else None,
-            "p95_request_latency_s": nearest_rank_p95(request_latencies),
-            "arm_escalation_n": sum(
-                any(event.get("status") == "triggered" for event in (r.get("arm_escalation") or []))
-                for r in subset
-            ),
-            "arm_escalation_rate": round(
-                sum(
-                    any(event.get("status") == "triggered" for event in (r.get("arm_escalation") or []))
-                    for r in subset
-                ) / n, 4
-            ) if n else 0,
-            "candidate_formation_n": sum(bool(r.get("candidate_telemetry")) for r in subset),
-            "candidate_formation_rate": round(
-                sum(bool(r.get("candidate_telemetry")) for r in subset) / n, 4
-            ) if n else 0,
-        }
-        s["native_accuracy"] = round(s["native_correct"] / n, 4) if n else 0
-        # 完整判定对比：correct 数一致不代表逐题判定一致。
-        s["correct_count_consistent"] = s["native_correct"] == s["contract_correct"]
-        s.update(stage_health(subset))
-        s["invalid_plus_error"] = (
-            s["invalid"]
-            + s["model_error"]
-            + s["legacy_client_errors"]
-            + s["legacy_timeouts"]
-            + s["legacy_invalid_responses"]
-        )
-        return s
-    out["overall"] = stats(rows)
-    out["judge_note"] = (
-        "native 与 contract 均为本地近似判定（AIME 整数精确 / Math-Verify / 归一化字符串 / "
-        "answer_equivalence / 严格抽取契约），不是真实官方 judger 的等价实现。"
-    )
-    arms = sorted({str(r.get("arm", "")) for r in rows} - {""})
-    if arms:
-        out["by_arm"] = {arm: stats([r for r in rows if str(r.get("arm")) == arm]) for arm in arms}
-    by_domain: dict[str, dict[str, Any]] = {}
-    for domain in sorted({r["domain"] for r in rows}):
-        by_domain[domain] = stats([r for r in rows if r["domain"] == domain])
-    out["by_domain"] = by_domain
-    for set_id in sorted({r["set_id"] for r in rows}):
-        subset = [r for r in rows if r["set_id"] == set_id]
-        entry = stats(subset)
-        entry["by_domain"] = {
-            d: stats([r for r in subset if r["domain"] == d])
-            for d in sorted({r["domain"] for r in subset})
-        }
-        entry["by_language"] = dict(Counter(r["language"] for r in subset))
-        out["by_set"][set_id] = entry
-    if any("qualification_applicable" in row for row in rows):
-        out["skill_qualification"] = analyze_skill_qualification(rows)
-    if any("claim_dsl_events" in row for row in rows):
-        out["claim_dsl_qualification"] = analyze_claim_dsl_qualification(rows)
-    return out
-
-
 def apply_thinking_mode(mode: str) -> None:
     """Set the client-side thinking-mode switch for this process.
 
@@ -1195,9 +894,22 @@ def apply_thinking_mode(mode: str) -> None:
     os.environ["INTERN_THINKING_MODE"] = mode
 
 
-def run_preflight(output_dir: Path, timeout: int = 240) -> dict[str, Any]:
+def run_preflight(
+    output_dir: Path | None,
+    timeout: int = 240,
+    run_id: str | None = None,
+) -> dict[str, Any]:
     """Run three bounded resource requests before a CoD qualification window."""
-    output_dir.mkdir(parents=True, exist_ok=True)
+    artifacts = ExternalHardSetsArtifactStore.create(
+        root=ROOT,
+        output_dir=output_dir,
+        run_id=run_id,
+        config="external-hard-sets-preflight",
+        dataset="endpoint-health-preflight",
+        model=os.environ.get("INTERN_MODEL", DEFAULT_MODEL),
+        git_commit=current_git_commit(ROOT),
+    )
+    output_dir = artifacts.run_dir
     requests: list[dict[str, Any]] = []
     for index in range(3):
         started = time.perf_counter()
@@ -1236,25 +948,42 @@ def run_preflight(output_dir: Path, timeout: int = 240) -> dict[str, Any]:
         "thinking_mode": "official_default / client thinking_mode=None",
         "max_tokens": 2048,
         "request_timeout_seconds": timeout,
+        "run_id": artifacts.context.run_id,
     }
-    (output_dir / "preflight.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    artifacts.save_preflight(report)
+    artifacts.save_manifest(
+        {
+            "phase": report["phase"],
+            "request_timeout_seconds": timeout,
+            "preflight_pass": report["pass"],
+        },
+        status="completed" if report["pass"] else "failed",
     )
     return report
 
 
-def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
+def run(output_dir: Path | None, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
         sample_size: int, sets: list[str], arms: list[str] | None = None,
-        run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001", pairing: str = "independent",
+        run_id: str | None = None, pairing: str = "independent",
         thinking_mode: str = "default", sample_sizes: dict[str, int] | None = None,
         fixed_items: dict[str, list[str]] | None = None) -> None:
+    """Run a resumable hard-set window and persist it below one run directory."""
     arms = arms or ["v1"]
     for arm in arms:
         arm_config(arm)  # validate early
     if pairing not in ("independent", "paired"):
         raise SystemExit(f"unknown pairing mode: {pairing}")
     apply_thinking_mode(thinking_mode)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    artifacts = ExternalHardSetsArtifactStore.create(
+        root=ROOT,
+        output_dir=output_dir,
+        run_id=run_id,
+        config="external-hard-sets-smoke",
+        dataset=",".join(sets),
+        model=os.environ.get("INTERN_MODEL", DEFAULT_MODEL),
+        git_commit=current_git_commit(ROOT),
+    )
+    output_dir = artifacts.run_dir
     if set(arms).intersection({"current_c0", "current_cod_numeric"}):
         preflight_path = output_dir / "preflight.json"
         if not preflight_path.exists():
@@ -1300,7 +1029,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     else:
         assign_arms(all_tasks, arms)
 
-    answers_path = output_dir / "answers.jsonl"
+    answers_path = artifacts.answers_path
     done_keys: set[tuple[str, str, str]] = set()
     if answers_path.exists():
         for row in load_jsonl(answers_path):
@@ -1311,7 +1040,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     ]
 
     manifest = {
-        "run_id": run_id,
+        "run_id": artifacts.context.run_id,
         "pools_dir": str(POOLS_DIR.relative_to(ROOT)).replace("\\", "/"),
         "pool_sha256": {p.name: sha256_file(p) for p in sorted(POOLS_DIR.glob("*.jsonl"))},
         "custom_pool_sha256": {
@@ -1367,7 +1096,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
             "opt-in Claim DSL on that FESF path. Existing v2 arms remain "
             "exploratory diagnostics and are not capability conclusions."
         ),
-        "git_head": os.popen("git rev-parse HEAD").read().strip(),
+        "git_head": artifacts.context.git_commit or "",
         "source_sha256": {
             path: sha256_file(ROOT / path)
             for path in (
@@ -1384,7 +1113,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "n_tasks": len(all_tasks),
         "n_pending": len(pending),
     }
-    (output_dir / "run_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    artifacts.save_manifest(manifest, status="running")
     print(f"[EXT-SMOKE] run_id={run_id} pending={len(pending)} workers={workers} seed={seed} arms={','.join(arms)}", flush=True)
 
     start = time.time()
@@ -1394,9 +1123,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
             return {"skipped": True, "reason": "hard_stop", "set_id": task["set_id"], "item_id": task["item"]["item_id"]}
         record = solve_one(task, timeout, api_key)
         with WRITE_LOCK:
-            with answers_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-                handle.flush()
+            artifacts.append_answer(record)
         print(
             f"[{task['set_id'][:10]}][{record['arm']}] {record['item_id']} {record['native']['verdict']}"
             f" calls={record['model_calls']} dur={record['duration_seconds']:.0f}s"
@@ -1433,13 +1160,18 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "diagnostic window; thresholds unfrozen; combined v2 arm is exploratory "
         "and supports no capability conclusion or promotion"
     )
-    (output_dir / "report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    artifacts.save_report(summary)
+    manifest["status"] = "completed"
+    artifacts.save_manifest(manifest)
     print(json.dumps(summary.get("by_arm", summary["by_set"]), ensure_ascii=False, indent=2), flush=True)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output-dir", default=str(ROOT / "docs" / "experiments" / "EXTERNAL-HARD-SETS-SMOKE-001"))
+    parser.add_argument(
+        "--output-dir",
+        help="output directory (default: artifacts/<unique-run-id>)",
+    )
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--seed", type=int, default=20260905)
@@ -1456,10 +1188,11 @@ if __name__ == "__main__":
                         help="paired: every sampled item runs once per arm with rotated first arm")
     parser.add_argument("--thinking-mode", default="default", choices=["default", "false", "true"],
                         help="client-side thinking switch (default = server default)")
-    parser.add_argument("--run-id", default="EXTERNAL-HARD-SETS-SMOKE-001")
+    parser.add_argument("--run-id", help="explicit run id; omitted runs receive a unique timestamped id")
     args = parser.parse_args()
     if args.preflight_only:
-        report = run_preflight(Path(args.output_dir), args.timeout)
+        output_dir = Path(args.output_dir) if args.output_dir else None
+        report = run_preflight(output_dir, args.timeout, args.run_id)
         print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
         raise SystemExit(0 if report["pass"] else 1)
     sample_sizes = {}
@@ -1479,7 +1212,7 @@ if __name__ == "__main__":
         ):
             parser.error("--fixed-items-file must contain a JSON object of string lists")
     run(
-        Path(args.output_dir), args.timeout, args.workers, args.seed,
+        Path(args.output_dir) if args.output_dir else None, args.timeout, args.workers, args.seed,
         args.hard_stop_minutes, args.sample_size,
         [s.strip() for s in args.sets.split(",") if s.strip()],
         arms=[a.strip() for a in args.arms.split(",") if a.strip()],
