@@ -159,6 +159,10 @@ class HarnessConfig:
     enable_arm_harness: bool = False
     arm_harness_version: str = "v1"
     arm_v2_mode: str = "selective"
+    arm_solver_reasoning_mode: str = "off"
+    arm_finalization_margin_seconds: float = 15.0
+    arm_enable_skill_audit: bool = False
+    arm_max_skill_audits: int = 1
     arm_timeout_recovery_mode: str = "none"
     arm_primary_timeout_seconds: int | None = None
     arm_salvage_timeout_seconds: int = 15
@@ -183,6 +187,12 @@ class HarnessConfig:
             raise ValueError("max_wall_seconds must be positive")
         if self.arm_harness_version not in {"v1", "v2"}:
             raise ValueError("invalid_arm_harness_version")
+        if self.arm_solver_reasoning_mode not in {"off", "on"}:
+            raise ValueError("invalid_arm_solver_reasoning_mode")
+        if not math.isfinite(float(self.arm_finalization_margin_seconds)) or float(self.arm_finalization_margin_seconds) < 0:
+            raise ValueError("arm_finalization_margin_seconds_must_be_nonnegative")
+        if not math.isfinite(float(self.arm_max_skill_audits)) or float(self.arm_max_skill_audits) < 0:
+            raise ValueError("arm_max_skill_audits_must_be_nonnegative")
         if self.arm_v2_mode not in {"single", "selective", "long_timeout", "salvage"}:
             raise ValueError("invalid_arm_v2_mode")
         if self.arm_timeout_recovery_mode not in {"repeat", "longer_first", "compact_salvage", "none"}:
@@ -810,6 +820,7 @@ class ConstraintFitOrchestrator:
         call_observer: Any | None = None,
         observation_context: Mapping[str, Any] | None = None,
         playoff_checker: Callable[[Mapping[str, Any]], Any] | None = None,
+        skill_auditor: Any | None = None,
     ) -> None:
         self.client = client
         self.config = config or HarnessConfig()
@@ -837,6 +848,7 @@ class ConstraintFitOrchestrator:
         self._hardening_playoff_checker = playoff_checker
         self._hardening_playoff: DeterministicPlayoff | None = None
         self._hardening_repair_used = False
+        self.skill_auditor = skill_auditor
         # The existing orchestrator keeps its ledger solve-local on the
         # instance; serialize reuse of one instance so concurrent callers
         # cannot interleave those fields.

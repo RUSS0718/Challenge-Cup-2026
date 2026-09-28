@@ -20,6 +20,9 @@ PROFILE_ARM_V2_SINGLE: Final = "arm-v2-single"
 PROFILE_ARM_V2_SELECTIVE: Final = "arm-v2-selective"
 PROFILE_ARM_V2_LONG_TIMEOUT: Final = "arm-v2-long-timeout"
 PROFILE_ARM_V2_SALVAGE: Final = "arm-v2-salvage"
+PROFILE_ARM_V21_OFF: Final = "arm-v2.1-off"
+PROFILE_ARM_V21_ON: Final = "arm-v2.1-on"
+PROFILE_ARM_V21_OFF_SKILL: Final = "arm-v2.1-off-skill"
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
     PROFILE_AGENT_DEFAULT,
@@ -31,6 +34,9 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V2_SELECTIVE,
     PROFILE_ARM_V2_LONG_TIMEOUT,
     PROFILE_ARM_V2_SALVAGE,
+    PROFILE_ARM_V21_OFF,
+    PROFILE_ARM_V21_ON,
+    PROFILE_ARM_V21_OFF_SKILL,
 )
 
 
@@ -90,6 +96,26 @@ def build_profile_config(profile: str) -> AgentConfig:
             arm_timeout_recovery_mode=recovery_mode,
             arm_primary_timeout_seconds=primary_timeout,
             arm_allow_thinking_on=False,
+            arm_default_lane="adaptive",
+        )
+    arm_v21_profiles = {
+        PROFILE_ARM_V21_OFF: ("off", False),
+        PROFILE_ARM_V21_ON: ("on", False),
+        PROFILE_ARM_V21_OFF_SKILL: ("off", True),
+    }
+    if normalized in arm_v21_profiles:
+        solver_mode, enable_skill = arm_v21_profiles[normalized]
+        return AgentConfig(
+            enable_constraint_fit_harness=True,
+            enable_constraint_fit_deep_lane=True,
+            enable_constraint_fit_hybrid_router=False,
+            enable_arm_harness=True,
+            arm_harness_version="v2",
+            arm_v2_mode="selective",
+            arm_solver_reasoning_mode=solver_mode,
+            arm_allow_thinking_on=False,
+            arm_enable_skill_audit=enable_skill,
+            arm_max_skill_audits=1,
             arm_default_lane="adaptive",
         )
     choices = ", ".join(PROFILE_NAMES)

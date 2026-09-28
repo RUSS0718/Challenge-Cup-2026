@@ -1,6 +1,7 @@
 """Budgeted mathematical reasoning agent with deterministic answer handling."""
 from __future__ import annotations
 import inspect
+import math
 import re
 import time
 from dataclasses import dataclass
@@ -460,6 +461,11 @@ class AgentConfig:
     enable_arm_harness: bool = False
     arm_harness_version: str = "v1"
     arm_v2_mode: str = "selective"
+    # v2.1 changes only this request-local solver control for ON/OFF runs.
+    arm_solver_reasoning_mode: str = "off"
+    arm_finalization_margin_seconds: float = 15.0
+    arm_enable_skill_audit: bool = False
+    arm_max_skill_audits: int = 1
     arm_timeout_recovery_mode: str = "none"
     arm_primary_timeout_seconds: int | None = None
     arm_salvage_timeout_seconds: int = 15
@@ -498,6 +504,15 @@ class AgentConfig:
     enable_constraint_fit_process_audit: bool = False
     enable_constraint_fit_prefill: bool = False
     harness_process_audit_max_tokens: int = 2048
+
+    def __post_init__(self) -> None:
+        """Validate the v2.1 request-local controls before a solve starts."""
+        if self.arm_solver_reasoning_mode not in {"off", "on"}:
+            raise ValueError("invalid_arm_solver_reasoning_mode")
+        if not math.isfinite(float(self.arm_finalization_margin_seconds)) or float(self.arm_finalization_margin_seconds) < 0:
+            raise ValueError("arm_finalization_margin_seconds_must_be_nonnegative")
+        if not math.isfinite(float(self.arm_max_skill_audits)) or float(self.arm_max_skill_audits) < 0:
+            raise ValueError("arm_max_skill_audits_must_be_nonnegative")
     # FESF v1 is enabled in the current local evaluation profile.  The
     # rollback profile remains available through explicit runner arms.
     enable_fesf_v1: bool = False
@@ -703,6 +718,10 @@ class ReasoningAgent:
                     enable_arm_harness=self.config.enable_arm_harness,
                     arm_harness_version=self.config.arm_harness_version,
                     arm_v2_mode=self.config.arm_v2_mode,
+                    arm_solver_reasoning_mode=self.config.arm_solver_reasoning_mode,
+                    arm_finalization_margin_seconds=self.config.arm_finalization_margin_seconds,
+                    arm_enable_skill_audit=self.config.arm_enable_skill_audit,
+                    arm_max_skill_audits=self.config.arm_max_skill_audits,
                     arm_timeout_recovery_mode=self.config.arm_timeout_recovery_mode,
                     arm_primary_timeout_seconds=self.config.arm_primary_timeout_seconds,
                     arm_salvage_timeout_seconds=self.config.arm_salvage_timeout_seconds,

@@ -123,10 +123,11 @@ class ARMHarnessV2Test(unittest.TestCase):
         ])
         result = ConstraintFitOrchestrator(client, config=_config()).solve("求所有可能的值", {})
 
-        self.assertEqual("UNKNOWN", result["final_response"])
+        self.assertEqual("{117,119}", result["final_response"])
         self.assertEqual(3, len(client.calls))
         self.assertEqual(2, len(self._ledger(result)["candidates"]))
         self.assertEqual("UNKNOWN", self._summary(result)["resolver_decision"])
+        self.assertTrue(self._summary(result)["safe_fallback_used"])
 
 
 if __name__ == "__main__":

@@ -28,6 +28,9 @@ from reasoning_agent.runtime_policy import (
     RuntimeRecoveryPolicy,
     classify_runtime_failure,
 )
+from reasoning_agent.arm_v21_support import ARMV21StateSupport
+from reasoning_agent.safe_candidate import SafeCandidateState
+from reasoning_agent.skill_audit import SkillAuditor
 
 
 ARM_COMPACT_SALVAGE_PROMPT = """请直接重新求解并尽快形成最终答案。
@@ -42,7 +45,7 @@ ARM_V2_RESOLVER_PROMPT = """给定同一道数学题的两个候选答案。
 只能选择已有候选，不能生成第三个答案，也不要重新求解。"""
 
 
-class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
+class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
     """Run ARM v2 trust gating, selective resampling, and bounded resolution."""
 
     def __init__(self, harness: Any) -> None:
@@ -56,6 +59,9 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
             salvage_max_tokens=config.arm_salvage_max_tokens,
             salvage_timeout_seconds=config.arm_salvage_timeout_seconds,
         )
+        self.solver_mode = getattr(config, "arm_solver_reasoning_mode", "off")
+        provided_auditor = getattr(harness, "skill_auditor", None)
+        self.skill_auditor = provided_auditor if provided_auditor is not None else SkillAuditor()
 
     @staticmethod
     def _build_compute_policy(config: Any) -> ComputePolicy:
@@ -70,7 +76,7 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
         return ComputePolicy(3, config.arm_adaptive_token_budget, config.max_wall_seconds, True, True, bool(config.arm_allow_thinking_on))
 
     def solve(self, problem: str, route: Any, prefix_trace: list[dict[str, Any]]) -> dict[str, Any]:
-        """Allocate extra calls only after the primary candidate fails the trust gate."""
+        """Run the v2.1 state machine while preserving a safe checkpoint."""
         policy = self.compute_policy
         self._current_route_contract = route.contract
         self.harness.budget = BudgetLedger(
@@ -89,12 +95,17 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
             "method": "arm_harness_v2",
             "stage": "arm_v2_summary",
             "profile": self.harness.config.arm_v2_mode,
+            "solver_reasoning_mode": self.solver_mode,
             "early_stop": False,
             "second_sample_triggered": False,
             "agreement": False,
             "conflict": False,
             "resolver_triggered": False,
             "runtime_recovery_action": None,
+            "skill_triggered": False,
+            "skill_status": None,
+            "safe_fallback_used": False,
+            "deadline_finalized": False,
             "final_source": None,
         }
         trace.append(
@@ -107,9 +118,12 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
                 "allow_second_sample": policy.allow_second_sample,
                 "allow_resolver": policy.allow_resolver,
                 "allow_thinking_on": policy.allow_thinking_on,
+                "solver_reasoning_mode": self.solver_mode,
+                "skill_audit_enabled": bool(getattr(self.harness.config, "arm_enable_skill_audit", False)),
             }
         )
         self.harness.ledger.transition("arm_v2_policy", reason=self.harness.config.arm_v2_mode)
+        safe_state = SafeCandidateState()
 
         primary_timeout = self.harness.config.arm_primary_timeout_seconds
         if self.harness.config.arm_v2_mode == "long_timeout" and primary_timeout is None:
@@ -120,7 +134,7 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
             ATTEMPT_A_PROMPT,
             problem,
             self.harness.config.tokens_for("attempt_a"),
-            "off",
+            self.solver_mode,
             route,
             source="arm_primary",
             timeout_seconds=primary_timeout,
@@ -140,6 +154,7 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
                 primary_timeout,
                 trace,
                 summary,
+                self.solver_mode,
             )
             if classify_runtime_failure(call_a) is not None:
                 trace.append(summary)
@@ -147,6 +162,16 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
 
         primary, primary_decision = self._evaluate_one(candidates_a, parsed_a, call_a)
         summary["candidate_a"] = self._candidate_summary(primary)
+        if self._checkpoint(primary, parsed_a, safe_state, "candidate_a"):
+            summary["safe_candidate_source"] = safe_state.source
+            trace.append(
+                {
+                    "method": "arm_harness_v2",
+                    "stage": "safe_candidate_checkpoint",
+                    "source": safe_state.source,
+                    "checkpoint_stage": safe_state.checkpoint_stage,
+                }
+            )
         if primary_decision is not None and primary_decision.trusted:
             summary["early_stop"] = True
             summary["final_source"] = "candidate_a"
@@ -160,10 +185,48 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
                 problem=problem,
             )
 
-        if not policy.allow_second_sample:
-            summary["final_source"] = "abstain_untrusted"
+        skill_result = self._maybe_audit_skill(
+            problem,
+            route,
+            primary,
+            primary_decision,
+            trace,
+            summary,
+        )
+        if skill_result is not None and skill_result.status == "supported" and primary is not None:
+            primary.verification_status = "skill_supported"
+            primary.trust_confidence = "high"
+            primary.trust_reason = skill_result.reason
+            self.harness.ledger.update_candidate(primary)
+            safe_state.update(
+                primary,
+                source="candidate_a",
+                confidence="high",
+                checkpoint_stage="skill_supported",
+            )
+            summary["final_source"] = "candidate_a_skill_supported"
             trace.append(summary)
-            return self.harness._abstain(trace, route_data, "candidate_untrusted")
+            return self.harness._select(
+                trace,
+                route_data,
+                primary,
+                candidates_a,
+                "arm_v2_skill_supported",
+                problem=problem,
+            )
+        if skill_result is not None and skill_result.status == "refuted":
+            safe_state.clear()
+
+        if not policy.allow_second_sample:
+            return self._return_safe_or_abstain(
+                trace, route_data, summary, safe_state, candidates_a, "candidate_untrusted"
+            )
+
+        if self.should_finalize_now():
+            summary["deadline_finalized"] = True
+            return self._return_safe_or_abstain(
+                trace, route_data, summary, safe_state, candidates_a, "deadline_before_second_sample"
+            )
 
         summary["second_sample_triggered"] = True
         self.harness.ledger.transition(STATE_ATTEMPT_B, reason="candidate_trust_gate")
@@ -172,7 +235,7 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
             ATTEMPT_B_PROMPT,
             problem,
             self.harness.config.tokens_for("attempt_b"),
-            "off",
+            self.solver_mode,
             route,
             source="arm_second",
             timeout_seconds=primary_timeout,
@@ -180,12 +243,27 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
         call_b = self._last_call_result
         self._record(STATE_CANDIDATE_B, parsed_b, candidates_b)
         if classify_runtime_failure(call_b) is not None:
-            summary["final_source"] = "runtime_failure"
-            trace.append(summary)
-            return self.harness._abstain(trace, route_data, "second_sample_runtime_failure")
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "second_sample_runtime_failure",
+            )
 
         secondary, secondary_decision = self._evaluate_one(candidates_b, parsed_b, call_b)
         summary["candidate_b"] = self._candidate_summary(secondary)
+        if self._checkpoint(secondary, parsed_b, safe_state, "candidate_b"):
+            summary["safe_candidate_source"] = safe_state.source
+            trace.append(
+                {
+                    "method": "arm_harness_v2",
+                    "stage": "safe_candidate_checkpoint",
+                    "source": safe_state.source,
+                    "checkpoint_stage": safe_state.checkpoint_stage,
+                }
+            )
         primary_valid = primary if primary is not None and primary.structural_validity == "valid" else None
         secondary_valid = secondary if secondary is not None and secondary.structural_validity == "valid" else None
         if primary_valid is None and secondary_decision is not None and secondary_decision.trusted:
@@ -200,9 +278,14 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
                 problem=problem,
             )
         if primary_valid is None or secondary_valid is None:
-            summary["final_source"] = "abstain_no_two_candidates"
-            trace.append(summary)
-            return self.harness._abstain(trace, route_data, "second_sample_incomplete")
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "second_sample_incomplete",
+            )
 
         relation = value_equivalence(primary_valid.value, secondary_valid.value)
         if relation == "EQUIVALENT":
@@ -226,12 +309,42 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
 
         summary["conflict"] = True
         if not policy.allow_resolver or self.harness.budget.calls_used >= self.harness.budget.max_calls:
-            summary["final_source"] = "abstain_conflict"
-            trace.append(summary)
-            return self.harness._abstain(trace, route_data, "arm_v2_conflict_unresolved")
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "arm_v2_conflict_unresolved",
+            )
 
         self.harness.ledger.transition(STATE_CONFLICT, reason="arm_v2_candidate_conflict")
         self.harness.ledger.add_conflict([primary_valid, secondary_valid])
+        best = self._best_candidate(primary_valid, secondary_valid)
+        safe_state.update(
+            best,
+            source="candidate_a" if best is primary_valid else "candidate_b",
+            confidence=best.trust_confidence,
+            checkpoint_stage="pre_resolver",
+        )
+        trace.append(
+            {
+                "method": "arm_harness_v2",
+                "stage": "safe_candidate_checkpoint",
+                "source": safe_state.source,
+                "checkpoint_stage": safe_state.checkpoint_stage,
+            }
+        )
+        if self.should_finalize_now():
+            summary["deadline_finalized"] = True
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "deadline_before_resolver",
+            )
         self.harness.ledger.transition(STATE_CRITIC, reason="arm_v2_conflict")
         summary["resolver_triggered"] = True
         resolver_tokens = min(1_024, self.harness.budget.total_tokens - self.harness.budget.requested_tokens)
@@ -242,6 +355,15 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
             resolver_tokens,
             reasoning_mode="off",
         )
+        if classify_runtime_failure(resolver) is not None:
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "resolver_runtime_failure",
+            )
         decision = self._parse_resolver(resolver.content)
         summary["resolver_decision"] = decision
         if decision == "A":
@@ -249,9 +371,14 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
         elif decision == "B":
             selected = secondary_valid
         else:
-            summary["final_source"] = "abstain_resolver_unknown"
-            trace.append(summary)
-            return self.harness._abstain(trace, route_data, "arm_v2_resolver_unknown")
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "arm_v2_resolver_unknown",
+            )
         selected.verification_status = "bounded_resolver"
         selected.trust_confidence = "medium"
         selected.trust_reason = "bounded_resolver_selected"
@@ -278,6 +405,7 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
         current_timeout: int | None,
         trace: list[dict[str, Any]],
         summary: dict[str, Any],
+        solver_mode: str,
     ) -> tuple[Any, list[Candidate], Any]:
         """Apply one runtime recovery action without invoking the trust gate."""
         assert self.harness.budget is not None
@@ -310,7 +438,7 @@ class AdaptiveReliabilityHarness(AdaptiveReasoningHarness):
             prompt,
             problem,
             decision.max_tokens,
-            "off",
+            solver_mode,
             route,
             source="arm_salvage" if decision.action == "compact_salvage" else "arm_runtime_retry",
             timeout_seconds=decision.timeout_seconds,
