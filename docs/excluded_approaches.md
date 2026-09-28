@@ -754,3 +754,14 @@ native/contract 在本窗一致；这些均为本地 smoke 证据，不是官方
 
 两臂均 5 calls、E `finish_reason=length` 10/10。candidate D→E 缺失事件 7/10（v1 4/10），E 终答形成 3/10（v1 7/10）；candidate 的两个协议失败均为 D `invalid_response`。native/contract 为本地近似判定，不能作为官方能力结论。按健康优先停止，不启动 fresh hard/能力窗口，不在同一题组调 Prompt、补跑或晋升。完整工件见
 `docs/experiments/FSDF-PROTOCOL-STABILITY-QUAL-001/`。
+
+## 六点五十七、ARM-ISOLATION-001-RERUN 与结果审计（2026-09-28）
+
+| 项目 | 结果 | 处置 |
+| --- | --- | --- |
+| `ARM-ISOLATION-001-20260928` 首轮 + `ARM-ISOLATION-001-20260928-RERUN` | 首轮 54/54 connectivity failure、未测到模型；重跑 54/54 记录写入，14/18 实验格收到端点响应、37/54 请求收到响应、17 次约 180 秒 `ReadTimeout`；轻量预检 HTTP 200；单题 0 correct | 首轮 `VOID_CONNECTIVITY`；重跑 `PARTIAL_ENDPOINT_RESPONSES / DIAGNOSTIC_ONLY / NO_CAUSAL_CONCLUSION` |
+| 外部硬题结果审计模块 | 完成 native/contract、格式抽取、timeout recovery、阶段健康、ARM v2 可靠性、成本和 qualification 统计；历史 30 题可重算 | `CODE_ACCEPTED / DIAGNOSTIC_ONLY / NO_CAPABILITY_CONCLUSION` |
+
+隔离重跑显示 `8192` token 档的裸端点也发生 6/6 超时，因此不支持把超时单独归因于 ARM Agent；但部分实验格未收到响应，不能比较完整能力或建立 endpoint 与 Agent 的唯一因果关系。结果审计已成为后续实验的固定报告基座，但不会把本地 native/contract 判定当作官方 judger 等价物，也不会把 timeout 后的 `invalid` 自动改写成模型错误或正确答案。
+
+完整可读归档见 [`docs/9.28/v2/ARM-Harness v2 完成情况归档.md`](9.28/v2/ARM-Harness%20v2%20完成情况归档.md)；raw 请求和机器汇总继续按仓库卫生规则留在本地实验目录，不作为新提交的必要内容。

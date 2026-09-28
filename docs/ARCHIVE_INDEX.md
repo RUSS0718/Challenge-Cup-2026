@@ -13,6 +13,10 @@
 - [adr/](adr/)：已接受的架构决策。
 - [CAR-001 规格](experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-SPEC/preregistration.md)：
   当前 thinking-on 候选架构（默认关闭）。
+- [ARM-Harness v2 技术设计](9.28/v2/ARM-Harness%20v2%20技术设计文档.md) 与
+  [详细实现文档](9.28/v2/ARM-Harness%20v2%20详细实现文档.md)：v2 架构及实现方案。
+- [ARM-Harness v2 完成情况归档](9.28/v2/ARM-Harness%20v2%20完成情况归档.md)：
+  2026-09-28 的 ARM 隔离诊断与结果质量审计完成状态、证据边界和后续实验入口。
 - [POST-MAIN-EVAL-001](experiments/POST-MAIN-EVAL-001/result.md)：最近一次本地 smoke。
 - [agents/](agents/)：仓库协作与 issue 约束。
 
