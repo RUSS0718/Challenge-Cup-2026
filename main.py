@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from llm_client import InternChatClient
+from reasoning_agent.artifacts import ArtifactManager
 from reasoning_agent.profiles import available_profiles, build_profile_config
 from user_agent import ReasoningAgent
 
@@ -35,13 +36,10 @@ def is_processed(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
-def write_json(path: Path, record: Dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    with tmp_path.open("w", encoding="utf-8") as file:
-        json.dump(record, file, ensure_ascii=False, indent=2)
-        file.write("\n")
-    tmp_path.replace(path)
+def write_json(manager: ArtifactManager, filename: str, record: Dict) -> None:
+    """Persist one per-problem result through the run artifact boundary."""
+
+    manager.save_json(filename, record)
 
 
 def build_output_record(item: Dict, agent_result: Dict) -> Dict:
@@ -84,10 +82,12 @@ def solve_item(agent: ReasoningAgent, item: Dict) -> Dict:
 async def process_item(
     agent: ReasoningAgent,
     item: Dict,
-    output_dir: Path,
+    manager: ArtifactManager,
     semaphore: asyncio.Semaphore,
 ) -> None:
-    path = result_path(output_dir, item)
+    """Solve one item and save exactly one result inside the run directory."""
+
+    path = result_path(manager.run_dir, item)
     if is_processed(path):
         print(f"Skip idx={item['idx']} because {path} already exists.")
         return
@@ -106,7 +106,7 @@ async def process_item(
                 },
                 "trace": [],
             }
-        await asyncio.to_thread(write_json, path, record)
+        await asyncio.to_thread(write_json, manager, path.name, record)
         print(f"Finished idx={item['idx']}")
 
 
@@ -114,7 +114,7 @@ async def run(args: argparse.Namespace) -> None:
     """Run the selected profile over every input problem."""
 
     input_path = Path(args.input_file)
-    output_dir = Path(args.output_dir)
+    manager = ArtifactManager(Path(args.output_dir))
 
     items = load_jsonl(input_path)
 
@@ -126,9 +126,9 @@ async def run(args: argparse.Namespace) -> None:
         f"Loaded {len(items)} items. Profile: {args.profile}. "
         f"Max concurrency: {LOCAL_MAX_CONCURRENCY}."
     )
-    tasks = [process_item(agent, item, output_dir, semaphore) for item in items]
+    tasks = [process_item(agent, item, manager, semaphore) for item in items]
     await asyncio.gather(*tasks)
-    print(f"Saved outputs to {output_dir}")
+    print(f"Saved outputs to {manager.run_dir}")
 
 
 def main() -> None:

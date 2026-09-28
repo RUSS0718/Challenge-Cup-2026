@@ -173,6 +173,17 @@ Prompt；默认路径晋升必须在适用数据集上完成至少双轮独立 A
    可归因变量，并保持官方调用、token 与总时限约束。
 5. 本地过门只产生官方候选，不自动修改 `SUBMISSION_CONFIG`、提交仓库 main 或作品。
 
+## 仓库卫生与实验产物
+
+源码、测试、fixture、实验配置和压缩后的结论进入 Git；每次运行的 answers、
+report、manifest、metrics、日志和 raw dump 留在 `artifacts/<run_id>/` 等被忽略的
+运行目录。新增或修改 harness、评测 runner、实验脚本时，先阅读并遵守
+[`docs/agents/repository-hygiene.md`](docs/agents/repository-hygiene.md)，并通过
+`reasoning_agent.artifacts.RunContext` / `ArtifactManager` 统一写入运行产物。
+
+该文档也规定了 `docs/experiments/` 历史文件的兼容迁移边界：保留可读 summary，
+不要把新 raw 结果继续写入该目录；已有被跟踪的历史 raw 文件不在一次改动中批量删除。
+
 ## Agent skills
 
 ### Issue tracker

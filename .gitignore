@@ -21,6 +21,39 @@ sample_outputs/
 outputs/
 *.tmp
 
+# Runtime experiment artifacts. Keep run definitions and durable summaries in Git;
+# keep per-run answers, reports, manifests, and diagnostics outside the index.
+/artifacts/
+/runs/
+/logs/
+/tmp/
+**/answers.json
+**/answers.jsonl
+**/report.json
+**/run_manifest.json
+**/network_preflight.json
+**/quality_audit.md
+**/metrics.json
+**/precheck.jsonl
+**/test_output.txt
+
+# Fixed fixtures may intentionally use answer-shaped filenames.
+!tests/fixtures/**/answers.json
+!tests/fixtures/**/answers.jsonl
+!sample_data/**/answers.json
+!sample_data/**/answers.jsonl
+
+# Compatibility while legacy experiment folders are migrated incrementally.
+# A hand-written result.md remains reviewable as a durable summary.
+docs/experiments/**/answers.json
+docs/experiments/**/answers.jsonl
+docs/experiments/**/report.json
+docs/experiments/**/run_manifest.json
+docs/experiments/**/network_preflight.json
+docs/experiments/**/quality_audit.md
+docs/experiments/**/metrics.json
+docs/experiments/**/precheck.jsonl
+
 # 13.2 本地评测原始数据（仅保留汇总报告，避免仓库体积膨胀）
 docs/13_2/*.json
 # 实验 F 离线解析对照的完整响应 dump（Git 忽略）

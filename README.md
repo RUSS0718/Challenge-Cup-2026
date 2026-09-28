@@ -104,13 +104,13 @@ flowchart LR
 │   ├── ARCHIVE_INDEX.md                 # 当前/历史文档分类索引
 │   ├── archive/                         # 已移出根目录的旧总结与草稿
 │   ├── research/                        # 候选依据:能力/评测方法研究 + 采纳报告
-│   ├── experiments/                     # 本地与官方评测报告与工件(78+)
+│   ├── experiments/                     # 可读实验总结与历史证据
 │   ├── adr/                             # 关键决策记录
-│   ├── agents/                          # 工作流约定
+│   ├── agents/                          # 工作流与仓库卫生约定
 │   ├── architecture_evolution.md        # 版本/架构演进总表
 │   └── branches_map.md                  # 分支与发布面地图
 ├── method_cards.jsonl 等                 # opt-in 实验离线资产
-└── tmp/                                 # 原始工件与临时复核数据(untracked)
+└── artifacts/<run_id>/                 # 被忽略的本地运行产物
 ```
 
 ## 提交配置与实验开关板
@@ -181,17 +181,22 @@ notepad .env
 运行 3 道快速冒烟题:
 
 ```powershell
-python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs
+python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-dev-smoke
 ```
+
+运行产物应使用唯一的 `artifacts/<run_id>/` 目录，例如
+`artifacts/20260928-135512-dev-smoke/`；不要把逐题 JSON、manifest 或 report
+写入源码目录或 `docs/experiments/`。完整约定见
+[`docs/agents/repository-hygiene.md`](docs/agents/repository-hygiene.md)。
 
 本地 runner 可用 profile 开关整组切换功能；默认仍是官方提交 profile。
 `arm-off`、`arm-on`、`arm-static` 和 `arm-adaptive` 是显式本地实验配置，
 不会改变官方提交配置：
 
 ```powershell
-python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs --profile submission
-python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs --profile agent-default
-python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs --profile arm-adaptive
+python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-submission --profile submission
+python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-agent-default --profile agent-default
+python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-arm-adaptive --profile arm-adaptive
 ```
 
 ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
