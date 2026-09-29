@@ -41,6 +41,29 @@ PROFILE_NAMES: Final = (
 )
 
 
+def _build_arm_v21_submission_config(
+    solver_mode: str,
+    *,
+    enable_skill: bool = False,
+) -> AgentConfig:
+    """Wrap the official submission profile with the v2.1 ARM overlay."""
+    return replace(
+        SUBMISSION_CONFIG,
+        enable_arm_harness=True,
+        arm_harness_version="v2",
+        arm_v2_mode="selective",
+        arm_solver_reasoning_mode=solver_mode,
+        arm_allow_thinking_on=False,
+        arm_primary_timeout_seconds=ARM_V21_REQUEST_TIMEOUT_SECONDS,
+        arm_enable_skill_guidance=enable_skill,
+        arm_enable_skill_for_second=False,
+        arm_enable_skill_audit=enable_skill,
+        arm_max_skill_audits=1,
+        arm_timeout_recovery_mode="none",
+        arm_default_lane="adaptive",
+    )
+
+
 def available_profiles() -> tuple[str, ...]:
     """Return the profile names accepted by local runners."""
 
@@ -106,21 +129,6 @@ def build_profile_config(profile: str) -> AgentConfig:
     }
     if normalized in arm_v21_profiles:
         solver_mode, enable_skill = arm_v21_profiles[normalized]
-        return AgentConfig(
-            enable_constraint_fit_harness=True,
-            enable_constraint_fit_deep_lane=True,
-            enable_constraint_fit_hybrid_router=False,
-            enable_arm_harness=True,
-            arm_harness_version="v2",
-            arm_v2_mode="selective",
-            arm_solver_reasoning_mode=solver_mode,
-            arm_allow_thinking_on=False,
-            arm_primary_timeout_seconds=ARM_V21_REQUEST_TIMEOUT_SECONDS,
-            arm_enable_skill_guidance=enable_skill,
-            arm_enable_skill_for_second=False,
-            arm_enable_skill_audit=enable_skill,
-            arm_max_skill_audits=1,
-            arm_default_lane="adaptive",
-        )
+        return _build_arm_v21_submission_config(solver_mode, enable_skill=enable_skill)
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

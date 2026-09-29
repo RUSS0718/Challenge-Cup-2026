@@ -9,7 +9,7 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V21_ON,
     build_profile_config,
 )
-from user_agent import AgentConfig
+from user_agent import AgentConfig, SUBMISSION_CONFIG
 
 
 class ARMV21ProfilesTest(unittest.TestCase):
@@ -23,6 +23,12 @@ class ARMV21ProfilesTest(unittest.TestCase):
         self.assertFalse(config.arm_allow_thinking_on)
         self.assertFalse(config.arm_enable_skill_audit)
         self.assertEqual(600, config.arm_primary_timeout_seconds)
+        self.assertTrue(config.enable_constraint_fit_harness)
+        self.assertTrue(config.enable_constraint_fit_deep_lane)
+        self.assertTrue(config.enable_constraint_fit_hybrid_router)
+        self.assertTrue(config.enable_fork_select_deepen_finish)
+        self.assertEqual(SUBMISSION_CONFIG.max_tokens, config.max_tokens)
+        self.assertEqual(SUBMISSION_CONFIG.enable_adaptive_voting, config.enable_adaptive_voting)
 
     def test_on_profile_is_single_variable(self):
         off = asdict(build_profile_config(PROFILE_ARM_V21_OFF))
