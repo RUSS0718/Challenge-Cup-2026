@@ -16,7 +16,13 @@ from reasoning_agent.inference_policy import CandidateTrustDecision
 
 
 class CandidateTrustPolicy:
-    """Allow single-sample finalization only for a narrow low-risk contract."""
+    """Classify whether one complete candidate needs another model sample."""
+
+    def __init__(self, policy: str = "legacy") -> None:
+        """Select the compatibility gate or v2.1.2 evidence-triggered gate."""
+        if policy not in {"legacy", "evidence"}:
+            raise ValueError("invalid_candidate_trust_policy")
+        self.policy = policy
 
     def evaluate(
         self,
@@ -46,6 +52,16 @@ class CandidateTrustPolicy:
             and getattr(candidate, "answer_type", None)
             in {ANSWER_INTEGER, ANSWER_RATIONAL, ANSWER_CHOICE}
         )
+        if self.policy == "evidence":
+            verification_status = str(getattr(candidate, "verification_status", "")).casefold()
+            if verification_status in {"rejected", "refuted", "skill_refuted"}:
+                return CandidateTrustDecision(False, "low", True, "negative_verification_evidence")
+            return CandidateTrustDecision(
+                True,
+                "high" if simple_direct else "medium",
+                False,
+                "complete_without_negative_evidence",
+            )
         if simple_direct:
             return CandidateTrustDecision(
                 True,

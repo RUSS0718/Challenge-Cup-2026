@@ -57,7 +57,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         super().__init__(harness)
         config = harness.config
         self.compute_policy = self._build_compute_policy(config)
-        self.trust_policy = CandidateTrustPolicy()
+        self.trust_policy = CandidateTrustPolicy(getattr(config, "arm_trust_policy", "legacy"))
         self.runtime_policy = RuntimeRecoveryPolicy(
             config.arm_timeout_recovery_mode,
             salvage_max_tokens=config.arm_salvage_max_tokens,
@@ -103,6 +103,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             "method": "arm_harness_v2",
             "stage": "arm_v2_summary",
             "profile": self.harness.config.arm_v2_mode,
+            "trust_policy": getattr(self.harness.config, "arm_trust_policy", "legacy"),
             "solver_reasoning_mode": self.solver_mode,
             "early_stop": False,
             "second_sample_triggered": False,
@@ -271,12 +272,15 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             primary, primary_decision, route
         )
         self.harness.ledger.transition(STATE_ATTEMPT_B, reason="candidate_trust_gate")
+        second_stage, second_prompt, second_mode, second_tokens = self._second_call_plan(
+            problem, route, primary, trace, summary
+        )
         parsed_b, candidates_b = self._call(
-            "arm_v2_second_sample",
-            self._second_prompt(problem, route, trace, summary),
+            second_stage,
+            second_prompt,
             problem,
-            self.harness.config.tokens_for("attempt_b"),
-            self.solver_mode,
+            second_tokens,
+            second_mode,
             route,
             source="arm_second",
             timeout_seconds=primary_timeout,
@@ -589,9 +593,9 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             return first
         return "UNKNOWN"
 
+
 def policy_name(mode: str) -> str:
     """Name the v2 compute lane without exposing a new host route."""
     return f"v2_{mode}"
-
 
 __all__ = ["AdaptiveReliabilityHarness", "ARM_COMPACT_SALVAGE_PROMPT", "ARM_V2_RESOLVER_PROMPT"]

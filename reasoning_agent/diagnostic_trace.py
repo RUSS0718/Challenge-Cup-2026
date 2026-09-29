@@ -23,7 +23,8 @@ _SAFE_SCALAR_FIELDS = frozenset({
     "prefill_used", "prefill_fallback", "physical_calls", "call_index",
     "logical_call_index", "attempt_index", "request_sequence",
     "http_status", "request_model_id", "response_model_id", "response_id",
-    "prompt_tokens", "total_tokens", "response_content_chars",
+    "prompt_tokens", "total_tokens", "response_content_chars", "content_chars",
+    "has_reasoning_content", "reasoning_content_chars",
     "attempts_configured", "timeout_seconds", "temperature", "message_count",
     "started_at_utc", "messages_sha256", "api_host", "thinking_mode",
     "selected_skill", "harness_route_id", "harness_steps_expected",
@@ -42,7 +43,7 @@ _CALL_FIELDS = (
     "attempt_index", "requested_tokens", "completion_tokens", "finish_reason",
     "duration_ms", "duration_seconds", "error_category", "error_type",
     "http_status", "prefill_status", "prefill_used", "prefill_fallback",
-    "physical_calls",
+    "physical_calls", "has_reasoning_content", "reasoning_content_chars", "content_chars",
 )
 _BUDGET_FIELDS = (
     "calls", "call_limit", "requested_tokens", "token_limit",

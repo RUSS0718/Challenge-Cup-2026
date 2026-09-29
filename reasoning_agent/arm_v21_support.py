@@ -9,15 +9,22 @@ from typing import Any
 from reasoning_agent.arm_v21_diagnostics import candidate_diagnostics, parse_diagnostics
 from reasoning_agent.harness_contracts import Candidate
 from reasoning_agent.inference_policy import ReasoningMode
+from reasoning_agent.math_harness import ATTEMPT_A_PROMPT
 from reasoning_agent.safe_candidate import SafeCandidateState
 from reasoning_agent.skill_audit import SkillAuditResult
 
 
+ARM_V2_PRIMARY_PROMPT = ATTEMPT_A_PROMPT
+ARM_V21_MARKER_ONLY_PRIMARY_PROMPT = f"""{ATTEMPT_A_PROMPT}
+最后单独一行且必须使用：Final answer: <完整答案>"""
 ARM_V21_PRIMARY_PROMPT = """你是数学推理求解器。独立解决题目，先完成必要计算，再给出唯一结论。
 不要输出 Thinking Process、计划或多个候选；推导应简洁。
 最后单独一行且必须使用：Final answer: <完整答案>"""
 ARM_V21_SECOND_PROMPT = """你是独立的数学复核求解器。不要参考先前回答；从原题重新计算，检查定义域、边界和算术。
 只给一个最可信的结论及最少量理由。
+最后单独一行且必须使用：Final answer: <完整答案>"""
+ARM_V21_OFF_FINALIZER_PROMPT = """你是数学答案收束器。只根据原题独立完成必要的最短计算。
+不要输出计划、多个候选或 Thinking Process；尽快给出唯一结论。
 最后单独一行且必须使用：Final answer: <完整答案>"""
 
 
@@ -130,9 +137,10 @@ class ARMV21StateSupport:
         summary: dict[str, Any],
     ) -> str:
         """Inject only explicit method guidance into the independent A prompt."""
+        base_prompt = self._primary_base_prompt()
         if not bool(getattr(self.harness.config, "arm_enable_skill_guidance", False)):
             trace.append({"method": "arm_harness_v2", "stage": "skill_guidance", "status": "disabled"})
-            return ARM_V21_PRIMARY_PROMPT
+            return base_prompt
         try:
             decision = self.skill_router.route(problem, route.contract)
             skill_id = getattr(decision, "skill_id", None)
@@ -153,7 +161,7 @@ class ARMV21StateSupport:
                     "skill_id": str(skill_id),
                     "confidence": float(getattr(decision, "confidence", 0.0)),
                 }
-                return f"方法指导（仅供推理，不是答案）：\n{guidance[:4000]}\n\n{ARM_V21_PRIMARY_PROMPT}"
+                return f"方法指导（仅供推理，不是答案）：\n{guidance[:4000]}\n\n{base_prompt}"
         except BaseException as exc:
             trace.append(
                 {
@@ -163,7 +171,58 @@ class ARMV21StateSupport:
                     "reason": f"router_error:{type(exc).__name__}",
                 }
             )
-        return ARM_V21_PRIMARY_PROMPT
+        return base_prompt
+
+    def _primary_base_prompt(self) -> str:
+        """Select one prompt variant for a primary-only isolation experiment."""
+        variants = {
+            "v2": ARM_V2_PRIMARY_PROMPT,
+            "marker_only": ARM_V21_MARKER_ONLY_PRIMARY_PROMPT,
+            "v21": ARM_V21_PRIMARY_PROMPT,
+        }
+        return variants.get(
+            str(getattr(self.harness.config, "arm_primary_prompt_variant", "v21")),
+            ARM_V21_PRIMARY_PROMPT,
+        )
+
+    def _second_call_plan(
+        self,
+        problem: str,
+        route: Any,
+        primary: Candidate | None,
+        trace: list[dict[str, Any]],
+        summary: dict[str, Any],
+    ) -> tuple[str, str, ReasoningMode, int]:
+        """Choose an orthogonal OFF finalizer after an incomplete ON solve."""
+        primary_complete = (
+            primary is not None
+            and getattr(primary, "structural_validity", "") == "valid"
+            and getattr(primary, "answer_complete", True)
+        )
+        if self.solver_mode == "on" and not primary_complete:
+            summary["on_recovery_action"] = "off_finalizer"
+            trace.append(
+                {
+                    "method": "arm_harness_v2",
+                    "stage": "on_to_off_recovery",
+                    "status": "triggered",
+                    "reason": "primary_incomplete_or_missing",
+                    "from": "on",
+                    "to": "off",
+                }
+            )
+            return (
+                "arm_v2_off_finalizer",
+                ARM_V21_OFF_FINALIZER_PROMPT,
+                "off",
+                int(getattr(self.harness.config, "arm_off_finalizer_max_tokens", 1024)),
+            )
+        return (
+            "arm_v2_second_sample",
+            self._second_prompt(problem, route, trace, summary),
+            self.solver_mode,
+            self.harness.config.tokens_for("attempt_b"),
+        )
 
     def _second_prompt(
         self,

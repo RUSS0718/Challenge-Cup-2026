@@ -6,7 +6,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Mapping
 from urllib.parse import urlparse
 
 import requests
@@ -78,6 +78,8 @@ class InternChatClient:
         # untouched and never sees these lists.
         self.completion_tokens: List[int] = []
         self.raw_contents: List[str] = []
+        self.response_metadata: List[dict[str, Any]] = []
+        self.last_response_metadata: dict[str, Any] | None = None
         # 13.2 token A/B: per-call wall-clock latency (aligned with the lists above,
         # appended once per successful chat call so before/after slicing works).
         self.latencies: List[float] = []
@@ -137,6 +139,7 @@ class InternChatClient:
         }
         last_category = "request"
         started = time.perf_counter()
+        self.last_response_metadata = None
         for attempt in range(self.retry):
             attempt_started = time.perf_counter()
             request_event: dict[str, Any] = {
@@ -181,10 +184,36 @@ class InternChatClient:
                     except (TypeError, ValueError):
                         request_event[usage_field] = None
                 request_event["completion_tokens"] = completion_tokens
-                content = choice["message"]["content"]
+                message = choice["message"]
+                content = message["content"]
+                reasoning_content = (
+                    message.get("reasoning_content")
+                    if isinstance(message, Mapping)
+                    else None
+                )
+                response_metadata = {
+                    "has_reasoning_content": bool(
+                        isinstance(reasoning_content, str) and reasoning_content
+                    ),
+                    "reasoning_content_chars": (
+                        len(reasoning_content) if isinstance(reasoning_content, str) else 0
+                    ),
+                    "content_chars": len(content) if isinstance(content, str) else 0,
+                    "finish_reason": finish_reason,
+                    "completion_tokens": completion_tokens,
+                }
+                self.response_metadata.append(response_metadata)
+                self.last_response_metadata = dict(response_metadata)
                 self.raw_contents.append(content if isinstance(content, str) else "")
                 request_event["response_content_chars"] = (
                     len(content) if isinstance(content, str) else None
+                )
+                request_event.update(
+                    {
+                        "has_reasoning_content": response_metadata["has_reasoning_content"],
+                        "reasoning_content_chars": response_metadata["reasoning_content_chars"],
+                        "content_chars": response_metadata["content_chars"],
+                    }
                 )
                 self.latencies.append(time.perf_counter() - started)
                 return content

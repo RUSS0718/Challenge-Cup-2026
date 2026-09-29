@@ -160,7 +160,10 @@ class HarnessConfig:
     arm_harness_version: str = "v1"
     arm_v2_mode: str = "selective"
     arm_solver_reasoning_mode: str = "off"
+    arm_trust_policy: str = "legacy"
+    arm_primary_prompt_variant: str = "v21"
     arm_finalization_margin_seconds: float = 15.0
+    arm_off_finalizer_max_tokens: int = 1024
     arm_enable_skill_guidance: bool = False
     arm_enable_skill_for_second: bool = False
     arm_enable_skill_audit: bool = False
@@ -191,8 +194,14 @@ class HarnessConfig:
             raise ValueError("invalid_arm_harness_version")
         if self.arm_solver_reasoning_mode not in {"off", "on"}:
             raise ValueError("invalid_arm_solver_reasoning_mode")
+        if self.arm_trust_policy not in {"legacy", "evidence"}:
+            raise ValueError("invalid_arm_trust_policy")
+        if self.arm_primary_prompt_variant not in {"v2", "marker_only", "v21"}:
+            raise ValueError("invalid_arm_primary_prompt_variant")
         if not math.isfinite(float(self.arm_finalization_margin_seconds)) or float(self.arm_finalization_margin_seconds) < 0:
             raise ValueError("arm_finalization_margin_seconds_must_be_nonnegative")
+        if int(self.arm_off_finalizer_max_tokens) < 1:
+            raise ValueError("arm_off_finalizer_max_tokens_must_be_positive")
         if not math.isfinite(float(self.arm_max_skill_audits)) or float(self.arm_max_skill_audits) < 0:
             raise ValueError("arm_max_skill_audits_must_be_nonnegative")
         if self.arm_v2_mode not in {"single", "selective", "long_timeout", "salvage"}:
@@ -712,6 +721,7 @@ class _CallResult:
         prefill_used: bool = False,
         prefill_fallback: bool = False,
         prefill_physical_calls: int = 1,
+        response_metadata: Mapping[str, Any] | None = None,
     ) -> None:
         self.content = content
         self.error_category = error_category
@@ -721,6 +731,7 @@ class _CallResult:
         self.prefill_used = bool(prefill_used)
         self.prefill_fallback = bool(prefill_fallback)
         self.prefill_physical_calls = max(0, int(prefill_physical_calls))
+        self.response_metadata = dict(response_metadata or {})
 
 
 def _unpack_response(response: Any) -> tuple[str | None, int | None, str | None, str | None]:
@@ -747,6 +758,49 @@ def _unpack_response(response: Any) -> tuple[str | None, int | None, str | None,
             None,
         )
     return None, None, None, "invalid_response"
+
+
+def _response_metadata(
+    response: Any,
+    client: Any,
+    content: str | None,
+    completion_tokens: int | None,
+    finish_reason: str | None,
+) -> dict[str, Any]:
+    """Read bounded response-schema metadata without depending on client internals."""
+    metadata = getattr(client, "last_response_metadata", None)
+    if isinstance(metadata, Mapping):
+        result = dict(metadata)
+    else:
+        result = {}
+    if isinstance(response, Mapping):
+        message = response.get("message")
+        if not isinstance(message, Mapping):
+            choices = response.get("choices")
+            if isinstance(choices, list) and choices and isinstance(choices[0], Mapping):
+                message = choices[0].get("message")
+        reasoning_content = message.get("reasoning_content") if isinstance(message, Mapping) else None
+        if isinstance(reasoning_content, str):
+            result.setdefault("has_reasoning_content", bool(reasoning_content))
+            result.setdefault("reasoning_content_chars", len(reasoning_content))
+    result.setdefault("has_reasoning_content", False)
+    result.setdefault("reasoning_content_chars", 0)
+    result.setdefault("content_chars", len(content) if isinstance(content, str) else 0)
+    if finish_reason is not None:
+        result.setdefault("finish_reason", finish_reason)
+    if completion_tokens is not None:
+        result.setdefault("completion_tokens", completion_tokens)
+    return {
+        key: result[key]
+        for key in (
+            "has_reasoning_content",
+            "reasoning_content_chars",
+            "content_chars",
+            "finish_reason",
+            "completion_tokens",
+        )
+        if key in result
+    }
 
 
 class AttemptScheduler:
@@ -1198,6 +1252,8 @@ class ConstraintFitOrchestrator:
             return _CallResult(None, error_category="unknown")
         started = self.clock()
         observed_content: str | None = None
+        raw: Any = None
+        response_metadata: dict[str, Any] = {}
         prefill_result = None
         fallback_records: list[dict[str, Any]] = []
         try:
@@ -1265,6 +1321,7 @@ class ConstraintFitOrchestrator:
                 fallback_content = None
                 fallback_completion = None
                 fallback_finish = None
+                fallback_metadata: dict[str, Any] = {}
                 fallback_error = None
                 try:
                     fallback_kwargs = (
@@ -1281,6 +1338,16 @@ class ConstraintFitOrchestrator:
                         **fallback_kwargs,
                     )
                     fallback_content, fallback_completion, fallback_finish, fallback_unpack_error = _unpack_response(fallback_raw)
+                    fallback_metadata = _response_metadata(
+                        fallback_raw,
+                        self.client,
+                        fallback_content,
+                        fallback_completion,
+                        fallback_finish,
+                    )
+                    fallback_finish = fallback_finish or fallback_metadata.get("finish_reason")
+                    if fallback_completion is None:
+                        fallback_completion = fallback_metadata.get("completion_tokens")
                     fallback_error = fallback_unpack_error or (
                         None if fallback_content is not None else "invalid_response"
                     )
@@ -1317,6 +1384,7 @@ class ConstraintFitOrchestrator:
                     "duration_ms": fallback_duration_ms,
                     "error_category": fallback_error,
                 }
+                fallback_record.update(fallback_metadata)
                 if timeout_seconds is not None:
                     fallback_record["timeout_seconds"] = timeout_seconds
                 if reasoning_mode != "inherit":
@@ -1369,6 +1437,13 @@ class ConstraintFitOrchestrator:
                     **request_kwargs,
                 )
                 content, completion_tokens, finish_reason, unpack_error = _unpack_response(raw)
+                response_metadata = _response_metadata(
+                    raw,
+                    self.client,
+                    content,
+                    completion_tokens,
+                    finish_reason,
+                )
             observed_content = content
             error_category = unpack_error or (None if content is not None else "invalid_response")
         except BaseException as exc:
@@ -1413,6 +1488,18 @@ class ConstraintFitOrchestrator:
             "duration_ms": duration_ms,
             "error_category": error_category,
         }
+        if not response_metadata:
+            response_metadata = _response_metadata(
+                raw,
+                self.client,
+                content,
+                completion_tokens,
+                finish_reason,
+            )
+        finish_reason = finish_reason or response_metadata.get("finish_reason")
+        if completion_tokens is None:
+            completion_tokens = response_metadata.get("completion_tokens")
+        record.update(response_metadata)
         if timeout_seconds is not None:
             record["timeout_seconds"] = timeout_seconds
         if reasoning_mode != "inherit":
@@ -1450,6 +1537,7 @@ class ConstraintFitOrchestrator:
             prefill_used=prefill_result.used if prefill_result is not None else False,
             prefill_fallback=prefill_result.fallback if prefill_result is not None else False,
             prefill_physical_calls=prefill_result.physical_calls if prefill_result is not None else 1,
+            response_metadata=response_metadata,
         )
 
     def _observer_should_stop(self) -> bool:

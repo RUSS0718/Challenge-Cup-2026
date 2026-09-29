@@ -23,6 +23,9 @@ PROFILE_ARM_V2_SALVAGE: Final = "arm-v2-salvage"
 PROFILE_ARM_V21_OFF: Final = "arm-v2.1-off"
 PROFILE_ARM_V21_ON: Final = "arm-v2.1-on"
 PROFILE_ARM_V21_OFF_SKILL: Final = "arm-v2.1-off-skill"
+PROFILE_ARM_V212_OFF: Final = "arm-v2.1.2-off"
+PROFILE_ARM_V212_ON: Final = "arm-v2.1.2-on"
+PROFILE_ARM_V212_OFF_SKILL: Final = "arm-v2.1.2-off-skill"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
@@ -38,6 +41,9 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V21_OFF,
     PROFILE_ARM_V21_ON,
     PROFILE_ARM_V21_OFF_SKILL,
+    PROFILE_ARM_V212_OFF,
+    PROFILE_ARM_V212_ON,
+    PROFILE_ARM_V212_OFF_SKILL,
 )
 
 
@@ -45,6 +51,7 @@ def _build_arm_v21_submission_config(
     solver_mode: str,
     *,
     enable_skill: bool = False,
+    trust_policy: str = "legacy",
 ) -> AgentConfig:
     """Wrap the official submission profile with the v2.1 ARM overlay."""
     return replace(
@@ -53,6 +60,7 @@ def _build_arm_v21_submission_config(
         arm_harness_version="v2",
         arm_v2_mode="selective",
         arm_solver_reasoning_mode=solver_mode,
+        arm_trust_policy=trust_policy,
         arm_allow_thinking_on=False,
         arm_primary_timeout_seconds=ARM_V21_REQUEST_TIMEOUT_SECONDS,
         arm_enable_skill_guidance=enable_skill,
@@ -130,5 +138,17 @@ def build_profile_config(profile: str) -> AgentConfig:
     if normalized in arm_v21_profiles:
         solver_mode, enable_skill = arm_v21_profiles[normalized]
         return _build_arm_v21_submission_config(solver_mode, enable_skill=enable_skill)
+    arm_v212_profiles = {
+        PROFILE_ARM_V212_OFF: ("off", False),
+        PROFILE_ARM_V212_ON: ("on", False),
+        PROFILE_ARM_V212_OFF_SKILL: ("off", True),
+    }
+    if normalized in arm_v212_profiles:
+        solver_mode, enable_skill = arm_v212_profiles[normalized]
+        return _build_arm_v21_submission_config(
+            solver_mode,
+            enable_skill=enable_skill,
+            trust_policy="evidence",
+        )
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

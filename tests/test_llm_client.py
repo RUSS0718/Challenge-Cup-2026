@@ -88,6 +88,41 @@ class InternChatClientTest(unittest.TestCase):
         for private_value in ("private key", "private prompt", "private answer", "private failure detail"):
             self.assertNotIn(private_value, serialized)
 
+    def test_reasoning_content_is_reduced_to_schema_metadata(self):
+        """Record reasoning presence and lengths without retaining its text."""
+        import requests
+
+        response = requests.Response()
+        response.status_code = 200
+        response._content = (
+            b'{"choices":[{"message":{"content":"Final answer: 7",'
+            b'"reasoning_content":"private reasoning"},"finish_reason":"stop"}],'
+            b'"usage":{"completion_tokens":5}}'
+        )
+        with _patch_env(INTERN_API_KEY="test"):
+            client = InternChatClient(timeout=1, retry=1)
+        with patch("llm_client.requests.post", return_value=response):
+            self.assertEqual(
+                "Final answer: 7",
+                client.chat([], 0.0, 64),
+            )
+
+        self.assertEqual(
+            {
+                "has_reasoning_content": True,
+                "reasoning_content_chars": len("private reasoning"),
+                "content_chars": len("Final answer: 7"),
+                "finish_reason": "stop",
+                "completion_tokens": 5,
+            },
+            client.last_response_metadata,
+        )
+        event = client.request_diagnostics[0]
+        self.assertTrue(event["has_reasoning_content"])
+        self.assertEqual(len("private reasoning"), event["reasoning_content_chars"])
+        serialized = str(client.request_diagnostics)
+        self.assertNotIn("private reasoning", serialized)
+
     def test_tls_error_has_distinct_sanitized_category(self):
         with _patch_env(INTERN_API_KEY="test"):
             client = InternChatClient(timeout=1, retry=1)

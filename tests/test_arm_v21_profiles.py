@@ -7,6 +7,8 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V21_OFF,
     PROFILE_ARM_V21_OFF_SKILL,
     PROFILE_ARM_V21_ON,
+    PROFILE_ARM_V212_OFF,
+    PROFILE_ARM_V212_ON,
     build_profile_config,
 )
 from user_agent import AgentConfig, SUBMISSION_CONFIG
@@ -54,6 +56,16 @@ class ARMV21ProfilesTest(unittest.TestCase):
             AgentConfig(arm_finalization_margin_seconds=-1)
         with self.assertRaises(ValueError):
             AgentConfig(arm_max_skill_audits=-1)
+
+    def test_v212_profiles_opt_into_evidence_policy(self):
+        off = build_profile_config(PROFILE_ARM_V212_OFF)
+        on = build_profile_config(PROFILE_ARM_V212_ON)
+        self.assertEqual("evidence", off.arm_trust_policy)
+        self.assertEqual("evidence", on.arm_trust_policy)
+        self.assertEqual("off", off.arm_solver_reasoning_mode)
+        self.assertEqual("on", on.arm_solver_reasoning_mode)
+        self.assertEqual(1024, off.arm_off_finalizer_max_tokens)
+        self.assertEqual("v21", off.arm_primary_prompt_variant)
 
 
 if __name__ == "__main__":
