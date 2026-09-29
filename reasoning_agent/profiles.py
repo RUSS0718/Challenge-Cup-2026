@@ -7,7 +7,7 @@ agent constructor.  These profiles only provide an explicit local selector.
 from dataclasses import replace
 from typing import Final
 
-from user_agent import AgentConfig, SUBMISSION_CONFIG
+from user_agent import AgentConfig, SUBMISSION_CONFIG, build_submission_config
 
 
 PROFILE_SUBMISSION: Final = "submission"
@@ -25,6 +25,7 @@ PROFILE_ARM_V21_ON: Final = "arm-v2.1-on"
 PROFILE_ARM_V21_OFF_SKILL: Final = "arm-v2.1-off-skill"
 PROFILE_ARM_V212_OFF: Final = "arm-v2.1.2-off"
 PROFILE_ARM_V212_ON: Final = "arm-v2.1.2-on"
+PROFILE_ARM_V212_ADAPTIVE: Final = "arm-v2.1.2-adaptive"
 PROFILE_ARM_V212_OFF_SKILL: Final = "arm-v2.1.2-off-skill"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
@@ -43,6 +44,7 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V21_OFF_SKILL,
     PROFILE_ARM_V212_OFF,
     PROFILE_ARM_V212_ON,
+    PROFILE_ARM_V212_ADAPTIVE,
     PROFILE_ARM_V212_OFF_SKILL,
 )
 
@@ -78,6 +80,16 @@ def available_profiles() -> tuple[str, ...]:
     return PROFILE_NAMES
 
 
+def build_submission_arm_config(mode: str) -> AgentConfig:
+    """Build the submission-equivalent ARM v2.1.2 mode for local runs."""
+    normalized = mode.strip().lower()
+    if normalized.startswith("arm-v2.1.2-"):
+        normalized = normalized.rsplit("-", 1)[-1]
+    if normalized not in {"off", "on", "adaptive"}:
+        raise ValueError(f"unknown_arm_v212_mode:{mode!r}")
+    return build_submission_config(f"arm-v2.1.2-{normalized}")
+
+
 def build_profile_config(profile: str) -> AgentConfig:
     """Build an independent config for a named local profile.
 
@@ -91,7 +103,7 @@ def build_profile_config(profile: str) -> AgentConfig:
 
     normalized = profile.strip().lower()
     if normalized == PROFILE_SUBMISSION:
-        return replace(SUBMISSION_CONFIG)
+        return build_submission_config("fsdf")
     if normalized == PROFILE_AGENT_DEFAULT:
         return AgentConfig()
     arm_profiles = {
@@ -141,14 +153,18 @@ def build_profile_config(profile: str) -> AgentConfig:
     arm_v212_profiles = {
         PROFILE_ARM_V212_OFF: ("off", False),
         PROFILE_ARM_V212_ON: ("on", False),
+        PROFILE_ARM_V212_ADAPTIVE: ("adaptive", False),
         PROFILE_ARM_V212_OFF_SKILL: ("off", True),
     }
     if normalized in arm_v212_profiles:
         solver_mode, enable_skill = arm_v212_profiles[normalized]
-        return _build_arm_v21_submission_config(
-            solver_mode,
-            enable_skill=enable_skill,
-            trust_policy="evidence",
-        )
+        config = build_submission_arm_config(solver_mode)
+        if enable_skill:
+            return replace(
+                config,
+                arm_enable_skill_guidance=True,
+                arm_enable_skill_audit=True,
+            )
+        return config
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

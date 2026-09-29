@@ -63,7 +63,8 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             salvage_max_tokens=config.arm_salvage_max_tokens,
             salvage_timeout_seconds=config.arm_salvage_timeout_seconds,
         )
-        self.solver_mode = getattr(config, "arm_solver_reasoning_mode", "off")
+        self.solver_mode_policy = getattr(config, "arm_solver_reasoning_mode", "off")
+        self.solver_mode = self.solver_mode_policy
         provided_auditor = getattr(harness, "skill_auditor", None)
         self.skill_auditor = provided_auditor if provided_auditor is not None else SkillAuditor()
         provided_verifier = getattr(harness, "deterministic_verifier", None)
@@ -95,6 +96,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         trace = list(prefix_trace)
         route_data = route.as_dict()
         route_data.update(target="harness", lane=policy_name(self.harness.config.arm_v2_mode), arm_lane="v2")
+        self.solver_mode, solver_mode_reason = self._resolve_solver_mode(route)
         for event in trace:
             if event.get("stage") == "route":
                 event.update(target="harness", lane=route_data["lane"], arm_lane="v2")
@@ -104,7 +106,9 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             "stage": "arm_v2_summary",
             "profile": self.harness.config.arm_v2_mode,
             "trust_policy": getattr(self.harness.config, "arm_trust_policy", "legacy"),
+            "configured_solver_reasoning_mode": self.solver_mode_policy,
             "solver_reasoning_mode": self.solver_mode,
+            "solver_mode_policy_reason": solver_mode_reason,
             "early_stop": False,
             "second_sample_triggered": False,
             "agreement": False,
@@ -150,7 +154,9 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 "allow_second_sample": policy.allow_second_sample,
                 "allow_resolver": policy.allow_resolver,
                 "allow_thinking_on": policy.allow_thinking_on,
+                "configured_solver_reasoning_mode": self.solver_mode_policy,
                 "solver_reasoning_mode": self.solver_mode,
+                "solver_mode_policy_reason": solver_mode_reason,
                 "skill_guidance_enabled": bool(getattr(self.harness.config, "arm_enable_skill_guidance", False)),
                 "skill_audit_enabled": bool(getattr(self.harness.config, "arm_enable_skill_audit", False)),
             }
@@ -592,6 +598,17 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         if first in {"A", "B", "UNKNOWN"}:
             return first
         return "UNKNOWN"
+
+    def _resolve_solver_mode(self, route: Any) -> tuple[str, str]:
+        """Resolve adaptive mode from the existing route-risk contract."""
+        if self.solver_mode_policy != "adaptive":
+            return self.solver_mode_policy, "fixed_profile_mode"
+        contract = getattr(route, "contract", None)
+        risk = str(getattr(contract, "reasoning_risk", ""))
+        lane = str(getattr(route, "lane", ""))
+        if lane == "deep" or risk in {"deep", "structured"}:
+            return "on", "route_risk_requires_deeper_primary"
+        return "off", "route_risk_allows_fast_primary"
 
 
 def policy_name(mode: str) -> str:

@@ -139,6 +139,23 @@ direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fa
 | `enable_verification_gated_retry`(B1) | ⬜ | 被投票路径替代 |
 | `enable_method_rag` | ⬜ | 永久排除(双轮双负) |
 
+### Official-equivalent submission modes
+
+`SUBMISSION_CONFIG` is built by `build_submission_config("fsdf")`; therefore
+the official no-config entry remains the FSDF baseline:
+
+```python
+from user_agent import ReasoningAgent, build_submission_config
+
+agent = ReasoningAgent(client=official_client)  # config=None -> FSDF
+arm_config = build_submission_config("arm-v2.1.2-adaptive")
+local_agent = ReasoningAgent(client=official_client, config=arm_config)
+```
+
+The ARM OFF/ON/adaptive profiles and the submission ARM builder share one
+v2.1.2 base.  Local profiles are not submission evidence until the promotion
+runner passes its explicit gate.
+
 ## 赛事接口
 
 仓库根目录的 `user_agent.py` 导出:
@@ -208,7 +225,8 @@ python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-off --run-id ARM
 python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-on --run-id ARM-V21-ON-112-ACCURACY-001
 ```
 
-v2.1.2 的 `arm-v2.1.2-off`、`arm-v2.1.2-on` 和 `arm-v2.1.2-off-skill`
+v2.1.2 的 `arm-v2.1.2-off`、`arm-v2.1.2-on`、`arm-v2.1.2-adaptive` 和
+`arm-v2.1.2-off-skill`
 保持旧 profile 不变，显式启用 evidence-triggered Trust Gate；ON 在 Primary
 不完整时改用一次有界 OFF finalizer。runner 也支持固定 30 题数据集：
 
@@ -228,6 +246,21 @@ telemetry；Primary/Second 要求显式 `Final answer:` 终答，`answers.jsonl`
 `arm_v2_summary` diagnostics；call ledger 仅记录 `reasoning_content` 是否存在及其长度，
 不保存完整内容。数据集缺失、答案字段缺失或记录数不符合 `--expected-records` 时 runner
 会直接失败。本地结果不自动触发提交晋升。
+
+四臂 promotion 对比（A=FSDF、B=ARM OFF、C=ARM ON、D=ARM Adaptive）使用同一固定题集、
+endpoint 和 judge，并保留每题 response-free diagnostics：
+
+```powershell
+python scripts/run_submission_promotion.py `
+  --run-prefix ARM-V212-PROMOTION-FULL30-001 `
+  --dataset-path sample_data/arm_fixed_items_30.json `
+  --expected-records 30 `
+  --selection-seed 20260905 `
+  --rounds 1
+```
+
+gate 默认要求正确数不低于 FSDF、invalid 不增加、runner error 不增加且平均调用不超过 3；
+任何 gate 失败都不会改变 `SUBMISSION_CONFIG`。
 
 ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
 profile 会显式发送 `thinking_mode=true`，运行前应按冻结实验协议检查 endpoint 健康。

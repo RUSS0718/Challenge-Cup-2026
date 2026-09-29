@@ -7,6 +7,10 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from reasoning_agent.submission_config import (
+    build_arm_v212_base_config as _build_arm_v212_base_config,
+    build_submission_config as _build_submission_config,
+)
 from reasoning_agent.fork_select_deepen_finish import (
     ForkSelectDeepenFinishRelay,
     RelayOptions,
@@ -514,7 +518,7 @@ class AgentConfig:
 
     def __post_init__(self) -> None:
         """Validate the v2.1 request-local controls before a solve starts."""
-        if self.arm_solver_reasoning_mode not in {"off", "on"}:
+        if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
             raise ValueError("invalid_arm_solver_reasoning_mode")
         if self.arm_trust_policy not in {"legacy", "evidence"}:
             raise ValueError("invalid_arm_trust_policy")
@@ -596,72 +600,22 @@ class AgentConfig:
 
 # ── Submission profile ────────────────────────────────────────────────────
 # The official runner constructs ``ReasoningAgent(client=official_client)``
-# without a config, which resolves here.
-#
-# 2026-09-04 user-authorized default: FSDF owns the official solve path.
-# Code acceptance remains separate from any mathematical capability conclusion.
-SUBMISSION_CONFIG = AgentConfig(
-    policy_sample_times=1,
-    policy_temperature=0.6,
-    verifier_voting_times=0,
-    enable_dynamic_budget=False,
-    enable_l0_extended_tokens=True,
-    enable_task_aware_prompt=True,
-    enable_time_convergence=True,
-    enable_adaptive_voting=True,
-    vote_k_max=5,
-    vote_agree_threshold=3,
-    enable_verification_gated_retry=False,
-    enable_truncation_recovery_prompt=False,
-    max_model_calls=5,
-    max_tokens=4096,
-    l0_max_tokens=4096,
-    enable_heterogeneous_reasoners=True,
-    enable_step_verification=False,
-    enable_step_revision=False,
-    enable_method_rag=False,
-    enable_reference_rag=False,
-    enable_reference_skills=False,
-    enable_deterministic_solver=False,
-    enable_numeric_answer_first_prompt=True,
-    enable_numeric_answer_only_prompt=False,
-    enable_strict_numeric_salvage=False,
-    enable_conditional_token_retry=False,
-    enable_failure_retry_backoff=False,
-    enable_explicit_answer_conflict_retry=False,
-    enable_l2_routing=False,
-    enable_local_repair=False,
-    enable_uncertain_repair=False,
-    enable_sympy_evidence=False,
-    enable_temporary_answer_bank=False,
-    # Explicitly authorized submission profile: the outer Harness and its
-    # Deep lane is enabled without RAG/Skill context in the submission profile.
-    enable_constraint_fit_harness=True,
-    enable_constraint_fit_deep_lane=True,
-    enable_constraint_fit_hybrid_router=True,
-    harness_bank_mode="off",
-    # stateful_tail_completion_v1 stays off on the submission path until the
-    # preregistered P1 replay, P2 fidelity and capability gates pass.
-    enable_stateful_tail_completion=False,
-    enable_contextual_answer_reconstruction=False,
-    reconstruction_max_tokens=4096,
-    reconstruction_context_max_chars=12000,
-    # Official rollback profile: the verified FSDF v1 path owns solve().
-    # Newer FESF/Claim DSL capabilities remain available only to explicit
-    # experimental configs.
-    enable_fork_select_deepen_finish=True,
-    # Forward rollback to the FSDF v1 release anchor.  Candidate canaries are
-    # retained in code and remain opt-in for local arms only.
-    enable_fsdf_diagnostics_v2=False,
-    enable_fsdf_multiline_handoff_v2=False,
-    enable_fsdf_final_confirmation_v2=False,
-    enable_fsdf_finish_prompt_v2=False,
-    enable_fsdf_handoff_first_d=False,
-    enable_fsdf_d_result_to_e=False,
-    enable_fesf_v1=False,
-    enable_fesf_exact_eval=False,
-    enable_fesf_claim_dsl=False,
-)
+# without a config, which resolves here.  FSDF remains the default until an
+# explicit promotion gate authorizes an ARM mode.
+def build_arm_v212_base_config() -> AgentConfig:
+    """Build the shared ARM v2.1.2 configuration before mode selection."""
+    return _build_arm_v212_base_config(AgentConfig)
+
+
+ARM_V212_BASE_CONFIG = build_arm_v212_base_config()
+
+
+def build_submission_config(mode: str = "fsdf") -> AgentConfig:
+    """Build an official-equivalent FSDF or ARM v2.1.2 configuration."""
+    return _build_submission_config(mode, AgentConfig, arm_base=ARM_V212_BASE_CONFIG)
+
+
+SUBMISSION_CONFIG = build_submission_config("fsdf")
 
 
 class ReasoningAgent:

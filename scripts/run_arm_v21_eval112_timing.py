@@ -31,6 +31,7 @@ from reasoning_agent.profiles import (  # noqa: E402
     PROFILE_NAMES,
     build_profile_config,
 )
+from reasoning_agent.submission_diagnostics import legacy_model_calls  # noqa: E402
 from scripts.evaluate_dev import judge_correct  # noqa: E402
 from user_agent import ReasoningAgent  # noqa: E402
 
@@ -129,7 +130,7 @@ def _git_head() -> str | None:
         return None
 
 
-def _trace_fields(result: Mapping[str, Any]) -> dict[str, Any]:
+def _trace_fields(result: Mapping[str, Any], client: Any | None = None) -> dict[str, Any]:
     """Extract bounded timing fields from a harness trace."""
     trace = result.get("trace")
     events = trace if isinstance(trace, list) else []
@@ -167,13 +168,46 @@ def _trace_fields(result: Mapping[str, Any]) -> dict[str, Any]:
     timeout_count = sum(
         1 for call in calls if isinstance(call, Mapping) and call.get("error_category") == "timeout"
     )
+    legacy_event = next(
+        (
+            item
+            for item in events
+            if isinstance(item, Mapping) and item.get("stage") == "legacy_backend"
+        ),
+        {},
+    )
+    legacy_calls = legacy_model_calls(
+        legacy_event.get("legacy_trace") if isinstance(legacy_event, Mapping) else None
+    )
+    model_calls = int(budget.get("calls", len(calls))) if isinstance(budget, Mapping) else len(calls)
+    if model_calls == 0:
+        model_calls = legacy_calls
+    raw_wire_requests = getattr(client, "request_diagnostics", [])
+    wire_requests = [
+        {
+            key: request[key]
+            for key in (
+                "reasoning_mode",
+                "thinking_mode",
+                "status",
+                "error_category",
+                "finish_reason",
+                "completion_tokens",
+                "duration_seconds",
+            )
+            if key in request
+        }
+        for request in raw_wire_requests
+        if isinstance(request, Mapping)
+    ] if isinstance(raw_wire_requests, list) else []
     candidate_count = len(ledger.get("candidates", [])) if isinstance(ledger, Mapping) and isinstance(ledger.get("candidates"), list) else 0
     safe_fallback = bool(summary.get("safe_fallback_used")) or any(
         isinstance(item, Mapping) and item.get("stage") == "safe_candidate_fallback" for item in events
     )
     return {
-        "model_calls": int(budget.get("calls", len(calls))) if isinstance(budget, Mapping) else len(calls),
+        "model_calls": model_calls,
         "reasoning_modes": modes,
+        "wire_requests": wire_requests,
         "call_schema": call_schema,
         "timeout_count": timeout_count,
         "candidate_count": candidate_count,
@@ -474,7 +508,7 @@ def run_timing(
                     "final_failure_reason": f"runner_error:{type(exc).__name__}",
                     "trace": [{"stage": "runner_error", "error": type(exc).__name__}],
                 }
-            fields = _trace_fields(result)
+            fields = _trace_fields(result, client=client)
             complete = has_complete_answer(result)
             status = "complete" if complete else "error" if solve_error is not None else "incomplete"
             if not complete and not fields["final_failure_reason"]:

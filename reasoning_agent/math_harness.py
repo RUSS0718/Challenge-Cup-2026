@@ -192,7 +192,7 @@ class HarnessConfig:
             raise ValueError("max_wall_seconds must be positive")
         if self.arm_harness_version not in {"v1", "v2"}:
             raise ValueError("invalid_arm_harness_version")
-        if self.arm_solver_reasoning_mode not in {"off", "on"}:
+        if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
             raise ValueError("invalid_arm_solver_reasoning_mode")
         if self.arm_trust_policy not in {"legacy", "evidence"}:
             raise ValueError("invalid_arm_trust_policy")
@@ -1064,6 +1064,7 @@ class ConstraintFitOrchestrator:
                     {
                         "method": METHOD_ID,
                         "stage": "legacy_backend",
+                        "backend": "fsdf_v1",
                         "status": "returned",
                         "legacy_trace": legacy_trace,
                     },
