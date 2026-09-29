@@ -65,6 +65,50 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
         self.assertIsNone(fields["resolver"]["resolver_decision"])
         self.assertEqual("candidate_a", fields["arm_v2_summary"]["final"]["source"])
 
+    def test_trace_fields_persist_only_bounded_call_schema_metadata(self):
+        """Keep response-schema lengths while excluding raw model content."""
+        fields = runner._trace_fields(
+            {
+                "trace": [
+                    {
+                        "stage": "evidence_ledger",
+                        "calls": [
+                            {
+                                "stage": "attempt_a",
+                                "status": "ok",
+                                "reasoning_mode": "off",
+                                "finish_reason": "stop",
+                                "completion_tokens": 7,
+                                "has_reasoning_content": True,
+                                "reasoning_content_chars": 11,
+                                "content_chars": 18,
+                                "response_text": "must not persist",
+                            }
+                        ],
+                        "budget": {
+                            "calls": 1,
+                            "records": [
+                                {
+                                    "stage": "attempt_a",
+                                    "status": "ok",
+                                    "reasoning_mode": "off",
+                                    "finish_reason": "stop",
+                                    "completion_tokens": 7,
+                                    "has_reasoning_content": True,
+                                    "reasoning_content_chars": 11,
+                                    "content_chars": 18,
+                                    "response_text": "must not persist",
+                                }
+                            ],
+                        },
+                    }
+                ]
+            }
+        )
+        self.assertEqual("stop", fields["call_schema"][0]["finish_reason"])
+        self.assertEqual(11, fields["call_schema"][0]["reasoning_content_chars"])
+        self.assertNotIn("response_text", fields["call_schema"][0])
+
     def test_second_sample_gain_loss_uses_paired_verdict_fields(self):
         report = runner.summarize_timing(
             [
@@ -114,10 +158,10 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
         self.assertEqual(0, report["correct_gain_from_second_sample"])
         self.assertEqual(0, report["correct_loss_from_second_sample"])
 
-    def _dataset(self, directory: Path) -> Path:
+    def _dataset(self, directory: Path, count: int = 112) -> Path:
         path = directory / "eval_112.json"
         path.write_text(
-            json.dumps([{"idx": i, "problem": f"problem {i}", "answer": "42"} for i in range(112)]),
+            json.dumps([{"idx": i, "problem": f"problem {i}", "answer": "42"} for i in range(count)]),
             encoding="utf-8",
         )
         return path
@@ -166,6 +210,44 @@ class ARMV21TimingRunnerTest(unittest.TestCase):
             manifest = json.loads((root / "artifacts" / "ARM-V21-TEST" / "run_manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("off", manifest["solver_reasoning_mode"])
             self.assertEqual(1, manifest["workers"])
+
+    def test_runner_accepts_a_fixed_thirty_item_dataset(self):
+        """Keep the same one-solve protocol usable for the Full-30 fixture."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset = self._dataset(root, count=30)
+            report = runner.run_timing(
+                profile="arm-v2.1.2-off",
+                run_id="ARM-V212-30-TEST",
+                dataset_path=dataset,
+                expected_records=30,
+                output_root=root / "artifacts",
+                client_factory=FakeClient,
+                agent_factory=FakeAgent,
+            )
+            self.assertEqual(30, report["records"])
+            self.assertEqual("ACCURACY_COMPLETE", report["disposition"])
+            manifest = json.loads(
+                (root / "artifacts" / "ARM-V212-30-TEST" / "run_manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(30, manifest["expected_records"])
+
+    def test_real_fixed_manifest_materializes_thirty_items_in_seed_order(self):
+        """Resolve the repository's three-pool manifest without sending gold to solve."""
+        rows = runner.load_dataset(
+            runner.ROOT / "sample_data" / "arm_fixed_items_30.json",
+            expected_records=30,
+            selection_seed=20260905,
+        )
+        self.assertEqual(30, len(rows))
+        self.assertEqual(
+            "set_c_hle_math:hle-66ecb2eb54baa602e636a457",
+            rows[0]["idx"],
+        )
+        self.assertTrue(all(isinstance(row.get("problem"), str) for row in rows))
+        self.assertTrue(all(isinstance(row.get("answer"), str) for row in rows))
 
     def test_incomplete_answer_is_recorded_and_next_item_runs_once(self):
         with tempfile.TemporaryDirectory() as directory:

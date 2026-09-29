@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from llm_client import InternChatClient  # noqa: E402
+from reasoning_agent.arm_dataset import expand_selection_manifest  # noqa: E402
 from reasoning_agent.artifacts import ArtifactManager  # noqa: E402
 from reasoning_agent.profiles import (  # noqa: E402
     ARM_V21_REQUEST_TIMEOUT_SECONDS,
@@ -47,44 +48,62 @@ def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def load_eval112(path: Path | str | None = None) -> list[dict[str, Any]]:
-    """Load 112 scoreable rows with unique ids, problem text, and gold answers."""
+def load_dataset(
+    path: Path | str | None = None,
+    *,
+    expected_records: int = EXPECTED_RECORDS,
+    error_prefix: str = "dataset",
+    selection_seed: int | None = None,
+) -> list[dict[str, Any]]:
+    """Load a fixed scoreable dataset with unique ids, problems, and gold answers."""
     dataset_path = EVAL112_PATH if path is None else Path(path)
     if dataset_path != EVAL112_PATH and not dataset_path.is_file():
-        raise RuntimeError(f"eval112_required:{dataset_path}")
+        raise RuntimeError(f"{error_prefix}_required:{dataset_path}")
     if not dataset_path.is_file():
-        raise RuntimeError("eval112_required:reasoning_agent/error_notebook/eval_112.json")
+        raise RuntimeError(f"{error_prefix}_required:{dataset_path}")
     try:
         payload = json.loads(dataset_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"eval112_invalid_json:{dataset_path}") from exc
+        raise RuntimeError(f"{error_prefix}_invalid_json:{dataset_path}") from exc
     if isinstance(payload, Mapping):
-        payload = payload.get("records", payload.get("items"))
-    if not isinstance(payload, list) or len(payload) != EXPECTED_RECORDS:
-        raise RuntimeError(f"eval112_count_required:{EXPECTED_RECORDS}")
+        if "records" in payload or "items" in payload:
+            payload = payload.get("records", payload.get("items"))
+        else:
+            payload = expand_selection_manifest(
+                payload,
+                pool_root=dataset_path.parent / "external_hard_sets",
+                seed=selection_seed,
+            )
+    if not isinstance(payload, list) or len(payload) != int(expected_records):
+        raise RuntimeError(f"{error_prefix}_count_required:{expected_records}")
     rows: list[dict[str, Any]] = []
     ids: set[Any] = set()
     for row in payload:
         if not isinstance(row, Mapping):
-            raise RuntimeError("eval112_row_must_be_object")
+            raise RuntimeError(f"{error_prefix}_row_must_be_object")
         idx = row.get("idx")
         problem = row.get("problem")
         try:
             duplicate = idx in ids
             ids.add(idx)
         except TypeError as exc:
-            raise RuntimeError("eval112_idx_must_be_hashable") from exc
+            raise RuntimeError(f"{error_prefix}_idx_must_be_hashable") from exc
         if duplicate:
-            raise RuntimeError("eval112_idx_must_be_unique")
+            raise RuntimeError(f"{error_prefix}_idx_must_be_unique")
         if idx is None:
-            raise RuntimeError("eval112_idx_required")
+            raise RuntimeError(f"{error_prefix}_idx_required")
         if not isinstance(problem, str) or not problem.strip():
-            raise RuntimeError("eval112_problem_must_be_non_empty")
+            raise RuntimeError(f"{error_prefix}_problem_must_be_non_empty")
         answer = row.get("answer")
         if not isinstance(answer, str) or not answer.strip():
-            raise RuntimeError("eval112_answer_must_be_non_empty")
+            raise RuntimeError(f"{error_prefix}_answer_must_be_non_empty")
         rows.append(dict(row))
     return rows
+
+
+def load_eval112(path: Path | str | None = None) -> list[dict[str, Any]]:
+    """Load the canonical 112-row evaluation dataset."""
+    return load_dataset(path, expected_records=EXPECTED_RECORDS, error_prefix="eval112")
 
 
 def has_complete_answer(result: Mapping[str, Any] | None) -> bool:
@@ -118,9 +137,32 @@ def _trace_fields(result: Mapping[str, Any]) -> dict[str, Any]:
     summary = next((item for item in events if isinstance(item, Mapping) and item.get("stage") == "arm_v2_summary"), {})
     finalize = next((item for item in events if isinstance(item, Mapping) and item.get("stage") == "finalize"), {})
     budget = ledger.get("budget", {}) if isinstance(ledger, Mapping) else {}
-    calls = budget.get("records", []) if isinstance(budget, Mapping) else []
+    ledger_calls = ledger.get("calls", []) if isinstance(ledger, Mapping) else []
+    calls = ledger_calls if isinstance(ledger_calls, list) and ledger_calls else (
+        budget.get("records", []) if isinstance(budget, Mapping) else []
+    )
     if not isinstance(calls, list):
         calls = []
+    call_schema = [
+        {
+            key: call[key]
+            for key in (
+                "stage",
+                "status",
+                "reasoning_mode",
+                "finish_reason",
+                "completion_tokens",
+                "has_reasoning_content",
+                "reasoning_content_chars",
+                "content_chars",
+                "error_category",
+                "duration_ms",
+            )
+            if key in call
+        }
+        for call in calls
+        if isinstance(call, Mapping)
+    ]
     modes = [call.get("reasoning_mode") for call in calls if isinstance(call, Mapping) and call.get("reasoning_mode")]
     timeout_count = sum(
         1 for call in calls if isinstance(call, Mapping) and call.get("error_category") == "timeout"
@@ -132,6 +174,7 @@ def _trace_fields(result: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "model_calls": int(budget.get("calls", len(calls))) if isinstance(budget, Mapping) else len(calls),
         "reasoning_modes": modes,
+        "call_schema": call_schema,
         "timeout_count": timeout_count,
         "candidate_count": candidate_count,
         "final_source": summary.get("final_source") or finalize.get("source"),
@@ -197,7 +240,11 @@ def _percentile(values: Iterable[float], percentile: float) -> float | None:
     return ordered[min(len(ordered), rank) - 1]
 
 
-def summarize_timing(rows: list[Mapping[str, Any]], total_wall_seconds: float) -> dict[str, Any]:
+def summarize_timing(
+    rows: list[Mapping[str, Any]],
+    total_wall_seconds: float,
+    expected_records: int = EXPECTED_RECORDS,
+) -> dict[str, Any]:
     """Summarize every item, retaining incomplete/error denominators."""
     durations = [float(row.get("duration_seconds", 0.0)) for row in rows]
     calls = [int(row.get("model_calls", 0) or 0) for row in rows]
@@ -296,9 +343,9 @@ def summarize_timing(rows: list[Mapping[str, Any]], total_wall_seconds: float) -
         },
         "disposition": (
             "ACCURACY_COMPLETE"
-            if len(rows) == EXPECTED_RECORDS and complete == EXPECTED_RECORDS
+            if len(rows) == expected_records and complete == expected_records
             else "RUN_COMPLETE_WITH_INCOMPLETE"
-            if len(rows) == EXPECTED_RECORDS
+            if len(rows) == expected_records
             else "INCOMPLETE"
         ),
         "submission_promotion": "NONE",
@@ -312,13 +359,23 @@ def run_timing(
     run_id: str,
     dataset_path: Path | str | None = None,
     output_root: Path | str = ROOT / "artifacts",
+    expected_records: int | None = None,
+    selection_seed: int | None = None,
     client_factory: ClientFactory | None = None,
     agent_factory: AgentFactory = ReasoningAgent,
 ) -> dict[str, Any]:
     """Run eval112 serially with exactly one solve attempt per item."""
     profile = profile.strip().lower()
     dataset_path = EVAL112_PATH if dataset_path is None else dataset_path
-    rows = load_eval112(dataset_path)
+    expected_records = EXPECTED_RECORDS if expected_records is None else int(expected_records)
+    if expected_records < 1:
+        raise ValueError("expected_records_must_be_positive")
+    rows = load_dataset(
+        dataset_path,
+        expected_records=expected_records,
+        error_prefix="eval112" if expected_records == EXPECTED_RECORDS else "dataset",
+        selection_seed=selection_seed,
+    )
     config = build_profile_config(profile)
     if profile not in PROFILE_NAMES:
         raise ValueError(f"unknown_profile:{profile}")
@@ -360,6 +417,8 @@ def run_timing(
         "dataset_path": str(dataset.relative_to(ROOT)).replace("\\", "/") if dataset.is_relative_to(ROOT) else str(dataset),
         "dataset_hash": hashlib.sha256(dataset.read_bytes()).hexdigest(),
         "record_count": len(rows),
+        "expected_records": expected_records,
+        "selection_seed": selection_seed,
         "solver_reasoning_mode": config.arm_solver_reasoning_mode,
         "max_tokens": config.harness_attempt_a_max_tokens,
         "token_budget": config.arm_adaptive_token_budget,
@@ -484,25 +543,28 @@ def run_timing(
                 "current_idx": None,
                 "status": "running",
             })
-            manager.save_json("metrics.json", summarize_timing(all_rows, time.perf_counter() - started))
+            manager.save_json(
+                "metrics.json",
+                summarize_timing(all_rows, time.perf_counter() - started, expected_records),
+            )
             if client_factory is None:
                 print(json.dumps({"run_id": run_id, "idx": idx, "status": status, "verdict": verdict, "completed": len(completed_ids)}, ensure_ascii=False), flush=True)
     except KeyboardInterrupt:
-        report = summarize_timing(all_rows, time.perf_counter() - started)
+        report = summarize_timing(all_rows, time.perf_counter() - started, expected_records)
         report["status"] = "interrupted"
         manifest.update({"ended_at": _now_utc(), "status": "interrupted"})
         manager.save_json("metrics.json", report)
         manager.save_manifest(manifest)
         raise
     except RuntimeError:
-        report = summarize_timing(all_rows, time.perf_counter() - started)
+        report = summarize_timing(all_rows, time.perf_counter() - started, expected_records)
         report["status"] = "blocked"
         manifest.update({"ended_at": _now_utc(), "status": "blocked"})
         manager.save_json("metrics.json", report)
         manager.save_manifest(manifest)
         raise
 
-    report = summarize_timing(all_rows, time.perf_counter() - started)
+    report = summarize_timing(all_rows, time.perf_counter() - started, expected_records)
     report.update({"status": "completed" if len(completed_ids) == len(rows) else "incomplete"})
     ended_at = _now_utc()
     manifest.update({"ended_at": ended_at, "status": report["status"]})
@@ -530,8 +592,25 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", required=True, choices=PROFILE_NAMES)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--dataset-path", type=Path, default=EVAL112_PATH)
+    parser.add_argument("--expected-records", type=int, default=None)
+    parser.add_argument("--selection-seed", type=int, default=None)
+    parser.add_argument("--output-root", type=Path, default=ROOT / "artifacts")
     args = parser.parse_args()
-    print(json.dumps(run_timing(profile=args.profile, run_id=args.run_id), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            run_timing(
+                profile=args.profile,
+                run_id=args.run_id,
+                dataset_path=args.dataset_path,
+                expected_records=args.expected_records,
+                selection_seed=args.selection_seed,
+                output_root=args.output_root,
+            ),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
