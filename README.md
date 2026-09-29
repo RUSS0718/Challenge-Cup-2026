@@ -5,8 +5,8 @@
 Constraint-Fit Harness（Direct/Deep/FSDF fallback）→ 规范化输出，同时保持赛事
 规定的单文件入口与公开 client 契约。
 
-> 当前状态（2026-09-21）：默认提交路径关闭 reference-example RAG、Skill 和答案 bank，
-> 先做题型/答案形态分类，再进入 Constraint-Fit/FSDF。CAR、FESF、Claim DSL、Host Loop、
+> 当前状态（2026-09-29）：正式无参提交 selector 为 ARM v2.1.3 OFF，关闭 reference-example
+> RAG、Skill 和答案 bank；FSDF 作为显式 baseline 保留。CAR、FESF、Claim DSL、Host Loop、
 > 工具和 MCP 保留为显式实验层，不属于默认路径。
 
 ## 当前 Agent 架构
@@ -54,7 +54,8 @@ flowchart TD
 
 ### Contextual Answer Reconstruction 历史实验路径
 
-该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用 FSDF。
+该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用
+`SUBMISSION_MODE=arm-v2.1.3-off`，FSDF 仅作为显式 baseline。
 
 ## 项目架构与发布流
 
@@ -118,8 +119,8 @@ flowchart LR
 官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到当前分支的
 `SUBMISSION_CONFIG`：reference-example RAG 与 Skill 保持关闭，先做题型/学科分类，随后由 Constraint-Fit Router 分流，
 direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fallback。
-当前这是分支上的显式 canary 配置；Deep formation 与 Direct Health 均未过健康门，
-尚未形成能力 A/B 证据，main 发布面不随此分支自动改变。
+当前正式 selector 为 `arm-v2.1.3-off`；Deep formation 与 Direct Health 的历史健康门
+结论仍然保留，不能从本次配置切换推导新的能力或成绩结论。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
@@ -141,20 +142,22 @@ direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fa
 
 ### Official-equivalent submission modes
 
-`SUBMISSION_CONFIG` is built by `build_submission_config("fsdf")`; therefore
-the official no-config entry remains the FSDF baseline:
+The formal submission has one selector; the booleans below are only derived
+implementation details:
 
 ```python
 from user_agent import ReasoningAgent, build_submission_config
 
-agent = ReasoningAgent(client=official_client)  # config=None -> FSDF
-arm_config = build_submission_config("arm-v2.1.2-adaptive")
-local_agent = ReasoningAgent(client=official_client, config=arm_config)
+SUBMISSION_MODE = "arm-v2.1.3-off"
+SUBMISSION_CONFIG = build_submission_config(SUBMISSION_MODE)
+agent = ReasoningAgent(client=official_client)  # config=None -> SUBMISSION_MODE
 ```
 
-The ARM OFF/ON/adaptive profiles and the submission ARM builder share one
-v2.1.2 base.  Local profiles are not submission evidence until the promotion
-runner passes its explicit gate.
+Allowed values include `fsdf`, the v2.1.2 ARM modes, and the explicit
+v2.1.3 modes `arm-v2.1.3-off`, `arm-v2.1.3-on`, and
+`arm-v2.1.3-adaptive`. The current authorized selector is
+`arm-v2.1.3-off`; the promotion runner's A arm remains a fixed FSDF baseline
+and is independent of the formal selector.
 
 ## 赛事接口
 
@@ -247,7 +250,8 @@ telemetry；Primary/Second 要求显式 `Final answer:` 终答，`answers.jsonl`
 不保存完整内容。数据集缺失、答案字段缺失或记录数不符合 `--expected-records` 时 runner
 会直接失败。本地结果不自动触发提交晋升。
 
-v2.1.3 保持 default-off，新增 `arm-v2.1.3-off`、`arm-v2.1.3-on`、
+v2.1.3 的正式 selector 为 `arm-v2.1.3-off`，另有显式实验模式
+`arm-v2.1.3-on`、
 `arm-v2.1.3-adaptive` 和 `arm-v2.1.3-forced-ab`。它们使用正证据 Trust Gate、
 structured backend 归因、ON continuation/OFF recovery 和 response-free
 false-trusted-primary 统计；forced A/B 不使用 Early Stop 或 Resolver：
@@ -280,7 +284,8 @@ gate 默认要求正确数不低于 FSDF、invalid 不增加、runner error 不�
 
 ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
 profile 会显式发送 `thinking_mode=true`，运行前应按冻结实验协议检查 endpoint 健康。
-默认 `SUBMISSION_CONFIG` 不启用 ARM，代码路径不代表数学能力或官方成绩提升。
+当前 `SUBMISSION_CONFIG` 启用 ARM v2.1.3 OFF；代码路径不代表数学能力或官方成绩提升，
+正式成绩仍需独立官方评测。
 
 该开关只影响本地 `main.py` runner；官方仍通过
 `ReasoningAgent(client=official_client)` 使用 `SUBMISSION_CONFIG`，不会被本地
@@ -310,10 +315,10 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 ## 当前路线
 
-- **当前 checkout**：Constraint-Fit Harness 的 Direct/Deep/FSDF fallback seam；
-  reference RAG、Skill、答案 bank 和历史候选均默认关闭，尚未形成新的数学能力结论。
+- **当前 checkout**：ARM v2.1.3 OFF 位于 Constraint-Fit Harness 的 Direct/Deep/FSDF fallback seam；
+  reference RAG、Skill、答案 bank 和历史候选均关闭，尚未形成新的数学能力结论。
 - **历史运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`），仅作为历史发布/回滚参照。
-- **发布状态**：当前是本地整理分支，未自动改变 GitCode/main 或赛事作品；远端发布面单独记录。
+- **发布状态**：官方无参入口切换到 ARM v2.1.3 OFF；远端分支状态以发布后的 ref 审计为准。
 - **已归档/排除**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
   P1 salvage、G 门控、TIR/回代验证、32k 天花板。
 - **暂不引入**:LLM-as-judge 本地判分、PRM 组件、LangGraph/AgentScope、

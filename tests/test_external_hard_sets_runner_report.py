@@ -352,12 +352,13 @@ class ArmSupportTest(unittest.TestCase):
         self.assertIs(arm_thinking_mode("fesf_v1_tkoff_exact_eval"), False)
         self.assertIs(arm_thinking_mode("fesf_v1_tkoff_claim_dsl"), False)
 
-    def test_submission_profile_equals_v1_anchor_arm(self):
-        # The official profile follows the FSDF v1 rollback anchor; canaries
-        # remain explicit arm-only candidates.
-        from user_agent import SUBMISSION_CONFIG
+    def test_v1_anchor_remains_explicit_fsdf_baseline(self):
+        # The historical v1 anchor must not inherit a promoted submission
+        # selector; canaries remain explicit arm-only candidates.
+        from user_agent import SUBMISSION_CONFIG, build_submission_config
 
-        self.assertEqual(asdict(arm_config("v1")), asdict(SUBMISSION_CONFIG))
+        self.assertEqual(asdict(arm_config("v1")), asdict(build_submission_config("fsdf")))
+        self.assertNotEqual(asdict(arm_config("v1")), asdict(SUBMISSION_CONFIG))
         self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
         self.assertFalse(SUBMISSION_CONFIG.enable_fesf_v1)
         self.assertFalse(SUBMISSION_CONFIG.enable_fesf_exact_eval)

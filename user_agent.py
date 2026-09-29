@@ -5,9 +5,10 @@ import math
 import re
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
 from reasoning_agent.submission_config import (
+    SUBMISSION_ARM_V213_OFF,
     build_arm_v212_base_config as _build_arm_v212_base_config,
     build_submission_config as _build_submission_config,
 )
@@ -604,8 +605,11 @@ class AgentConfig:
 
 # ── Submission profile ────────────────────────────────────────────────────
 # The official runner constructs ``ReasoningAgent(client=official_client)``
-# without a config, which resolves here.  FSDF remains the default until an
-# explicit promotion gate authorizes an ARM mode.
+# without a config, which resolves here.  The FSDF baseline remains available
+# through an explicit selector for historical comparisons and rollback.
+SUBMISSION_MODE: Final = SUBMISSION_ARM_V213_OFF
+
+
 def build_arm_v212_base_config() -> AgentConfig:
     """Build the shared ARM v2.1.2 configuration before mode selection."""
     return _build_arm_v212_base_config(AgentConfig)
@@ -614,12 +618,12 @@ def build_arm_v212_base_config() -> AgentConfig:
 ARM_V212_BASE_CONFIG = build_arm_v212_base_config()
 
 
-def build_submission_config(mode: str = "fsdf") -> AgentConfig:
-    """Build an official-equivalent FSDF or ARM v2.1.2 configuration."""
+def build_submission_config(mode: str = SUBMISSION_MODE) -> AgentConfig:
+    """Build an official-equivalent FSDF, v2.1.2, or v2.1.3 configuration."""
     return _build_submission_config(mode, AgentConfig, arm_base=ARM_V212_BASE_CONFIG)
 
 
-SUBMISSION_CONFIG = build_submission_config("fsdf")
+SUBMISSION_CONFIG = build_submission_config(SUBMISSION_MODE)
 
 
 class ReasoningAgent:

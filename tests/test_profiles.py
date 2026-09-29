@@ -20,13 +20,14 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V21_OFF_SKILL,
     PROFILE_ARM_V212_OFF,
     PROFILE_ARM_V212_ON,
+    PROFILE_ARM_V212_ADAPTIVE,
+    PROFILE_ARM_V212_OFF_SKILL,
     PROFILE_ARM_V213_OFF,
     PROFILE_ARM_V213_ON,
     PROFILE_ARM_V213_ADAPTIVE,
     PROFILE_ARM_V213_FORCED_AB,
     PROFILE_ARM_V213_OFF_SKILL,
-    PROFILE_ARM_V212_ADAPTIVE,
-    PROFILE_ARM_V212_OFF_SKILL,
+    PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
     build_profile_config,
@@ -41,11 +42,7 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual(
             (
                 PROFILE_SUBMISSION,
-                PROFILE_ARM_V213_OFF,
-                PROFILE_ARM_V213_ON,
-                PROFILE_ARM_V213_ADAPTIVE,
-                PROFILE_ARM_V213_FORCED_AB,
-                PROFILE_ARM_V213_OFF_SKILL,
+                PROFILE_FSDF_BASELINE,
                 PROFILE_AGENT_DEFAULT,
                 PROFILE_ARM_OFF,
                 PROFILE_ARM_ON,
@@ -62,6 +59,11 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V212_ON,
                 PROFILE_ARM_V212_ADAPTIVE,
                 PROFILE_ARM_V212_OFF_SKILL,
+                PROFILE_ARM_V213_OFF,
+                PROFILE_ARM_V213_ON,
+                PROFILE_ARM_V213_ADAPTIVE,
+                PROFILE_ARM_V213_FORCED_AB,
+                PROFILE_ARM_V213_OFF_SKILL,
             ),
             available_profiles(),
         )
@@ -72,6 +74,12 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual(config, SUBMISSION_CONFIG)
         config.enable_fork_select_deepen_finish = False
         self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
+
+    def test_fsdf_baseline_profile_is_independent_from_submission_mode(self):
+        config = build_profile_config(PROFILE_FSDF_BASELINE)
+        self.assertIsNot(config, SUBMISSION_CONFIG)
+        self.assertEqual("v1", config.arm_harness_version)
+        self.assertTrue(config.enable_fork_select_deepen_finish)
 
     def test_agent_default_disables_experimental_routes(self):
         config = build_profile_config(PROFILE_AGENT_DEFAULT)
@@ -93,7 +101,7 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("deep_on", on.arm_default_lane)
         self.assertEqual("static", static.arm_default_lane)
         self.assertEqual("adaptive", adaptive.arm_default_lane)
-        self.assertFalse(SUBMISSION_CONFIG.enable_arm_harness)
+        self.assertEqual(build_profile_config(PROFILE_SUBMISSION), SUBMISSION_CONFIG)
 
     def test_arm_v2_profiles_are_experiment_only(self):
         single = build_profile_config(PROFILE_ARM_V2_SINGLE)
@@ -108,11 +116,24 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("long_timeout", long_timeout.arm_v2_mode)
         self.assertEqual("salvage", salvage.arm_v2_mode)
         self.assertEqual("compact_salvage", salvage.arm_timeout_recovery_mode)
-        self.assertEqual("v1", SUBMISSION_CONFIG.arm_harness_version)
+        self.assertEqual(build_profile_config(PROFILE_SUBMISSION), SUBMISSION_CONFIG)
 
     def test_unknown_profile_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "unknown_profile"):
             build_profile_config("not-a-profile")
+
+    def test_v213_profiles_match_the_authorized_submission_off_mode(self):
+        off = build_profile_config(PROFILE_ARM_V213_OFF)
+        on = build_profile_config(PROFILE_ARM_V213_ON)
+        adaptive = build_profile_config(PROFILE_ARM_V213_ADAPTIVE)
+        forced = build_profile_config(PROFILE_ARM_V213_FORCED_AB)
+        self.assertEqual("v2.1.3", off.arm_harness_version)
+        self.assertEqual("positive_evidence", off.arm_trust_policy)
+        self.assertEqual("positive_evidence", on.arm_trust_policy)
+        self.assertEqual("adaptive", adaptive.arm_solver_reasoning_mode)
+        self.assertTrue(forced.arm_force_ab_diagnostic)
+        self.assertTrue(SUBMISSION_CONFIG.enable_arm_harness)
+        self.assertEqual(build_profile_config(PROFILE_ARM_V213_OFF), SUBMISSION_CONFIG)
 
     def test_main_parser_accepts_profile_switch(self):
         argv = [

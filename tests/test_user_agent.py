@@ -26,7 +26,8 @@ class FakeClient:
         self.responses = iter(responses)
         self.calls = []
 
-    def chat(self, messages, temperature, max_tokens):
+    def chat(self, messages, temperature, max_tokens, **kwargs):
+        del kwargs
         self.calls.append((messages, temperature, max_tokens))
         response = next(self.responses)
         if isinstance(response, Exception):
@@ -1165,11 +1166,11 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertEqual(2, config.max_model_calls)
 
     def test_agent_without_config_uses_submission_profile(self):
-        client = FakeClient(["最终答案：7"])
+        client = FakeClient(["Final answer: 7", "Final answer: 7"])
         agent = ReasoningAgent(client)
         result = agent.solve(self.PROBLEM, {})
         self.assertEqual("7", result["extracted_answer"])
-        self.assertEqual(1, len(client.calls))
+        self.assertEqual(2, len(client.calls))
         self.assertEqual("finalize", result["trace"][-1]["stage"])
         self.assertEqual("bounded_evidence_trajectory_selection_v1", result["trace"][-1]["method"])
 

@@ -7,10 +7,12 @@ agent constructor.  These profiles only provide an explicit local selector.
 from dataclasses import replace
 from typing import Final
 
-from user_agent import AgentConfig, SUBMISSION_CONFIG, build_submission_config
+from reasoning_agent.submission_config import SUBMISSION_FSDF
+from user_agent import AgentConfig, SUBMISSION_CONFIG, SUBMISSION_MODE, build_submission_config
 
 
 PROFILE_SUBMISSION: Final = "submission"
+PROFILE_FSDF_BASELINE: Final = "fsdf"
 PROFILE_AGENT_DEFAULT: Final = "agent-default"
 PROFILE_ARM_OFF: Final = "arm-off"
 PROFILE_ARM_ON: Final = "arm-on"
@@ -35,6 +37,7 @@ PROFILE_ARM_V213_OFF_SKILL: Final = "arm-v2.1.3-off-skill"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
+    PROFILE_FSDF_BASELINE,
     PROFILE_AGENT_DEFAULT,
     PROFILE_ARM_OFF,
     PROFILE_ARM_ON,
@@ -133,7 +136,9 @@ def build_profile_config(profile: str) -> AgentConfig:
 
     normalized = profile.strip().lower()
     if normalized == PROFILE_SUBMISSION:
-        return build_submission_config("fsdf")
+        return build_submission_config(SUBMISSION_MODE)
+    if normalized == PROFILE_FSDF_BASELINE:
+        return build_submission_config(SUBMISSION_FSDF)
     if normalized == PROFILE_AGENT_DEFAULT:
         return AgentConfig()
     arm_profiles = {

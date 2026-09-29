@@ -15,13 +15,20 @@ SUBMISSION_FSDF: Final = "fsdf"
 SUBMISSION_ARM_V212_OFF: Final = "arm-v2.1.2-off"
 SUBMISSION_ARM_V212_ON: Final = "arm-v2.1.2-on"
 SUBMISSION_ARM_V212_ADAPTIVE: Final = "arm-v2.1.2-adaptive"
+SUBMISSION_ARM_V213_OFF: Final = "arm-v2.1.3-off"
+SUBMISSION_ARM_V213_ON: Final = "arm-v2.1.3-on"
+SUBMISSION_ARM_V213_ADAPTIVE: Final = "arm-v2.1.3-adaptive"
 SUBMISSION_MODES: Final = (
     SUBMISSION_FSDF,
     SUBMISSION_ARM_V212_OFF,
     SUBMISSION_ARM_V212_ON,
     SUBMISSION_ARM_V212_ADAPTIVE,
+    SUBMISSION_ARM_V213_OFF,
+    SUBMISSION_ARM_V213_ON,
+    SUBMISSION_ARM_V213_ADAPTIVE,
 )
 ARM_V212_MODES: Final = ("off", "on", "adaptive")
+ARM_V213_MODES: Final = ("off", "on", "adaptive")
 ConfigFactory = Callable[..., Any]
 
 
@@ -103,6 +110,17 @@ def build_arm_v212_base_config(config_factory: ConfigFactory) -> Any:
     )
 
 
+def build_arm_v213_base_config(config_factory: ConfigFactory) -> Any:
+    """Build the explicit v2.1.3 base used only by authorized modes."""
+    return replace(
+        build_arm_v212_base_config(config_factory),
+        arm_harness_version="v2.1.3",
+        arm_trust_policy="positive_evidence",
+        arm_off_recovery_max_tokens=4096,
+        arm_force_ab_diagnostic=False,
+    )
+
+
 def build_submission_config(
     mode: str,
     config_factory: ConfigFactory,
@@ -125,7 +143,16 @@ def build_submission_config(
         choices = ", ".join(SUBMISSION_MODES)
         raise ValueError(f"unknown_submission_mode:{mode!r}; choose one of: {choices}")
 
-    base = arm_base if arm_base is not None else build_arm_v212_base_config(config_factory)
+    is_v213 = normalized in {
+        SUBMISSION_ARM_V213_OFF,
+        SUBMISSION_ARM_V213_ON,
+        SUBMISSION_ARM_V213_ADAPTIVE,
+    }
+    base = (
+        build_arm_v213_base_config(config_factory)
+        if is_v213
+        else arm_base if arm_base is not None else build_arm_v212_base_config(config_factory)
+    )
     arm_mode = normalized.rsplit("-", 1)[-1]
     return replace(
         base,
@@ -136,11 +163,16 @@ def build_submission_config(
 
 __all__ = [
     "ARM_V212_MODES",
+    "ARM_V213_MODES",
     "SUBMISSION_ARM_V212_ADAPTIVE",
     "SUBMISSION_ARM_V212_OFF",
     "SUBMISSION_ARM_V212_ON",
+    "SUBMISSION_ARM_V213_ADAPTIVE",
+    "SUBMISSION_ARM_V213_OFF",
+    "SUBMISSION_ARM_V213_ON",
     "SUBMISSION_FSDF",
     "SUBMISSION_MODES",
     "build_arm_v212_base_config",
+    "build_arm_v213_base_config",
     "build_submission_config",
 ]

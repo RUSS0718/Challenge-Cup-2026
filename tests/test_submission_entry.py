@@ -9,6 +9,7 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V212_ADAPTIVE,
     PROFILE_ARM_V212_OFF,
     PROFILE_ARM_V212_ON,
+    PROFILE_FSDF_BASELINE,
     build_profile_config,
     build_submission_arm_config,
 )
@@ -16,6 +17,7 @@ from user_agent import (
     ARM_V212_BASE_CONFIG,
     ReasoningAgent,
     SUBMISSION_CONFIG,
+    SUBMISSION_MODE,
     build_submission_config,
 )
 
@@ -98,9 +100,24 @@ class SubmissionEntryTest(unittest.TestCase):
             {key: value for key, value in off.items() if key not in allowed},
         )
 
-    def test_official_default_remains_fsdf(self):
-        self.assertFalse(SUBMISSION_CONFIG.enable_arm_harness)
-        self.assertEqual("v1", SUBMISSION_CONFIG.arm_harness_version)
+    def test_official_config_is_derived_from_one_mode_selector(self):
+        self.assertIn(
+            SUBMISSION_MODE,
+            {
+                "fsdf",
+                "arm-v2.1.2-off",
+                "arm-v2.1.2-on",
+                "arm-v2.1.2-adaptive",
+                "arm-v2.1.3-off",
+                "arm-v2.1.3-on",
+                "arm-v2.1.3-adaptive",
+            },
+        )
+        self.assertEqual(SUBMISSION_CONFIG, build_submission_config(SUBMISSION_MODE))
+        self.assertEqual(
+            build_submission_config("fsdf"),
+            build_profile_config(PROFILE_FSDF_BASELINE),
+        )
 
 
 if __name__ == "__main__":

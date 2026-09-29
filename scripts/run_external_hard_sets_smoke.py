@@ -43,6 +43,7 @@ from user_agent import (
     COD_NUMERIC_PROMPT,
     SUBMISSION_CONFIG,
     ReasoningAgent,
+    build_submission_config,
     extract_answer_first,
     extract_final_answer,
 )
@@ -352,8 +353,8 @@ def client_diagnostics(
 
 
 # ── Dual-arm support: same-window interleaved arms on the frozen pools ──
-# `v1` is the untouched submission profile (FSDF v1 anchor).  `v2` turns on the
-# four FSDF-RELIABILITY-V2 candidate flags on top of the same profile.  `v2hd`
+# `v1` is the explicit FSDF v1 anchor.  `v2` turns on the four
+# FSDF-RELIABILITY-V2 candidate flags on top of the same profile.  `v2hd`
 # additionally turns on fsdf_handoff_first_d_v1 (D prompt only).  These are
 # exploratory diagnostic arms; combined arms are NOT attributable per variable
 # and produce no capability conclusion by themselves.
@@ -386,9 +387,7 @@ FSDF_CANDIDATE_FLAGS = (
 
 
 def _arm_overrides(enabled: tuple[str, ...] = ()) -> dict[str, bool]:
-    """Pin every candidate flag explicitly so arm semantics survive any
-    future SUBMISSION_CONFIG drift (arms are defined relative to the
-    submission profile with all candidate flags forced, not inherited)."""
+    """Pin every candidate flag so historical arms stay independent."""
     return {"enable_current_cod_numeric": False,
             **{flag: False for flag in FSDF_CANDIDATE_FLAGS},
             **{flag: True for flag in enabled}}
@@ -548,8 +547,8 @@ ARM_DEFINITIONS: dict[str, dict[str, Any]] = {
 
 # ARM-HARNESS-V1 profiles.  They share the same outer harness and bank-off
 # policy; only the request-level reasoning-mode lane differs.  Keeping these
-# definitions here lets the runner clone SUBMISSION_CONFIG without mutating
-# the official default path.
+# definitions here lets the runner clone the explicit FSDF baseline without
+# mutating or inheriting the official submission path.
 ARM_HARNESS_BASE = {
     **_arm_overrides(),
     "enable_constraint_fit_harness": True,
@@ -650,7 +649,8 @@ ARM_DEFINITIONS.update({
 def arm_config(arm: str) -> Any:
     if arm not in ARM_DEFINITIONS:
         raise ValueError(f"unknown arm: {arm} (available: {', '.join(ARM_DEFINITIONS)})")
-    return dataclasses.replace(SUBMISSION_CONFIG, **ARM_DEFINITIONS[arm])
+    base = build_submission_config("fsdf")
+    return dataclasses.replace(base, **ARM_DEFINITIONS[arm])
 
 
 # Per-arm client-level thinking switch: None = server default (env), False =
