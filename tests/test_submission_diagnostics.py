@@ -48,6 +48,30 @@ class SubmissionDiagnosticsTest(unittest.TestCase):
         self.assertEqual([True], diagnostics["wire_thinking_modes"])
         self.assertTrue(diagnostics["primary_thinking_mode"])
 
+    def test_v213_projection_marks_false_trusted_primary_offline(self):
+        diagnostics = compact_submission_diagnostics(
+            {
+                "arm_v2_summary": {
+                    "early_stop": True,
+                    "trust_decision": {
+                        "trusted": True,
+                        "reason": "direct_simple_positive_evidence",
+                    },
+                    "candidate_generation": {"backend": "direct_solver"},
+                },
+                "primary_candidate_complete": True,
+                "second_sample_triggered": False,
+                "resolver_triggered": False,
+                "baseline_verdict": "incorrect",
+                "verdict": "incorrect",
+            },
+            "arm-v2.1.3-off",
+        )
+        self.assertEqual("arm_v2.1.3", diagnostics["harness"])
+        self.assertTrue(diagnostics["false_trusted_primary"])
+        self.assertEqual("incorrect_local_eval", diagnostics["primary_math_status"])
+        self.assertEqual("direct_solver", diagnostics["candidate_generation"]["backend"])
+
     def test_integrity_rejects_missing_or_duplicate_items(self):
         self.assertTrue(
             check_record_integrity([{"idx": 1}, {"idx": 2}], {1, 2})["integrity_passed"]

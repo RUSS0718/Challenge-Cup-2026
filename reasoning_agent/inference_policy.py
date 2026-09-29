@@ -56,6 +56,7 @@ class CandidateTrustDecision:
     confidence: CandidateConfidence
     needs_second_sample: bool
     reason: str
+    positive_evidence: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

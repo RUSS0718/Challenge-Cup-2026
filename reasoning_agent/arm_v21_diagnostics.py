@@ -34,6 +34,7 @@ def candidate_diagnostics(candidate: Any) -> dict[str, Any] | None:
         "answer_complete_reason": str(getattr(candidate, "answer_complete_reason", ""))[:240],
         "trust": str(getattr(candidate, "trust_confidence", "unknown")),
         "trust_reason": str(getattr(candidate, "trust_reason", ""))[:240],
+        "positive_evidence": list(getattr(candidate, "positive_evidence", ()))[:4],
     }
 
 

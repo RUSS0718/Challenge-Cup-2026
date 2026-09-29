@@ -164,6 +164,8 @@ class HarnessConfig:
     arm_primary_prompt_variant: str = "v21"
     arm_finalization_margin_seconds: float = 15.0
     arm_off_finalizer_max_tokens: int = 1024
+    arm_off_recovery_max_tokens: int = 4096
+    arm_force_ab_diagnostic: bool = False
     arm_enable_skill_guidance: bool = False
     arm_enable_skill_for_second: bool = False
     arm_enable_skill_audit: bool = False
@@ -190,11 +192,11 @@ class HarnessConfig:
             raise ValueError("total_token_budget must be positive")
         if not math.isfinite(float(self.max_wall_seconds)) or float(self.max_wall_seconds) <= 0:
             raise ValueError("max_wall_seconds must be positive")
-        if self.arm_harness_version not in {"v1", "v2"}:
+        if self.arm_harness_version not in {"v1", "v2", "v2.1.3"}:
             raise ValueError("invalid_arm_harness_version")
         if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
             raise ValueError("invalid_arm_solver_reasoning_mode")
-        if self.arm_trust_policy not in {"legacy", "evidence"}:
+        if self.arm_trust_policy not in {"legacy", "evidence", "positive_evidence"}:
             raise ValueError("invalid_arm_trust_policy")
         if self.arm_primary_prompt_variant not in {"v2", "marker_only", "v21"}:
             raise ValueError("invalid_arm_primary_prompt_variant")
@@ -202,6 +204,8 @@ class HarnessConfig:
             raise ValueError("arm_finalization_margin_seconds_must_be_nonnegative")
         if int(self.arm_off_finalizer_max_tokens) < 1:
             raise ValueError("arm_off_finalizer_max_tokens_must_be_positive")
+        if int(self.arm_off_recovery_max_tokens) < 1:
+            raise ValueError("arm_off_recovery_max_tokens_must_be_positive")
         if not math.isfinite(float(self.arm_max_skill_audits)) or float(self.arm_max_skill_audits) < 0:
             raise ValueError("arm_max_skill_audits_must_be_nonnegative")
         if self.arm_v2_mode not in {"single", "selective", "long_timeout", "salvage"}:
@@ -1007,7 +1011,11 @@ class ConstraintFitOrchestrator:
             }
 
         if self.config.enable_arm_harness:
-            if self.config.arm_harness_version == "v2":
+            if self.config.arm_harness_version == "v2.1.3":
+                from reasoning_agent.arm_harness_v213 import AdaptiveReliabilityHarnessV213
+
+                arm_harness = AdaptiveReliabilityHarnessV213(self)
+            elif self.config.arm_harness_version == "v2":
                 from reasoning_agent.arm_harness_v2 import AdaptiveReliabilityHarness
 
                 arm_harness = AdaptiveReliabilityHarness(self)

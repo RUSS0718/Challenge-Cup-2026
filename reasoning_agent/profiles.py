@@ -27,6 +27,11 @@ PROFILE_ARM_V212_OFF: Final = "arm-v2.1.2-off"
 PROFILE_ARM_V212_ON: Final = "arm-v2.1.2-on"
 PROFILE_ARM_V212_ADAPTIVE: Final = "arm-v2.1.2-adaptive"
 PROFILE_ARM_V212_OFF_SKILL: Final = "arm-v2.1.2-off-skill"
+PROFILE_ARM_V213_OFF: Final = "arm-v2.1.3-off"
+PROFILE_ARM_V213_ON: Final = "arm-v2.1.3-on"
+PROFILE_ARM_V213_ADAPTIVE: Final = "arm-v2.1.3-adaptive"
+PROFILE_ARM_V213_FORCED_AB: Final = "arm-v2.1.3-forced-ab"
+PROFILE_ARM_V213_OFF_SKILL: Final = "arm-v2.1.3-off-skill"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
@@ -46,6 +51,11 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V212_ON,
     PROFILE_ARM_V212_ADAPTIVE,
     PROFILE_ARM_V212_OFF_SKILL,
+    PROFILE_ARM_V213_OFF,
+    PROFILE_ARM_V213_ON,
+    PROFILE_ARM_V213_ADAPTIVE,
+    PROFILE_ARM_V213_FORCED_AB,
+    PROFILE_ARM_V213_OFF_SKILL,
 )
 
 
@@ -88,6 +98,26 @@ def build_submission_arm_config(mode: str) -> AgentConfig:
     if normalized not in {"off", "on", "adaptive"}:
         raise ValueError(f"unknown_arm_v212_mode:{mode!r}")
     return build_submission_config(f"arm-v2.1.2-{normalized}")
+
+
+def build_arm_v213_config(
+    mode: str,
+    *,
+    force_ab: bool = False,
+    enable_skill: bool = False,
+) -> AgentConfig:
+    """Build a default-off v2.1.3 experiment configuration."""
+    config = build_submission_arm_config(mode)
+    return replace(
+        config,
+        arm_harness_version="v2.1.3",
+        arm_trust_policy="positive_evidence",
+        arm_off_recovery_max_tokens=4096,
+        arm_force_ab_diagnostic=force_ab,
+        arm_enable_skill_guidance=enable_skill,
+        arm_enable_skill_audit=enable_skill,
+        arm_enable_skill_for_second=False,
+    )
 
 
 def build_profile_config(profile: str) -> AgentConfig:
@@ -166,5 +196,15 @@ def build_profile_config(profile: str) -> AgentConfig:
                 arm_enable_skill_audit=True,
             )
         return config
+    arm_v213_profiles = {
+        PROFILE_ARM_V213_OFF: ("off", False, False),
+        PROFILE_ARM_V213_ON: ("on", False, False),
+        PROFILE_ARM_V213_ADAPTIVE: ("adaptive", False, False),
+        PROFILE_ARM_V213_FORCED_AB: ("off", True, False),
+        PROFILE_ARM_V213_OFF_SKILL: ("off", False, True),
+    }
+    if normalized in arm_v213_profiles:
+        mode, force_ab, enable_skill = arm_v213_profiles[normalized]
+        return build_arm_v213_config(mode, force_ab=force_ab, enable_skill=enable_skill)
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

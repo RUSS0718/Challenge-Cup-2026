@@ -90,6 +90,30 @@ class CandidateTrustPolicyTest(unittest.TestCase):
         self.assertTrue(decision.needs_second_sample)
         self.assertEqual("structurally_invalid", decision.reason)
 
+    def test_positive_evidence_policy_does_not_trust_complex_candidate(self):
+        policy = CandidateTrustPolicy("positive_evidence")
+        contract = ProblemContract(ANSWER_SHAPE_SINGLE_NUMERIC, REASONING_RISK_DEEP, ROUTE_CONFIDENCE_HIGH)
+        decision = policy.evaluate(
+            contract=contract,
+            candidate=_candidate(),
+            parsed=_parsed(),
+            call_result=_call(),
+        )
+        self.assertFalse(decision.trusted)
+        self.assertTrue(decision.needs_second_sample)
+        self.assertEqual("positive_evidence_required", decision.reason)
+
+    def test_positive_evidence_policy_keeps_direct_simple_fast_path(self):
+        policy = CandidateTrustPolicy("positive_evidence")
+        decision = policy.evaluate(
+            contract=self.direct,
+            candidate=_candidate(),
+            parsed=_parsed(),
+            call_result=_call(),
+        )
+        self.assertTrue(decision.trusted)
+        self.assertEqual(("direct_simple_contract",), decision.positive_evidence)
+
 
 if __name__ == "__main__":
     unittest.main()

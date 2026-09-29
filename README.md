@@ -247,6 +247,22 @@ telemetry；Primary/Second 要求显式 `Final answer:` 终答，`answers.jsonl`
 不保存完整内容。数据集缺失、答案字段缺失或记录数不符合 `--expected-records` 时 runner
 会直接失败。本地结果不自动触发提交晋升。
 
+v2.1.3 保持 default-off，新增 `arm-v2.1.3-off`、`arm-v2.1.3-on`、
+`arm-v2.1.3-adaptive` 和 `arm-v2.1.3-forced-ab`。它们使用正证据 Trust Gate、
+structured backend 归因、ON continuation/OFF recovery 和 response-free
+false-trusted-primary 统计；forced A/B 不使用 Early Stop 或 Resolver：
+
+```powershell
+python scripts/run_arm_v213_forced_ab.py `
+  --run-id ARM-V213-FORCED-AB-FULL30-001 `
+  --dataset-path sample_data/arm_fixed_items_30.json `
+  --expected-records 30 `
+  --selection-seed 20260905
+```
+
+Forced A/B 只把 A/B verdict、Oracle、rescue/damage 和转移计数写入聚合工件，
+不把 gold 放入 runtime prompt，也不扩大官方提交接口。
+
 四臂 promotion 对比（A=FSDF、B=ARM OFF、C=ARM ON、D=ARM Adaptive）使用同一固定题集、
 endpoint 和 judge，并保留每题 response-free diagnostics：
 

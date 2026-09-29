@@ -20,6 +20,11 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V21_OFF_SKILL,
     PROFILE_ARM_V212_OFF,
     PROFILE_ARM_V212_ON,
+    PROFILE_ARM_V213_OFF,
+    PROFILE_ARM_V213_ON,
+    PROFILE_ARM_V213_ADAPTIVE,
+    PROFILE_ARM_V213_FORCED_AB,
+    PROFILE_ARM_V213_OFF_SKILL,
     PROFILE_ARM_V212_ADAPTIVE,
     PROFILE_ARM_V212_OFF_SKILL,
     PROFILE_SUBMISSION,
@@ -36,6 +41,11 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual(
             (
                 PROFILE_SUBMISSION,
+                PROFILE_ARM_V213_OFF,
+                PROFILE_ARM_V213_ON,
+                PROFILE_ARM_V213_ADAPTIVE,
+                PROFILE_ARM_V213_FORCED_AB,
+                PROFILE_ARM_V213_OFF_SKILL,
                 PROFILE_AGENT_DEFAULT,
                 PROFILE_ARM_OFF,
                 PROFILE_ARM_ON,

@@ -473,6 +473,8 @@ class AgentConfig:
     arm_primary_prompt_variant: str = "v21"
     arm_finalization_margin_seconds: float = 15.0
     arm_off_finalizer_max_tokens: int = 1024
+    arm_off_recovery_max_tokens: int = 4096
+    arm_force_ab_diagnostic: bool = False
     arm_enable_skill_guidance: bool = False
     arm_enable_skill_for_second: bool = False
     arm_enable_skill_audit: bool = False
@@ -520,7 +522,7 @@ class AgentConfig:
         """Validate the v2.1 request-local controls before a solve starts."""
         if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
             raise ValueError("invalid_arm_solver_reasoning_mode")
-        if self.arm_trust_policy not in {"legacy", "evidence"}:
+        if self.arm_trust_policy not in {"legacy", "evidence", "positive_evidence"}:
             raise ValueError("invalid_arm_trust_policy")
         if self.arm_primary_prompt_variant not in {"v2", "marker_only", "v21"}:
             raise ValueError("invalid_arm_primary_prompt_variant")
@@ -528,6 +530,8 @@ class AgentConfig:
             raise ValueError("arm_finalization_margin_seconds_must_be_nonnegative")
         if int(self.arm_off_finalizer_max_tokens) < 1:
             raise ValueError("arm_off_finalizer_max_tokens_must_be_positive")
+        if int(self.arm_off_recovery_max_tokens) < 1:
+            raise ValueError("arm_off_recovery_max_tokens_must_be_positive")
         if not math.isfinite(float(self.arm_max_skill_audits)) or float(self.arm_max_skill_audits) < 0:
             raise ValueError("arm_max_skill_audits_must_be_nonnegative")
     # FESF v1 is enabled in the current local evaluation profile.  The
@@ -690,6 +694,8 @@ class ReasoningAgent:
                     arm_primary_prompt_variant=self.config.arm_primary_prompt_variant,
                     arm_finalization_margin_seconds=self.config.arm_finalization_margin_seconds,
                     arm_off_finalizer_max_tokens=self.config.arm_off_finalizer_max_tokens,
+                    arm_off_recovery_max_tokens=self.config.arm_off_recovery_max_tokens,
+                    arm_force_ab_diagnostic=self.config.arm_force_ab_diagnostic,
                     arm_enable_skill_guidance=self.config.arm_enable_skill_guidance,
                     arm_enable_skill_for_second=self.config.arm_enable_skill_for_second,
                     arm_enable_skill_audit=self.config.arm_enable_skill_audit,

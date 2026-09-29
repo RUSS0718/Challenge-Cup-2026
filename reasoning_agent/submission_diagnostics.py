@@ -61,6 +61,8 @@ def _profile_lane(profile: str) -> str:
     normalized = profile.strip().lower()
     if normalized == "submission":
         return "fsdf_baseline"
+    if normalized.endswith("-forced-ab"):
+        return "forced_ab"
     if normalized.endswith("-adaptive"):
         return "adaptive"
     if normalized.endswith("-on"):
@@ -88,6 +90,7 @@ def compact_submission_diagnostics(
         else summary.get("solver_reasoning_mode") if arm_active else "n/a"
     )
     verdict = record.get("verdict")
+    primary_verdict = record.get("baseline_verdict") if arm_active else None
     failure_reason = record.get("final_failure_reason") or summary.get("final_failure_reason")
     if verdict == "invalid" and not failure_reason:
         failure_reason = "judge_invalid"
@@ -109,8 +112,26 @@ def compact_submission_diagnostics(
             for mode in wire_reasoning_modes
             if mode in {"off", "on"}
         ]
+    second_called = bool(record.get("second_sample_triggered")) if arm_active else False
+    resolver_called = bool(record.get("resolver_triggered")) if arm_active else False
+    early_stop = bool(summary.get("early_stop")) if arm_active else False
+    recovery_action = str(summary.get("on_recovery_action", "")) if arm_active else ""
+    recovery_transition = "not_applicable"
+    if recovery_action:
+        if verdict == "correct":
+            recovery_transition = "incomplete_to_correct"
+        elif verdict == "incorrect":
+            recovery_transition = "incomplete_to_incorrect"
+        elif verdict == "invalid":
+            recovery_transition = "incomplete_to_incomplete"
     return {
-        "harness": "arm_v2.1.2" if arm_active else "fsdf_legacy",
+        "harness": (
+            "arm_v2.1.3"
+            if arm_active and str(profile).startswith("arm-v2.1.3")
+            else "arm_v2.1.2"
+            if arm_active
+            else "fsdf_legacy"
+        ),
         "lane": _profile_lane(profile),
         "primary_mode": primary_mode,
         "primary_complete": (
@@ -119,8 +140,8 @@ def compact_submission_diagnostics(
         "candidate_formation": (
             bool(record.get("primary_candidate_complete")) if arm_active else None
         ),
-        "second_called": bool(record.get("second_sample_triggered")) if arm_active else False,
-        "resolver_called": bool(record.get("resolver_triggered")) if arm_active else False,
+        "second_called": second_called,
+        "resolver_called": resolver_called,
         "final_source": record.get("final_source") or summary.get("final_source") or "unknown",
         "model_calls": int(record.get("model_calls", 0) or 0),
         "wire_reasoning_modes": wire_reasoning_modes,
@@ -128,7 +149,22 @@ def compact_submission_diagnostics(
         "primary_thinking_mode": wire_thinking_modes[0] if wire_thinking_modes else None,
         "invalid_reason": failure_reason,
         "verdict": verdict,
-        "primary_verdict": record.get("baseline_verdict") if arm_active else None,
+        "primary_verdict": primary_verdict,
+        "primary_math_status": (
+            "correct_local_eval" if primary_verdict == "correct"
+            else "incorrect_local_eval" if primary_verdict == "incorrect"
+            else "unknown"
+        ),
+        "trust_decision": dict(summary.get("trust_decision", {})) if arm_active else {},
+        "false_trusted_primary": bool(
+            arm_active
+            and primary_verdict == "incorrect"
+            and early_stop
+            and not second_called
+            and not resolver_called
+        ),
+        "recovery_transition": recovery_transition,
+        "candidate_generation": dict(summary.get("candidate_generation", {})) if arm_active else {},
     }
 
 
@@ -141,10 +177,19 @@ def summarize_submission_diagnostics(
     """Summarize formation, routing, source, validity, and cost metrics."""
     diagnostics = [compact_submission_diagnostics(record, profile) for record in records]
     calls = [int(item["model_calls"]) for item in diagnostics]
-    arm_records = [item for item in diagnostics if item["harness"] == "arm_v2.1.2"]
+    arm_records = [
+        item for item in diagnostics
+        if item["harness"] in {"arm_v2.1.2", "arm_v2.1.3"}
+    ]
     formed = sum(item["candidate_formation"] is True for item in arm_records)
     second_called = sum(item["second_called"] for item in arm_records)
     resolver_called = sum(item["resolver_called"] for item in arm_records)
+    false_trusted = sum(item["false_trusted_primary"] for item in arm_records)
+    recovery_transitions = Counter(
+        item["recovery_transition"]
+        for item in arm_records
+        if item["recovery_transition"] != "not_applicable"
+    )
     primary_correct = sum(item["primary_verdict"] == "correct" for item in arm_records)
     final_correct = sum(item["verdict"] == "correct" for item in diagnostics)
     rescue_count = sum(
@@ -183,6 +228,8 @@ def summarize_submission_diagnostics(
         "second_rescue_rate": round(rescue_count / second_called, 6) if second_called else 0.0,
         "resolver_count": resolver_called,
         "resolver_rate": round(resolver_called / len(arm_records), 6) if arm_records else 0.0,
+        "false_trusted_primary_count": false_trusted,
+        "recovery_transition_distribution": dict(recovery_transitions),
         "correct": final_correct,
         "incorrect": sum(item["verdict"] == "incorrect" for item in diagnostics),
         "invalid": sum(item["verdict"] == "invalid" for item in diagnostics),

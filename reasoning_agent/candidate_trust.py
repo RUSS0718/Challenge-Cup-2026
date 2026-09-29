@@ -20,7 +20,7 @@ class CandidateTrustPolicy:
 
     def __init__(self, policy: str = "legacy") -> None:
         """Select the compatibility gate or v2.1.2 evidence-triggered gate."""
-        if policy not in {"legacy", "evidence"}:
+        if policy not in {"legacy", "evidence", "positive_evidence"}:
             raise ValueError("invalid_candidate_trust_policy")
         self.policy = policy
 
@@ -52,6 +52,37 @@ class CandidateTrustPolicy:
             and getattr(candidate, "answer_type", None)
             in {ANSWER_INTEGER, ANSWER_RATIONAL, ANSWER_CHOICE}
         )
+        if self.policy == "positive_evidence":
+            verification_status = str(getattr(candidate, "verification_status", "")).casefold()
+            if verification_status in {"deterministic_verified", "skill_supported", "consensus_supported"}:
+                return CandidateTrustDecision(
+                    True,
+                    "high",
+                    False,
+                    "positive_verification_evidence",
+                    (verification_status,),
+                )
+            if simple_direct:
+                return CandidateTrustDecision(
+                    True,
+                    "high",
+                    False,
+                    "direct_simple_positive_evidence",
+                    ("direct_simple_contract",),
+                )
+            if verification_status in {"rejected", "refuted", "skill_refuted"}:
+                return CandidateTrustDecision(
+                    False,
+                    "low",
+                    True,
+                    "negative_verification_evidence",
+                )
+            return CandidateTrustDecision(
+                False,
+                "medium",
+                True,
+                "positive_evidence_required",
+            )
         if self.policy == "evidence":
             verification_status = str(getattr(candidate, "verification_status", "")).casefold()
             if verification_status in {"rejected", "refuted", "skill_refuted"}:
