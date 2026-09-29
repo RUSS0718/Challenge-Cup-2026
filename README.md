@@ -208,11 +208,26 @@ python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-off --run-id ARM
 python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-on --run-id ARM-V21-ON-112-ACCURACY-001
 ```
 
+v2.1.2 的 `arm-v2.1.2-off`、`arm-v2.1.2-on` 和 `arm-v2.1.2-off-skill`
+保持旧 profile 不变，显式启用 evidence-triggered Trust Gate；ON 在 Primary
+不完整时改用一次有界 OFF finalizer。runner 也支持固定 30 题数据集：
+
+```powershell
+python scripts/run_arm_v21_eval112_timing.py `
+  --profile arm-v2.1.2-off `
+  --dataset-path sample_data/arm_fixed_items_30.json `
+  --expected-records 30 `
+  --selection-seed 20260905 `
+  --run-id ARM-V212-FULL30-OFF-001
+```
+
 每题严格只执行一次 `solve()`，结果状态为 `complete`、`incomplete` 或 `error`；失败题也会写入
 `answers.jsonl` 和 aggregate denominator，并保留 `final_failure_reason`。完整答复由本地 evaluator
 评分，标准答案不发送给模型。报告同时记录 second-sample、resolver、safe-candidate 和 final-source
 telemetry；Primary/Second 要求显式 `Final answer:` 终答，`answers.jsonl` 还保留完整的有界
-`arm_v2_summary` diagnostics。数据集缺失或不是 112 条唯一题目时 runner 会直接失败。本地结果不自动触发提交晋升。
+`arm_v2_summary` diagnostics；call ledger 仅记录 `reasoning_content` 是否存在及其长度，
+不保存完整内容。数据集缺失、答案字段缺失或记录数不符合 `--expected-records` 时 runner
+会直接失败。本地结果不自动触发提交晋升。
 
 ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
 profile 会显式发送 `thinking_mode=true`，运行前应按冻结实验协议检查 endpoint 健康。
