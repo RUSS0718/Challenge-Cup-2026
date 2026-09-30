@@ -46,8 +46,70 @@ EXPECTED_SUBJECT_COUNTS = {
 }
 
 
+_SUPERSCRIPT_TRANSLATION = str.maketrans({
+    "⁰": "^0", "¹": "^1", "²": "^2", "³": "^3", "⁴": "^4",
+    "⁵": "^5", "⁶": "^6", "⁷": "^7", "⁸": "^8", "⁹": "^9",
+})
+_GREEK_PRESENTATION = {
+    "λ": r"\lambda",
+    "π": r"\pi",
+    "θ": r"\theta",
+    "μ": r"\mu",
+    "σ": r"\sigma",
+    "α": r"\alpha",
+    "β": r"\beta",
+    "γ": r"\gamma",
+    "δ": r"\delta",
+}
+
+
+def _unwrap_outer_braced_command(value: str, command: str) -> str | None:
+    """Return the body only when one LaTeX command wraps the whole value."""
+    prefix = f"\\{command}{{"
+    if not value.startswith(prefix) or not value.endswith("}"):
+        return None
+    depth = 0
+    start = len(prefix) - 1
+    for index in range(start, len(value)):
+        char = value[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return value[len(prefix):-1].strip() if index == len(value) - 1 else None
+    return None
+
+
+def _normalize_presentation(answer: str) -> str:
+    """Normalize only representation-level differences, never mathematical content."""
+    value = str(answer or "").strip()
+    changed = True
+    while changed and value:
+        previous = value
+        if len(value) >= 2 and value.startswith("$") and value.endswith("$"):
+            value = value[1:-1].strip()
+        elif value.startswith(r"\(") and value.endswith(r"\)"):
+            value = value[2:-2].strip()
+        elif value.startswith(r"\[") and value.endswith(r"\]"):
+            value = value[2:-2].strip()
+        boxed = _unwrap_outer_braced_command(value, "boxed")
+        if boxed is not None:
+            value = boxed
+        changed = value != previous
+
+    value = value.replace(r"\dfrac", r"\frac").replace(r"\tfrac", r"\frac")
+    value = value.replace(r"\left", "").replace(r"\right", "")
+    value = value.replace(r"\,", "").replace(r"\!", "").replace(r"\;", "").replace(r"\quad", "")
+    value = value.translate(_SUPERSCRIPT_TRANSLATION)
+    for literal, latex in _GREEK_PRESENTATION.items():
+        value = value.replace(literal, latex)
+    return value
+
+
 def normalize(answer: str) -> str:
-    return "".join(answer.split()).rstrip("。；;.").lower()
+    value = _normalize_presentation(answer)
+    return "".join(value.split()).rstrip("。；;.!！?？").lower()
 
 
 def judge_correct(extracted: str, expected: str, problem_type: str = "") -> str:
@@ -142,9 +204,17 @@ def _normalize_sympy_text(text: str) -> str:
     This is evaluator-only normalization.  Unsupported LaTeX remains intact
     and therefore falls through to UNKNOWN rather than being guessed.
     """
-    value = text.strip()
-    value = value.replace(r"\left", "").replace(r"\right", "")
+    value = _normalize_presentation(text)
     value = value.replace(r"\cdot", "*").replace("×", "*")
+    value = value.replace(r"\lambda", "lam")
+    value = value.replace(r"\pi", "pi")
+    value = value.replace(r"\theta", "theta")
+    value = value.replace(r"\mu", "mu")
+    value = value.replace(r"\sigma", "sigma")
+    value = value.replace(r"\alpha", "alpha")
+    value = value.replace(r"\beta", "beta")
+    value = value.replace(r"\gamma", "gamma")
+    value = value.replace(r"\delta", "delta")
     value = re.sub(r"\\sqrt\s*\{([^{}]+)\}", r"sqrt(\1)", value)
     previous = None
     while previous != value:
@@ -155,18 +225,23 @@ def _normalize_sympy_text(text: str) -> str:
 
 
 def _compare_numeric_collections(left: str, right: str) -> str | None:
-    """Compare simple numeric sets without reordering ordered tuples."""
-    if not (left.startswith("{") and left.endswith("}") and right.startswith("{") and right.endswith("}")):
+    """Compare simple numeric sets, accepting an unbraced CSV only against a braced set."""
+    left_braced = left.startswith("{") and left.endswith("}")
+    right_braced = right.startswith("{") and right.endswith("}")
+    if not (left_braced or right_braced):
         return None
-    def parse(value: str) -> set[fractions.Fraction] | None:
-        body = value[1:-1].strip()
+
+    def parse(value: str, braced: bool) -> set[fractions.Fraction] | None:
+        body = value[1:-1].strip() if braced else value.strip()
         if not body:
             return set()
         parts = [part.strip() for part in body.split(",")]
+        if not braced and len(parts) < 2:
+            return None
         parsed = [_try_parse_rational(part) for part in parts]
         return set(parsed) if all(item is not None for item in parsed) else None
-    left_set = parse(left)
-    right_set = parse(right)
+    left_set = parse(left, left_braced)
+    right_set = parse(right, right_braced)
     if left_set is None or right_set is None:
         return None
     return "correct" if left_set == right_set else "incorrect"
