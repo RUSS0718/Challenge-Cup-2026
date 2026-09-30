@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import re
 from typing import Any, Literal, Mapping
 
 
@@ -85,7 +86,13 @@ def parse_challenger_finding(response: str | None) -> ChallengerFinding:
     try:
         payload = json.loads(text)
     except (TypeError, ValueError, json.JSONDecodeError):
-        return ChallengerFinding()
+        start = text.find("{")
+        if start < 0:
+            return ChallengerFinding()
+        try:
+            payload, _end = json.JSONDecoder().raw_decode(text[start:])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return ChallengerFinding()
     if not isinstance(payload, Mapping):
         return ChallengerFinding()
     verdict = str(payload.get("verdict", "UNKNOWN")).upper()
@@ -120,11 +127,24 @@ class VerificationResult:
 
 
 class DeterministicVerifier:
-    """Provide the default no-op verifier without changing ARM behavior."""
+    """Run only narrow, explicit numeric checks and fail closed otherwise."""
 
     def verify(self, candidate_a: Any, candidate_b: Any, problem: str) -> VerificationResult:
-        """Return ``NOT_APPLICABLE`` until a concrete check is configured."""
-        del candidate_a, candidate_b, problem
+        """Select a candidate only when the problem states an exact numeric RHS."""
+        match = re.search(r"(?:=|等于)\s*([+-]?\d+(?:/\d+)?)\s*[。.!！?？]*$", str(problem or ""))
+        if match:
+            from reasoning_agent.harness_contracts import value_equivalence
+
+            expected = match.group(1)
+            a_match = value_equivalence(str(getattr(candidate_a, "value", "")), expected) == "EQUIVALENT"
+            b_match = value_equivalence(str(getattr(candidate_b, "value", "")), expected) == "EQUIVALENT"
+            if a_match != b_match:
+                selected = candidate_a if a_match else candidate_b
+                return VerificationResult(
+                    "A" if a_match else "B",
+                    str(getattr(selected, "candidate_id", "")),
+                    "explicit_numeric_rhs_match",
+                )
         return VerificationResult("NOT_APPLICABLE", None, "no_deterministic_check")
 
 

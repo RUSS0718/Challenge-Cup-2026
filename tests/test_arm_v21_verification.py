@@ -3,6 +3,7 @@
 import unittest
 
 from reasoning_agent.arm_v21_verification import DeterministicVerifier, VerificationResult
+from reasoning_agent.harness_contracts import Candidate
 
 
 class ARMV21VerificationTest(unittest.TestCase):
@@ -16,6 +17,13 @@ class ARMV21VerificationTest(unittest.TestCase):
     def test_selected_status_requires_existing_candidate(self):
         with self.assertRaises(ValueError):
             VerificationResult("A")
+
+    def test_explicit_numeric_rhs_selects_matching_candidate(self):
+        a = Candidate("A", "3", "3", "integer", "a", "parsed")
+        b = Candidate("B", "4", "4", "integer", "b", "parsed")
+        result = DeterministicVerifier().verify(a, b, "x = 4")
+        self.assertEqual("B", result.status)
+        self.assertEqual("B", result.candidate_id)
 
 
 if __name__ == "__main__":

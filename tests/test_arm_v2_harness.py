@@ -210,6 +210,18 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual("PASS", summary["fresh_review_status"])
         self.assertEqual("repair", summary["final_source"])
 
+    def test_v214_timeout_keeps_primary_even_when_challenger_has_higher_trust(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+            {"content": "Final answer: {2,3}", "finish_reason": "stop"},
+            TimeoutError("resolver timeout"),
+        ])
+        result = ConstraintFitOrchestrator(
+            client,
+            config=_config(arm_harness_version="v2.1.4"),
+        ).solve("求所有可能的值", {})
+        self.assertEqual("{1,2}", result["final_response"])
+
     def test_fragment_is_not_a_safe_candidate_and_exposes_failure_reason(self):
         client = ModeAwareClient([
             {"content": "Final answer: x_s", "finish_reason": "stop"},

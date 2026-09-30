@@ -24,6 +24,7 @@ from reasoning_agent.harness_contracts import (
 _BARE_SYMBOL = re.compile(r"^[A-Za-z](?:[A-Za-z0-9_']*)$")
 _FUNCTION_DEFINITION = re.compile(r"^[A-Za-z][A-Za-z0-9_']*\s*\([^)]*\)\s*=")
 _FINAL_ANSWER_MARKER = re.compile(r"(?im)^\s*(?:\*\*)?\s*(?:final\s+answer|最终答案)\s*[:：]")
+_UNIQUE_BOXED_ANSWER = re.compile(r"\\boxed\{([^{}]+)\}")
 
 
 def assess_answer_completeness(
@@ -44,6 +45,9 @@ def assess_answer_completeness(
     response = str(getattr(candidate, "response", "") or "")
     arm_source = source in {"arm_primary", "arm_second", "arm_salvage", "arm_runtime_retry", "arm_repair"}
     has_final_marker = arm_source and bool(_FINAL_ANSWER_MARKER.search(response))
+    boxed = _UNIQUE_BOXED_ANSWER.findall(response) if arm_source else []
+    has_unique_boxed_answer = len(boxed) == 1 and str(getattr(candidate, "value", "")).strip() == boxed[0].strip()
+    has_final_marker = has_final_marker or has_unique_boxed_answer
     if arm_source:
         if not has_final_marker:
             return False, "missing_final_answer_marker"
