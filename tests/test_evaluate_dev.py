@@ -320,6 +320,16 @@ class JudgeCorrectTest(unittest.TestCase):
             judge_correct("Yes", "Yes. It will involve a sum of integer products."),
         )
 
+    def test_unit_text_matches_latex_unit_gold(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual(
+            "correct",
+            judge_correct(
+                "3630 square feet and 522720 square inches.",
+                r"$3630 \mathrm{ft}^{2}, 522,720 \mathrm{in}^{2}$",
+            ),
+        )
+
     def test_verbose_vector_gold_matches_matrix_answer(self):
         from scripts.evaluate_dev import judge_correct
         extracted = r"\boxed{\begin{bmatrix}-2\\5\\2\end{bmatrix}}"
