@@ -439,6 +439,40 @@ def _canonical_set(value: str) -> str | None:
     return "{" + ",".join(_format_numeric(number) for number in sorted(set(numbers))) + "}"
 
 
+def _normalize_unit_surface(value: str) -> str:
+    """Normalize a bounded set of equivalent unit spellings without conversion."""
+    text = value
+    text = text.replace("²", "^2").replace("³", "^3")
+    text = re.sub(
+        r"\\mathrm\{(ft|in|cm|mm|m|km)\}",
+        r"\1",
+        text,
+        flags=re.I,
+    )
+    text = re.sub(r"\^\{([23])\}", r"^\1", text)
+    # Remove commas only when they are unambiguously thousands separators.
+    text = re.sub(r"(?<=\d),(?=\d{3}(?:\D|$))", "", text)
+    replacements = (
+        (r"\bsquare\s+feet\b", "ft^2"),
+        (r"\bsquare\s+foot\b", "ft^2"),
+        (r"\bsq\.?\s*ft\b", "ft^2"),
+        (r"\bsquare\s+inches\b", "in^2"),
+        (r"\bsquare\s+inch\b", "in^2"),
+        (r"\bsq\.?\s*in\b", "in^2"),
+        (r"\bsquare\s+centimeters?\b", "cm^2"),
+        (r"\bsquare\s+millimeters?\b", "mm^2"),
+        (r"\bsquare\s+meters?\b", "m^2"),
+        (r"\bsquare\s+kilometers?\b", "km^2"),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.I)
+    # Only normalize a prose conjunction after a recognized unit is present.
+    if re.search(r"\b(?:ft|in|cm|mm|m|km)\^[23]\b", text, re.I):
+        text = re.sub(r"\s+(?:and|和|与)\s+", ",", text, flags=re.I)
+        text = text.rstrip(".")
+    return text
+
+
 def normalize_value(value: str) -> str:
     """Apply only bounded, representation-level normalization."""
     clean = _strip_math_wrappers(value).replace("−", "-")
@@ -458,6 +492,7 @@ def normalize_value(value: str) -> str:
                 clean = boxed[0]
     clean = clean.replace(r"\left", "").replace(r"\right", "")
     clean = clean.replace(r"\cdot", "*").replace("×", "*")
+    clean = _normalize_unit_surface(clean)
     clean = re.sub(r"\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}", r"\1/\2", clean)
     canonical_set = _canonical_set(clean)
     if canonical_set is not None:
