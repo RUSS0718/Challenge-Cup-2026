@@ -50,6 +50,20 @@ class ARMV21SafeCandidateTest(unittest.TestCase):
         self.assertEqual("{1,2}", result["final_response"])
         self.assertTrue(summary["safe_fallback_used"])
 
+    def test_untrusted_primary_survives_incomplete_second_sample(self):
+        client = ScriptedClient([
+            {"content": "Final answer: 否", "finish_reason": "stop"},
+            {"content": "无法形成最终答案", "finish_reason": "stop"},
+        ])
+        result = ConstraintFitOrchestrator(
+            client,
+            config=_config(arm_trust_policy="positive_evidence"),
+        ).solve("判断该命题是否成立，答案为是或否。", {})
+        summary = next(item for item in result["trace"] if item.get("stage") == "arm_v2_summary")
+        self.assertEqual("否", result["final_response"])
+        self.assertTrue(summary["safe_fallback_used"])
+        self.assertEqual("candidate_a", summary["safe_candidate_source"])
+
     def test_resolver_unknown_returns_pre_resolver_candidate(self):
         client = ScriptedClient([
             {"content": "Final answer: {1,2}", "finish_reason": "stop"},
