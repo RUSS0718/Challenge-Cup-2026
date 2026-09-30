@@ -42,8 +42,9 @@ def assess_answer_completeness(
         return False, "no_candidate"
     source = str(getattr(candidate, "source", ""))
     response = str(getattr(candidate, "response", "") or "")
-    has_final_marker = bool(_FINAL_ANSWER_MARKER.search(response))
-    if source in {"arm_primary", "arm_second", "arm_salvage", "arm_runtime_retry"}:
+    arm_source = source in {"arm_primary", "arm_second", "arm_salvage", "arm_runtime_retry", "arm_repair"}
+    has_final_marker = arm_source and bool(_FINAL_ANSWER_MARKER.search(response))
+    if arm_source:
         if not has_final_marker:
             return False, "missing_final_answer_marker"
     if (bool(getattr(parsed, "truncated", False)) or bool(getattr(candidate, "truncated", False))) and not has_final_marker:
