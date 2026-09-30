@@ -278,7 +278,10 @@ def build_report(rows: list[dict[str, Any]], elapsed_seconds: float, *, final: b
         "correct": outcome_counts.get("correct", 0),
         "incorrect": outcome_counts.get("incorrect", 0),
         "invalid": outcome_counts.get("invalid", 0),
-        "model_errors": outcome_counts.get("error", 0),
+        # Transport/model health is orthogonal to score outcome.  A row may
+        # preserve a correct incumbent even when an optional challenger timed out.
+        "model_errors": sum(bool(row.get("model_error")) for row in rows),
+        "error_outcomes": outcome_counts.get("error", 0),
         "timeout_count": sum(bool(row.get("timeout")) for row in rows),
         "accuracy_over_expected": outcome_counts.get("correct", 0) / EXPECTED_ITEMS,
         "decided_accuracy": (
