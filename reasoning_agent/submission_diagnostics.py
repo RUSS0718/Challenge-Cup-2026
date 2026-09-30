@@ -143,6 +143,9 @@ def compact_submission_diagnostics(
         "second_called": second_called,
         "resolver_called": resolver_called,
         "final_source": record.get("final_source") or summary.get("final_source") or "unknown",
+        "primary_source": record.get("primary_source") or summary.get("primary_source") or "primary",
+        "challenger_status": record.get("challenger_status") or summary.get("challenger_status") or "none",
+        "replacement_reason": record.get("replacement_reason") or summary.get("replacement_reason") or "",
         "model_calls": int(record.get("model_calls", 0) or 0),
         "wire_reasoning_modes": wire_reasoning_modes,
         "wire_thinking_modes": wire_thinking_modes,
@@ -193,9 +196,11 @@ def summarize_submission_diagnostics(
     primary_correct = sum(item["primary_verdict"] == "correct" for item in arm_records)
     final_correct = sum(item["verdict"] == "correct" for item in diagnostics)
     rescue_count = sum(
-        item["second_called"]
-        and item["primary_verdict"] != "correct"
-        and item["verdict"] == "correct"
+        item["primary_verdict"] != "correct" and item["verdict"] == "correct"
+        for item in arm_records
+    )
+    damage_count = sum(
+        item["primary_verdict"] == "correct" and item["verdict"] != "correct"
         for item in arm_records
     )
     final_source_verdicts: dict[str, dict[str, int]] = {}
@@ -221,11 +226,15 @@ def summarize_submission_diagnostics(
         "candidate_formation_count": formed,
         "candidate_formation_rate": round(formed / len(arm_records), 6) if arm_records else None,
         "primary_correct_count": primary_correct,
-        "primary_accuracy": round(primary_correct / formed, 6) if formed else None,
+        "primary_formed_accuracy": round(primary_correct / formed, 6) if formed else None,
+        "primary_accuracy": round(primary_correct / len(records), 6) if records else 0.0,
         "second_sample_count": second_called,
         "second_sample_rate": round(second_called / len(arm_records), 6) if arm_records else 0.0,
         "second_rescue_count": rescue_count,
         "second_rescue_rate": round(rescue_count / second_called, 6) if second_called else 0.0,
+        "rescue_count": rescue_count,
+        "damage_count": damage_count,
+        "final_correct_from_decomposition": primary_correct + rescue_count - damage_count,
         "resolver_count": resolver_called,
         "resolver_rate": round(resolver_called / len(arm_records), 6) if arm_records else 0.0,
         "false_trusted_primary_count": false_trusted,

@@ -509,6 +509,12 @@ class Candidate:
     answer_complete_reason: str = ""
     trust_confidence: str = "unknown"
     trust_reason: str = ""
+    candidate_role: str = "primary"
+    candidate_version: int = 1
+    incumbent: bool = False
+    challenge_status: str = "none"
+    challenge_id: str | None = None
+    replacement_reason: str = ""
 
     def ledger_dict(self) -> dict[str, Any]:
         """Return safe candidate metadata, including a mode only when explicit."""
@@ -526,6 +532,12 @@ class Candidate:
             "answer_complete_reason": _clip(self.answer_complete_reason, MAX_REASON_CHARS),
             "trust_confidence": self.trust_confidence,
             "trust_reason": _clip(self.trust_reason, MAX_REASON_CHARS),
+            "candidate_role": self.candidate_role,
+            "candidate_version": int(self.candidate_version),
+            "incumbent": bool(self.incumbent),
+            "challenge_status": self.challenge_status,
+            "challenge_id": _clip(self.challenge_id, MAX_REASON_CHARS) if self.challenge_id else None,
+            "replacement_reason": _clip(self.replacement_reason, MAX_REASON_CHARS),
             "checks": [dict(check) for check in self.checks[:4]],
             "reason_summary": _clip(self.reason_summary, MAX_REASON_CHARS),
         }

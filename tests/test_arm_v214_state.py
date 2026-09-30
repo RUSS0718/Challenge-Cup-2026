@@ -1,0 +1,50 @@
+"""Regression tests for ARM v2.1.4 candidate provenance and metrics."""
+
+import unittest
+
+from reasoning_agent.harness_contracts import Candidate
+from reasoning_agent.submission_diagnostics import summarize_submission_diagnostics
+
+
+class ARMV214StateTest(unittest.TestCase):
+    """Keep provenance fields bounded and promotion metrics denominator-safe."""
+
+    def test_candidate_ledger_includes_provenance_fields(self):
+        candidate = Candidate(
+            candidate_id="primary_1",
+            value="7",
+            normalized_value="7",
+            answer_type="integer",
+            source="arm_primary",
+            extraction_status="parsed",
+            candidate_role="primary",
+            candidate_version=1,
+            incumbent=True,
+        )
+        row = candidate.ledger_dict()
+        self.assertEqual("primary", row["candidate_role"])
+        self.assertEqual(1, row["candidate_version"])
+        self.assertTrue(row["incumbent"])
+        self.assertEqual("none", row["challenge_status"])
+
+    def test_metrics_use_total_denominator_and_report_damage_rescue(self):
+        records = [
+            {"arm_v2_summary": {"final_source": "primary"}, "primary_candidate_complete": True,
+             "baseline_verdict": "correct", "verdict": "correct", "model_calls": 1},
+            {"arm_v2_summary": {"final_source": "repair"}, "primary_candidate_complete": True,
+             "baseline_verdict": "correct", "verdict": "incorrect", "model_calls": 2},
+            {"arm_v2_summary": {"final_source": "challenger"}, "primary_candidate_complete": True,
+             "baseline_verdict": "incorrect", "verdict": "correct", "model_calls": 2},
+            {"arm_v2_summary": {"final_source": "abstain"}, "primary_candidate_complete": False,
+             "baseline_verdict": "invalid", "verdict": "invalid", "model_calls": 1},
+        ]
+        report = summarize_submission_diagnostics(records, profile="arm-v2.1.4", expected_records=4)
+        self.assertEqual(1, report["damage_count"])
+        self.assertEqual(1, report["rescue_count"])
+        self.assertEqual(2, report["primary_correct_count"])
+        self.assertEqual(0.5, report["primary_accuracy"])
+        self.assertEqual(0.5, report["accuracy"])
+
+
+if __name__ == "__main__":
+    unittest.main()
