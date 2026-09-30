@@ -282,6 +282,21 @@ class JudgeCorrectTest(unittest.TestCase):
         self.assertEqual("correct", judge_correct(r"\frac{1}{2}", "0.5"))
         self.assertEqual("correct", judge_correct(r"\sqrt{4}", "2"))
 
+    def test_presentation_wrappers_do_not_create_unknowns(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct(r"4\sqrt{5}", r"$4 \sqrt{5}$"))
+        self.assertEqual("correct", judge_correct(r"\boxed{C}", "C", "choice"))
+        self.assertEqual("incorrect", judge_correct(r"\boxed{1/7}", r"\frac{2}{7}"))
+
+    def test_unicode_and_latex_symbol_forms_are_equivalent(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct(r"(\lambda-2)^2", "(λ-2)²"))
+
+    def test_unbraced_numeric_list_matches_braced_set_only(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct("2,3", "{2,3}"))
+        self.assertEqual("unknown", judge_correct("2,3", "2,3,4"))
+
     def test_unordered_numeric_sets_are_equivalent(self):
         from scripts.evaluate_dev import judge_correct
         self.assertEqual("correct", judge_correct("{1, 1/2, 2}", "{2,0.5,1}"))
