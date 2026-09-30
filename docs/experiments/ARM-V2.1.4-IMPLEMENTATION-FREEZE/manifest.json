@@ -1,0 +1,32 @@
+{
+  "protocol_id": "ARM-v2.1.4-implementation-freeze",
+  "method_id": "ARM-v2.1.4",
+  "dataset_id": "freeze-unverified-local-state",
+  "frozen_commit": "7b20ae1",
+  "frozen_branch": "feat/arm-harness-v2.1.1",
+  "generated_at": "2026-09-30T00:00:00+08:00",
+  "profiles": ["arm-v2.1.4-off", "arm-v2.1.4-adaptive"],
+  "historical_profiles": ["arm-v2.1.2-*", "arm-v2.1.3-*"],
+  "source_hashes": {
+    "user_agent.py": "9f9e371acb4021564488229b5631af246a56c4e729b7da9ecf92c2686bfd5153",
+    "reasoning_agent/submission_config.py": "f6b35a3105d5e07853f985fce71e89b7bd1995abbb74202a12b425c4086750d0",
+    "reasoning_agent/profiles.py": "060cf61f4cd265280adbc301d5d54fc8be2545e28aa6731c9576a305d9b185e7",
+    "reasoning_agent/math_harness.py": "15d2719254180b1ece2efd7215e264c0590faab5a4f72b7fad701be34b52b5da",
+    "reasoning_agent/arm_harness_v2.py": "78cfa67f01ae822a238bd3b70d4d7d1792f08b072e29dab04b0909b446627317",
+    "reasoning_agent/arm_harness_v213.py": "33838f5a7902cd4b4a1e20ea2c6ca94994a88e51edb60e666665c051f16b5e51",
+    "reasoning_agent/arm_harness_v214.py": "bf6654f434d34d34af524bbe954d09d28843227f1768369070c522f92c4f3d30",
+    "reasoning_agent/arm_v21_support.py": "b3652f510e07f110def6a0f965ec0afd0167fa2b6c07671ee8ef4ee71269d855",
+    "reasoning_agent/arm_v214_support.py": "2fd68aaa7118b8c96ecaa4d20efb72788d2982fb5c599b7d88a3dcfef457183c",
+    "reasoning_agent/answer_completeness.py": "3756fd169d16e1ab212c57450524870626286c1a4ff47f6b8e2b940446d0efca",
+    "reasoning_agent/arm_v21_verification.py": "5daf47252d19473c3c12a6618a4776a1c1d40bb2b061bcb39c62e144f4b31f2a",
+    "reasoning_agent/submission_diagnostics.py": "8f787c3a156c1108706a92821506476f39d768b3d8b4bf71a9da4cc1f0e2eeab",
+    "scripts/run_submission_promotion.py": "6b526abb9023226660be889e3a4a7fe4a552f6bb39326aa30b85deee18fc78d8",
+    "docs/excluded_approaches.md": "abfac2b811cf084431ec85eda37a18814b2cccf782f633199b102094c3153655"
+  },
+  "answer_bank": {
+    "path": "reasoning_agent/error_notebook/eval_112.json",
+    "tracked": false,
+    "runtime_read_default": false
+  },
+  "artifact_policy": "New run outputs stay under artifacts/<run_id>/ and never overwrite prior runs."
+}

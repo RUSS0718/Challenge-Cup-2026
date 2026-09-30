@@ -43,7 +43,7 @@ class FakeAgent:
 
 
 class SubmissionPromotionTest(unittest.TestCase):
-    """Ensure all four arms share the runner and produce bounded artifacts."""
+    """Ensure all promotion arms share the runner and produce bounded artifacts."""
 
     def test_four_arm_fake_run_writes_diagnostics_and_gates(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -64,7 +64,7 @@ class SubmissionPromotionTest(unittest.TestCase):
             )
 
             self.assertEqual(set(PROMOTION_ARMS), set(report["arms"]))
-            self.assertEqual(4, len(report["round_reports"]))
+            self.assertEqual(5, len(report["round_reports"]))
             self.assertTrue(all(gate["status"] == "PASS" for gate in report["full30_gates"].values()))
             diagnostics = root / "artifacts" / "PROMOTION-TEST-r1-B" / "diagnostics.jsonl"
             self.assertEqual(30, len(diagnostics.read_text(encoding="utf-8").splitlines()))
