@@ -546,7 +546,14 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         if decision == "A":
             selected = primary_valid
         elif decision == "B":
-            selected = secondary_valid
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "resolver_b_without_review",
+            )
         else:
             return self._return_safe_or_abstain(
                 trace,

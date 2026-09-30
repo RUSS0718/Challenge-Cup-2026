@@ -165,6 +165,16 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual("UNKNOWN", self._summary(result)["resolver_decision"])
         self.assertTrue(self._summary(result)["safe_fallback_used"])
 
+    def test_resolver_b_cannot_replace_primary_without_review(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {117,119}", "finish_reason": "stop"},
+            {"content": "Final answer: {118,120}", "finish_reason": "stop"},
+            "B",
+        ])
+        result = ConstraintFitOrchestrator(client, config=_config()).solve("求所有可能的值", {})
+        self.assertEqual("{117,119}", result["final_response"])
+        self.assertEqual("resolver_b_without_review", self._summary(result)["fallback_reason"])
+
     def test_fragment_is_not_a_safe_candidate_and_exposes_failure_reason(self):
         client = ModeAwareClient([
             {"content": "Final answer: x_s", "finish_reason": "stop"},
