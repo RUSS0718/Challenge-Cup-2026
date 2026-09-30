@@ -687,11 +687,20 @@ class HostParser:
             )
             provisional[0].answer_complete = complete
             provisional[0].answer_complete_reason = complete_reason
-        if provisional and truncated:
+        preserved_truncated_candidate = (
+            len(provisional) == 1
+            and truncated
+            and bool(provisional[0].answer_complete)
+            and provisional[0].answer_complete_reason == "answer_complete_truncated_tail"
+        )
+        if provisional and truncated and not preserved_truncated_candidate:
             for candidate in provisional:
                 candidate.extraction_status = CANDIDATE_TRUNCATED
             status = CANDIDATE_TRUNCATED
             reason = "truncated_with_unique_candidate" if len(provisional) == 1 else "truncated_with_candidates"
+        elif preserved_truncated_candidate:
+            status = CANDIDATE_PARSED
+            reason = "candidate_extracted_truncated_tail"
         elif len(provisional) > 1 and _has_conflict(provisional):
             for candidate in provisional:
                 candidate.extraction_status = CANDIDATE_CONFLICT

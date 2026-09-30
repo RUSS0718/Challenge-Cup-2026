@@ -3,6 +3,7 @@
 import unittest
 
 from reasoning_agent.harness_contracts import Candidate
+from reasoning_agent.harness_contracts import HostParser
 from reasoning_agent.submission_diagnostics import summarize_submission_diagnostics
 
 
@@ -44,6 +45,18 @@ class ARMV214StateTest(unittest.TestCase):
         self.assertEqual(2, report["primary_correct_count"])
         self.assertEqual(0.5, report["primary_accuracy"])
         self.assertEqual(0.5, report["accuracy"])
+
+    def test_final_marker_preserves_answer_when_tail_is_truncated(self):
+        parsed = HostParser().parse(
+            "推理尚未收束\nFinal answer: 7",
+            problem="计算 1+1",
+            source="arm_primary",
+            finish_reason="length",
+        )
+        self.assertEqual(1, len(parsed.candidates))
+        self.assertTrue(parsed.truncated)
+        self.assertTrue(parsed.candidates[0].answer_complete)
+        self.assertEqual("parsed", parsed.candidates[0].extraction_status)
 
 
 if __name__ == "__main__":

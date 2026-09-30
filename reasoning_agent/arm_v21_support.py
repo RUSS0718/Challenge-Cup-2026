@@ -309,7 +309,6 @@ class ARMV21StateSupport:
         """Checkpoint a complete, structurally valid candidate before risky work."""
         if (
             candidate is None
-            or bool(getattr(parsed, "truncated", False))
             or getattr(candidate, "answer_complete", True) is False
         ):
             return False

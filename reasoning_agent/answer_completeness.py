@@ -41,12 +41,17 @@ def assess_answer_completeness(
     if candidate is None:
         return False, "no_candidate"
     source = str(getattr(candidate, "source", ""))
+    response = str(getattr(candidate, "response", "") or "")
+    has_final_marker = bool(_FINAL_ANSWER_MARKER.search(response))
     if source in {"arm_primary", "arm_second", "arm_salvage", "arm_runtime_retry"}:
-        response = str(getattr(candidate, "response", "") or "")
-        if not _FINAL_ANSWER_MARKER.search(response):
+        if not has_final_marker:
             return False, "missing_final_answer_marker"
-    if bool(getattr(parsed, "truncated", False)) or bool(getattr(candidate, "truncated", False)):
+    if (bool(getattr(parsed, "truncated", False)) or bool(getattr(candidate, "truncated", False))) and not has_final_marker:
         return False, "truncated"
+    if (bool(getattr(parsed, "truncated", False)) or bool(getattr(candidate, "truncated", False))) and has_final_marker:
+        truncated_tail_reason = "answer_complete_truncated_tail"
+    else:
+        truncated_tail_reason = "answer_complete"
     if getattr(parsed, "typed_complete", True) is False:
         return False, "typed_parse_incomplete"
     value = _strip_math_wrappers(
@@ -80,7 +85,7 @@ def assess_answer_completeness(
         if str(getattr(candidate, "proof_status", "")) != "complete":
             return False, "proof_not_complete"
 
-    return True, "answer_complete"
+    return True, truncated_tail_reason
 
 
 __all__ = ["assess_answer_completeness"]
