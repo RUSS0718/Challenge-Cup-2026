@@ -99,9 +99,9 @@ def _fresh_review_matches_finding(finding: ChallengerFinding, review: FreshRevie
         return False
     location = " ".join(finding.issue_location.casefold().split())
     claim = " ".join(finding.claim.casefold().split())
-    aligned = bool(location and (location in checked or checked in location))
+    aligned = bool(location and checked == location)
     if not aligned and claim:
-        aligned = claim in checked or checked in claim
+        aligned = checked == claim
     if not aligned:
         return False
     return review.remaining_problem in {None, ""}

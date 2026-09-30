@@ -29,7 +29,6 @@ from reasoning_agent.harness_contracts import (
     STATE_CANDIDATE_A,
     STATE_CANDIDATE_B,
     STATE_CONFLICT,
-    STATE_CRITIC,
     STATE_REPAIR,
     value_equivalence,
 )
@@ -50,11 +49,6 @@ ARM_COMPACT_SALVAGE_PROMPT = """请直接重新求解并尽快形成最终答案
 不要展开长证明，只保留必要计算。
 
 最后一行：Final answer: <answer>"""
-
-ARM_V2_RESOLVER_PROMPT = """给定同一道数学题的两个候选答案。
-
-只能输出一行：A、B 或 UNKNOWN。
-只能选择已有候选，不能生成第三个答案，也不要重新求解。"""
 
 ARM_V2_REPAIR_PROMPT = """只修复候选中 Challenger 指出的局部错误。
 必须保留原候选的其余结论，不要整题重解，不要输出多个候选。
@@ -112,7 +106,7 @@ class AdaptiveReliabilityHarnessV214(ARMV214StateSupport, AdaptiveReasoningHarne
             config.arm_adaptive_token_budget,
             config.max_wall_seconds,
             True,
-            True,
+            False,
             bool(config.arm_allow_thinking_on),
         )
 
@@ -483,37 +477,17 @@ class AdaptiveReliabilityHarnessV214(ARMV214StateSupport, AdaptiveReasoningHarne
                 trace, route_data, summary, safe_state,
                 [*candidates_a, *candidates_b], replacement_reason,
             )
-        if not policy.allow_resolver or self.harness.budget.calls_used >= self.harness.budget.max_calls:
-            return self._return_safe_or_abstain(
-                trace,
-                route_data,
-                summary,
-                safe_state,
-                [*candidates_a, *candidates_b],
-                "arm_v2_conflict_unresolved",
-            )
-
         self.harness.ledger.transition(STATE_CONFLICT, reason="arm_v2_candidate_conflict")
         self.harness.ledger.add_conflict([primary_valid, secondary_valid])
-        if self.should_finalize_now():
-            summary["deadline_finalized"] = True
-            return self._return_safe_or_abstain(
-                trace,
-                route_data,
-                summary,
-                safe_state,
-                [*candidates_a, *candidates_b],
-                "deadline_before_resolver",
-            )
         verification = self._run_verification(primary_valid, secondary_valid, problem)
         summary["verification"] = verification
-        if verification["status"] in {"A", "B"}:
-            selected = primary_valid if verification["status"] == "A" else secondary_valid
+        if verification["status"] == "A":
+            selected = primary_valid
             selected.verification_status = "deterministic_verified"
             selected.trust_confidence = "high"
             selected.trust_reason = verification["reason"] or "deterministic_verification"
             self.harness.ledger.update_candidate(selected)
-            summary["final_source"] = "candidate_a" if verification["status"] == "A" else "candidate_b"
+            summary["final_source"] = "candidate_a"
             self._append_summary(trace, summary)
             return self.harness._select(
                 trace,
@@ -523,83 +497,13 @@ class AdaptiveReliabilityHarnessV214(ARMV214StateSupport, AdaptiveReasoningHarne
                 "arm_v2_deterministic_verification",
                 problem=problem,
             )
-        self.harness.ledger.transition(STATE_CRITIC, reason="arm_v2_conflict")
-        summary["resolver_triggered"] = True
-        resolver_tokens = min(1_024, self.harness.budget.total_tokens - self.harness.budget.requested_tokens)
-        resolver_timeout = self.effective_timeout_seconds(None)
-        if resolver_timeout is None:
-            summary["deadline_finalized"] = True
-            return self._return_safe_or_abstain(
-                trace,
-                route_data,
-                summary,
-                safe_state,
-                [*candidates_a, *candidates_b],
-                "deadline_before_resolver",
-            )
-        resolver = self.harness.scheduler.call(
-            "arm_v2_resolver",
-            ARM_V2_RESOLVER_PROMPT,
-            self.harness._critic_prompt(problem, [primary_valid, secondary_valid]),
-            resolver_tokens,
-            reasoning_mode="off",
-            timeout_seconds=resolver_timeout,
-        )
-        if classify_runtime_failure(resolver) is not None:
-            return self._return_safe_or_abstain(
-                trace,
-                route_data,
-                summary,
-                safe_state,
-                [*candidates_a, *candidates_b],
-                "resolver_runtime_failure",
-            )
-        decision = self._parse_resolver(resolver.content)
-        summary["resolver_decision"] = decision
-        summary["resolver"].update(
-            {
-                "candidate_a_value": primary_valid.normalized_value,
-                "candidate_b_value": secondary_valid.normalized_value,
-                "candidate_a_trust": primary_valid.trust_confidence,
-                "candidate_b_trust": secondary_valid.trust_confidence,
-                "resolver_decision": decision,
-                "selected_source": f"candidate_{decision.lower()}" if decision in {"A", "B"} else None,
-                "resolver_verdict": None,
-            }
-        )
-        if decision == "A":
-            selected = primary_valid
-        elif decision == "B":
-            return self._return_safe_or_abstain(
-                trace,
-                route_data,
-                summary,
-                safe_state,
-                [*candidates_a, *candidates_b],
-                "resolver_b_without_review",
-            )
-        else:
-            return self._return_safe_or_abstain(
-                trace,
-                route_data,
-                summary,
-                safe_state,
-                [*candidates_a, *candidates_b],
-                "arm_v2_resolver_unknown",
-            )
-        selected.verification_status = "bounded_resolver"
-        selected.trust_confidence = "medium"
-        selected.trust_reason = "bounded_resolver_selected"
-        self.harness.ledger.update_candidate(selected)
-        summary["final_source"] = f"resolver_{decision.lower()}"
-        self._append_summary(trace, summary)
-        return self.harness._select(
+        return self._return_safe_or_abstain(
             trace,
             route_data,
-            selected,
+            summary,
+            safe_state,
             [*candidates_a, *candidates_b],
-            "arm_v2_bounded_resolver",
-            problem=problem,
+            "v2.1.4_no_replacement_evidence",
         )
 
     def _recover_runtime(
@@ -699,11 +603,12 @@ class AdaptiveReliabilityHarnessV214(ARMV214StateSupport, AdaptiveReasoningHarne
         self._record(STATE_REPAIR, parsed, candidates)
         repaired, _decision = self._evaluate_one(candidates, parsed, call_result)
         review = None
-        if repaired is not None:
+        if repaired is not None and repaired.structural_validity == "valid" and repaired.answer_complete:
             review_call = self.harness.scheduler.call(
                 "arm_v2_fresh_review",
                 ARM_V2_FRESH_REVIEW_PROMPT,
-                f"原题：{problem}\n修复候选：{repaired.normalized_value}\n异议：{finding.evidence}",
+                f"原题：{problem}\n修复候选：{repaired.normalized_value}\n"
+                f"异议位置：{finding.issue_location}\n异议主张：{finding.claim}\n异议证据：{finding.evidence}",
                 min(512, self.harness.budget.total_tokens - self.harness.budget.requested_tokens),
                 reasoning_mode="off",
                 timeout_seconds=self.effective_timeout_seconds(None),
@@ -747,15 +652,6 @@ class AdaptiveReliabilityHarnessV214(ARMV214StateSupport, AdaptiveReasoningHarne
         self.harness.ledger.update_candidate(candidate)
         return candidate, decision
 
-    @staticmethod
-    def _parse_resolver(response: str | None) -> str:
-        """Accept only A, B, or UNKNOWN from the bounded resolver."""
-        text = (response or "").strip().splitlines()
-        first = text[0].strip().upper() if text else ""
-        if first in {"A", "B", "UNKNOWN"}:
-            return first
-        return "UNKNOWN"
-
     def _resolve_solver_mode(self, route: Any) -> tuple[str, str]:
         """Resolve adaptive mode from the existing route-risk contract."""
         if self.solver_mode_policy != "adaptive":
@@ -772,5 +668,5 @@ def policy_name(mode: str) -> str:
     """Name the v2 compute lane without exposing a new host route."""
     return f"v2_{mode}"
 
-__all__ = ["AdaptiveReliabilityHarness", "ARM_COMPACT_SALVAGE_PROMPT", "ARM_V2_RESOLVER_PROMPT"]
+__all__ = ["AdaptiveReliabilityHarnessV214", "ARM_COMPACT_SALVAGE_PROMPT"]
 
