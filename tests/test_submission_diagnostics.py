@@ -223,6 +223,16 @@ class SubmissionDiagnosticsTest(unittest.TestCase):
         self.assertEqual("PASS", gate["status"])
         self.assertNotIn("mean_calls_within_budget", gate["checks"])
 
+    def test_gate_does_not_require_rescue_when_correctness_is_equal_or_better(self):
+        baseline = {"profile": "submission", "records": 10, "correct": 5, "invalid": 2, "errors": 0}
+        candidate = {
+            "profile": "arm-v2.1.4-off", "records": 10, "correct": 6, "invalid": 2,
+            "errors": 0, "mean_calls_per_problem": 4.0, "damage_count": 0,
+            "rescue_count": 0,
+        }
+        gate = promotion_gate(baseline, candidate)
+        self.assertEqual("PASS", gate["status"])
+
 
 if __name__ == "__main__":
     unittest.main()

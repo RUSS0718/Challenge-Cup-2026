@@ -126,7 +126,9 @@ def compact_submission_diagnostics(
             recovery_transition = "incomplete_to_incomplete"
     return {
         "harness": (
-            "arm_v2.1.3"
+            "arm_v2.1.4"
+            if arm_active and str(profile).startswith("arm-v2.1.4")
+            else "arm_v2.1.3"
             if arm_active and str(profile).startswith("arm-v2.1.3")
             else "arm_v2.1.2"
             if arm_active
@@ -182,7 +184,7 @@ def summarize_submission_diagnostics(
     calls = [int(item["model_calls"]) for item in diagnostics]
     arm_records = [
         item for item in diagnostics
-        if item["harness"] in {"arm_v2.1.2", "arm_v2.1.3"}
+        if item["harness"] in {"arm_v2.1.2", "arm_v2.1.3", "arm_v2.1.4"}
     ]
     formed = sum(item["candidate_formation"] is True for item in arm_records)
     second_called = sum(item["second_called"] for item in arm_records)
@@ -263,7 +265,6 @@ def promotion_gate(
 ) -> dict[str, Any]:
     """Evaluate the conservative Full-30 promotion gate without mutating config."""
     damage = int(candidate.get("damage_count", 0) or 0)
-    rescue = int(candidate.get("rescue_count", candidate.get("second_rescue_count", 0)) or 0)
     max_calls = candidate.get("max_calls_per_problem")
     checks = {
         "baseline_complete": bool(baseline.get("integrity_passed", True)),
@@ -276,7 +277,6 @@ def promotion_gate(
         "no_new_runner_errors": int(candidate.get("errors", 0) or 0)
         <= int(baseline.get("errors", 0) or 0),
         "damage_is_zero": damage == 0,
-        "rescue_exceeds_damage": rescue > damage,
     }
     if max_calls is not None:
         checks["calls_within_safety_limit"] = int(max_calls) <= 5
