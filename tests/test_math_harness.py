@@ -57,6 +57,17 @@ class MathHarnessParserTest(unittest.TestCase):
         self.assertEqual("choice", choice.candidates[0].answer_type)
         self.assertEqual("B", choice.candidates[0].value)
 
+    def test_expected_type_override_extracts_scalar_from_proof_rhetoric(self):
+        parser = HostParser()
+        parsed = parser.parse(
+            "因此得到 256",
+            problem="证明该计数结论成立",
+            source="attempt_a",
+            expected_type="scalar",
+        )
+        self.assertEqual(CANDIDATE_PARSED, parsed.status)
+        self.assertEqual("256", parsed.candidates[0].normalized_value)
+
     def test_boxed_fraction_and_unordered_set_are_safe(self):
         parser = HostParser()
         fraction = parser.parse(r"\boxed{\frac{1}{2}}", problem="求一个分数", source="attempt_a")
@@ -415,6 +426,19 @@ class MathHarnessOrchestratorTest(unittest.TestCase):
         self.assertEqual("generic", route["lane"])
         finalize = next(item for item in reversed(result["trace"]) if item.get("stage") == "finalize")
         self.assertEqual("generic_retry_recovered", finalize["source"])
+
+    def test_proof_reasoning_does_not_force_proof_output_shape(self):
+        router = HostRouter(hybrid_enabled=False, deep_enabled=True)
+        decision = router.route("证明该组合结论，并求出最终整数值")
+        self.assertEqual("single_numeric", decision.contract.answer_shape)
+        self.assertEqual("deep", decision.contract.reasoning_risk)
+        self.assertEqual("harness", decision.target)
+
+    def test_explicit_proof_output_request_keeps_proof_text_contract(self):
+        router = HostRouter(hybrid_enabled=False, deep_enabled=True)
+        decision = router.route("请给出完整证明")
+        self.assertEqual("proof_text", decision.contract.answer_shape)
+        self.assertEqual("harness", decision.target)
 
     def test_router_has_no_unsupported_target_for_valid_math_without_hybrid(self):
         router = HostRouter(hybrid_enabled=False, deep_enabled=False)
