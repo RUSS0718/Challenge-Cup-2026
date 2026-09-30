@@ -390,18 +390,30 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         self.harness.ledger.transition(STATE_CONFLICT, reason="arm_v2_candidate_conflict")
         self.harness.ledger.add_conflict([primary_valid, secondary_valid])
         best = self._best_candidate(primary_valid, secondary_valid)
-        safe_state.update(
-            best,
-            source="candidate_a" if best is primary_valid else "candidate_b",
-            confidence=best.trust_confidence,
-            checkpoint_stage="pre_resolver",
-        )
+        incumbent = safe_state.get()
+        if incumbent is None:
+            safe_state.update(
+                best,
+                source="candidate_a" if best is primary_valid else "candidate_b",
+                confidence=best.trust_confidence,
+                checkpoint_stage="pre_resolver",
+            )
+            incumbent = safe_state.get()
+        else:
+            incumbent.incumbent = True
+            challenger = secondary_valid if incumbent is primary_valid else primary_valid
+            challenger.candidate_role = "challenger"
+            challenger.challenge_status = "pending"
+            challenger.challenge_id = incumbent.candidate_id
+            self.harness.ledger.update_candidate(incumbent)
+            self.harness.ledger.update_candidate(challenger)
         trace.append(
             {
                 "method": "arm_harness_v2",
                 "stage": "safe_candidate_checkpoint",
                 "source": safe_state.source,
                 "checkpoint_stage": safe_state.checkpoint_stage,
+                "policy": "incumbent_preserved",
             }
         )
         if self.should_finalize_now():
