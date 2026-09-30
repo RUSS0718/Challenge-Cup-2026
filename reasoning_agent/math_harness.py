@@ -550,17 +550,62 @@ class HostRouter:
         contract = self.contract(text)
         answer_type = "mixed" if _task_signal_count(text) > 1 else _answer_type_from_problem(text)
         if contract.route_confidence == ROUTE_CONFIDENCE_LOW:
-            target = "legacy_fsdf" if self.hybrid_enabled else "unsupported"
-            return RouteDecision(target, answer_type, contract.reasoning_risk, "low_confidence_contract", contract, "legacy_fsdf" if self.hybrid_enabled else "unsupported")
+            if self.hybrid_enabled:
+                return RouteDecision(
+                    "legacy_fsdf",
+                    answer_type,
+                    contract.reasoning_risk,
+                    "low_confidence_contract",
+                    contract,
+                    "legacy_fsdf",
+                )
+            return RouteDecision(
+                "harness",
+                answer_type,
+                contract.reasoning_risk,
+                "low_confidence_generic_fallback",
+                contract,
+                "generic",
+            )
         if contract.answer_shape == ANSWER_SHAPE_PROOF_TEXT:
-            target = "legacy_fsdf" if self.hybrid_enabled else "unsupported"
-            return RouteDecision(target, answer_type, contract.reasoning_risk, "proof_text_fallback", contract, "legacy_fsdf" if self.hybrid_enabled else "unsupported")
+            if self.hybrid_enabled:
+                return RouteDecision(
+                    "legacy_fsdf",
+                    answer_type,
+                    contract.reasoning_risk,
+                    "proof_text_fallback",
+                    contract,
+                    "legacy_fsdf",
+                )
+            return RouteDecision(
+                "harness",
+                answer_type,
+                contract.reasoning_risk,
+                "proof_text_generic_fallback",
+                contract,
+                "generic",
+            )
         if contract.reasoning_risk == REASONING_RISK_DIRECT and answer_type in {ANSWER_CHOICE, ANSWER_SCALAR}:
             return RouteDecision("harness", answer_type, "short", "scalar_or_exact_answer", contract, "direct")
         if self.deep_enabled:
             return RouteDecision("harness", answer_type, contract.reasoning_risk, "typed_deep_contract", contract, "deep")
-        target = "legacy_fsdf" if self.hybrid_enabled else "unsupported"
-        return RouteDecision(target, answer_type, contract.reasoning_risk, "deep_lane_disabled", contract, "legacy_fsdf" if self.hybrid_enabled else "unsupported")
+        if self.hybrid_enabled:
+            return RouteDecision(
+                "legacy_fsdf",
+                answer_type,
+                contract.reasoning_risk,
+                "deep_lane_disabled",
+                contract,
+                "legacy_fsdf",
+            )
+        return RouteDecision(
+            "harness",
+            answer_type,
+            contract.reasoning_risk,
+            "deep_lane_generic_fallback",
+            contract,
+            "generic",
+        )
 
 
 class FrozenErrorNotebook:
@@ -865,6 +910,12 @@ DEEP_REVIEW_PROMPT = """你是独立的数学复核求解器。不要参考任�
 最后单独一行写 Final answer: <完整答案>；如果不能形成完整答案，明确说明无法完成。"""
 DEEP_CONTINUATION_PROMPT = """你是数学解答续写器。宿主已发现一个候选，但原解答可能被截断。
 只核对候选与题目条件，并用最短完整推导确认或否定它。最后单独一行写 Final answer: <完整答案>。"""
+GENERIC_PRIMARY_PROMPT = """你是通用数学求解器。无论题目属于计算、证明、推导还是解释任务，都必须尝试完成，
+不要因为答案形状不确定而拒答。给出必要但尽量简洁的推导，并在最后单独一行写
+Final answer: <你的唯一最终结论>。不要输出多个互相冲突的最终答案。"""
+GENERIC_RETRY_PROMPT = """你是通用数学恢复求解器。上一次回答未形成可安全提取的完整终答。
+请从原题重新独立求解，优先形成一个可评分的最终结论；最后单独一行写
+Final answer: <你的唯一最终结论>。不要讨论路由、解析器或上一轮失败。"""
 
 
 class ConstraintFitOrchestrator:
@@ -1093,6 +1144,13 @@ class ConstraintFitOrchestrator:
             }
         if route.target != "harness":
             return self._abstain(prefix_trace, route_dict, "unsupported_route")
+        if route.lane == "generic":
+            return self._solve_generic(
+                problem_text[: self.config.max_problem_chars],
+                route,
+                prefix_trace,
+                reference_context,
+            )
         if route.lane == "deep":
             return self._solve_deep(
                 problem_text[: self.config.max_problem_chars],
@@ -1816,6 +1874,116 @@ class ConstraintFitOrchestrator:
                 route=route,
             )
         ]
+
+    def _solve_generic(
+        self,
+        problem: str,
+        route: RouteDecision,
+        prefix_trace: list[dict[str, Any]],
+        reference_context: str = "",
+    ) -> dict[str, Any]:
+        """Fallback solver for valid math inputs whose host contract is uncertain.
+
+        The router's uncertainty is not treated as evidence that the problem is
+        unsolvable.  A complete primary candidate is an incumbent and is never
+        destroyed by a failed recovery attempt.
+        """
+        assert self.ledger is not None and self.budget is not None
+        all_candidates: list[Candidate] = []
+        prompt_problem = _prompt_problem(problem, reference_context)
+
+        self.ledger.transition(STATE_ATTEMPT_A, reason="generic_fallback_primary")
+        first = self.scheduler.call(
+            "attempt_a",
+            GENERIC_PRIMARY_PROMPT,
+            f"题目：\n{prompt_problem}\n\n请完成求解。",
+            self.config.tokens_for("attempt_a"),
+        )
+        parsed_a = HostParser().parse(
+            first.content,
+            problem=problem,
+            source="generic_primary",
+            finish_reason=first.finish_reason,
+        )
+        candidates_a = self._new_candidates(parsed_a, "generic_primary")
+        all_candidates.extend(candidates_a)
+        self._record_parsed(STATE_CANDIDATE_A, parsed_a, candidates_a)
+
+        incumbent = candidates_a[0] if len(candidates_a) == 1 else None
+        if incumbent is not None:
+            incumbent.incumbent = True
+            incumbent.candidate_role = "primary"
+            self.ledger.update_candidate(incumbent)
+            if parsed_a.status == CANDIDATE_PARSED:
+                return self._select(
+                    prefix_trace,
+                    route.as_dict(),
+                    incumbent,
+                    all_candidates,
+                    "generic_primary_complete",
+                    problem=problem,
+                )
+
+        self.ledger.transition(STATE_ATTEMPT_B, reason="generic_primary_incomplete_or_missing")
+        second = self.scheduler.call(
+            "attempt_b",
+            GENERIC_RETRY_PROMPT,
+            f"题目：\n{prompt_problem}\n\n请重新独立求解并形成唯一终答。",
+            self.config.tokens_for("attempt_b"),
+        )
+        parsed_b = HostParser().parse(
+            second.content,
+            problem=problem,
+            source="generic_retry",
+            finish_reason=second.finish_reason,
+        )
+        candidates_b = self._new_candidates(parsed_b, "generic_retry")
+        all_candidates.extend(candidates_b)
+        self._record_parsed(STATE_CANDIDATE_B, parsed_b, candidates_b)
+
+        if incumbent is not None:
+            if (
+                len(candidates_b) == 1
+                and value_equivalence(incumbent.value, candidates_b[0].value) == "EQUIVALENT"
+            ):
+                incumbent.verification_status = "verified"
+                incumbent.extraction_status = CANDIDATE_VERIFIED
+                candidates_b[0].verification_status = "verified"
+                candidates_b[0].extraction_status = CANDIDATE_VERIFIED
+                self.ledger.update_candidate(incumbent)
+                self.ledger.update_candidate(candidates_b[0])
+                source = "generic_retry_agreement"
+            else:
+                # Non-destructive escalation: uncertainty or a conflicting
+                # retry cannot erase an already extractable primary answer.
+                incumbent.challenge_status = "unresolved"
+                self.ledger.update_candidate(incumbent)
+                source = "generic_primary_preserved"
+            return self._select(
+                prefix_trace,
+                route.as_dict(),
+                incumbent,
+                all_candidates,
+                source,
+                problem=problem,
+            )
+
+        if len(candidates_b) == 1:
+            candidates_b[0].candidate_role = "recovery"
+            return self._select(
+                prefix_trace,
+                route.as_dict(),
+                candidates_b[0],
+                all_candidates,
+                "generic_retry_recovered",
+                problem=problem,
+            )
+
+        return self._abstain(
+            prefix_trace,
+            route.as_dict(),
+            "generic_no_extractable_candidate",
+        )
 
     def _solve_deep(
         self,
