@@ -11,6 +11,7 @@ VerificationStatus = Literal["A", "B", "UNKNOWN", "NOT_APPLICABLE"]
 _STATUSES = frozenset({"A", "B", "UNKNOWN", "NOT_APPLICABLE"})
 CHALLENGER_VERDICTS = frozenset({"NO_OBJECTION", "OBJECTION", "UNKNOWN"})
 CHALLENGER_ISSUE_TYPES = frozenset({"arithmetic", "substitution", "domain", "boundary", "missing_case", "format", "other"})
+FRESH_REVIEW_STATUSES = frozenset({"PASS", "FAIL", "UNKNOWN"})
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,30 @@ class ChallengerFinding:
             and self.evidence.strip()
             and self.repairable
         )
+
+
+@dataclass(frozen=True)
+class FreshReview:
+    """Result of rechecking a repaired candidate against the original issue."""
+
+    status: str
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        if self.status not in FRESH_REVIEW_STATUSES:
+            raise ValueError("invalid_fresh_review_status")
+
+
+def replacement_decision(
+    finding: ChallengerFinding,
+    review: FreshReview | None,
+) -> tuple[bool, str]:
+    """Allow replacement only after a specific objection and passing review."""
+    if not finding.supports_replacement:
+        return False, "challenger_evidence_insufficient"
+    if review is None or review.status != "PASS":
+        return False, "fresh_review_not_passed"
+    return True, "fresh_review_supported_replacement"
 
 
 def parse_challenger_finding(response: str | None) -> ChallengerFinding:
@@ -103,4 +128,4 @@ class DeterministicVerifier:
         return VerificationResult("NOT_APPLICABLE", None, "no_deterministic_check")
 
 
-__all__ = ["ChallengerFinding", "DeterministicVerifier", "VerificationResult", "VerificationStatus", "parse_challenger_finding"]
+__all__ = ["ChallengerFinding", "DeterministicVerifier", "FreshReview", "VerificationResult", "VerificationStatus", "parse_challenger_finding", "replacement_decision"]

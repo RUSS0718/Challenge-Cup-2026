@@ -4,7 +4,12 @@ import unittest
 
 from reasoning_agent.harness_contracts import Candidate
 from reasoning_agent.harness_contracts import HostParser
-from reasoning_agent.arm_v21_verification import ChallengerFinding, parse_challenger_finding
+from reasoning_agent.arm_v21_verification import (
+    ChallengerFinding,
+    FreshReview,
+    parse_challenger_finding,
+    replacement_decision,
+)
 from reasoning_agent.submission_diagnostics import summarize_submission_diagnostics
 
 
@@ -69,6 +74,15 @@ class ARMV214StateTest(unittest.TestCase):
         self.assertEqual("step 2", finding.as_dict()["issue_location"])
         self.assertFalse(ChallengerFinding().supports_replacement)
         self.assertEqual("UNKNOWN", parse_challenger_finding("B looks better").verdict)
+
+    def test_repair_requires_passing_fresh_review(self):
+        finding = ChallengerFinding(
+            verdict="OBJECTION", issue_type="substitution", issue_location="step 1",
+            evidence="x=2 fails the original constraint", repairable=True,
+        )
+        self.assertEqual((False, "fresh_review_not_passed"), replacement_decision(finding, FreshReview("UNKNOWN")))
+        self.assertEqual((False, "fresh_review_not_passed"), replacement_decision(finding, FreshReview("FAIL")))
+        self.assertEqual((True, "fresh_review_supported_replacement"), replacement_decision(finding, FreshReview("PASS")))
 
 
 if __name__ == "__main__":

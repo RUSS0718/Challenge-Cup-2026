@@ -6,7 +6,12 @@ from typing import Any, Sequence
 
 from reasoning_agent.answer_completeness import assess_answer_completeness
 from reasoning_agent.arm_v21_diagnostics import pair_relation, second_sample_outcome
-from reasoning_agent.arm_v21_verification import ChallengerFinding, DeterministicVerifier
+from reasoning_agent.arm_v21_verification import (
+    ChallengerFinding,
+    DeterministicVerifier,
+    FreshReview,
+    replacement_decision,
+)
 from reasoning_agent.arm_harness import AdaptiveReasoningHarness
 from reasoning_agent.candidate_trust import CandidateTrustPolicy
 from reasoning_agent.candidate_validation import validate_candidate_shape
@@ -47,6 +52,13 @@ ARM_V2_RESOLVER_PROMPT = """给定同一道数学题的两个候选答案。
 
 只能输出一行：A、B 或 UNKNOWN。
 只能选择已有候选，不能生成第三个答案，也不要重新求解。"""
+
+ARM_V2_REPAIR_PROMPT = """只修复候选中 Challenger 指出的局部错误。
+必须保留原候选的其余结论，不要整题重解，不要输出多个候选。
+最后单独一行：Final answer: <完整答案>"""
+
+ARM_V2_FRESH_REVIEW_PROMPT = """复核修复后的候选是否解决了指定异议。
+只输出一行 PASS、FAIL 或 UNKNOWN。"""
 
 
 class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
@@ -147,6 +159,8 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             "challenger_status": "UNKNOWN",
             "challenger": None,
             "replacement_reason": "",
+            "repair_attempted": False,
+            "fresh_review_status": "NOT_RUN",
         }
         trace.append(
             {
@@ -401,6 +415,35 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 [*candidates_a, *candidates_b],
                 "challenger_shadow",
             )
+        if (
+            finding.supports_replacement
+            and bool(getattr(self.harness.config, "arm_enable_targeted_repair", False))
+            and bool(getattr(self.harness.config, "arm_enable_fresh_review", False))
+        ):
+            repaired, review = self._targeted_repair(
+                problem, route, primary_valid, finding, trace, summary
+            )
+            allowed, replacement_reason = replacement_decision(finding, review)
+            summary["replacement_reason"] = replacement_reason
+            if allowed and repaired is not None:
+                repaired.candidate_role = "repair"
+                repaired.candidate_version = primary_valid.candidate_version + 1
+                repaired.incumbent = True
+                repaired.replacement_reason = replacement_reason
+                summary["final_source"] = "repair"
+                self._append_summary(trace, summary)
+                return self.harness._select(
+                    trace,
+                    route_data,
+                    repaired,
+                    [*candidates_a, *candidates_b, repaired],
+                    "arm_v2_fresh_review_replacement",
+                    problem=problem,
+                )
+            return self._return_safe_or_abstain(
+                trace, route_data, summary, safe_state,
+                [*candidates_a, *candidates_b], replacement_reason,
+            )
         if not policy.allow_resolver or self.harness.budget.calls_used >= self.harness.budget.max_calls:
             return self._return_safe_or_abstain(
                 trace,
@@ -598,6 +641,53 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             repairable=False,
             coverage="final candidate comparison",
         )
+
+    def _targeted_repair(
+        self,
+        problem: str,
+        route: Any,
+        incumbent: Candidate,
+        finding: ChallengerFinding,
+        trace: list[dict[str, Any]],
+        summary: dict[str, Any],
+    ) -> tuple[Candidate | None, FreshReview | None]:
+        """Run one local repair and one fresh review behind explicit flags."""
+        repair_prompt = (
+            f"{ARM_V2_REPAIR_PROMPT}\n\n"
+            f"原候选：{incumbent.normalized_value}\n"
+            f"异议位置：{finding.issue_location}\n"
+            f"异议主张：{finding.claim}\n"
+            f"证据：{finding.evidence}"
+        )
+        parsed, candidates = self._call(
+            "arm_v2_targeted_repair",
+            repair_prompt,
+            problem,
+            self.harness.config.tokens_for("repair"),
+            self.solver_mode,
+            route,
+            source="arm_repair",
+            timeout_seconds=self.effective_timeout_seconds(None),
+        )
+        call_result = self._last_call_result
+        self._record(STATE_REPAIR, parsed, candidates)
+        repaired, _decision = self._evaluate_one(candidates, parsed, call_result)
+        review = None
+        if repaired is not None:
+            review_call = self.harness.scheduler.call(
+                "arm_v2_fresh_review",
+                ARM_V2_FRESH_REVIEW_PROMPT,
+                f"原题：{problem}\n修复候选：{repaired.normalized_value}\n异议：{finding.evidence}",
+                min(512, self.harness.budget.total_tokens - self.harness.budget.requested_tokens),
+                reasoning_mode="off",
+                timeout_seconds=self.effective_timeout_seconds(None),
+            )
+            token = str(getattr(review_call, "content", "") or "").strip().splitlines()
+            status = token[0].upper() if token and token[0].upper() in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
+            review = FreshReview(status, "fresh_review")
+        summary["repair_attempted"] = True
+        summary["fresh_review_status"] = review.status if review else "UNKNOWN"
+        return repaired, review
 
     def _evaluate_one(self, candidates: Sequence[Candidate], parsed: Any, call_result: Any):
         """Annotate one candidate with structural and trust metadata."""
