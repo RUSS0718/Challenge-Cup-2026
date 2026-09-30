@@ -320,6 +320,21 @@ class JudgeCorrectTest(unittest.TestCase):
             judge_correct("Yes", "Yes. It will involve a sum of integer products."),
         )
 
+    def test_verbose_vector_gold_matches_matrix_answer(self):
+        from scripts.evaluate_dev import judge_correct
+        extracted = r"\boxed{\begin{bmatrix}-2\\5\\2\end{bmatrix}}"
+        gold = (
+            r"The best approximation is $\mathbf{v}^{\prime}=3\mathbf{u}_{1}-\mathbf{u}_{2}="
+            r"\left[\begin{array}{r}-2\\5\\2\end{array}\right]$."
+        )
+        self.assertEqual("correct", judge_correct(extracted, gold))
+
+    def test_matrix_canonicalization_does_not_guess_different_values(self):
+        from scripts.evaluate_dev import judge_correct
+        extracted = r"\begin{bmatrix}-2\\5\\3\end{bmatrix}"
+        gold = r"$\left[\begin{array}{r}-2\\5\\2\end{array}\right]$"
+        self.assertEqual("unknown", judge_correct(extracted, gold))
+
     def test_unbraced_numeric_list_matches_braced_set_only(self):
         from scripts.evaluate_dev import judge_correct
         self.assertEqual("correct", judge_correct("2,3", "{2,3}"))
