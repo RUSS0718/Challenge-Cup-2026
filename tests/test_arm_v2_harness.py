@@ -4,6 +4,7 @@ import unittest
 
 from reasoning_agent.arm_v21_verification import VerificationResult
 from reasoning_agent.skill_guidance import SkillRouteDecision
+from reasoning_agent.skill_audit import SkillAuditResult
 from reasoning_agent.math_harness import ConstraintFitOrchestrator, HarnessConfig
 
 
@@ -157,31 +158,59 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual([30, 15], [call["timeout_seconds"] for call in client.calls])
         self.assertEqual("compact_salvage", self._summary(result)["runtime_recovery_action"])
 
-    def test_resolver_cannot_create_a_third_candidate(self):
+    def test_v214_keeps_incumbent_without_resolver(self):
         client = ModeAwareClient([
             {"content": "Final answer: {117,119}", "finish_reason": "stop"},
             {"content": "Final answer: {118,120}", "finish_reason": "stop"},
-            "C",
         ])
         result = ConstraintFitOrchestrator(client, config=_config(arm_harness_version="v2.1.4")).solve("求所有可能的值", {})
 
         self.assertEqual("{117,119}", result["final_response"])
-        self.assertEqual(3, len(client.calls))
+        self.assertEqual(2, len(client.calls))
         self.assertEqual(2, len(self._ledger(result)["candidates"]))
-        self.assertEqual("UNKNOWN", self._summary(result)["resolver_decision"])
+        self.assertFalse(self._summary(result)["resolver_triggered"])
         self.assertTrue(self._summary(result)["safe_fallback_used"])
 
-    def test_resolver_b_cannot_replace_primary_without_review(self):
+    def test_v214_does_not_allow_challenger_replacement_without_review(self):
         client = ModeAwareClient([
             {"content": "Final answer: {117,119}", "finish_reason": "stop"},
             {"content": "Final answer: {118,120}", "finish_reason": "stop"},
-            "B",
         ])
         result = ConstraintFitOrchestrator(client, config=_config(arm_harness_version="v2.1.4")).solve("求所有可能的值", {})
         self.assertEqual("{117,119}", result["final_response"])
-        self.assertEqual("resolver_b_without_review", self._summary(result)["fallback_reason"])
+        self.assertEqual("v2.1.4_no_replacement_evidence", self._summary(result)["fallback_reason"])
 
     def test_v214_repair_and_fresh_review_replace_only_after_pass(self):
+        challenger = (
+            '{"verdict":"OBJECTION","issue_type":"arithmetic",'
+            '"issue_location":"final value","claim":"A is wrong",'
+            '"evidence":"direct substitution gives 2","repairable":true,'
+            '"coverage":"final value"}\nFinal answer: {2,3}'
+        )
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+            {"content": challenger, "finish_reason": "stop"},
+            {"content": "Final answer: {2,3}", "finish_reason": "stop"},
+            '{"status":"PASS","checked_issue":"final value",'
+            '"check_result":"direct substitution gives 2","remaining_problem":null}',
+        ])
+        result = ConstraintFitOrchestrator(
+            client,
+            config=_config(
+                arm_harness_version="v2.1.4",
+                arm_enable_targeted_repair=True,
+                arm_enable_fresh_review=True,
+                arm_adaptive_token_budget=20_480,
+            ),
+        ).solve("求所有可能的值", {})
+        summary = self._summary(result)
+        self.assertEqual("{2,3}", result["final_response"])
+        self.assertEqual(4, len(client.calls))
+        self.assertEqual("OBJECTION", summary["challenger_status"])
+        self.assertEqual("PASS", summary["fresh_review_status"])
+        self.assertEqual("repair", summary["final_source"])
+
+    def test_v214_plain_pass_cannot_replace_primary(self):
         challenger = (
             '{"verdict":"OBJECTION","issue_type":"arithmetic",'
             '"issue_location":"final value","claim":"A is wrong",'
@@ -203,24 +232,68 @@ class ARMHarnessV2Test(unittest.TestCase):
                 arm_adaptive_token_budget=20_480,
             ),
         ).solve("求所有可能的值", {})
-        summary = self._summary(result)
-        self.assertEqual("{2,3}", result["final_response"])
+        self.assertEqual("{1,2}", result["final_response"])
+        self.assertEqual("UNKNOWN", self._summary(result)["fresh_review_status"])
         self.assertEqual(4, len(client.calls))
-        self.assertEqual("OBJECTION", summary["challenger_status"])
-        self.assertEqual("PASS", summary["fresh_review_status"])
-        self.assertEqual("repair", summary["final_source"])
 
-    def test_v214_timeout_keeps_primary_even_when_challenger_has_higher_trust(self):
+    def test_v214_keeps_primary_without_spending_a_resolver_call(self):
         client = ModeAwareClient([
             {"content": "Final answer: {1,2}", "finish_reason": "stop"},
             {"content": "Final answer: {2,3}", "finish_reason": "stop"},
-            TimeoutError("resolver timeout"),
         ])
         result = ConstraintFitOrchestrator(
             client,
             config=_config(arm_harness_version="v2.1.4"),
         ).solve("求所有可能的值", {})
         self.assertEqual("{1,2}", result["final_response"])
+        self.assertEqual(2, len(client.calls))
+
+    def test_v214_injected_verifier_cannot_select_b_without_review(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+            {"content": "Final answer: {2,3}", "finish_reason": "stop"},
+        ])
+        orchestrator = ConstraintFitOrchestrator(client, config=_config(arm_harness_version="v2.1.4"))
+
+        class SelectB:
+            """Simulate a verifier that recommends the challenger."""
+
+            def verify(self, candidate_a, candidate_b, problem):
+                """Return B so the host replacement boundary is exercised."""
+                return VerificationResult("B", candidate_b.candidate_id, "candidate_check")
+
+        orchestrator.deterministic_verifier = SelectB()
+        result = orchestrator.solve("求所有可能的值", {})
+        self.assertEqual("{1,2}", result["final_response"])
+        self.assertEqual("B", self._summary(result)["verification"]["status"])
+        self.assertEqual(2, len(client.calls))
+
+    def test_v214_skill_refutation_keeps_primary_as_incumbent(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: 2", "finish_reason": "stop"},
+            TimeoutError("challenger timeout"),
+        ])
+
+        class RefutingAuditor:
+            """Return negative evidence without deleting the candidate."""
+
+            def audit(self, **kwargs):
+                """Mark the primary as refuted so the safe checkpoint is tested."""
+                return SkillAuditResult("refuted", "exact-evaluation", "counterexample")
+
+        result = ConstraintFitOrchestrator(
+            client,
+            config=_config(
+                arm_harness_version="v2.1.4",
+                arm_enable_skill_audit=True,
+                arm_max_skill_audits=1,
+                arm_trust_policy="positive_evidence",
+            ),
+            skill_auditor=RefutingAuditor(),
+        ).solve("计算一个复杂的函数极限", {})
+        self.assertEqual("2", result["final_response"])
+        self.assertEqual("refuted", self._summary(result)["skill_status"])
+        self.assertIsNotNone(self._summary(result)["safe_candidate"])
 
     def test_fragment_is_not_a_safe_candidate_and_exposes_failure_reason(self):
         client = ModeAwareClient([

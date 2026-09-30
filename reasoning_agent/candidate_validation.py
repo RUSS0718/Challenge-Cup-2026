@@ -11,6 +11,7 @@ from typing import Any
 
 from reasoning_agent.harness_contracts import (
     ANSWER_CHOICE,
+    ANSWER_DERIVATION,
     ANSWER_EXACT_EXPRESSION,
     ANSWER_EXPLANATION,
     ANSWER_INTEGER,
@@ -28,6 +29,52 @@ from reasoning_agent.harness_contracts import (
 
 INTEGER_RE = re.compile(r"^[+-]?\d+$")
 CHOICE_RE = re.compile(r"^[A-Da-d](?:[.)）])?$")
+
+# Short semantic conclusions are legitimate scalar answers even when they do
+# not contain digits or operators. Keep this list deliberately bounded so
+# prose fragments such as "the answer is" are still rejected.
+SEMANTIC_SCALAR_VALUES = frozenset({
+    "是", "否", "真", "假", "成立", "不成立", "存在", "不存在",
+    "有", "无", "收敛", "发散", "可解", "无解", "唯一", "不唯一",
+    "yes", "no", "true", "false", "exists", "does not exist",
+    "converges", "diverges", "solvable", "no solution", "unique", "not unique",
+})
+
+
+def _semantic_scalar_is_valid(value: str) -> bool:
+    """Accept a bounded whitelist of short semantic math conclusions."""
+    normalized = re.sub(r"\s+", " ", value.strip().casefold()).rstrip("。.;；!！?？")
+    return normalized in SEMANTIC_SCALAR_VALUES
+
+
+def _set_shape_is_valid(value: str) -> bool:
+    """Accept a closed non-empty finite-set surface form without doing math."""
+    text = _strip_math_wrappers(value).strip()
+    if text.startswith(r"\{") and text.endswith(r"\}"):
+        text = "{" + text[2:-2].strip() + "}"
+    if not (text.startswith("{") and text.endswith("}")):
+        return False
+    body = text[1:-1].strip()
+    if not body:
+        return True
+    # Structural validation only: singleton and symbolic finite sets are valid.
+    # Reject obviously open/unfinished members but do not evaluate equivalence.
+    pieces = [part.strip() for part in re.split(r"[,，、]", body)]
+    return bool(pieces) and all(
+        part and not part.endswith(("=", "+", "-", "*", "/", "^", "\\"))
+        for part in pieces
+    )
+
+
+def _derivation_conclusion_is_valid(value: str) -> bool:
+    """Validate the extracted final conclusion of a derivation, not its proof body."""
+    if _semantic_scalar_is_valid(value):
+        return True
+    if INTEGER_RE.fullmatch(value) or _parse_numeric(value) is not None:
+        return True
+    if _set_shape_is_valid(value):
+        return True
+    return _expression_shape_is_valid(value)
 
 
 def _expression_shape_is_valid(value: str) -> bool:
@@ -67,12 +114,20 @@ def validate_candidate_shape(candidate: Candidate | Any, answer_type: str) -> tu
     if expected == ANSWER_CHOICE:
         return (True, "valid") if CHOICE_RE.fullmatch(value) else (False, "choice_shape")
     if expected == ANSWER_SET:
-        return (True, "valid") if _canonical_set(value) is not None else (False, "set_shape")
+        return (True, "valid") if _set_shape_is_valid(value) else (False, "set_shape")
+    if expected == ANSWER_DERIVATION:
+        return (
+            (True, "derivation_conclusion")
+            if _derivation_conclusion_is_valid(value)
+            else (False, "derivation_conclusion_shape")
+        )
     if expected in {ANSWER_EXACT_EXPRESSION, ANSWER_UNKNOWN, "scalar"}:
+        if _semantic_scalar_is_valid(value):
+            return True, "semantic_scalar"
         return (True, "valid") if _expression_shape_is_valid(value) else (False, "expression_prose")
     if expected in {ANSWER_PROOF, ANSWER_EXPLANATION}:
         return (True, "valid") if not value.endswith((":", "：")) else (False, "incomplete_structured_answer")
     return False, "unsupported_answer_type"
 
 
-__all__ = ["CHOICE_RE", "INTEGER_RE", "validate_candidate_shape"]
+__all__ = ["CHOICE_RE", "INTEGER_RE", "SEMANTIC_SCALAR_VALUES", "validate_candidate_shape"]

@@ -4,9 +4,11 @@ import unittest
 
 from reasoning_agent.harness_contracts import Candidate
 from reasoning_agent.harness_contracts import HostParser
-from reasoning_agent.arm_v21_verification import (
+from reasoning_agent.arm_v214_verification import (
     ChallengerFinding,
+    DeterministicVerifier,
     FreshReview,
+    parse_fresh_review,
     parse_challenger_finding,
     replacement_decision,
 )
@@ -52,7 +54,7 @@ class ARMV214StateTest(unittest.TestCase):
         self.assertEqual(0.5, report["primary_accuracy"])
         self.assertEqual(0.5, report["accuracy"])
 
-    def test_final_marker_preserves_answer_when_tail_is_truncated(self):
+    def test_legacy_host_parser_keeps_truncated_tail_incomplete(self):
         parsed = HostParser().parse(
             "推理尚未收束\nFinal answer: 7",
             problem="计算 1+1",
@@ -61,8 +63,8 @@ class ARMV214StateTest(unittest.TestCase):
         )
         self.assertEqual(1, len(parsed.candidates))
         self.assertTrue(parsed.truncated)
-        self.assertTrue(parsed.candidates[0].answer_complete)
-        self.assertEqual("parsed", parsed.candidates[0].extraction_status)
+        self.assertFalse(parsed.candidates[0].answer_complete)
+        self.assertEqual("truncated", parsed.candidates[0].answer_complete_reason)
 
     def test_challenger_contract_requires_specific_evidence_for_replacement(self):
         finding = parse_challenger_finding(
@@ -82,7 +84,42 @@ class ARMV214StateTest(unittest.TestCase):
         )
         self.assertEqual((False, "fresh_review_not_passed"), replacement_decision(finding, FreshReview("UNKNOWN")))
         self.assertEqual((False, "fresh_review_not_passed"), replacement_decision(finding, FreshReview("FAIL")))
-        self.assertEqual((True, "fresh_review_supported_replacement"), replacement_decision(finding, FreshReview("PASS")))
+        passing = FreshReview("PASS", "step 1", "substitution confirms the repaired value", None)
+        self.assertEqual((True, "fresh_review_supported_replacement"), replacement_decision(finding, passing))
+        mismatch = FreshReview("PASS", "final value", "looks correct", None)
+        self.assertEqual((False, "fresh_review_issue_mismatch"), replacement_decision(finding, mismatch))
+
+    def test_v214_verifier_does_not_guess_rhs_from_problem_text(self):
+        a = Candidate("A", "16", "16", "integer", "a", "parsed")
+        b = Candidate("B", "4", "4", "integer", "b", "parsed")
+        result = DeterministicVerifier().verify(a, b, "求函数 f(x)=x^2 在 x=4")
+        self.assertEqual("NOT_APPLICABLE", result.status)
+        self.assertIsNone(result.candidate_id)
+
+    def test_fresh_review_requires_structured_fields(self):
+        self.assertEqual("UNKNOWN", parse_fresh_review("PASS").status)
+        self.assertEqual(
+            "missing_remaining_problem",
+            parse_fresh_review(
+                '{"status":"PASS","checked_issue":"step 2",'
+                '"check_result":"substitution confirms"}'
+            ).reason,
+        )
+        review = parse_fresh_review(
+            '{"status":"PASS","checked_issue":"step 2",'
+            '"check_result":"substitution confirms","remaining_problem":null}'
+        )
+        self.assertEqual("PASS", review.status)
+        self.assertEqual("step 2", review.checked_issue)
+
+    def test_repairable_must_be_a_json_boolean(self):
+        finding = parse_challenger_finding(
+            '{"verdict":"OBJECTION","issue_type":"arithmetic",'
+            '"issue_location":"step 2","evidence":"2+2=4",'
+            '"repairable":"false"}'
+        )
+        self.assertEqual("UNKNOWN", finding.verdict)
+        self.assertFalse(finding.supports_replacement)
 
 
 if __name__ == "__main__":

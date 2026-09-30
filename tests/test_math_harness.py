@@ -392,13 +392,42 @@ class MathHarnessOrchestratorTest(unittest.TestCase):
         ledger = self._ledger(result)
         self.assertEqual("timeout", ledger["calls"][0]["error_category"])
 
-    def test_mixed_task_fails_closed_without_hybrid(self):
-        client = ScriptedClient([])
+    def test_mixed_task_uses_generic_fallback_without_hybrid(self):
+        client = ScriptedClient(["Final answer: 命题成立"])
         result = ConstraintFitOrchestrator(client).solve("请证明该命题并解释原因")
-        self.assertEqual("UNKNOWN", result["final_response"])
-        self.assertEqual([], client.calls)
+        self.assertEqual("命题成立", result["final_response"])
+        self.assertEqual(1, len(client.calls))
         route = next(item for item in result["trace"] if item.get("stage") == "route")
         self.assertEqual("mixed", route["answer_type"])
+        self.assertEqual("harness", route["target"])
+        self.assertEqual("generic", route["lane"])
+        self.assertEqual("low_confidence_generic_fallback", route["reason"])
+
+    def test_low_confidence_generic_fallback_recovers_missing_primary(self):
+        client = ScriptedClient([
+            "我无法确定最终结论",
+            "Final answer: 7",
+        ])
+        result = ConstraintFitOrchestrator(client).solve("求所有满足条件的值并解释原因")
+        self.assertEqual("7", result["final_response"])
+        self.assertEqual(2, len(client.calls))
+        route = next(item for item in result["trace"] if item.get("stage") == "route")
+        self.assertEqual("generic", route["lane"])
+        finalize = next(item for item in reversed(result["trace"]) if item.get("stage") == "finalize")
+        self.assertEqual("generic_retry_recovered", finalize["source"])
+
+    def test_router_has_no_unsupported_target_for_valid_math_without_hybrid(self):
+        router = HostRouter(hybrid_enabled=False, deep_enabled=False)
+        problems = (
+            "请证明该命题并解释原因",
+            "求所有满足条件的实数 x",
+            "求函数 f 的取值范围",
+        )
+        for problem in problems:
+            with self.subTest(problem=problem):
+                decision = router.route(problem)
+                self.assertEqual("harness", decision.target)
+                self.assertNotEqual("unsupported", decision.lane)
 
 
 class BoundaryAndSupportTest(unittest.TestCase):
