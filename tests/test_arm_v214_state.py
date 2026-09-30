@@ -98,12 +98,28 @@ class ARMV214StateTest(unittest.TestCase):
 
     def test_fresh_review_requires_structured_fields(self):
         self.assertEqual("UNKNOWN", parse_fresh_review("PASS").status)
+        self.assertEqual(
+            "missing_remaining_problem",
+            parse_fresh_review(
+                '{"status":"PASS","checked_issue":"step 2",'
+                '"check_result":"substitution confirms"}'
+            ).reason,
+        )
         review = parse_fresh_review(
             '{"status":"PASS","checked_issue":"step 2",'
             '"check_result":"substitution confirms","remaining_problem":null}'
         )
         self.assertEqual("PASS", review.status)
         self.assertEqual("step 2", review.checked_issue)
+
+    def test_repairable_must_be_a_json_boolean(self):
+        finding = parse_challenger_finding(
+            '{"verdict":"OBJECTION","issue_type":"arithmetic",'
+            '"issue_location":"step 2","evidence":"2+2=4",'
+            '"repairable":"false"}'
+        )
+        self.assertEqual("UNKNOWN", finding.verdict)
+        self.assertFalse(finding.supports_replacement)
 
 
 if __name__ == "__main__":

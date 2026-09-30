@@ -128,13 +128,16 @@ def parse_challenger_finding(response: str | None) -> ChallengerFinding:
     issue_type = str(payload.get("issue_type", "other")).lower()
     if verdict not in CHALLENGER_VERDICTS or issue_type not in CHALLENGER_ISSUE_TYPES:
         return ChallengerFinding()
+    raw_repairable = payload.get("repairable", False)
+    if not isinstance(raw_repairable, bool):
+        return ChallengerFinding()
     return ChallengerFinding(
         verdict=verdict,
         issue_type=issue_type,
         issue_location=str(payload.get("issue_location", ""))[:240],
         claim=str(payload.get("claim", ""))[:240],
         evidence=str(payload.get("evidence", ""))[:240],
-        repairable=bool(payload.get("repairable", False)),
+        repairable=raw_repairable,
         coverage=str(payload.get("coverage", ""))[:240],
     )
 
@@ -181,6 +184,9 @@ def parse_fresh_review(response: str | None) -> FreshReview:
             return FreshReview("UNKNOWN", reason="malformed_fresh_review")
     if not isinstance(payload, Mapping):
         return FreshReview("UNKNOWN", reason="malformed_fresh_review")
+    required_fields = {"status", "checked_issue", "check_result", "remaining_problem"}
+    if not required_fields.issubset(payload):
+        return FreshReview("UNKNOWN", reason="missing_remaining_problem")
     status = str(payload.get("status", "UNKNOWN")).upper()
     if status not in FRESH_REVIEW_STATUSES:
         return FreshReview("UNKNOWN", reason="invalid_fresh_review_status")

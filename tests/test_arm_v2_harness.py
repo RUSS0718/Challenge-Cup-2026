@@ -4,6 +4,7 @@ import unittest
 
 from reasoning_agent.arm_v21_verification import VerificationResult
 from reasoning_agent.skill_guidance import SkillRouteDecision
+from reasoning_agent.skill_audit import SkillAuditResult
 from reasoning_agent.math_harness import ConstraintFitOrchestrator, HarnessConfig
 
 
@@ -266,6 +267,33 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual("{1,2}", result["final_response"])
         self.assertEqual("B", self._summary(result)["verification"]["status"])
         self.assertEqual(2, len(client.calls))
+
+    def test_v214_skill_refutation_keeps_primary_as_incumbent(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: 2", "finish_reason": "stop"},
+            TimeoutError("challenger timeout"),
+        ])
+
+        class RefutingAuditor:
+            """Return negative evidence without deleting the candidate."""
+
+            def audit(self, **kwargs):
+                """Mark the primary as refuted so the safe checkpoint is tested."""
+                return SkillAuditResult("refuted", "exact-evaluation", "counterexample")
+
+        result = ConstraintFitOrchestrator(
+            client,
+            config=_config(
+                arm_harness_version="v2.1.4",
+                arm_enable_skill_audit=True,
+                arm_max_skill_audits=1,
+                arm_trust_policy="positive_evidence",
+            ),
+            skill_auditor=RefutingAuditor(),
+        ).solve("计算一个复杂的函数极限", {})
+        self.assertEqual("2", result["final_response"])
+        self.assertEqual("refuted", self._summary(result)["skill_status"])
+        self.assertIsNotNone(self._summary(result)["safe_candidate"])
 
     def test_fragment_is_not_a_safe_candidate_and_exposes_failure_reason(self):
         client = ModeAwareClient([

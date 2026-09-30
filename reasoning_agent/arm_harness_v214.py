@@ -57,7 +57,8 @@ ARM_V2_REPAIR_PROMPT = """只修复候选中 Challenger 指出的局部错误。
 ARM_V2_FRESH_REVIEW_PROMPT = """复核修复后的候选是否解决了指定异议。
 严格输出一个 JSON 对象：
 {"status":"PASS|FAIL|UNKNOWN","checked_issue":"...","check_result":"...","remaining_problem":null}
-只有确实检查了指定异议并给出非空 check_result 时才能使用 PASS。"""
+必须把输入中的“异议位置”字段原样复制到 checked_issue，不得改写。
+四个字段必须全部存在；只有确实检查了指定异议并给出非空 check_result，且 remaining_problem 明确为 null 或空字符串时，才能使用 PASS。"""
 
 ARM_V214_CHALLENGER_PROMPT = """你是 Primary 候选的 Challenger。
 只检查下面候选在原题约束下是否有具体可核查错误，不要凭“看起来不同”提出异议。
@@ -310,9 +311,6 @@ class AdaptiveReliabilityHarnessV214(ARMV214StateSupport, AdaptiveReasoningHarne
                 "arm_v2_skill_supported",
                 problem=problem,
             )
-        if skill_result is not None and skill_result.status == "refuted":
-            safe_state.clear()
-
         if not policy.allow_second_sample:
             return self._return_safe_or_abstain(
                 trace, route_data, summary, safe_state, candidates_a, "candidate_untrusted"
