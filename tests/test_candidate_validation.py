@@ -5,9 +5,11 @@ import unittest
 from reasoning_agent.candidate_validation import validate_candidate_shape
 from reasoning_agent.harness_contracts import (
     ANSWER_CHOICE,
+    ANSWER_DERIVATION,
     ANSWER_EXACT_EXPRESSION,
     ANSWER_INTEGER,
     ANSWER_RATIONAL,
+    ANSWER_SET,
     Candidate,
 )
 
@@ -47,6 +49,22 @@ class CandidateValidationTest(unittest.TestCase):
                 self.assertTrue(validate_candidate_shape(_candidate(value, "scalar"), "scalar")[0])
         self.assertFalse(validate_candidate_shape(_candidate("这是最终答案", "scalar"), "scalar")[0])
         self.assertFalse(validate_candidate_shape(_candidate("the answer is", "scalar"), "scalar")[0])
+
+    def test_derivation_accepts_extracted_numeric_conclusion(self):
+        valid, reason = validate_candidate_shape(
+            _candidate("3", ANSWER_DERIVATION),
+            ANSWER_DERIVATION,
+        )
+        self.assertTrue(valid)
+        self.assertEqual("derivation_conclusion", reason)
+
+    def test_set_accepts_escaped_singleton_symbolic_form(self):
+        valid, reason = validate_candidate_shape(
+            _candidate(r"\{\sqrt{2}\}", ANSWER_SET),
+            ANSWER_SET,
+        )
+        self.assertTrue(valid)
+        self.assertEqual("valid", reason)
 
     def test_expression_filters_placeholders_without_evaluating_math(self):
         self.assertEqual(
