@@ -313,6 +313,20 @@ class ARMV21StateSupport:
             or getattr(candidate, "answer_complete", True) is False
         ):
             return False
+
+        existing = safe_state.get()
+        if existing is not None and stage == "candidate_b":
+            # B is a challenger, not an implicit replacement. A later
+            # consensus/verifier/resolver may still select B explicitly, but
+            # mere completion of B cannot erase a usable incumbent.
+            existing.incumbent = True
+            candidate.candidate_role = "challenger"
+            candidate.incumbent = False
+            candidate.challenge_status = "pending"
+            candidate.challenge_id = existing.candidate_id
+            return False
+
+        candidate.incumbent = True
         return safe_state.update(
             candidate,
             source={"candidate_a": "candidate_a", "candidate_b": "candidate_b"}.get(stage, candidate.source),
