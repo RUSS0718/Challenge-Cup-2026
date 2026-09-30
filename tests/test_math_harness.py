@@ -78,6 +78,15 @@ class MathHarnessParserTest(unittest.TestCase):
         right = parser.parse("最终答案：{-1,1}", problem="求根", source="attempt_a")
         self.assertEqual(left.candidates[0].normalized_value, right.candidates[0].normalized_value)
 
+    def test_equivalent_unit_surfaces_are_canonicalized(self):
+        self.assertEqual(
+            "EQUIVALENT",
+            answer_equivalence(
+                "3630 square feet and 522720 square inches.",
+                "3630 ft², 522720 in²",
+            ),
+        )
+
     def test_choice_punctuation_is_canonicalized(self):
         parser = HostParser()
         left = parser.parse("最终答案：a.", problem="选择正确选项 A. 1\nB. 2", source="attempt_a")
