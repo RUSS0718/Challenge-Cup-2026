@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any, Sequence
 
 from reasoning_agent.harness_contracts import (
+    ANSWER_CHOICE,
+    ANSWER_SCALAR,
     ANSWER_SHAPE_SINGLE_NUMERIC,
     ANSWER_SHAPE_UNKNOWN,
     CANDIDATE_CONFLICT,
@@ -263,25 +265,55 @@ class AdaptiveReasoningHarness:
             timeout_seconds=timeout_seconds,
         )
         self._last_call_result = call_result
+        generic_expected = route.answer_type if route.answer_type in {ANSWER_CHOICE, ANSWER_SCALAR} else ANSWER_SCALAR
         if route.contract.answer_shape in {ANSWER_SHAPE_SINGLE_NUMERIC, ANSWER_SHAPE_UNKNOWN}:
             parsed = HostParser().parse(
                 call_result.content,
                 problem=problem,
                 source=source,
                 finish_reason=call_result.finish_reason,
+                expected_type=generic_expected,
             )
             candidates = self.harness._new_candidates(parsed, source)
         else:
-            parsed = TypedParser().parse(
+            typed = TypedParser().parse(
                 call_result.content,
                 route.contract,
                 finish_reason=call_result.finish_reason,
             )
-            candidates = [parsed.candidate] if parsed.candidate is not None else []
-            for candidate in candidates:
-                candidate.candidate_id = f"{source}_{self.harness._next_candidate_number}"
-                candidate.source = source
-                self.harness._next_candidate_number += 1
+            parsed = typed
+            candidates = [typed.candidate] if typed.candidate is not None else []
+
+            # GRH v1.1: typed parsing is preferred, not fail-closed.  When the
+            # inferred answer shape is wrong or overly specific, reuse the same
+            # model response through the generic parser before spending another
+            # request or abstaining.
+            if not typed.typed_complete:
+                fallback = HostParser().parse(
+                    call_result.content,
+                    problem=problem,
+                    source=source,
+                    finish_reason=call_result.finish_reason,
+                    expected_type=generic_expected,
+                )
+                fallback_candidates = self.harness._new_candidates(fallback, source)
+                if fallback_candidates:
+                    parsed = fallback
+                    candidates = fallback_candidates
+                    for candidate in candidates:
+                        candidate.checks.append(
+                            {
+                                "type": "typed_parser_fallback",
+                                "answer_shape": route.contract.answer_shape,
+                                "typed_reason": typed.reason,
+                            }
+                        )
+                        candidate.reason_summary = f"typed_fallback:{typed.reason}"
+            if parsed is typed:
+                for candidate in candidates:
+                    candidate.candidate_id = f"{source}_{self.harness._next_candidate_number}"
+                    candidate.source = source
+                    self.harness._next_candidate_number += 1
         for candidate in candidates:
             candidate.reasoning_mode = reasoning_mode
         return parsed, candidates
