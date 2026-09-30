@@ -27,6 +27,8 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V213_ADAPTIVE,
     PROFILE_ARM_V213_FORCED_AB,
     PROFILE_ARM_V213_OFF_SKILL,
+    PROFILE_ARM_V214_OFF,
+    PROFILE_ARM_V214_ADAPTIVE,
     PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
@@ -64,6 +66,8 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V213_ADAPTIVE,
                 PROFILE_ARM_V213_FORCED_AB,
                 PROFILE_ARM_V213_OFF_SKILL,
+                PROFILE_ARM_V214_OFF,
+                PROFILE_ARM_V214_ADAPTIVE,
             ),
             available_profiles(),
         )

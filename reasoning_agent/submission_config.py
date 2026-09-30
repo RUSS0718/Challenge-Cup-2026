@@ -18,6 +18,8 @@ SUBMISSION_ARM_V212_ADAPTIVE: Final = "arm-v2.1.2-adaptive"
 SUBMISSION_ARM_V213_OFF: Final = "arm-v2.1.3-off"
 SUBMISSION_ARM_V213_ON: Final = "arm-v2.1.3-on"
 SUBMISSION_ARM_V213_ADAPTIVE: Final = "arm-v2.1.3-adaptive"
+SUBMISSION_ARM_V214_OFF: Final = "arm-v2.1.4-off"
+SUBMISSION_ARM_V214_ADAPTIVE: Final = "arm-v2.1.4-adaptive"
 SUBMISSION_MODES: Final = (
     SUBMISSION_FSDF,
     SUBMISSION_ARM_V212_OFF,
@@ -26,9 +28,12 @@ SUBMISSION_MODES: Final = (
     SUBMISSION_ARM_V213_OFF,
     SUBMISSION_ARM_V213_ON,
     SUBMISSION_ARM_V213_ADAPTIVE,
+    SUBMISSION_ARM_V214_OFF,
+    SUBMISSION_ARM_V214_ADAPTIVE,
 )
 ARM_V212_MODES: Final = ("off", "on", "adaptive")
 ARM_V213_MODES: Final = ("off", "on", "adaptive")
+ARM_V214_MODES: Final = ("off", "adaptive")
 ConfigFactory = Callable[..., Any]
 
 
@@ -121,6 +126,21 @@ def build_arm_v213_base_config(config_factory: ConfigFactory) -> Any:
     )
 
 
+def build_arm_v214_base_config(config_factory: ConfigFactory) -> Any:
+    """Build the isolated v2.1.4 correctness-first profile."""
+    return replace(
+        build_arm_v213_base_config(config_factory),
+        arm_harness_version="v2.1.4",
+        arm_adaptive_max_calls=4,
+        arm_deep_max_calls=4,
+        arm_adaptive_token_budget=20_480,
+        arm_deep_token_budget=20_480,
+        arm_challenger_shadow=False,
+        arm_enable_targeted_repair=True,
+        arm_enable_fresh_review=True,
+    )
+
+
 def build_submission_config(
     mode: str,
     config_factory: ConfigFactory,
@@ -148,8 +168,14 @@ def build_submission_config(
         SUBMISSION_ARM_V213_ON,
         SUBMISSION_ARM_V213_ADAPTIVE,
     }
+    is_v214 = normalized in {
+        SUBMISSION_ARM_V214_OFF,
+        SUBMISSION_ARM_V214_ADAPTIVE,
+    }
     base = (
-        build_arm_v213_base_config(config_factory)
+        build_arm_v214_base_config(config_factory)
+        if is_v214
+        else build_arm_v213_base_config(config_factory)
         if is_v213
         else arm_base if arm_base is not None else build_arm_v212_base_config(config_factory)
     )
@@ -164,15 +190,19 @@ def build_submission_config(
 __all__ = [
     "ARM_V212_MODES",
     "ARM_V213_MODES",
+    "ARM_V214_MODES",
     "SUBMISSION_ARM_V212_ADAPTIVE",
     "SUBMISSION_ARM_V212_OFF",
     "SUBMISSION_ARM_V212_ON",
     "SUBMISSION_ARM_V213_ADAPTIVE",
     "SUBMISSION_ARM_V213_OFF",
     "SUBMISSION_ARM_V213_ON",
+    "SUBMISSION_ARM_V214_ADAPTIVE",
+    "SUBMISSION_ARM_V214_OFF",
     "SUBMISSION_FSDF",
     "SUBMISSION_MODES",
     "build_arm_v212_base_config",
     "build_arm_v213_base_config",
+    "build_arm_v214_base_config",
     "build_submission_config",
 ]

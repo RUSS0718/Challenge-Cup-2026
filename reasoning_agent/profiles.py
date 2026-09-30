@@ -34,6 +34,8 @@ PROFILE_ARM_V213_ON: Final = "arm-v2.1.3-on"
 PROFILE_ARM_V213_ADAPTIVE: Final = "arm-v2.1.3-adaptive"
 PROFILE_ARM_V213_FORCED_AB: Final = "arm-v2.1.3-forced-ab"
 PROFILE_ARM_V213_OFF_SKILL: Final = "arm-v2.1.3-off-skill"
+PROFILE_ARM_V214_OFF: Final = "arm-v2.1.4-off"
+PROFILE_ARM_V214_ADAPTIVE: Final = "arm-v2.1.4-adaptive"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
@@ -59,6 +61,8 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V213_ADAPTIVE,
     PROFILE_ARM_V213_FORCED_AB,
     PROFILE_ARM_V213_OFF_SKILL,
+    PROFILE_ARM_V214_OFF,
+    PROFILE_ARM_V214_ADAPTIVE,
 )
 
 
@@ -211,5 +215,11 @@ def build_profile_config(profile: str) -> AgentConfig:
     if normalized in arm_v213_profiles:
         mode, force_ab, enable_skill = arm_v213_profiles[normalized]
         return build_arm_v213_config(mode, force_ab=force_ab, enable_skill=enable_skill)
+    arm_v214_profiles = {
+        PROFILE_ARM_V214_OFF: "off",
+        PROFILE_ARM_V214_ADAPTIVE: "adaptive",
+    }
+    if normalized in arm_v214_profiles:
+        return build_submission_config(f"arm-v2.1.4-{arm_v214_profiles[normalized]}")
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

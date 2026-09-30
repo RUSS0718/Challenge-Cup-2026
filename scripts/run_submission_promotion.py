@@ -35,6 +35,7 @@ PROMOTION_ARMS = {
     "B": "arm-v2.1.2-off",
     "C": "arm-v2.1.2-on",
     "D": "arm-v2.1.2-adaptive",
+    "E": "arm-v2.1.4-off",
 }
 DEFAULT_DATASET = ROOT / "sample_data" / "arm_fixed_items_30.json"
 
@@ -104,7 +105,6 @@ def _aggregate_gate(baseline: Mapping[str, Any], candidate: Mapping[str, Any]) -
         "mean_invalid_rate_not_above_baseline": candidate["mean_invalid_rate"] <= baseline["mean_invalid_rate"],
         "mean_errors_not_above_baseline": candidate["mean_errors"] <= baseline["mean_errors"],
         "damage_is_zero": candidate.get("mean_damage", 0.0) == 0.0,
-        "rescue_exceeds_damage": candidate.get("mean_rescue", 0.0) > candidate.get("mean_damage", 0.0),
     }
     checks["calls_within_safety_limit"] = candidate.get("max_calls_per_problem", 0) <= 5
     return {

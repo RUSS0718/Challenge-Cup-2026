@@ -117,13 +117,19 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual("candidate_a", self._summary(result)["resolver"]["selected_source"])
 
     def test_challenger_shadow_preserves_incumbent_on_conflict(self):
+        challenger = (
+            '{"verdict":"OBJECTION","issue_type":"arithmetic",'
+            '"issue_location":"final value","claim":"conflict",'
+            '"evidence":"independent check","repairable":false,'
+            '"coverage":"final value"}\nFinal answer: {118,120}'
+        )
         client = ModeAwareClient([
             {"content": "Final answer: {117,119}", "finish_reason": "stop"},
-            {"content": "Final answer: {118,120}", "finish_reason": "stop"},
+            {"content": challenger, "finish_reason": "stop"},
         ])
         result = ConstraintFitOrchestrator(
             client,
-            config=_config(arm_challenger_shadow=True),
+            config=_config(arm_harness_version="v2.1.4", arm_challenger_shadow=True),
         ).solve("求所有可能的值", {})
         summary = self._summary(result)
         self.assertEqual("{117,119}", result["final_response"])
@@ -157,7 +163,7 @@ class ARMHarnessV2Test(unittest.TestCase):
             {"content": "Final answer: {118,120}", "finish_reason": "stop"},
             "C",
         ])
-        result = ConstraintFitOrchestrator(client, config=_config()).solve("求所有可能的值", {})
+        result = ConstraintFitOrchestrator(client, config=_config(arm_harness_version="v2.1.4")).solve("求所有可能的值", {})
 
         self.assertEqual("{117,119}", result["final_response"])
         self.assertEqual(3, len(client.calls))
@@ -171,9 +177,38 @@ class ARMHarnessV2Test(unittest.TestCase):
             {"content": "Final answer: {118,120}", "finish_reason": "stop"},
             "B",
         ])
-        result = ConstraintFitOrchestrator(client, config=_config()).solve("求所有可能的值", {})
+        result = ConstraintFitOrchestrator(client, config=_config(arm_harness_version="v2.1.4")).solve("求所有可能的值", {})
         self.assertEqual("{117,119}", result["final_response"])
         self.assertEqual("resolver_b_without_review", self._summary(result)["fallback_reason"])
+
+    def test_v214_repair_and_fresh_review_replace_only_after_pass(self):
+        challenger = (
+            '{"verdict":"OBJECTION","issue_type":"arithmetic",'
+            '"issue_location":"final value","claim":"A is wrong",'
+            '"evidence":"direct substitution gives 2","repairable":true,'
+            '"coverage":"final value"}\nFinal answer: {2,3}'
+        )
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+            {"content": challenger, "finish_reason": "stop"},
+            {"content": "Final answer: {2,3}", "finish_reason": "stop"},
+            "PASS",
+        ])
+        result = ConstraintFitOrchestrator(
+            client,
+            config=_config(
+                arm_harness_version="v2.1.4",
+                arm_enable_targeted_repair=True,
+                arm_enable_fresh_review=True,
+                arm_adaptive_token_budget=20_480,
+            ),
+        ).solve("求所有可能的值", {})
+        summary = self._summary(result)
+        self.assertEqual("{2,3}", result["final_response"])
+        self.assertEqual(4, len(client.calls))
+        self.assertEqual("OBJECTION", summary["challenger_status"])
+        self.assertEqual("PASS", summary["fresh_review_status"])
+        self.assertEqual("repair", summary["final_source"])
 
     def test_fragment_is_not_a_safe_candidate_and_exposes_failure_reason(self):
         client = ModeAwareClient([

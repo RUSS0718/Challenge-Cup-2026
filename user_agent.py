@@ -476,6 +476,9 @@ class AgentConfig:
     arm_off_finalizer_max_tokens: int = 1024
     arm_off_recovery_max_tokens: int = 4096
     arm_force_ab_diagnostic: bool = False
+    arm_challenger_shadow: bool = False
+    arm_enable_targeted_repair: bool = False
+    arm_enable_fresh_review: bool = False
     arm_enable_skill_guidance: bool = False
     arm_enable_skill_for_second: bool = False
     arm_enable_skill_audit: bool = False
@@ -700,6 +703,9 @@ class ReasoningAgent:
                     arm_off_finalizer_max_tokens=self.config.arm_off_finalizer_max_tokens,
                     arm_off_recovery_max_tokens=self.config.arm_off_recovery_max_tokens,
                     arm_force_ab_diagnostic=self.config.arm_force_ab_diagnostic,
+                    arm_challenger_shadow=self.config.arm_challenger_shadow,
+                    arm_enable_targeted_repair=self.config.arm_enable_targeted_repair,
+                    arm_enable_fresh_review=self.config.arm_enable_fresh_review,
                     arm_enable_skill_guidance=self.config.arm_enable_skill_guidance,
                     arm_enable_skill_for_second=self.config.arm_enable_skill_for_second,
                     arm_enable_skill_audit=self.config.arm_enable_skill_audit,

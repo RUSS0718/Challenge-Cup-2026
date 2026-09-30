@@ -6,7 +6,13 @@ from typing import Any, Sequence
 
 from reasoning_agent.answer_completeness import assess_answer_completeness
 from reasoning_agent.arm_v21_diagnostics import pair_relation, second_sample_outcome
-from reasoning_agent.arm_v21_verification import DeterministicVerifier
+from reasoning_agent.arm_v21_verification import (
+    ChallengerFinding,
+    DeterministicVerifier,
+    FreshReview,
+    replacement_decision,
+    parse_challenger_finding,
+)
 from reasoning_agent.arm_harness import AdaptiveReasoningHarness
 from reasoning_agent.candidate_trust import CandidateTrustPolicy
 from reasoning_agent.candidate_validation import validate_candidate_shape
@@ -23,6 +29,7 @@ from reasoning_agent.harness_contracts import (
     STATE_CANDIDATE_B,
     STATE_CONFLICT,
     STATE_CRITIC,
+    STATE_REPAIR,
     value_equivalence,
 )
 from reasoning_agent.inference_policy import ComputePolicy
@@ -31,7 +38,7 @@ from reasoning_agent.runtime_policy import (
     RuntimeRecoveryPolicy,
     classify_runtime_failure,
 )
-from reasoning_agent.arm_v21_support import ARMV21StateSupport, ARM_V21_PRIMARY_PROMPT
+from reasoning_agent.arm_v214_support import ARMV214StateSupport, ARM_V21_PRIMARY_PROMPT
 from reasoning_agent.safe_candidate import SafeCandidateState
 from reasoning_agent.skill_audit import SkillAuditor
 from reasoning_agent.skill_guidance import SkillRouter
@@ -48,8 +55,23 @@ ARM_V2_RESOLVER_PROMPT = """给定同一道数学题的两个候选答案。
 只能输出一行：A、B 或 UNKNOWN。
 只能选择已有候选，不能生成第三个答案，也不要重新求解。"""
 
+ARM_V2_REPAIR_PROMPT = """只修复候选中 Challenger 指出的局部错误。
+必须保留原候选的其余结论，不要整题重解，不要输出多个候选。
+最后单独一行：Final answer: <完整答案>"""
 
-class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
+ARM_V2_FRESH_REVIEW_PROMPT = """复核修复后的候选是否解决了指定异议。
+只输出一行 PASS、FAIL 或 UNKNOWN。"""
+
+ARM_V214_CHALLENGER_PROMPT = """你是 Primary 候选的 Challenger。
+只检查下面候选在原题约束下是否有具体可核查错误，不要凭“看起来不同”提出异议。
+严格输出一个 JSON 对象，字段为 verdict、issue_type、issue_location、claim、evidence、repairable、coverage。
+verdict 只能是 NO_OBJECTION、OBJECTION、UNKNOWN；没有具体位置和证据就用 UNKNOWN。
+若发现可修复错误，可在 JSON 后追加一行：Final answer: <修复后的完整答案>。
+若没有错误，也追加一行：Final answer: <原候选值>。
+"""
+
+
+class AdaptiveReliabilityHarnessV214(ARMV214StateSupport, AdaptiveReasoningHarness):
     """Run ARM v2 trust gating, selective resampling, and bounded resolution."""
 
     def __init__(self, harness: Any) -> None:
@@ -82,7 +104,33 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             return ComputePolicy(1, config.arm_adaptive_token_budget, config.max_wall_seconds, False, False, False)
         if mode == "salvage":
             return ComputePolicy(2, config.arm_adaptive_token_budget, config.max_wall_seconds, False, False, False)
-        return ComputePolicy(3, config.arm_adaptive_token_budget, config.max_wall_seconds, True, True, bool(config.arm_allow_thinking_on))
+        return ComputePolicy(
+            max(4, int(config.arm_adaptive_max_calls)),
+            config.arm_adaptive_token_budget,
+            config.max_wall_seconds,
+            True,
+            True,
+            bool(config.arm_allow_thinking_on),
+        )
+
+    def _second_call_plan(
+        self,
+        problem: str,
+        route: Any,
+        primary: Candidate | None,
+        trace: list[dict[str, Any]],
+        summary: dict[str, Any],
+    ) -> tuple[str, str, str, int]:
+        """Use the second call as a structured Challenger review."""
+        del problem, route, trace
+        value = str(getattr(primary, "normalized_value", "") or "")
+        summary["candidate_generation_b"] = {"backend": "challenger", "reasoning_mode": self.solver_mode}
+        return (
+            "arm_v214_challenger",
+            f"{ARM_V214_CHALLENGER_PROMPT}\n\nPrimary 候选：{value}",
+            self.solver_mode,
+            self.harness.config.tokens_for("attempt_b"),
+        )
 
     def solve(self, problem: str, route: Any, prefix_trace: list[dict[str, Any]]) -> dict[str, Any]:
         """Run the v2.1 state machine while preserving a safe checkpoint."""
@@ -143,6 +191,12 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 "resolver_verdict": None,
             },
             "verification": {"status": "NOT_APPLICABLE", "candidate_id": None, "reason": "not_run"},
+            "challenger_shadow": False,
+            "challenger_status": "UNKNOWN",
+            "challenger": None,
+            "replacement_reason": "",
+            "repair_attempted": False,
+            "fresh_review_status": "NOT_RUN",
         }
         trace.append(
             {
@@ -358,6 +412,9 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
 
         relation = value_equivalence(primary_valid.value, secondary_valid.value)
         if relation == "EQUIVALENT":
+            finding = ChallengerFinding(verdict="NO_OBJECTION", coverage="candidate_value_equivalence")
+            summary["challenger"] = finding.as_dict()
+            summary["challenger_status"] = finding.verdict
             for candidate in (primary_valid, secondary_valid):
                 candidate.verification_status = "consensus_supported"
                 candidate.extraction_status = "verified"
@@ -377,6 +434,52 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             )
 
         summary["conflict"] = True
+        finding = self._challenger_finding(primary_valid, secondary_valid, problem)
+        summary["challenger"] = finding.as_dict()
+        summary["challenger_status"] = finding.verdict
+        primary_valid.challenge_status = finding.verdict.casefold()
+        primary_valid.challenge_id = "challenger-1"
+        secondary_valid.challenge_status = finding.verdict.casefold()
+        secondary_valid.challenge_id = "challenger-1"
+        if bool(getattr(self.harness.config, "arm_challenger_shadow", False)):
+            summary["challenger_shadow"] = True
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "challenger_shadow",
+            )
+        if (
+            finding.supports_replacement
+            and bool(getattr(self.harness.config, "arm_enable_targeted_repair", False))
+            and bool(getattr(self.harness.config, "arm_enable_fresh_review", False))
+        ):
+            repaired, review = self._targeted_repair(
+                problem, route, primary_valid, finding, trace, summary
+            )
+            allowed, replacement_reason = replacement_decision(finding, review)
+            summary["replacement_reason"] = replacement_reason
+            if allowed and repaired is not None:
+                repaired.candidate_role = "repair"
+                repaired.candidate_version = primary_valid.candidate_version + 1
+                repaired.incumbent = True
+                repaired.replacement_reason = replacement_reason
+                summary["final_source"] = "repair"
+                self._append_summary(trace, summary)
+                return self.harness._select(
+                    trace,
+                    route_data,
+                    repaired,
+                    [*candidates_a, *candidates_b, repaired],
+                    "arm_v2_fresh_review_replacement",
+                    problem=problem,
+                )
+            return self._return_safe_or_abstain(
+                trace, route_data, summary, safe_state,
+                [*candidates_a, *candidates_b], replacement_reason,
+            )
         if not policy.allow_resolver or self.harness.budget.calls_used >= self.harness.budget.max_calls:
             return self._return_safe_or_abstain(
                 trace,
@@ -389,21 +492,6 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
 
         self.harness.ledger.transition(STATE_CONFLICT, reason="arm_v2_candidate_conflict")
         self.harness.ledger.add_conflict([primary_valid, secondary_valid])
-        best = self._best_candidate(primary_valid, secondary_valid)
-        safe_state.update(
-            best,
-            source="candidate_a" if best is primary_valid else "candidate_b",
-            confidence=best.trust_confidence,
-            checkpoint_stage="pre_resolver",
-        )
-        trace.append(
-            {
-                "method": "arm_harness_v2",
-                "stage": "safe_candidate_checkpoint",
-                "source": safe_state.source,
-                "checkpoint_stage": safe_state.checkpoint_stage,
-            }
-        )
         if self.should_finalize_now():
             summary["deadline_finalized"] = True
             return self._return_safe_or_abstain(
@@ -479,7 +567,14 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         if decision == "A":
             selected = primary_valid
         elif decision == "B":
-            selected = secondary_valid
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "resolver_b_without_review",
+            )
         else:
             return self._return_safe_or_abstain(
                 trace,
@@ -557,6 +652,66 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         self._record(STATE_CANDIDATE_A, recovered_parsed, recovered_candidates)
         return recovered_parsed, recovered_candidates, recovered_call
 
+    def _challenger_finding(
+        self,
+        primary: Candidate,
+        secondary: Candidate,
+        problem: str,
+    ) -> ChallengerFinding:
+        """Return a bounded objection record without selecting either answer."""
+        del primary, problem
+        finding = parse_challenger_finding(getattr(secondary, "response", ""))
+        if finding.verdict != "UNKNOWN":
+            return finding
+        return ChallengerFinding(verdict="UNKNOWN", coverage="challenger_response_unparseable")
+
+    def _targeted_repair(
+        self,
+        problem: str,
+        route: Any,
+        incumbent: Candidate,
+        finding: ChallengerFinding,
+        trace: list[dict[str, Any]],
+        summary: dict[str, Any],
+    ) -> tuple[Candidate | None, FreshReview | None]:
+        """Run one local repair and one fresh review behind explicit flags."""
+        repair_prompt = (
+            f"{ARM_V2_REPAIR_PROMPT}\n\n"
+            f"原候选：{incumbent.normalized_value}\n"
+            f"异议位置：{finding.issue_location}\n"
+            f"异议主张：{finding.claim}\n"
+            f"证据：{finding.evidence}"
+        )
+        parsed, candidates = self._call(
+            "arm_v2_targeted_repair",
+            repair_prompt,
+            problem,
+            self.harness.config.tokens_for("repair"),
+            self.solver_mode,
+            route,
+            source="arm_repair",
+            timeout_seconds=self.effective_timeout_seconds(None),
+        )
+        call_result = self._last_call_result
+        self._record(STATE_REPAIR, parsed, candidates)
+        repaired, _decision = self._evaluate_one(candidates, parsed, call_result)
+        review = None
+        if repaired is not None:
+            review_call = self.harness.scheduler.call(
+                "arm_v2_fresh_review",
+                ARM_V2_FRESH_REVIEW_PROMPT,
+                f"原题：{problem}\n修复候选：{repaired.normalized_value}\n异议：{finding.evidence}",
+                min(512, self.harness.budget.total_tokens - self.harness.budget.requested_tokens),
+                reasoning_mode="off",
+                timeout_seconds=self.effective_timeout_seconds(None),
+            )
+            token = str(getattr(review_call, "content", "") or "").strip().splitlines()
+            status = token[0].upper() if token and token[0].upper() in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
+            review = FreshReview(status, "fresh_review")
+        summary["repair_attempted"] = True
+        summary["fresh_review_status"] = review.status if review else "UNKNOWN"
+        return repaired, review
+
     def _evaluate_one(self, candidates: Sequence[Candidate], parsed: Any, call_result: Any):
         """Annotate one candidate with structural and trust metadata."""
         if len(candidates) != 1:
@@ -616,3 +771,4 @@ def policy_name(mode: str) -> str:
     return f"v2_{mode}"
 
 __all__ = ["AdaptiveReliabilityHarness", "ARM_COMPACT_SALVAGE_PROMPT", "ARM_V2_RESOLVER_PROMPT"]
+

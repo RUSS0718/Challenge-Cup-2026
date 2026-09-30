@@ -28,7 +28,7 @@ ARM_V21_OFF_FINALIZER_PROMPT = """你是数学答案收束器。只根据原题�
 最后单独一行且必须使用：Final answer: <完整答案>"""
 
 
-class ARMV21StateSupport:
+class ARMV214StateSupport:
     """Provide deadline, safe-candidate, and reviewer-only helper methods."""
 
     def remaining_wall_seconds(self) -> float:
@@ -309,10 +309,17 @@ class ARMV21StateSupport:
         """Checkpoint a complete, structurally valid candidate before risky work."""
         if (
             candidate is None
-            or bool(getattr(parsed, "truncated", False))
             or getattr(candidate, "answer_complete", True) is False
         ):
             return False
+        existing = safe_state.get()
+        if stage == "candidate_b" and existing is not None:
+            # Challenger formation must not erase the incumbent before an
+            # evidence-backed repair and fresh review exist.
+            return False
+        candidate.candidate_role = "primary" if stage == "candidate_a" or existing is None else "challenger"
+        candidate.candidate_version = 1
+        candidate.incumbent = existing is None or stage == "candidate_a"
         return safe_state.update(
             candidate,
             source={"candidate_a": "candidate_a", "candidate_b": "candidate_b"}.get(stage, candidate.source),
@@ -417,3 +424,4 @@ class ARMV21StateSupport:
         result["final_failure_reason"] = reason
         result["final_source"] = "abstain"
         return result
+
