@@ -23,6 +23,7 @@ from reasoning_agent.harness_contracts import (
     STATE_CANDIDATE_B,
     STATE_CONFLICT,
     STATE_CRITIC,
+    _unique_candidates,
     value_equivalence,
 )
 from reasoning_agent.inference_policy import ComputePolicy
@@ -43,10 +44,16 @@ ARM_COMPACT_SALVAGE_PROMPT = """请直接重新求解并尽快形成最终答案
 
 最后一行：Final answer: <answer>"""
 
-ARM_V2_RESOLVER_PROMPT = """给定同一道数学题的两个候选答案。
+ARM_V2_RESOLVER_PROMPT = """你是数学候选验证器。给定原题与两个冲突候选 A/B。
 
-只能输出一行：A、B 或 UNKNOWN。
-只能选择已有候选，不能生成第三个答案，也不要重新求解。"""
+不要凭措辞或先后顺序偏好候选。请只检查能区分 A/B 的关键约束、代入、边界或算术；
+允许做最短的局部重算，但不要生成第三个候选答案。
+
+必须输出两行：
+CHECK: <一句话说明实际检查了什么；无法形成判据时写 insufficient>
+DECISION: A、B 或 UNKNOWN
+
+只有 CHECK 给出具体判据时才允许选择 A/B；证据不足则输出 UNKNOWN。"""
 
 
 class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
@@ -206,7 +213,11 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         summary["candidate_a"] = self._candidate_summary(primary)
         summary["primary_candidate"] = self._candidate_summary(primary)
         summary["safe_candidate"] = self._candidate_summary(safe_state.get())
-        if self._checkpoint(primary, parsed_a, safe_state, "candidate_a"):
+        primary_checkpointed = self._checkpoint(primary, parsed_a, safe_state, "candidate_a")
+        weak_checkpointed = False
+        if not primary_checkpointed:
+            weak_checkpointed = self._checkpoint_weak(primary, parsed_a, safe_state, "candidate_a")
+        if primary_checkpointed or weak_checkpointed:
             summary["safe_candidate_source"] = safe_state.source
             trace.append(
                 {
@@ -214,6 +225,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                     "stage": "safe_candidate_checkpoint",
                     "source": safe_state.source,
                     "checkpoint_stage": safe_state.checkpoint_stage,
+                    "policy": "weak_incumbent" if weak_checkpointed else "complete_incumbent",
                 }
             )
         summary["safe_candidate"] = self._candidate_summary(safe_state.get())
@@ -281,6 +293,19 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         second_stage, second_prompt, second_mode, second_tokens = self._second_call_plan(
             problem, route, primary, trace, summary
         )
+        second_timeout_cap = int(
+            getattr(
+                self.harness.config,
+                "arm_second_timeout_with_incumbent_seconds"
+                if safe_state.get() is not None
+                else "arm_second_timeout_without_incumbent_seconds",
+                180 if safe_state.get() is not None else 300,
+            )
+        )
+        second_timeout = second_timeout_cap
+        if primary_timeout is not None:
+            second_timeout = min(int(primary_timeout), second_timeout_cap)
+        summary["second_sample_timeout_seconds"] = second_timeout
         parsed_b, candidates_b = self._call(
             second_stage,
             second_prompt,
@@ -289,12 +314,81 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             second_mode,
             route,
             source="arm_second",
-            timeout_seconds=primary_timeout,
+            timeout_seconds=second_timeout,
         )
         call_b = self._last_call_result
         self._record(STATE_CANDIDATE_B, parsed_b, candidates_b)
         self._record_parse(summary, "second_parse", parsed_b, candidates_b)
-        if classify_runtime_failure(call_b) is not None:
+        second_failure = classify_runtime_failure(call_b)
+        if second_failure is not None:
+            # If an incumbent already exists, the challenger is optional: fail
+            # closed on replacement and immediately return the incumbent.
+            if safe_state.get() is not None:
+                return self._return_safe_or_abstain(
+                    trace,
+                    route_data,
+                    summary,
+                    safe_state,
+                    [*candidates_a, *candidates_b],
+                    "second_sample_runtime_failure",
+                )
+
+            # With no incumbent, spend the remaining third call on a compact
+            # final-answer salvage instead of waiting on another long sample.
+            remaining_calls = self.harness.budget.max_calls - self.harness.budget.calls_used
+            remaining_tokens = self.harness.budget.total_tokens - self.harness.budget.requested_tokens
+            salvage_tokens = min(
+                int(getattr(self.harness.config, "arm_second_salvage_max_tokens", 2048)),
+                max(0, remaining_tokens),
+            )
+            if (
+                second_failure == "timeout"
+                and remaining_calls > 0
+                and salvage_tokens > 0
+                and not self.should_finalize_now()
+            ):
+                summary["runtime_recovery_action"] = "second_timeout_compact_salvage"
+                salvage_timeout = int(
+                    getattr(self.harness.config, "arm_second_salvage_timeout_seconds", 90)
+                )
+                parsed_salvage, candidates_salvage = self._call(
+                    "arm_v2_second_timeout_salvage",
+                    ARM_COMPACT_SALVAGE_PROMPT,
+                    problem,
+                    salvage_tokens,
+                    "off",
+                    route,
+                    source="arm_salvage",
+                    timeout_seconds=salvage_timeout,
+                )
+                salvage_call = self._last_call_result
+                self._record(STATE_CANDIDATE_B, parsed_salvage, candidates_salvage)
+                self._record_parse(summary, "second_salvage_parse", parsed_salvage, candidates_salvage)
+                if classify_runtime_failure(salvage_call) is None:
+                    salvage_candidate, _salvage_decision = self._evaluate_one(
+                        candidates_salvage, parsed_salvage, salvage_call
+                    )
+                    summary["candidate_b"] = self._candidate_summary(salvage_candidate)
+                    summary["second_candidate"] = self._candidate_summary(salvage_candidate)
+                    if self._checkpoint(salvage_candidate, parsed_salvage, safe_state, "candidate_b"):
+                        summary["safe_candidate_source"] = safe_state.source
+                        trace.append(
+                            {
+                                "method": "arm_harness_v2",
+                                "stage": "safe_candidate_checkpoint",
+                                "source": safe_state.source,
+                                "checkpoint_stage": safe_state.checkpoint_stage,
+                                "policy": "timeout_salvage",
+                            }
+                        )
+                        return self._return_safe_or_abstain(
+                            trace,
+                            route_data,
+                            summary,
+                            safe_state,
+                            [*candidates_a, *candidates_b, *candidates_salvage],
+                            "second_timeout_salvage",
+                        )
             return self._return_safe_or_abstain(
                 trace,
                 route_data,
@@ -446,7 +540,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             )
         self.harness.ledger.transition(STATE_CRITIC, reason="arm_v2_conflict")
         summary["resolver_triggered"] = True
-        resolver_tokens = min(1_024, self.harness.budget.total_tokens - self.harness.budget.requested_tokens)
+        resolver_tokens = min(2_048, self.harness.budget.total_tokens - self.harness.budget.requested_tokens)
         resolver_timeout = self.effective_timeout_seconds(None)
         if resolver_timeout is None:
             summary["deadline_finalized"] = True
@@ -475,7 +569,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 [*candidates_a, *candidates_b],
                 "resolver_runtime_failure",
             )
-        decision = self._parse_resolver(resolver.content)
+        decision, resolver_evidence = self._parse_resolver(resolver.content)
         summary["resolver_decision"] = decision
         summary["resolver"].update(
             {
@@ -485,7 +579,7 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 "candidate_b_trust": secondary_valid.trust_confidence,
                 "resolver_decision": decision,
                 "selected_source": f"candidate_{decision.lower()}" if decision in {"A", "B"} else None,
-                "resolver_verdict": None,
+                "resolver_verdict": resolver_evidence,
             }
         )
         if decision == "A":
@@ -570,17 +664,36 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         return recovered_parsed, recovered_candidates, recovered_call
 
     def _evaluate_one(self, candidates: Sequence[Candidate], parsed: Any, call_result: Any):
-        """Annotate one candidate with structural and trust metadata."""
-        if len(candidates) != 1:
-            for candidate in candidates:
-                candidate.structural_validity = "invalid"
-                candidate.answer_complete = False
-                candidate.answer_complete_reason = "multiple_candidates"
+        """Annotate one candidate, collapsing only representation-equivalent duplicates."""
+        values = list(candidates)
+        if not values:
+            return None, None
+        unique = _unique_candidates(values)
+        if len(unique) == 1:
+            candidate = unique[0]
+            if len(values) > 1:
+                candidate.checks.append(
+                    {"type": "same_response_consolidation", "candidate_count": len(values)}
+                )
+                candidate.reason_summary = "equivalent_candidates_collapsed"
+        else:
+            # Multiple genuinely distinct candidates are unresolved evidence,
+            # not structurally invalid mathematics.  Preserve diagnostics but
+            # do not let same-response alternatives masquerade as consensus.
+            for candidate in values:
+                valid, _reason = validate_candidate_shape(candidate, candidate.answer_type)
+                candidate.structural_validity = "valid" if valid else "invalid"
+                complete, complete_reason = assess_answer_completeness(
+                    candidate,
+                    answer_shape=self._current_route_contract.answer_shape,
+                    parsed=parsed,
+                )
+                candidate.answer_complete = complete
+                candidate.answer_complete_reason = complete_reason
                 candidate.trust_confidence = "low"
-                candidate.trust_reason = "multiple_candidates"
+                candidate.trust_reason = "same_response_conflict"
                 self.harness.ledger.update_candidate(candidate)
             return None, None
-        candidate = candidates[0]
         valid, _reason = validate_candidate_shape(candidate, candidate.answer_type)
         candidate.structural_validity = "valid" if valid else "invalid"
         complete, complete_reason = assess_answer_completeness(
@@ -603,13 +716,38 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         return candidate, decision
 
     @staticmethod
-    def _parse_resolver(response: str | None) -> str:
-        """Accept only A, B, or UNKNOWN from the bounded resolver."""
-        text = (response or "").strip().splitlines()
-        first = text[0].strip().upper() if text else ""
-        if first in {"A", "B", "UNKNOWN"}:
-            return first
-        return "UNKNOWN"
+    def _parse_resolver(response: str | None) -> tuple[str, str]:
+        """Require a concrete targeted check before allowing candidate replacement."""
+        lines = [line.strip() for line in (response or "").strip().splitlines() if line.strip()]
+        check = next(
+            (
+                line.split(":", 1)[1].strip()
+                for line in lines
+                if line.upper().startswith("CHECK:") and ":" in line
+            ),
+            "",
+        )
+        decision = "UNKNOWN"
+        for line in reversed(lines):
+            match = __import__("re").fullmatch(
+                r"(?:DECISION\s*[:：]\s*)?(A|B|UNKNOWN)",
+                line,
+                __import__("re").IGNORECASE,
+            )
+            if match:
+                decision = match.group(1).upper()
+                break
+        concrete_check = bool(check) and check.casefold() not in {
+            "insufficient",
+            "unknown",
+            "none",
+            "n/a",
+            "无法判断",
+            "证据不足",
+        }
+        if decision in {"A", "B"} and not concrete_check:
+            return "UNKNOWN", "missing_targeted_check"
+        return decision, "targeted_check_present" if concrete_check else "insufficient_check"
 
     def _resolve_solver_mode(self, route: Any) -> tuple[str, str]:
         """Resolve adaptive mode from the existing route-risk contract."""
