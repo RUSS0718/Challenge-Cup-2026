@@ -31,6 +31,24 @@ class ARMV21CompletenessTest(unittest.TestCase):
                 self.assertFalse(complete)
                 self.assertEqual("bare_symbol_fragment", reason)
 
+    def test_choice_letter_is_complete_even_when_host_shape_is_generic(self):
+        complete, reason = assess_answer_completeness(
+            _candidate("C"),
+            answer_shape=ANSWER_SHAPE_SINGLE_NUMERIC,
+            parsed=ParsedResponse([], "parsed", "scalar", False, "candidate_extracted"),
+        )
+        self.assertTrue(complete)
+        self.assertEqual("choice_conclusion", reason)
+
+    def test_yes_no_conclusion_is_complete(self):
+        complete, reason = assess_answer_completeness(
+            _candidate("Yes"),
+            answer_shape=ANSWER_SHAPE_SINGLE_NUMERIC,
+            parsed=ParsedResponse([], "parsed", "scalar", False, "candidate_extracted"),
+        )
+        self.assertTrue(complete)
+        self.assertEqual("semantic_conclusion", reason)
+
     def test_parameterized_expression_is_complete(self):
         complete, reason = assess_answer_completeness(
             _candidate(r"x_s = -2*floor(m^2/4)"),
