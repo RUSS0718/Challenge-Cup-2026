@@ -296,7 +296,8 @@ def _answer_shape_from_problem(problem: str) -> tuple[str, int]:
         (
             ANSWER_SHAPE_PROOF_TEXT,
             bool(re.search(
-                r"(?:证明|求证|证明题|with\s+proof|prove|show\s+that|give\s+a\s+proof)",
+                r"(?:请(?:给出|写出)(?:完整)?证明|给出(?:完整)?证明|写出(?:完整)?证明(?:过程)?"
+                r"|provide\s+(?:a\s+)?proof|give\s+(?:a\s+)?proof|write\s+(?:a\s+)?proof|with\s+proof)",
                 text,
                 re.I,
             )),
@@ -330,15 +331,20 @@ def _reasoning_risk_from_problem(problem: str, answer_shape: str) -> str:
         text,
         re.I,
     ))
+    proof_reasoning_signal = bool(re.search(
+        r"(?:证明|求证|\bprove\b|\bshow\s+that\b)",
+        text,
+        re.I,
+    ))
     structured_signal = bool(re.search(
-        r"(?:推导|解释|说明|证明|求证|条件|分情况|derive|explain|prove|show|condition|case)",
+        r"(?:推导|解释|说明|条件|分情况|derive|explain|condition|case)",
         text,
         re.I,
     ))
     simple_arithmetic = bool(re.fullmatch(r"\s*(?:计算|求|compute|calculate)?\s*[0-9\s()+*/^×÷.=-]{1,48}\s*[?。！？]?", text, re.I))
-    if simple_arithmetic and not deep_signal:
+    if simple_arithmetic and not deep_signal and not proof_reasoning_signal:
         return REASONING_RISK_DIRECT
-    if deep_signal or len(text) > 220 or answer_shape in {
+    if proof_reasoning_signal or deep_signal or len(text) > 220 or answer_shape in {
         ANSWER_SHAPE_FUNCTION_FAMILY,
         ANSWER_SHAPE_FINITE_SET,
         ANSWER_SHAPE_INTERVAL_OR_RANGE,
@@ -436,6 +442,20 @@ def _canonical_set(value: str) -> str | None:
 def normalize_value(value: str) -> str:
     """Apply only bounded, representation-level normalization."""
     clean = _strip_math_wrappers(value).replace("−", "-")
+    if clean.startswith(r"\boxed{"):
+        boxed = _extract_boxed(clean)
+        if len(boxed) == 1:
+            marker = r"\boxed{"
+            depth = 1
+            index = len(marker)
+            while index < len(clean) and depth:
+                if clean[index] == "{":
+                    depth += 1
+                elif clean[index] == "}":
+                    depth -= 1
+                index += 1
+            if depth == 0 and index == len(clean):
+                clean = boxed[0]
     clean = clean.replace(r"\left", "").replace(r"\right", "")
     clean = clean.replace(r"\cdot", "*").replace("×", "*")
     clean = re.sub(r"\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}", r"\1/\2", clean)
@@ -605,8 +625,11 @@ class HostParser:
         problem: str,
         source: str,
         finish_reason: str | None = None,
+        expected_type: str | None = None,
     ) -> ParsedResponse:
-        expected = _answer_type_from_problem(problem)
+        # GRH v1.1 may override the rhetorical task type (e.g. "prove") when
+        # the submission contract only needs a compact final answer.
+        expected = expected_type or _answer_type_from_problem(problem)
         text = response if isinstance(response, str) else ""
         text = text[:MAX_RESPONSE_CHARS]
         values: list[tuple[str, str]] = []
@@ -671,6 +694,7 @@ class HostParser:
                     answer_type=actual_type,
                     source=source,
                     extraction_status=CANDIDATE_PARSED,
+                    checks=[{"type": "extraction_source", "source": extraction_source}],
                     reason_summary=reason,
                     response=text,
                 )
