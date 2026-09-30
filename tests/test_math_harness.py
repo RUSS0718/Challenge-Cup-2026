@@ -403,10 +403,10 @@ class MathHarnessOrchestratorTest(unittest.TestCase):
         self.assertEqual("generic", route["lane"])
         self.assertEqual("low_confidence_generic_fallback", route["reason"])
 
-    def test_low_confidence_generic_fallback_preserves_primary_on_failed_retry(self):
+    def test_low_confidence_generic_fallback_recovers_missing_primary(self):
         client = ScriptedClient([
-            "Final answer: 7\\",
-            "我仍然无法形成完整结论",
+            "我无法确定最终结论",
+            "Final answer: 7",
         ])
         result = ConstraintFitOrchestrator(client).solve("求所有满足条件的值并解释原因")
         self.assertEqual("7", result["final_response"])
@@ -414,7 +414,7 @@ class MathHarnessOrchestratorTest(unittest.TestCase):
         route = next(item for item in result["trace"] if item.get("stage") == "route")
         self.assertEqual("generic", route["lane"])
         finalize = next(item for item in reversed(result["trace"]) if item.get("stage") == "finalize")
-        self.assertEqual("generic_primary_preserved", finalize["source"])
+        self.assertEqual("generic_retry_recovered", finalize["source"])
 
     def test_router_has_no_unsupported_target_for_valid_math_without_hybrid(self):
         router = HostRouter(hybrid_enabled=False, deep_enabled=False)
