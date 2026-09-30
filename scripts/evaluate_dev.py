@@ -81,6 +81,32 @@ def _unwrap_outer_braced_command(value: str, command: str) -> str | None:
     return None
 
 
+def _normalize_unit_surface(value: str) -> str:
+    """Normalize equivalent unit spellings without performing unit conversion."""
+    text = value.replace("²", "^2").replace("³", "^3")
+    text = re.sub(r"\\mathrm\{(ft|in|cm|mm|m|km)\}", r"\1", text, flags=re.I)
+    text = re.sub(r"\^\{([23])\}", r"^\1", text)
+    text = re.sub(r"(?<=\d),(?=\d{3}(?:\D|$))", "", text)
+    replacements = (
+        (r"\bsquare\s+feet\b", "ft^2"),
+        (r"\bsquare\s+foot\b", "ft^2"),
+        (r"\bsq\.?\s*ft\b", "ft^2"),
+        (r"\bsquare\s+inches\b", "in^2"),
+        (r"\bsquare\s+inch\b", "in^2"),
+        (r"\bsq\.?\s*in\b", "in^2"),
+        (r"\bsquare\s+centimeters?\b", "cm^2"),
+        (r"\bsquare\s+millimeters?\b", "mm^2"),
+        (r"\bsquare\s+meters?\b", "m^2"),
+        (r"\bsquare\s+kilometers?\b", "km^2"),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.I)
+    if re.search(r"\b(?:ft|in|cm|mm|m|km)\^[23]\b", text, re.I):
+        text = re.sub(r"\s+(?:and|和|与)\s+", ",", text, flags=re.I)
+        text = text.rstrip(".")
+    return text
+
+
 def _normalize_presentation(answer: str) -> str:
     """Normalize only representation-level differences, never mathematical content."""
     value = str(answer or "").strip()
@@ -104,6 +130,7 @@ def _normalize_presentation(answer: str) -> str:
     value = value.translate(_SUPERSCRIPT_TRANSLATION)
     for literal, latex in _GREEK_PRESENTATION.items():
         value = value.replace(literal, latex)
+    value = _normalize_unit_surface(value)
     return value
 
 
