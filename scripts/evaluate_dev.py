@@ -302,6 +302,8 @@ def _normalize_sympy_text(text: str) -> str:
     value = value.replace(r"\gamma", "gamma")
     value = value.replace(r"\delta", "delta")
     value = re.sub(r"\\sqrt\s*\{([^{}]+)\}", r"sqrt(\1)", value)
+    # LaTeX commonly omits multiplication: 3\sqrt{2} -> 3*sqrt(2).
+    value = re.sub(r"(?<=\d)(?=sqrt\()", "*", value)
     previous = None
     while previous != value:
         previous = value
