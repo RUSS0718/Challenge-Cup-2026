@@ -146,7 +146,7 @@ class ARMHarnessV2Test(unittest.TestCase):
             {"content": "Final answer: 21", "finish_reason": "stop"},
         ])
         result = ConstraintFitOrchestrator(client, config=_config()).solve(
-            "用 n 表示该复杂递推问题的最终结果",
+            "找出所有函数 f，并给出该问题的最终数值结论",
             {},
         )
         self.assertEqual("21", result["final_response"])
