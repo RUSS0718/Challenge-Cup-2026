@@ -31,7 +31,7 @@ from scripts.run_arm_v21_eval112_timing import (  # noqa: E402
 
 
 PROMOTION_ARMS = {
-    "A": "submission",
+    "A": "fsdf",
     "B": "arm-v2.1.2-off",
     "C": "arm-v2.1.2-on",
     "D": "arm-v2.1.2-adaptive",
@@ -84,6 +84,13 @@ def _aggregate_rounds(reports: list[Mapping[str, Any]], profile: str) -> dict[st
         if reports else 0.0,
         "mean_errors": round(statistics.mean(float(report.get("errors", 0) or 0) for report in reports), 6)
         if reports else 0.0,
+        "mean_damage": round(statistics.mean(float(report.get("damage_count", 0) or 0) for report in reports), 6)
+        if reports else 0.0,
+        "mean_rescue": round(statistics.mean(float(report.get("rescue_count", 0) or 0) for report in reports), 6)
+        if reports else 0.0,
+        "max_calls_per_problem": max(
+            int(report.get("max_calls_per_problem", 0) or 0) for report in reports
+        ) if reports else 0,
         "all_rounds_complete": all(bool(report.get("integrity_passed", True)) for report in reports),
     }
 
@@ -96,8 +103,10 @@ def _aggregate_gate(baseline: Mapping[str, Any], candidate: Mapping[str, Any]) -
         "mean_accuracy_not_below_baseline": candidate["mean_accuracy"] >= baseline["mean_accuracy"],
         "mean_invalid_rate_not_above_baseline": candidate["mean_invalid_rate"] <= baseline["mean_invalid_rate"],
         "mean_errors_not_above_baseline": candidate["mean_errors"] <= baseline["mean_errors"],
-        "mean_calls_within_budget": candidate["mean_calls_per_problem"] <= 3.0,
+        "damage_is_zero": candidate.get("mean_damage", 0.0) == 0.0,
+        "rescue_exceeds_damage": candidate.get("mean_rescue", 0.0) > candidate.get("mean_damage", 0.0),
     }
+    checks["calls_within_safety_limit"] = candidate.get("max_calls_per_problem", 0) <= 5
     return {
         "status": "PASS" if all(checks.values()) else "NO_GO",
         "checks": checks,

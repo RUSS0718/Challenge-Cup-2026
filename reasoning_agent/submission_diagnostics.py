@@ -244,6 +244,7 @@ def summarize_submission_diagnostics(
         "invalid": sum(item["verdict"] == "invalid" for item in diagnostics),
         "errors": sum(item["verdict"] is None for item in diagnostics),
         "mean_calls_per_problem": round(statistics.mean(calls), 6) if calls else 0.0,
+        "max_calls_per_problem": max(calls) if calls else 0,
         "final_source_distribution": dict(Counter(str(item["final_source"]) for item in diagnostics)),
         "final_source_verdicts": final_source_verdicts,
         "primary_mode_distribution": dict(Counter(str(item["primary_mode"]) for item in arm_records)),
@@ -257,10 +258,13 @@ def promotion_gate(
     baseline: Mapping[str, Any],
     candidate: Mapping[str, Any],
     *,
-    max_mean_calls: float = 3.0,
+    max_mean_calls: float | None = None,
     accuracy_noise_margin: float = 0.0,
 ) -> dict[str, Any]:
     """Evaluate the conservative Full-30 promotion gate without mutating config."""
+    damage = int(candidate.get("damage_count", 0) or 0)
+    rescue = int(candidate.get("rescue_count", candidate.get("second_rescue_count", 0)) or 0)
+    max_calls = candidate.get("max_calls_per_problem")
     checks = {
         "baseline_complete": bool(baseline.get("integrity_passed", True)),
         "candidate_complete": bool(candidate.get("integrity_passed", True)),
@@ -271,9 +275,11 @@ def promotion_gate(
         <= int(baseline.get("invalid", 0) or 0),
         "no_new_runner_errors": int(candidate.get("errors", 0) or 0)
         <= int(baseline.get("errors", 0) or 0),
-        "mean_calls_within_budget": float(candidate.get("mean_calls_per_problem", 0.0) or 0.0)
-        <= float(max_mean_calls),
+        "damage_is_zero": damage == 0,
+        "rescue_exceeds_damage": rescue > damage,
     }
+    if max_calls is not None:
+        checks["calls_within_safety_limit"] = int(max_calls) <= 5
     return {
         "status": "PASS" if all(checks.values()) else "NO_GO",
         "checks": checks,

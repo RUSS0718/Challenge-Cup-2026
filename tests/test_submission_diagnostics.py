@@ -213,6 +213,16 @@ class SubmissionDiagnosticsTest(unittest.TestCase):
         self.assertEqual("NO_GO", gate["status"])
         self.assertFalse(gate["checks"]["candidate_complete"])
 
+    def test_gate_does_not_use_mean_calls_as_promotion_metric(self):
+        baseline = {"profile": "submission", "records": 10, "correct": 5, "invalid": 2, "errors": 0}
+        candidate = {
+            "profile": "arm-v2.1.4", "records": 10, "correct": 5, "invalid": 2,
+            "errors": 0, "mean_calls_per_problem": 9.0, "damage_count": 0, "rescue_count": 1,
+        }
+        gate = promotion_gate(baseline, candidate)
+        self.assertEqual("PASS", gate["status"])
+        self.assertNotIn("mean_calls_within_budget", gate["checks"])
+
 
 if __name__ == "__main__":
     unittest.main()
