@@ -116,6 +116,23 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual("resolver_a", self._summary(result)["final_source"])
         self.assertEqual("candidate_a", self._summary(result)["resolver"]["selected_source"])
 
+    def test_challenger_shadow_preserves_incumbent_on_conflict(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {117,119}", "finish_reason": "stop"},
+            {"content": "Final answer: {118,120}", "finish_reason": "stop"},
+        ])
+        result = ConstraintFitOrchestrator(
+            client,
+            config=_config(arm_challenger_shadow=True),
+        ).solve("求所有可能的值", {})
+        summary = self._summary(result)
+        self.assertEqual("{117,119}", result["final_response"])
+        self.assertEqual(2, len(client.calls))
+        self.assertTrue(summary["challenger_shadow"])
+        self.assertEqual("OBJECTION", summary["challenger_status"])
+        self.assertFalse(summary["challenger"]["repairable"])
+        self.assertEqual("challenger_shadow", summary["fallback_reason"])
+
     def test_timeout_uses_compact_salvage_without_entering_trust_on_failure(self):
         client = ModeAwareClient([
             TimeoutError("provider timeout"),

@@ -312,6 +312,14 @@ class ARMV21StateSupport:
             or getattr(candidate, "answer_complete", True) is False
         ):
             return False
+        existing = safe_state.get()
+        if stage == "candidate_b" and existing is not None:
+            # Challenger formation must not erase the incumbent before an
+            # evidence-backed repair and fresh review exist.
+            return False
+        candidate.candidate_role = "primary" if stage == "candidate_a" or existing is None else "challenger"
+        candidate.candidate_version = 1
+        candidate.incumbent = existing is None or stage == "candidate_a"
         return safe_state.update(
             candidate,
             source={"candidate_a": "candidate_a", "candidate_b": "candidate_b"}.get(stage, candidate.source),

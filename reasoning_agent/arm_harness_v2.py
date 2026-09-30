@@ -6,7 +6,7 @@ from typing import Any, Sequence
 
 from reasoning_agent.answer_completeness import assess_answer_completeness
 from reasoning_agent.arm_v21_diagnostics import pair_relation, second_sample_outcome
-from reasoning_agent.arm_v21_verification import DeterministicVerifier
+from reasoning_agent.arm_v21_verification import ChallengerFinding, DeterministicVerifier
 from reasoning_agent.arm_harness import AdaptiveReasoningHarness
 from reasoning_agent.candidate_trust import CandidateTrustPolicy
 from reasoning_agent.candidate_validation import validate_candidate_shape
@@ -143,6 +143,10 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
                 "resolver_verdict": None,
             },
             "verification": {"status": "NOT_APPLICABLE", "candidate_id": None, "reason": "not_run"},
+            "challenger_shadow": False,
+            "challenger_status": "UNKNOWN",
+            "challenger": None,
+            "replacement_reason": "",
         }
         trace.append(
             {
@@ -358,6 +362,9 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
 
         relation = value_equivalence(primary_valid.value, secondary_valid.value)
         if relation == "EQUIVALENT":
+            finding = ChallengerFinding(verdict="NO_OBJECTION", coverage="candidate_value_equivalence")
+            summary["challenger"] = finding.as_dict()
+            summary["challenger_status"] = finding.verdict
             for candidate in (primary_valid, secondary_valid):
                 candidate.verification_status = "consensus_supported"
                 candidate.extraction_status = "verified"
@@ -377,6 +384,23 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             )
 
         summary["conflict"] = True
+        finding = self._challenger_finding(primary_valid, secondary_valid, problem)
+        summary["challenger"] = finding.as_dict()
+        summary["challenger_status"] = finding.verdict
+        primary_valid.challenge_status = finding.verdict.casefold()
+        primary_valid.challenge_id = "challenger-1"
+        secondary_valid.challenge_status = finding.verdict.casefold()
+        secondary_valid.challenge_id = "challenger-1"
+        if bool(getattr(self.harness.config, "arm_challenger_shadow", False)):
+            summary["challenger_shadow"] = True
+            return self._return_safe_or_abstain(
+                trace,
+                route_data,
+                summary,
+                safe_state,
+                [*candidates_a, *candidates_b],
+                "challenger_shadow",
+            )
         if not policy.allow_resolver or self.harness.budget.calls_used >= self.harness.budget.max_calls:
             return self._return_safe_or_abstain(
                 trace,
@@ -556,6 +580,24 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         recovered_call = self._last_call_result
         self._record(STATE_CANDIDATE_A, recovered_parsed, recovered_candidates)
         return recovered_parsed, recovered_candidates, recovered_call
+
+    def _challenger_finding(
+        self,
+        primary: Candidate,
+        secondary: Candidate,
+        problem: str,
+    ) -> ChallengerFinding:
+        """Return a bounded objection record without selecting either answer."""
+        del problem
+        return ChallengerFinding(
+            verdict="OBJECTION",
+            issue_type="other",
+            issue_location="final_value",
+            claim="candidate values conflict",
+            evidence=f"value_equivalence={value_equivalence(primary.value, secondary.value)}",
+            repairable=False,
+            coverage="final candidate comparison",
+        )
 
     def _evaluate_one(self, candidates: Sequence[Candidate], parsed: Any, call_result: Any):
         """Annotate one candidate with structural and trust metadata."""

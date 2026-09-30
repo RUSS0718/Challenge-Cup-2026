@@ -166,6 +166,7 @@ class HarnessConfig:
     arm_off_finalizer_max_tokens: int = 1024
     arm_off_recovery_max_tokens: int = 4096
     arm_force_ab_diagnostic: bool = False
+    arm_challenger_shadow: bool = False
     arm_enable_skill_guidance: bool = False
     arm_enable_skill_for_second: bool = False
     arm_enable_skill_audit: bool = False

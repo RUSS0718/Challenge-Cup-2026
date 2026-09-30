@@ -35,6 +35,12 @@ def candidate_diagnostics(candidate: Any) -> dict[str, Any] | None:
         "trust": str(getattr(candidate, "trust_confidence", "unknown")),
         "trust_reason": str(getattr(candidate, "trust_reason", ""))[:240],
         "positive_evidence": list(getattr(candidate, "positive_evidence", ()))[:4],
+        "candidate_role": str(getattr(candidate, "candidate_role", "primary")),
+        "candidate_version": int(getattr(candidate, "candidate_version", 1)),
+        "incumbent": bool(getattr(candidate, "incumbent", False)),
+        "challenge_status": str(getattr(candidate, "challenge_status", "none")),
+        "challenge_id": str(getattr(candidate, "challenge_id", "") or "")[:64],
+        "replacement_reason": str(getattr(candidate, "replacement_reason", ""))[:240],
     }
 
 

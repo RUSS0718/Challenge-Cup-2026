@@ -4,6 +4,7 @@ import unittest
 
 from reasoning_agent.harness_contracts import Candidate
 from reasoning_agent.harness_contracts import HostParser
+from reasoning_agent.arm_v21_verification import ChallengerFinding, parse_challenger_finding
 from reasoning_agent.submission_diagnostics import summarize_submission_diagnostics
 
 
@@ -57,6 +58,17 @@ class ARMV214StateTest(unittest.TestCase):
         self.assertTrue(parsed.truncated)
         self.assertTrue(parsed.candidates[0].answer_complete)
         self.assertEqual("parsed", parsed.candidates[0].extraction_status)
+
+    def test_challenger_contract_requires_specific_evidence_for_replacement(self):
+        finding = parse_challenger_finding(
+            '{"verdict":"OBJECTION","issue_type":"arithmetic",'
+            '"issue_location":"step 2","claim":"sum is wrong",'
+            '"evidence":"2+2=4","repairable":true,"coverage":"final check"}'
+        )
+        self.assertTrue(finding.supports_replacement)
+        self.assertEqual("step 2", finding.as_dict()["issue_location"])
+        self.assertFalse(ChallengerFinding().supports_replacement)
+        self.assertEqual("UNKNOWN", parse_challenger_finding("B looks better").verdict)
 
 
 if __name__ == "__main__":
