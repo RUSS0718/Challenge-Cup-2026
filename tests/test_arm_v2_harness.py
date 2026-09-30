@@ -208,7 +208,7 @@ class ARMHarnessV2Test(unittest.TestCase):
             TimeoutError("challenger timeout"),
         ])
         result = ConstraintFitOrchestrator(client, config=_config()).solve(
-            "求一个复杂数论问题的最终整数值",
+            "求一个复杂排列组合问题的最终整数值",
             {},
         )
         self.assertEqual("17", result["final_response"])
