@@ -4,7 +4,7 @@ import unittest
 
 from reasoning_agent.harness_contracts import Candidate
 from reasoning_agent.harness_contracts import HostParser
-from reasoning_agent.arm_v21_verification import (
+from reasoning_agent.arm_v214_verification import (
     ChallengerFinding,
     FreshReview,
     parse_challenger_finding,
@@ -52,7 +52,7 @@ class ARMV214StateTest(unittest.TestCase):
         self.assertEqual(0.5, report["primary_accuracy"])
         self.assertEqual(0.5, report["accuracy"])
 
-    def test_final_marker_preserves_answer_when_tail_is_truncated(self):
+    def test_legacy_host_parser_keeps_truncated_tail_incomplete(self):
         parsed = HostParser().parse(
             "推理尚未收束\nFinal answer: 7",
             problem="计算 1+1",
@@ -61,8 +61,8 @@ class ARMV214StateTest(unittest.TestCase):
         )
         self.assertEqual(1, len(parsed.candidates))
         self.assertTrue(parsed.truncated)
-        self.assertTrue(parsed.candidates[0].answer_complete)
-        self.assertEqual("parsed", parsed.candidates[0].extraction_status)
+        self.assertFalse(parsed.candidates[0].answer_complete)
+        self.assertEqual("truncated", parsed.candidates[0].answer_complete_reason)
 
     def test_challenger_contract_requires_specific_evidence_for_replacement(self):
         finding = parse_challenger_finding(

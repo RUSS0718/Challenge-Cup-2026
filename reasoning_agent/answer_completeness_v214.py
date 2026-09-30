@@ -1,4 +1,4 @@
-"""Conservative answer-completeness checks for ARM v2.1 candidates.
+"""v2.1.4 answer-completeness extension with bounded boxed-answer support.
 
 This module decides whether an extracted value is a complete answer for the
 host-inferred shape.  It does not judge mathematical correctness.
@@ -16,6 +16,7 @@ from reasoning_agent.harness_contracts import (
     ANSWER_SHAPE_PARAMETERIZED_EXPRESSION,
     ANSWER_SHAPE_PROOF_TEXT,
     ANSWER_SHAPE_SINGLE_NUMERIC,
+    _extract_boxed,
     _is_placeholder,
     _strip_math_wrappers,
 )
@@ -41,12 +42,21 @@ def assess_answer_completeness(
     if candidate is None:
         return False, "no_candidate"
     source = str(getattr(candidate, "source", ""))
-    if source in {"arm_primary", "arm_second", "arm_salvage", "arm_runtime_retry"}:
-        response = str(getattr(candidate, "response", "") or "")
-        if not _FINAL_ANSWER_MARKER.search(response):
+    response = str(getattr(candidate, "response", "") or "")
+    arm_source = source in {"arm_primary", "arm_second", "arm_salvage", "arm_runtime_retry", "arm_repair"}
+    has_final_marker = arm_source and bool(_FINAL_ANSWER_MARKER.search(response))
+    boxed = _extract_boxed(response) if arm_source else []
+    has_unique_boxed_answer = len(boxed) == 1 and str(getattr(candidate, "value", "")).strip() == boxed[0].strip()
+    has_final_marker = has_final_marker or has_unique_boxed_answer
+    if arm_source:
+        if not has_final_marker:
             return False, "missing_final_answer_marker"
-    if bool(getattr(parsed, "truncated", False)) or bool(getattr(candidate, "truncated", False)):
+    if (bool(getattr(parsed, "truncated", False)) or bool(getattr(candidate, "truncated", False))) and not has_final_marker:
         return False, "truncated"
+    if (bool(getattr(parsed, "truncated", False)) or bool(getattr(candidate, "truncated", False))) and has_final_marker:
+        truncated_tail_reason = "answer_complete_truncated_tail"
+    else:
+        truncated_tail_reason = "answer_complete"
     if getattr(parsed, "typed_complete", True) is False:
         return False, "typed_parse_incomplete"
     value = _strip_math_wrappers(
@@ -80,7 +90,7 @@ def assess_answer_completeness(
         if str(getattr(candidate, "proof_status", "")) != "complete":
             return False, "proof_not_complete"
 
-    return True, "answer_complete"
+    return True, truncated_tail_reason
 
 
 __all__ = ["assess_answer_completeness"]

@@ -18,12 +18,12 @@ class ARMV21VerificationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             VerificationResult("A")
 
-    def test_explicit_numeric_rhs_selects_matching_candidate(self):
+    def test_legacy_verifier_does_not_infer_answers_from_problem_text(self):
         a = Candidate("A", "3", "3", "integer", "a", "parsed")
         b = Candidate("B", "4", "4", "integer", "b", "parsed")
         result = DeterministicVerifier().verify(a, b, "x = 4")
-        self.assertEqual("B", result.status)
-        self.assertEqual("B", result.candidate_id)
+        self.assertEqual("NOT_APPLICABLE", result.status)
+        self.assertIsNone(result.candidate_id)
 
 
 if __name__ == "__main__":

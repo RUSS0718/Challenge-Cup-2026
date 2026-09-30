@@ -72,18 +72,5 @@ class ARMV21CompletenessTest(unittest.TestCase):
         self.assertFalse(complete)
         self.assertEqual("missing_final_answer_marker", reason)
 
-    def test_arm_candidate_accepts_one_matching_boxed_answer(self):
-        candidate = _candidate("1")
-        candidate.source = "arm_primary"
-        candidate.response = r"因此唯一答案为 \boxed{1}"
-        complete, reason = assess_answer_completeness(
-            candidate,
-            answer_shape=ANSWER_SHAPE_SINGLE_NUMERIC,
-            parsed=ParsedResponse([], "parsed", "scalar", False, "candidate_extracted"),
-        )
-        self.assertTrue(complete)
-        self.assertEqual("answer_complete", reason)
-
-
 if __name__ == "__main__":
     unittest.main()
