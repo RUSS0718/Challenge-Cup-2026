@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Sequence
 
 from reasoning_agent.answer_completeness import assess_answer_completeness
@@ -729,10 +730,10 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
         )
         decision = "UNKNOWN"
         for line in reversed(lines):
-            match = __import__("re").fullmatch(
+            match = re.fullmatch(
                 r"(?:DECISION\s*[:：]\s*)?(A|B|UNKNOWN)",
                 line,
-                __import__("re").IGNORECASE,
+                re.IGNORECASE,
             )
             if match:
                 decision = match.group(1).upper()
