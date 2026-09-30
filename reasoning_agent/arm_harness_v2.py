@@ -684,9 +684,17 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             for candidate in values:
                 valid, _reason = validate_candidate_shape(candidate, candidate.answer_type)
                 candidate.structural_validity = "valid" if valid else "invalid"
+                parser_fell_back = any(
+                    isinstance(check, dict) and check.get("type") == "typed_parser_fallback"
+                    for check in getattr(candidate, "checks", [])
+                )
                 complete, complete_reason = assess_answer_completeness(
                     candidate,
-                    answer_shape=self._current_route_contract.answer_shape,
+                    answer_shape=(
+                        ANSWER_SHAPE_UNKNOWN
+                        if parser_fell_back
+                        else self._current_route_contract.answer_shape
+                    ),
                     parsed=parsed,
                 )
                 candidate.answer_complete = complete
@@ -697,9 +705,18 @@ class AdaptiveReliabilityHarness(ARMV21StateSupport, AdaptiveReasoningHarness):
             return None, None
         valid, _reason = validate_candidate_shape(candidate, candidate.answer_type)
         candidate.structural_validity = "valid" if valid else "invalid"
+        parser_fell_back = any(
+            isinstance(check, dict) and check.get("type") == "typed_parser_fallback"
+            for check in getattr(candidate, "checks", [])
+        )
+        completeness_shape = (
+            ANSWER_SHAPE_UNKNOWN
+            if parser_fell_back
+            else self._current_route_contract.answer_shape
+        )
         complete, complete_reason = assess_answer_completeness(
             candidate,
-            answer_shape=self._current_route_contract.answer_shape,
+            answer_shape=completeness_shape,
             parsed=parsed,
         )
         candidate.answer_complete = complete
