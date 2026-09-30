@@ -7,6 +7,7 @@ from typing import Any, Sequence
 from reasoning_agent.harness_contracts import (
     ANSWER_CHOICE,
     ANSWER_SCALAR,
+    ANSWER_SHAPE_PROOF_TEXT,
     ANSWER_SHAPE_SINGLE_NUMERIC,
     ANSWER_SHAPE_UNKNOWN,
     CANDIDATE_CONFLICT,
@@ -288,7 +289,7 @@ class AdaptiveReasoningHarness:
             # inferred answer shape is wrong or overly specific, reuse the same
             # model response through the generic parser before spending another
             # request or abstaining.
-            if not typed.typed_complete:
+            if not typed.typed_complete and route.contract.answer_shape != ANSWER_SHAPE_PROOF_TEXT:
                 fallback = HostParser().parse(
                     call_result.content,
                     problem=problem,
