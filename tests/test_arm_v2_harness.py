@@ -192,7 +192,8 @@ class ARMHarnessV2Test(unittest.TestCase):
             {"content": "Final answer: {1,2}", "finish_reason": "stop"},
             {"content": challenger, "finish_reason": "stop"},
             {"content": "Final answer: {2,3}", "finish_reason": "stop"},
-            "PASS",
+            '{"status":"PASS","checked_issue":"final value",'
+            '"check_result":"direct substitution gives 2","remaining_problem":null}',
         ])
         result = ConstraintFitOrchestrator(
             client,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import re
 from typing import Any, Literal, Mapping
 
 
@@ -59,11 +58,24 @@ class FreshReview:
     """Result of rechecking a repaired candidate against the original issue."""
 
     status: str
+    checked_issue: str = ""
+    check_result: str = ""
+    remaining_problem: str | None = None
     reason: str = ""
 
     def __post_init__(self) -> None:
         if self.status not in FRESH_REVIEW_STATUSES:
             raise ValueError("invalid_fresh_review_status")
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return bounded fields for trace and promotion diagnostics."""
+        return {
+            "status": self.status,
+            "checked_issue": self.checked_issue[:240],
+            "check_result": self.check_result[:480],
+            "remaining_problem": self.remaining_problem,
+            "reason": self.reason[:240],
+        }
 
 
 def replacement_decision(
@@ -75,7 +87,24 @@ def replacement_decision(
         return False, "challenger_evidence_insufficient"
     if review is None or review.status != "PASS":
         return False, "fresh_review_not_passed"
+    if not _fresh_review_matches_finding(finding, review):
+        return False, "fresh_review_issue_mismatch"
     return True, "fresh_review_supported_replacement"
+
+
+def _fresh_review_matches_finding(finding: ChallengerFinding, review: FreshReview) -> bool:
+    """Require the review to name the objection it claims to have checked."""
+    checked = " ".join(str(review.checked_issue).casefold().split())
+    if not checked or not str(review.check_result).strip():
+        return False
+    location = " ".join(finding.issue_location.casefold().split())
+    claim = " ".join(finding.claim.casefold().split())
+    aligned = bool(location and (location in checked or checked in location))
+    if not aligned and claim:
+        aligned = claim in checked or checked in claim
+    if not aligned:
+        return False
+    return review.remaining_problem in {None, ""}
 
 
 def parse_challenger_finding(response: str | None) -> ChallengerFinding:
@@ -127,25 +156,42 @@ class VerificationResult:
 
 
 class DeterministicVerifier:
-    """Run only narrow, explicit numeric checks and fail closed otherwise."""
+    """Provide the v2.1.4 no-op verifier until a concrete check is configured."""
 
     def verify(self, candidate_a: Any, candidate_b: Any, problem: str) -> VerificationResult:
-        """Select a candidate only when the problem states an exact numeric RHS."""
-        match = re.search(r"(?:=|等于)\s*([+-]?\d+(?:/\d+)?)\s*[。.!！?？]*$", str(problem or ""))
-        if match:
-            from reasoning_agent.harness_contracts import value_equivalence
-
-            expected = match.group(1)
-            a_match = value_equivalence(str(getattr(candidate_a, "value", "")), expected) == "EQUIVALENT"
-            b_match = value_equivalence(str(getattr(candidate_b, "value", "")), expected) == "EQUIVALENT"
-            if a_match != b_match:
-                selected = candidate_a if a_match else candidate_b
-                return VerificationResult(
-                    "A" if a_match else "B",
-                    str(getattr(selected, "candidate_id", "")),
-                    "explicit_numeric_rhs_match",
-                )
+        """Return ``NOT_APPLICABLE`` without inferring a gold answer from text."""
+        del candidate_a, candidate_b, problem
         return VerificationResult("NOT_APPLICABLE", None, "no_deterministic_check")
 
 
-__all__ = ["ChallengerFinding", "DeterministicVerifier", "FreshReview", "VerificationResult", "VerificationStatus", "parse_challenger_finding", "replacement_decision"]
+def parse_fresh_review(response: str | None) -> FreshReview:
+    """Parse one structured fresh-review object and fail closed on malformed output."""
+    text = str(response or "").strip()
+    if not text:
+        return FreshReview("UNKNOWN", reason="empty_fresh_review")
+    try:
+        payload = json.loads(text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        start = text.find("{")
+        if start < 0:
+            return FreshReview("UNKNOWN", reason="unstructured_fresh_review")
+        try:
+            payload, _end = json.JSONDecoder().raw_decode(text[start:])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return FreshReview("UNKNOWN", reason="malformed_fresh_review")
+    if not isinstance(payload, Mapping):
+        return FreshReview("UNKNOWN", reason="malformed_fresh_review")
+    status = str(payload.get("status", "UNKNOWN")).upper()
+    if status not in FRESH_REVIEW_STATUSES:
+        return FreshReview("UNKNOWN", reason="invalid_fresh_review_status")
+    remaining = payload.get("remaining_problem")
+    return FreshReview(
+        status=status,
+        checked_issue=str(payload.get("checked_issue", ""))[:240],
+        check_result=str(payload.get("check_result", ""))[:480],
+        remaining_problem=None if remaining is None else str(remaining)[:240],
+        reason="structured_fresh_review",
+    )
+
+
+__all__ = ["ChallengerFinding", "DeterministicVerifier", "FreshReview", "VerificationResult", "VerificationStatus", "parse_challenger_finding", "parse_fresh_review", "replacement_decision"]

@@ -10,6 +10,7 @@ from reasoning_agent.arm_v214_verification import (
     ChallengerFinding,
     DeterministicVerifier,
     FreshReview,
+    parse_fresh_review,
     replacement_decision,
     parse_challenger_finding,
 )
@@ -60,7 +61,9 @@ ARM_V2_REPAIR_PROMPT = """只修复候选中 Challenger 指出的局部错误。
 最后单独一行：Final answer: <完整答案>"""
 
 ARM_V2_FRESH_REVIEW_PROMPT = """复核修复后的候选是否解决了指定异议。
-只输出一行 PASS、FAIL 或 UNKNOWN。"""
+严格输出一个 JSON 对象：
+{"status":"PASS|FAIL|UNKNOWN","checked_issue":"...","check_result":"...","remaining_problem":null}
+只有确实检查了指定异议并给出非空 check_result 时才能使用 PASS。"""
 
 ARM_V214_CHALLENGER_PROMPT = """你是 Primary 候选的 Challenger。
 只检查下面候选在原题约束下是否有具体可核查错误，不要凭“看起来不同”提出异议。
@@ -705,11 +708,10 @@ class AdaptiveReliabilityHarnessV214(ARMV214StateSupport, AdaptiveReasoningHarne
                 reasoning_mode="off",
                 timeout_seconds=self.effective_timeout_seconds(None),
             )
-            token = str(getattr(review_call, "content", "") or "").strip().splitlines()
-            status = token[0].upper() if token and token[0].upper() in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
-            review = FreshReview(status, "fresh_review")
+            review = parse_fresh_review(getattr(review_call, "content", ""))
         summary["repair_attempted"] = True
         summary["fresh_review_status"] = review.status if review else "UNKNOWN"
+        summary["fresh_review"] = review.as_dict() if review else None
         return repaired, review
 
     def _evaluate_one(self, candidates: Sequence[Candidate], parsed: Any, call_result: Any):
