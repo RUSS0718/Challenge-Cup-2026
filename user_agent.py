@@ -485,6 +485,10 @@ class AgentConfig:
     arm_max_skill_audits: int = 1
     arm_timeout_recovery_mode: str = "none"
     arm_primary_timeout_seconds: int | None = None
+    arm_second_timeout_with_incumbent_seconds: int = 180
+    arm_second_timeout_without_incumbent_seconds: int = 300
+    arm_second_salvage_timeout_seconds: int = 90
+    arm_second_salvage_max_tokens: int = 2048
     arm_salvage_timeout_seconds: int = 15
     arm_salvage_max_tokens: int = 1024
     arm_allow_thinking_on: bool = False
@@ -538,6 +542,13 @@ class AgentConfig:
             raise ValueError("arm_off_recovery_max_tokens_must_be_positive")
         if not math.isfinite(float(self.arm_max_skill_audits)) or float(self.arm_max_skill_audits) < 0:
             raise ValueError("arm_max_skill_audits_must_be_nonnegative")
+        if any(int(value) <= 0 for value in (
+            self.arm_second_timeout_with_incumbent_seconds,
+            self.arm_second_timeout_without_incumbent_seconds,
+            self.arm_second_salvage_timeout_seconds,
+            self.arm_second_salvage_max_tokens,
+        )):
+            raise ValueError("arm_second_stage_limits_must_be_positive")
     # FESF v1 is enabled in the current local evaluation profile.  The
     # rollback profile remains available through explicit runner arms.
     enable_fesf_v1: bool = False
@@ -712,6 +723,10 @@ class ReasoningAgent:
                     arm_max_skill_audits=self.config.arm_max_skill_audits,
                     arm_timeout_recovery_mode=self.config.arm_timeout_recovery_mode,
                     arm_primary_timeout_seconds=self.config.arm_primary_timeout_seconds,
+                    arm_second_timeout_with_incumbent_seconds=self.config.arm_second_timeout_with_incumbent_seconds,
+                    arm_second_timeout_without_incumbent_seconds=self.config.arm_second_timeout_without_incumbent_seconds,
+                    arm_second_salvage_timeout_seconds=self.config.arm_second_salvage_timeout_seconds,
+                    arm_second_salvage_max_tokens=self.config.arm_second_salvage_max_tokens,
                     arm_salvage_timeout_seconds=self.config.arm_salvage_timeout_seconds,
                     arm_salvage_max_tokens=self.config.arm_salvage_max_tokens,
                     arm_allow_thinking_on=self.config.arm_allow_thinking_on,
