@@ -22,6 +22,12 @@ from reasoning_agent.harness_contracts import (
 
 
 _BARE_SYMBOL = re.compile(r"^[A-Za-z](?:[A-Za-z0-9_']*)$")
+_BARE_CHOICE = re.compile(r"^[A-Da-d](?:[.)）])?$")
+_SHORT_SEMANTIC_CONCLUSION = re.compile(
+    r"^(?:是|否|真|假|成立|不成立|存在|不存在|有|无|收敛|发散|"
+    r"yes|no|true|false|exists|does\s+not\s+exist|converges|diverges)$",
+    re.I,
+)
 _FUNCTION_DEFINITION = re.compile(r"^[A-Za-z][A-Za-z0-9_']*\s*\([^)]*\)\s*=")
 _FINAL_ANSWER_MARKER = re.compile(r"(?im)^\s*(?:\*\*)?\s*(?:final\s+answer|最终答案)\s*[:：]")
 
@@ -57,6 +63,13 @@ def assess_answer_completeness(
         return False, "placeholder_or_empty"
     if value.endswith(("=", "+", "-", "*", "/", "^", "\\")):
         return False, "open_expression"
+
+    # A-D and bounded yes/no-style conclusions are complete final answers,
+    # even when the host could not confidently infer a choice/semantic shape.
+    if _BARE_CHOICE.fullmatch(value):
+        return True, "choice_conclusion"
+    if _SHORT_SEMANTIC_CONCLUSION.fullmatch(value):
+        return True, "semantic_conclusion"
 
     if answer_shape in {ANSWER_SHAPE_SINGLE_NUMERIC, "unknown"} and _BARE_SYMBOL.fullmatch(value):
         return False, "bare_symbol_fragment"
