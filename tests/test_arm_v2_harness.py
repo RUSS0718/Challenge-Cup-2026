@@ -178,13 +178,14 @@ class ARMHarnessV2Test(unittest.TestCase):
             {},
         )
         self.assertNotEqual("UNKNOWN", result["final_response"])
-        self.assertTrue(
-            any(
-                check.get("type") == "same_response_consolidation"
-                for candidate in self._ledger(result)["candidates"]
-                for check in candidate.get("checks", [])
-            )
-        )
+        # Representation-equivalent boxed/unboxed values collapse before they
+        # can become a same-response conflict.
+        primary_values = [
+            candidate["normalized_value"]
+            for candidate in self._ledger(result)["candidates"]
+            if candidate["source"] == "arm_primary"
+        ]
+        self.assertEqual(1, len(set(primary_values)))
 
     def test_truncated_explicit_primary_is_preserved_as_weak_incumbent(self):
         client = ModeAwareClient([
