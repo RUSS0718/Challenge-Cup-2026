@@ -78,6 +78,7 @@ def _build_arm_v21_submission_config(
         enable_arm_harness=True,
         arm_harness_version="v2",
         arm_v2_mode="selective",
+        enable_constraint_fit_hybrid_router=True,
         arm_solver_reasoning_mode=solver_mode,
         arm_trust_policy=trust_policy,
         arm_allow_thinking_on=False,
@@ -115,6 +116,8 @@ def build_arm_v213_config(
 ) -> AgentConfig:
     """Build a default-off v2.1.3 experiment configuration."""
     config = build_submission_arm_config(mode)
+    if mode.strip().lower().rsplit("-", 1)[-1] == "off":
+        config = replace(config, enable_constraint_fit_hybrid_router=False)
     return replace(
         config,
         arm_harness_version="v2.1.3",

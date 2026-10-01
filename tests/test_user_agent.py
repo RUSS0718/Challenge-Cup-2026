@@ -1141,8 +1141,7 @@ class SubmissionProfileTest(unittest.TestCase):
     PROBLEM = "已知 f(x)=x^2，求 f(3) 并化简结果"
 
     def test_submission_config_uses_local_fesf_profile(self):
-        # The explicit submission profile now selects Harness + Deep with
-        # matcher-on and keeps FSDF available as the legacy fallback.
+        # Official ARM v2.1.3 OFF routes through the Generic fallback.
         self.assertTrue(SUBMISSION_CONFIG.enable_adaptive_voting)
         self.assertFalse(SUBMISSION_CONFIG.enable_verification_gated_retry)
         self.assertEqual(5, SUBMISSION_CONFIG.vote_k_max)
@@ -1154,7 +1153,7 @@ class SubmissionProfileTest(unittest.TestCase):
         self.assertTrue(SUBMISSION_CONFIG.enable_fork_select_deepen_finish)
         self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_harness)
         self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_deep_lane)
-        self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_hybrid_router)
+        self.assertFalse(SUBMISSION_CONFIG.enable_constraint_fit_hybrid_router)
         self.assertFalse(SUBMISSION_CONFIG.enable_temporary_answer_bank)
         self.assertEqual("off", SUBMISSION_CONFIG.harness_bank_mode)
         self.assertFalse(SUBMISSION_CONFIG.enable_fesf_v1)

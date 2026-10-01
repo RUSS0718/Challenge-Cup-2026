@@ -179,6 +179,8 @@ def build_submission_config(
         if is_v213
         else arm_base if arm_base is not None else build_arm_v212_base_config(config_factory)
     )
+    if normalized == SUBMISSION_ARM_V213_OFF:
+        base = replace(base, enable_constraint_fit_hybrid_router=False)
     arm_mode = normalized.rsplit("-", 1)[-1]
     return replace(
         base,
