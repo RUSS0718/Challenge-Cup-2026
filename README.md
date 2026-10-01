@@ -44,7 +44,7 @@ flowchart TD
 候选实现为
 `bounded_evidence_trajectory_selection_v1`。它使用有限 A/B 轨迹、Evidence Ledger、
 保守选择、截断单次恢复和 5 次/16384 token 硬预算。FSDF 仍保留为 legacy backend；
-提交 profile 开启 Harness、Deep lane、hybrid router；RAG、Skill 和答案 bank 不进入正式路径。
+提交 profile 开启 Harness、Deep lane 与 Generic fallback；ARM v2.1.3 OFF 不走 hybrid FSDF，RAG、Skill 和答案 bank 不进入正式路径。
 
 该候选已完成双轴 Router、typed parser 和 Deep 状态机的零模型代码验收；随后按新 spec
 执行 fresh 6 题 formation probe，但首 3 题均在固定 1200 秒 `deep_primary` 边界超时，

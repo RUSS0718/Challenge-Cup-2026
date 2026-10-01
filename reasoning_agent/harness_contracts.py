@@ -159,6 +159,14 @@ def _strip_math_wrappers(value: str) -> str:
 def _scalar_rhs(value: str) -> str:
     """Extract a final scalar RHS from a bounded equality chain."""
     clean = _strip_math_wrappers(value)
+    clean = re.sub(
+        r"^(?:(?:therefore|thus|so|所以|因此)\s*)?"
+        r"(?:答案(?:是|为)?|结果(?:是|为)?|最终(?:可)?得(?:到)?|得到|可得|解得|"
+        r"the\s+answer\s+is|answer\s+is)\s*[:：]?\s*",
+        "",
+        clean,
+        flags=re.I,
+    )
     parts = re.split(r"(?<![!<>≤≥])=(?!=)", clean)
     if len(parts) > 1 and parts[-1].strip():
         return _strip_math_wrappers(parts[-1].strip())

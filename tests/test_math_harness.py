@@ -167,7 +167,7 @@ class MathHarnessOrchestratorTest(unittest.TestCase):
         self.assertFalse(AgentConfig().enable_constraint_fit_deep_lane)
         self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_harness)
         self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_deep_lane)
-        self.assertTrue(SUBMISSION_CONFIG.enable_constraint_fit_hybrid_router)
+        self.assertFalse(SUBMISSION_CONFIG.enable_constraint_fit_hybrid_router)
         self.assertFalse(SUBMISSION_CONFIG.enable_temporary_answer_bank)
         self.assertEqual("off", SUBMISSION_CONFIG.harness_bank_mode)
         self.assertEqual("bounded_evidence_trajectory_selection_v1", METHOD_ID)
