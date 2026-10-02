@@ -29,6 +29,9 @@ class AdaptiveCandidateFirstTest(unittest.TestCase):
     def test_reasoning_agent_opt_in_route(self):
         cfg = dataclasses.replace(
             SUBMISSION_CONFIG,
+            enable_constraint_fit_harness=False,
+            enable_constraint_fit_deep_lane=False,
+            enable_constraint_fit_hybrid_router=False,
             enable_adaptive_candidate_first=True,
             enable_fork_select_deepen_finish=False,
             enable_fesf_v1=False,
@@ -41,13 +44,22 @@ class AdaptiveCandidateFirstTest(unittest.TestCase):
         self.assertEqual("soft", result["trace"][0]["mode"])
 
     def test_candidate_first_and_fsdf_are_mutually_exclusive(self):
-        cfg = dataclasses.replace(SUBMISSION_CONFIG, enable_adaptive_candidate_first=True)
+        cfg = dataclasses.replace(
+            SUBMISSION_CONFIG,
+            enable_constraint_fit_harness=False,
+            enable_constraint_fit_deep_lane=False,
+            enable_constraint_fit_hybrid_router=False,
+            enable_adaptive_candidate_first=True,
+        )
         with self.assertRaises(ValueError):
             ReasoningAgent(ScriptedClient([]), cfg).solve("求 n", {})
 
     def test_candidate_first_and_fesf_are_mutually_exclusive(self):
         cfg = dataclasses.replace(
             SUBMISSION_CONFIG,
+            enable_constraint_fit_harness=False,
+            enable_constraint_fit_deep_lane=False,
+            enable_constraint_fit_hybrid_router=False,
             enable_adaptive_candidate_first=True,
             enable_fork_select_deepen_finish=False,
             enable_fesf_v1=True,

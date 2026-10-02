@@ -7,10 +7,16 @@
 ## 当前应优先阅读
 
 - [CONTEXT.md](../CONTEXT.md)：领域术语与当前默认配置语义。
+- [architecture_evolution.md](architecture_evolution.md)：从赛事模板到当前 Harness 的架构谱系、版本状态和证据边界。
+- [official_evaluations/](official_evaluations/)：按北京日期归档官方原始日志与 agent 分析。
 - [excluded_approaches.md](excluded_approaches.md)：实验处置的单一事实源。
 - [adr/](adr/)：已接受的架构决策。
 - [CAR-001 规格](experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-SPEC/preregistration.md)：
   当前 thinking-on 候选架构（默认关闭）。
+- [ARM-Harness v2 技术设计](9.28/v2/ARM-Harness%20v2%20技术设计文档.md) 与
+  [详细实现文档](9.28/v2/ARM-Harness%20v2%20详细实现文档.md)：v2 架构及实现方案。
+- [ARM-Harness v2 完成情况归档](9.28/v2/ARM-Harness%20v2%20完成情况归档.md)：
+  2026-09-28 的 ARM 隔离诊断与结果质量审计完成状态、证据边界和后续实验入口。
 - [POST-MAIN-EVAL-001](experiments/POST-MAIN-EVAL-001/result.md)：最近一次本地 smoke。
 - [agents/](agents/)：仓库协作与 issue 约束。
 
@@ -21,6 +27,7 @@
 - `BTCS-*`、`V4-*`、`V5-*`、`STATEFUL-*`：已归档协议与资源试验。
 - `CAUSAL-MCP-*`、`ERROR-NOTEBOOK-*`：独立工程/错题本实验，不接入默认求解。
 - 日期命名的 `docs/experiments/*2026-08*` 与 `*2026-08-29*`：早期探索、否决或发布记录。
+- `architecture_evolution.md` 只做版本导航；不要用它替代实验报告中的逐题结果、manifest 或处置结论。
 
 上述目录中的 `result.md`、`report.json`、`run_manifest.json` 和逐题记录属于审计材料，
 即使方案已 `REJECTED`/`ARCHIVED` 也不删除。

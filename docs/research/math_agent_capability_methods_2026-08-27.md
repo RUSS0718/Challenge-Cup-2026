@@ -26,7 +26,7 @@
 
 - 官方 C0（`b8b78aa`，answer-first + k5 + 4096）为 9/112、invalid 20、截断率
   88.7%、约 5 小时 12 分。过去在 k1/k5、B1、32k 之间切换没有突破正确数平台，见
-  [官方评测记录](../experiments/官方评测记录.md)。
+  [官方评测记录](../official_evaluations/README.md)。
 - `public_regression_112` 当前全被分类为 `calculation`，只能做计算题与输出卫生回归，
   不能证明证明题、解释题或长题能力。
 - 32k、方法卡 RAG、PoT/TIR-first、模型生成程序回代、确定性求解器、SymPy 默认路径、

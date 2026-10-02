@@ -41,6 +41,9 @@ class CapsuleFlowTest(unittest.TestCase):
     def cfg(self):
         return dataclasses.replace(
             SUBMISSION_CONFIG,
+            enable_constraint_fit_harness=False,
+            enable_constraint_fit_deep_lane=False,
+            enable_constraint_fit_hybrid_router=False,
             enable_typed_answer_capsule=True,
             enable_contextual_answer_reconstruction=False,
             enable_fork_select_deepen_finish=False,

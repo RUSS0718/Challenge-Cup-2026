@@ -32,7 +32,7 @@
 
 ## 发布后
 
-1. 官方日志归档并补入 `官方评测记录.md`(Run #6),与 Run #5 比较
+1. 官方日志归档并补入 `../official_evaluations/README.md`(Run #6),与 Run #5 比较
    correct/invalid/runner error/截断率/耗时;
 2. 回滚条件(预写):correct 回退、总时限恶化、runner error 上升 →
    回滚锚 `25f99b5`;

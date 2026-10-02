@@ -1,13 +1,13 @@
 # Challenge Cup 2026 数学推理智能体
 
 本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现:一个受调用预算约束的数学
-推理智能体。当前默认流水线为分层题面匹配（命中则直接返回）→ 题型识别 →
-FSDF（Analyze–Fork–Select/Deepen–Finish）→ 规范化输出，同时保持赛事规定的
-单文件入口与公开 client 契约。
+推理智能体。当前提交 profile 的默认流水线为题型/答案形态分类 →
+Constraint-Fit Harness（Direct/Deep/FSDF fallback）→ 规范化输出，同时保持赛事
+规定的单文件入口与公开 client 契约。
 
-> 当前状态（2026-09-08）：默认提交路径为 `fork_select_deepen_finish_v1`，并在
-> FSDF 之前启用已提交的分层题面匹配。FSDF v1 仍无新的数学能力结论；CAR、FESF、
-> Claim DSL、Host Loop、RAG、工具、MCP 和其他实验路径保持关闭。
+> 当前状态（2026-09-29）：正式无参提交 selector 为 ARM v2.1.3 OFF，关闭 reference-example
+> RAG、Skill 和答案 bank；FSDF 作为显式 baseline 保留。CAR、FESF、Claim DSL、Host Loop、
+> 工具和 MCP 保留为显式实验层，不属于默认路径。
 
 ## 当前 Agent 架构
 
@@ -16,29 +16,46 @@ FSDF（Analyze–Fork–Select/Deepen–Finish）→ 规范化输出，同时保
 
 ```mermaid
 flowchart TD
-    entry["ReasoningAgent.solve(problem, metadata)"] --> bank["分层题面匹配(命中则直接返回)"]
-    bank --> classify["P0 题型识别(纯文本,六类)"]
-    classify --> analyze["A Analyze"]
-    analyze --> fork["B/C Fork"]
-    fork --> deepen["D Select/Deepen"]
-    deepen --> finish["E Finish"]
-    finish --> finalize["final_response 组装"]
+    entry["ReasoningAgent.solve(problem, metadata)"] --> classify["题型/答案形态分类<br/>风险与置信度"]
+    classify --> harness["Constraint-Fit Harness"]
+    harness --> direct["Direct"]
+    harness --> deep["Deep typed lane"]
+    harness --> fsdf["FSDF legacy fallback"]
+    direct --> finalize["保守选择 / UNKNOWN"]
+    deep --> finalize
+    fsdf --> finalize
     finalize --> out["final_response + extracted_answer + trace"]
 ```
 
 | 层 | 在役实现 | 备注 |
 | --- | --- | --- |
-| 题面匹配 | NFC/去空白/大小写归一化；全文、唯一前缀、唯一子串三层匹配 | 常开；未命中继续求解 |
-| 题型识别 | 纯文本规则六分类,不读 metadata | 常开 |
-| 生成 | A 分析、B/C 双思路、D 深推、E 收尾 | 难题固定五阶段 |
-| 选择 | D 只能选择一个可用分支 | 非法/不可用选择 fail-closed 降级 |
-| 预算 | 每题最多5次模型调用 | `[2048,2048,2048,8192,4096]`，合计18432 |
-| 表示 | 允许 handoff 字段 + `HANDOFF_INCOMPLETE` | `UNKNOWN` fail-closed |
+| 语义参考 RAG | Qwen3-Embedding-0.6B + Chroma 15,383 条 | 代码保留；提交 profile 默认关闭 |
+| 题型/学科分类 | 纯文本规则六类答案形态 + 18 学科词汇路由 | 常开；不读 metadata |
+| 学科 Skill | Intern1 18 份手册的安全投影 | 代码保留；提交 profile 默认关闭 |
+| 生成/路由 | Direct A/B、Deep primary/review、FSDF A/B/C/D/E | 由 HostRouter 按合同分流 |
+| 选择 | Evidence Ledger + HostParser/TypedParser | 非法、冲突或不可验证时 `UNKNOWN` |
+| 预算 | Harness 每题最多 5 次模型调用 | Harness 总预算 16,384 tokens；FSDF 有自身有界预算 |
+| 表示 | 结构化候选、typed parse、handoff | `UNKNOWN` fail-closed |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
+
+### Constraint-Fit Math Harness（MATH-HARNESS-V1，提交 profile 开启）
+
+新 Harness 位于 `reasoning_agent/math_harness.py`，通过 `ReasoningAgent.solve()` 接入；
+候选实现为
+`bounded_evidence_trajectory_selection_v1`。它使用有限 A/B 轨迹、Evidence Ledger、
+保守选择、截断单次恢复和 5 次/16384 token 硬预算。FSDF 仍保留为 legacy backend；
+提交 profile 开启 Harness、Deep lane 与 Generic fallback；ARM v2.1.3 OFF 不走 hybrid FSDF，RAG、Skill 和答案 bank 不进入正式路径。
+
+该候选已完成双轴 Router、typed parser 和 Deep 状态机的零模型代码验收；随后按新 spec
+执行 fresh 6 题 formation probe，但首 3 题均在固定 1200 秒 `deep_primary` 边界超时，
+触发立即停止门。因此 formation 本身为 `NO_GO / NO_CAPABILITY_CONCLUSION`；这是用户明确
+授权的提交配置覆盖，尚未形成能力 A/B 证据。formation 工件见
+`docs/experiments/MATH-DEEP-FORMATION-PROBE-001/`。
 
 ### Contextual Answer Reconstruction 历史实验路径
 
-该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用 FSDF。
+该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用
+`SUBMISSION_MODE=arm-v2.1.3-off`，FSDF 仅作为显式 baseline。
 
 ## 项目架构与发布流
 
@@ -52,7 +69,7 @@ flowchart LR
         release["发布线克隆<br/>canary/revert 操作面"]
     end
     subgraph loop["实验闭环(每窗一变量)"]
-        branch["工作分支 codex/b1-4k-canary<br/>23 变体 + 380 测试"]
+        branch["实验/整理分支<br/>scoped commit + 冻结集"]
         runner["evaluate_protocol_ab.py<br/>240s / workers=3 / 交错配对"]
         sets["冻结集 complex48 / medium60<br/>public112 / dev(探针)"]
         judge2["判定:void 门(错误率>10%整窗作废)<br/>→ 正确率/成本/卫生门 → 逐题配对"]
@@ -67,7 +84,11 @@ flowchart LR
 ## 项目目录结构
 
 ```text
-├── user_agent.py                        # Agent 核心:ReasoningAgent + 全部实验开关
+├── user_agent.py                        # Agent 兼容 facade: ReasoningAgent + 配置
+├── reasoning_agent/answer_parsing.py      # 纯答案抽取、规范化与确定性检查
+├── reasoning_agent/harness_contracts.py   # Harness 合同、候选与 typed parser
+├── reasoning_agent/math_harness.py       # MATH-HARNESS-V1 编排、预算与路由
+├── reasoning_agent/profiles.py            # 本地 submission、agent-default、ARM 实验 profile
 ├── llm_client.py                        # 书生 API client(本地评测用)
 ├── main.py                              # 本地逐题 runner
 ├── scripts/
@@ -75,35 +96,38 @@ flowchart LR
 │   └── evaluate_dev.py                  # 单配置 evaluator 与消融 CLI
 ├── sample_data/
 │   ├── dev.jsonl                        # 3 题冒烟集
-│   ├── public_regression_112.jsonl      # 112 题短题知识覆盖集(回归保护)
 │   ├── medium_capability_freeze_60.jsonl
 │   └── complex_capability_freeze_48.jsonl
-├── tests/                               # 本地回归测试(当前全量 739 项,4 项跳过)
+├── reasoning_agent/error_notebook/eval_112.json # 本地 112 题测试集
+├── tests/                               # 本地回归测试(当前全量 945 项,4 项跳过)
 ├── docs/
 │   ├── excluded_approaches.md           # 淘汰方案单一事实源
 │   ├── ARCHIVE_INDEX.md                 # 当前/历史文档分类索引
 │   ├── archive/                         # 已移出根目录的旧总结与草稿
 │   ├── research/                        # 候选依据:能力/评测方法研究 + 采纳报告
-│   ├── experiments/                     # 本地与官方评测报告与工件(78+)
+│   ├── experiments/                     # 可读实验总结与历史证据
 │   ├── adr/                             # 关键决策记录
-│   ├── agents/                          # 工作流约定
+│   ├── agents/                          # 工作流与仓库卫生约定
+│   ├── architecture_evolution.md        # 版本/架构演进总表
 │   └── branches_map.md                  # 分支与发布面地图
 ├── method_cards.jsonl 等                 # opt-in 实验离线资产
-└── tmp/                                 # 原始工件与临时复核数据(untracked)
+└── artifacts/<run_id>/                 # 被忽略的本地运行产物
 ```
 
 ## 提交配置与实验开关板
 
-官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到
-`SUBMISSION_CONFIG`：先尝试分层题面匹配，未命中后进入 `fork_select_deepen_finish_v1`，
-最多5次调用、合计18432 token。题型识别、task-aware prompt、异构候选、k5 自适应投票
-和答案优先提示保持在役；CAR、FESF、RAG、工具、MCP、contextual、refine、salvage
-和 SymPy 保持关闭。
+官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到当前分支的
+`SUBMISSION_CONFIG`：reference-example RAG 与 Skill 保持关闭，先做题型/学科分类，随后由 Constraint-Fit Router 分流，
+direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fallback。
+当前正式 selector 为 `arm-v2.1.3-off`；Deep formation 与 Direct Health 的历史健康门
+结论仍然保留，不能从本次配置切换推导新的能力或成绩结论。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
-| `enable_fork_select_deepen_finish` | ✅ | 当前默认路径，仅完成代码验收 |
-| `enable_temporary_answer_bank` | ✅ | 100 条已审计题面匹配；未命中继续 FSDF |
+| `enable_fork_select_deepen_finish` | ✅ | Constraint-Fit 的 FSDF legacy fallback |
+| `enable_reference_rag` | ⬜ | 提交路径关闭；仅显式实验配置启用 |
+| `enable_reference_skills` | ⬜ | 提交路径关闭；仅显式实验配置启用 |
+| `enable_temporary_answer_bank` | ⬜ | 默认路径已移除；底层旧 gateway 仅保留显式测试兼容 |
 | `enable_contextual_answer_reconstruction` | ⬜ | 历史实验路径 |
 | `enable_adaptive_voting`(k5/threshold3) | ✅ | FSDF v1 候选一致性投票 |
 | `enable_heterogeneous_reasoners` | ✅ | 新路径候选生成 |
@@ -115,6 +139,25 @@ flowchart LR
 | `enable_failure_salvage`(P1) | ⬜ | ARCHIVED |
 | `enable_verification_gated_retry`(B1) | ⬜ | 被投票路径替代 |
 | `enable_method_rag` | ⬜ | 永久排除(双轮双负) |
+
+### Official-equivalent submission modes
+
+The formal submission has one selector; the booleans below are only derived
+implementation details:
+
+```python
+from user_agent import ReasoningAgent, build_submission_config
+
+SUBMISSION_MODE = "arm-v2.1.3-off"
+SUBMISSION_CONFIG = build_submission_config(SUBMISSION_MODE)
+agent = ReasoningAgent(client=official_client)  # config=None -> SUBMISSION_MODE
+```
+
+Allowed values include `fsdf`, the v2.1.2 ARM modes, and the explicit
+v2.1.3 modes `arm-v2.1.3-off`, `arm-v2.1.3-on`, and
+`arm-v2.1.3-adaptive`. The current authorized selector is
+`arm-v2.1.3-off`; the promotion runner's A arm remains a fixed FSDF baseline
+and is independent of the formal selector.
 
 ## 赛事接口
 
@@ -145,15 +188,108 @@ python -m pip install -r requirements.txt
 本地调用需要配置书生 API:
 
 ```powershell
-$env:INTERN_API_KEY = "your-api-key"
-# 可选:$env:INTERN_MODEL = "intern-s2-preview-397b"
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+notepad .env
 ```
+
+在 `.env` 中填写 `INTERN_API_KEY`；本地评测模型固定为
+`INTERN_MODEL=intern-s2`。`llm_client.py` 会自动加载仓库根目录的
+`.env`，其中的值优先于同名 Windows 环境变量。`.env` 已被 Git 忽略，不要提交密钥。
+`INTERN_API_BASE` 默认使用官方兼容端点；超时、重试和 thinking 模式按各实验协议设置，
+不要为了方便写成会改变冻结实验的全局覆盖值。
 
 运行 3 道快速冒烟题:
 
 ```powershell
-python main.py --input_file sample_data/dev.jsonl --output_dir sample_outputs
+python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-dev-smoke
 ```
+
+运行产物应使用唯一的 `artifacts/<run_id>/` 目录，例如
+`artifacts/20260928-135512-dev-smoke/`；不要把逐题 JSON、manifest 或 report
+写入源码目录或 `docs/experiments/`。完整约定见
+[`docs/agents/repository-hygiene.md`](docs/agents/repository-hygiene.md)。
+
+本地 runner 可用 profile 开关整组切换功能；默认仍是官方提交 profile。
+`arm-off`、`arm-on`、`arm-static` 和 `arm-adaptive` 是显式本地实验配置，
+不会改变官方提交配置：
+
+```powershell
+python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-submission --profile submission
+python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-agent-default --profile agent-default
+python main.py --input_file sample_data/dev.jsonl --output_dir artifacts/20260928-135512-arm-adaptive --profile arm-adaptive
+```
+
+ARM-Harness v2.1 的串行 accuracy-first runner 使用固定的
+`reasoning_agent/error_notebook/eval_112.json`，并提供
+`arm-v2.1-off`、`arm-v2.1-on` 和 `arm-v2.1-off-skill` 三个显式 profile：
+
+```powershell
+python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-off --run-id ARM-V21-OFF-112-ACCURACY-001
+python scripts/run_arm_v21_eval112_timing.py --profile arm-v2.1-on --run-id ARM-V21-ON-112-ACCURACY-001
+```
+
+v2.1.2 的 `arm-v2.1.2-off`、`arm-v2.1.2-on`、`arm-v2.1.2-adaptive` 和
+`arm-v2.1.2-off-skill`
+保持旧 profile 不变，显式启用 evidence-triggered Trust Gate；ON 在 Primary
+不完整时改用一次有界 OFF finalizer。runner 也支持固定 30 题数据集：
+
+```powershell
+python scripts/run_arm_v21_eval112_timing.py `
+  --profile arm-v2.1.2-off `
+  --dataset-path sample_data/arm_fixed_items_30.json `
+  --expected-records 30 `
+  --selection-seed 20260905 `
+  --run-id ARM-V212-FULL30-OFF-001
+```
+
+每题严格只执行一次 `solve()`，结果状态为 `complete`、`incomplete` 或 `error`；失败题也会写入
+`answers.jsonl` 和 aggregate denominator，并保留 `final_failure_reason`。完整答复由本地 evaluator
+评分，标准答案不发送给模型。报告同时记录 second-sample、resolver、safe-candidate 和 final-source
+telemetry；Primary/Second 要求显式 `Final answer:` 终答，`answers.jsonl` 还保留完整的有界
+`arm_v2_summary` diagnostics；call ledger 仅记录 `reasoning_content` 是否存在及其长度，
+不保存完整内容。数据集缺失、答案字段缺失或记录数不符合 `--expected-records` 时 runner
+会直接失败。本地结果不自动触发提交晋升。
+
+v2.1.3 的正式 selector 为 `arm-v2.1.3-off`，另有显式实验模式
+`arm-v2.1.3-on`、
+`arm-v2.1.3-adaptive` 和 `arm-v2.1.3-forced-ab`。它们使用正证据 Trust Gate、
+structured backend 归因、ON continuation/OFF recovery 和 response-free
+false-trusted-primary 统计；forced A/B 不使用 Early Stop 或 Resolver：
+
+```powershell
+python scripts/run_arm_v213_forced_ab.py `
+  --run-id ARM-V213-FORCED-AB-FULL30-001 `
+  --dataset-path sample_data/arm_fixed_items_30.json `
+  --expected-records 30 `
+  --selection-seed 20260905
+```
+
+Forced A/B 只把 A/B verdict、Oracle、rescue/damage 和转移计数写入聚合工件，
+不把 gold 放入 runtime prompt，也不扩大官方提交接口。
+
+四臂 promotion 对比（A=FSDF、B=ARM OFF、C=ARM ON、D=ARM Adaptive）使用同一固定题集、
+endpoint 和 judge，并保留每题 response-free diagnostics：
+
+```powershell
+python scripts/run_submission_promotion.py `
+  --run-prefix ARM-V212-PROMOTION-FULL30-001 `
+  --dataset-path sample_data/arm_fixed_items_30.json `
+  --expected-records 30 `
+  --selection-seed 20260905 `
+  --rounds 1
+```
+
+gate 默认要求正确数不低于 FSDF、invalid 不增加、runner error 不增加且平均调用不超过 3；
+任何 gate 失败都不会改变 `SUBMISSION_CONFIG`。
+
+ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
+profile 会显式发送 `thinking_mode=true`，运行前应按冻结实验协议检查 endpoint 健康。
+当前 `SUBMISSION_CONFIG` 启用 ARM v2.1.3 OFF；代码路径不代表数学能力或官方成绩提升，
+正式成绩仍需独立官方评测。
+
+该开关只影响本地 `main.py` runner；官方仍通过
+`ReasoningAgent(client=official_client)` 使用 `SUBMISSION_CONFIG`，不会被本地
+profile 按钮或命令行参数隐式改变。
 
 ## 本地评测与实验纪律
 
@@ -179,16 +315,18 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 ## 当前路线
 
-- **在役**：分层题面匹配 + `fork_select_deepen_finish_v1`；匹配层只对已提交题库命中，
-  FSDF 仍无新的真实能力结论。
-- **运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`）。
-- **发布状态**：用户已授权默认切换并合并 GitCode；官方结果仍需单独核验。
-- **已淘汰**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
+- **当前 checkout**：ARM v2.1.3 OFF 位于 Constraint-Fit Harness 的 Direct/Deep/FSDF fallback seam；
+  reference RAG、Skill、答案 bank 和历史候选均关闭，尚未形成新的数学能力结论。
+- **历史运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`），仅作为历史发布/回滚参照。
+- **发布状态**：官方无参入口切换到 ARM v2.1.3 OFF；远端分支状态以发布后的 ref 审计为准。
+- **已归档/排除**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
   P1 salvage、G 门控、TIR/回代验证、32k 天花板。
 - **暂不引入**:LLM-as-judge 本地判分、PRM 组件、LangGraph/AgentScope、
   联网工具与任意代码执行。
 
-详细证据与决策记录见:`docs/experiments/`(六轮官方与全部本地报告)、
+详细证据与决策记录见按实验 ID 分类的 `docs/experiments/`、
+[架构演进总表](docs/architecture_evolution.md)、
+[每日官方评测归档](docs/official_evaluations/)、
 [docs/excluded_approaches.md](docs/excluded_approaches.md)、
 [docs/adr/](docs/adr/)、[docs/branches_map.md](docs/branches_map.md)。
 
@@ -200,7 +338,7 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 1. 将可复现版本推送到队伍 AtomGit 组织仓库的 `main` 分支(走发布线克隆)。
 2. 在作品页面保持关联与提交状态。
-3. 每轮结果按五数判读并记入 `docs/experiments/官方评测记录.md`,回滚条件
+3. 每轮结果按五数判读并记入 `docs/official_evaluations/README.md`,回滚条件
    在发布记录中预写。
 
 提交、推送和作品页面操作都应单独确认。本地数据集结果只用于研发,不代表

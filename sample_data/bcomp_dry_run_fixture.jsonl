@@ -1,0 +1,3 @@
+{"item_id":"bcomp-dry-001","source_family":"synthetic_dry_run","domain":"arithmetic","language":"en","answer_type":"integer","problem":"Compute 2 + 2."}
+{"item_id":"bcomp-dry-002","source_family":"synthetic_dry_run","domain":"arithmetic","language":"en","answer_type":"integer","problem":"Compute 3 * 3."}
+{"item_id":"bcomp-dry-003","source_family":"synthetic_dry_run","domain":"arithmetic","language":"en","answer_type":"integer","problem":"Compute 5 - 2."}

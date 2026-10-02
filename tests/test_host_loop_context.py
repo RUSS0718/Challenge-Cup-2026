@@ -1,4 +1,5 @@
 import json
+import dataclasses
 import unittest
 
 from reasoning_agent.host_loop_context import prepare_host_loop_context
@@ -75,7 +76,13 @@ class HostLoopContextTest(unittest.TestCase):
         )
         baseline_result = baseline.solve(problem, {"idx": 1, "gold": "secret"})
         disabled_client = ScriptedClient(packets())
-        disabled = ReasoningAgent(disabled_client, SUBMISSION_CONFIG)
+        disabled_config = dataclasses.replace(
+            SUBMISSION_CONFIG,
+            enable_constraint_fit_harness=False,
+            enable_constraint_fit_deep_lane=False,
+            enable_constraint_fit_hybrid_router=False,
+        )
+        disabled = ReasoningAgent(disabled_client, disabled_config)
         disabled_result = disabled.solve(problem, {"idx": 1, "gold": "secret"})
         self.assertEqual([call[2] for call in baseline_client.calls], [call[2] for call in disabled_client.calls])
         self.assertEqual(len(baseline_client.calls), len(disabled_client.calls))

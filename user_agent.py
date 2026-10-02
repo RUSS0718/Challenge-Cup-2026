@@ -1,12 +1,17 @@
 """Budgeted mathematical reasoning agent with deterministic answer handling."""
 from __future__ import annotations
+import inspect
+import math
 import re
 import time
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
-from fractions import Fraction
-from typing import Any
+from typing import Any, Final
 
+from reasoning_agent.submission_config import (
+    SUBMISSION_ARM_V213_OFF,
+    build_arm_v212_base_config as _build_arm_v212_base_config,
+    build_submission_config as _build_submission_config,
+)
 from reasoning_agent.fork_select_deepen_finish import (
     ForkSelectDeepenFinishRelay,
     RelayOptions,
@@ -19,6 +24,68 @@ from reasoning_agent.fork_evidence_synthesize_finish import (
 )
 from reasoning_agent.adaptive_candidate_first import AdaptiveCandidateFirstRelay
 from reasoning_agent.host_loop_context import prepare_host_loop_context
+from reasoning_agent.answer_parsing import (
+    _ANSWER_MARKER_RE,
+    _ANSWER_MARKER_LINE_STRICT_RE,
+    _TYPED_ANSWER_LINE_RE,
+    _TYPED_MATH_TOKEN_RE,
+    _TYPED_SENTENCE_RE,
+    _TYPED_TAG_RE,
+    _TYPED_PROSE_WORDS,
+    _TYPED_MATH_WORDS,
+    _CHOICE_LINE_RE,
+    _MATH_ONLY_LINE_RE,
+    _CONNECTIVE_RE,
+    _STRICT_THINKING_RE,
+    _ANSWER_MARKER_POS_RE,
+    _ANSWER_SEGMENT_STOP_RE,
+    _BODY_HEADER_RE,
+    _ANSWER_ECHO_RE,
+    _THINKING_CONTEXT_RE,
+    _BODY_HEADER_NAME,
+    _ANSWER_MARKER_LINE_RE,
+    _PLACEHOLDER_RE,
+    _GATE_INTERROGATIVE_RE,
+    _GATE_PROBABILITY_RE,
+    _GATE_EXPECTATION_RE,
+    _GATE_COUNT_RE,
+    _GATE_AVERAGE_RE,
+    _GATE_MODE_PRIORITY,
+    _NON_NUMERIC_TASK_TYPES,
+    _is_typed_math_value,
+    _is_answer_like,
+    _is_standalone_answer_line,
+    _is_placeholder_segment,
+    _has_placeholder_answer,
+    _extract_boxed_answers,
+    _format_rational,
+    _parse_rational_token,
+    _canonicalize_multi_numeric_set,
+    _extract_standalone_boxed_answer,
+    _is_strict_numeric_value,
+    _is_marker_in_thinking_quote,
+    _take_answer_segment,
+    _is_answer_echo,
+    _truncation_signals,
+    _conflicting_answer_pair,
+    _single_scalar_value,
+    _interrogative_sentences,
+    _sanity_violation,
+    extract_final_answer,
+    extract_answer_first,
+    extract_typed_answer,
+    extract_numeric_answer,
+    extract_answer_segment,
+    reconstruct_final_response,
+    parse_structure_f,
+    reconstruct_final_response_f,
+    is_placeholder_answer,
+    normalize_answer,
+    answer_equivalence,
+    has_conflicting_explicit_answers,
+    run_answer_checks,
+)
+
 
 # ── Task-type constants (universal, problem-text based) ────────────────────
 TASK_TYPE_CHOICE = "choice"
@@ -57,6 +124,10 @@ CALCULATION_PROMPT = POLICY_PROMPT  # 复用已验证的 answer-first 提示词
 NUMERIC_ANSWER_FIRST_PROMPT = """你是数学求解器。只解决题目本身，不输出标题或格式说明。
 第一行必须且只能写：最终答案：<答案>
 从第二行起可以给出必要的简短推理或校验；不要在第一行之前输出任何内容，也不要重复最终答案。"""
+
+COD_NUMERIC_PROMPT = """你是数学求解器。只处理题目本身，不复述题面、计划、标题或解释性套话。
+采用极简 Chain-of-Draft 草稿：每一步只写一个必要的等式、变换、数值结果或关键条件；省略显然的中间步骤，不重复题目和已完成结论。
+完成必要核对后，单独一行写“最终答案：<唯一结果>”。不要输出多个候选答案或 Thinking Process；无法确认时写“最终答案：UNKNOWN”。"""
 
 DERIVATION_PROMPT = """你是严谨的数学推理智能体。这是一道推导题。请直接输出面向用户的正式答案，不要输出 Thinking Process、内部计划或格式说明。严格按照以下结构输出：
 
@@ -262,6 +333,8 @@ def classify_problem_type(problem: str) -> str:
 
 @dataclass
 class AgentConfig:
+    """Select an agent path and its per-solve resource limits."""
+
     # ── P0 stop-bleeding defaults ─────────────────────────────────────────
     # Official runs showed 1024-token truncation fanning one question into ~7
     # model calls (~98.7% finish_reason=length) with near-zero accuracy.
@@ -316,10 +389,20 @@ class AgentConfig:
     enable_method_rag: bool = False
     method_rag_top_k: int = 2
     method_rag_max_context_chars: int = 4000
+    # Intern1 reference-example RAG. It is separate from the rejected
+    # method-card experiment; the submission profile keeps it disabled.
+    enable_reference_rag: bool = False
+    reference_rag_top_k: int = 2
+    reference_rag_max_context_chars: int = 4000
+    enable_reference_skills: bool = False
+    reference_skill_max_context_chars: int = 3200
     enable_deterministic_solver: bool = False
     # Experimental A/B switches.  All remain opt-in; the current F+4096 path
     # is the default baseline until a freeze-set gate promotes a candidate.
     enable_numeric_answer_first_prompt: bool = False
+    # current_cod_numeric: C0/legacy-only compact draft prompt.  It is
+    # mutually exclusive with FSDF and does not change the answer pipeline.
+    enable_current_cod_numeric: bool = False
     enable_numeric_answer_only_prompt: bool = False
     enable_strict_numeric_salvage: bool = False
     enable_conditional_token_retry: bool = False
@@ -370,9 +453,102 @@ class AgentConfig:
     adaptive_max_model_calls: int = 3
     adaptive_soft_deadline_seconds: float = 600.0
     adaptive_hard_deadline_seconds: float = 900.0
+    # CAR-002: force two mutually blind short-answer candidates.  It is an
+    # opt-in overlay; non-short-answer tasks remain on the FSDF fallback.
+    enable_adaptive_dual_candidate_consensus: bool = False
+    adaptive_dual_prompt_variant: str = "default"
     # CAR-001 soft skill hint: read-only route suggestion, never a hard parser
     # requirement.  It has no effect unless adaptive candidate-first is on.
     enable_adaptive_skill_hint: bool = True
+    # MATH-HARNESS-V1: outer constraint-fit route.  It is deliberately
+    # default-off; local capability/health/A-B runs must set bank_mode=off.
+    enable_constraint_fit_harness: bool = False
+    enable_arm_harness: bool = False
+    arm_harness_version: str = "v1"
+    arm_v2_mode: str = "selective"
+    # v2.1 changes only this request-local solver control for ON/OFF runs.
+    arm_solver_reasoning_mode: str = "off"
+    # v2.1.2 keeps the v2.1.1 policy as the compatibility default and exposes
+    # evidence-triggered resampling as an explicit local experiment.
+    arm_trust_policy: str = "legacy"
+    arm_primary_prompt_variant: str = "v21"
+    arm_finalization_margin_seconds: float = 15.0
+    arm_off_finalizer_max_tokens: int = 1024
+    arm_off_recovery_max_tokens: int = 4096
+    arm_force_ab_diagnostic: bool = False
+    arm_challenger_shadow: bool = False
+    arm_enable_targeted_repair: bool = False
+    arm_enable_fresh_review: bool = False
+    arm_enable_skill_guidance: bool = False
+    arm_enable_skill_for_second: bool = False
+    arm_enable_skill_audit: bool = False
+    arm_max_skill_audits: int = 1
+    arm_timeout_recovery_mode: str = "none"
+    arm_primary_timeout_seconds: int | None = None
+    arm_second_timeout_with_incumbent_seconds: int = 180
+    arm_second_timeout_without_incumbent_seconds: int = 300
+    arm_second_salvage_timeout_seconds: int = 90
+    arm_second_salvage_max_tokens: int = 2048
+    arm_salvage_timeout_seconds: int = 15
+    arm_salvage_max_tokens: int = 1024
+    arm_allow_thinking_on: bool = False
+    arm_default_lane: str = "adaptive"
+    arm_fast_max_calls: int = 2
+    arm_adaptive_max_calls: int = 3
+    arm_deep_max_calls: int = 3
+    arm_fast_token_budget: int = 8192
+    arm_adaptive_token_budget: int = 16384
+    arm_deep_token_budget: int = 16384
+    # BCOMP-001: local-only call lifecycle observation.  It is injected by
+    # tests/runners and remains off so the official solve path is unchanged.
+    enable_bounded_completion_observation: bool = False
+    enable_constraint_fit_deep_lane: bool = False
+    enable_constraint_fit_hybrid_router: bool = False
+    harness_bank_mode: str = "off"
+    harness_attempt_a_max_tokens: int = 4096
+    harness_attempt_b_max_tokens: int = 4096
+    harness_critic_max_tokens: int = 2048
+    harness_repair_max_tokens: int = 4096
+    harness_continuation_max_tokens: int = 2048
+    harness_max_model_calls: int = 5
+    harness_total_token_budget: int = 16384
+    harness_max_wall_seconds: float = 1200.0
+    harness_deep_primary_max_tokens: int = 8192
+    harness_deep_review_max_tokens: int = 4096
+    harness_deep_continuation_max_tokens: int = 4096
+    harness_deep_critic_max_tokens: int = 4096
+    harness_deep_max_model_calls: int = 3
+    # Issue #19 migration hardening is independently opt-in and remains
+    # outside SUBMISSION_CONFIG until its code gates are complete.
+    enable_constraint_fit_migration_hardening: bool = False
+    enable_constraint_fit_deterministic_playoff: bool = False
+    enable_constraint_fit_process_audit: bool = False
+    enable_constraint_fit_prefill: bool = False
+    harness_process_audit_max_tokens: int = 2048
+
+    def __post_init__(self) -> None:
+        """Validate the v2.1 request-local controls before a solve starts."""
+        if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
+            raise ValueError("invalid_arm_solver_reasoning_mode")
+        if self.arm_trust_policy not in {"legacy", "evidence", "positive_evidence"}:
+            raise ValueError("invalid_arm_trust_policy")
+        if self.arm_primary_prompt_variant not in {"v2", "marker_only", "v21"}:
+            raise ValueError("invalid_arm_primary_prompt_variant")
+        if not math.isfinite(float(self.arm_finalization_margin_seconds)) or float(self.arm_finalization_margin_seconds) < 0:
+            raise ValueError("arm_finalization_margin_seconds_must_be_nonnegative")
+        if int(self.arm_off_finalizer_max_tokens) < 1:
+            raise ValueError("arm_off_finalizer_max_tokens_must_be_positive")
+        if int(self.arm_off_recovery_max_tokens) < 1:
+            raise ValueError("arm_off_recovery_max_tokens_must_be_positive")
+        if not math.isfinite(float(self.arm_max_skill_audits)) or float(self.arm_max_skill_audits) < 0:
+            raise ValueError("arm_max_skill_audits_must_be_nonnegative")
+        if any(int(value) <= 0 for value in (
+            self.arm_second_timeout_with_incumbent_seconds,
+            self.arm_second_timeout_without_incumbent_seconds,
+            self.arm_second_salvage_timeout_seconds,
+            self.arm_second_salvage_max_tokens,
+        )):
+            raise ValueError("arm_second_stage_limits_must_be_positive")
     # FESF v1 is enabled in the current local evaluation profile.  The
     # rollback profile remains available through explicit runner arms.
     enable_fesf_v1: bool = False
@@ -383,7 +559,7 @@ class AgentConfig:
     enable_host_intake: bool = False
     enable_bounded_obligation_extractor: bool = False
     enable_fesf_claim_dsl: bool = False
-    # Exact local answer lookup.  This 100-question bank is a temporary
+    # Exact local answer lookup.  This 50-question reference bank is a temporary
     # substitute for the reviewed error notebook; misses continue normally.
     enable_temporary_answer_bank: bool = False
     # FSDF v2 reliability candidates (Issue #15 spec).  Each increment is
@@ -443,776 +619,157 @@ class AgentConfig:
 
 # ── Submission profile ────────────────────────────────────────────────────
 # The official runner constructs ``ReasoningAgent(client=official_client)``
-# without a config, which resolves here.
-#
-# 2026-09-04 user-authorized default: FSDF owns the official solve path.
-# Code acceptance remains separate from any mathematical capability conclusion.
-SUBMISSION_CONFIG = AgentConfig(
-    policy_sample_times=1,
-    policy_temperature=0.6,
-    verifier_voting_times=0,
-    enable_dynamic_budget=False,
-    enable_l0_extended_tokens=True,
-    enable_task_aware_prompt=True,
-    enable_time_convergence=True,
-    enable_adaptive_voting=True,
-    vote_k_max=5,
-    vote_agree_threshold=3,
-    enable_verification_gated_retry=False,
-    enable_truncation_recovery_prompt=False,
-    max_model_calls=5,
-    max_tokens=4096,
-    l0_max_tokens=4096,
-    enable_heterogeneous_reasoners=True,
-    enable_step_verification=False,
-    enable_step_revision=False,
-    enable_method_rag=False,
-    enable_deterministic_solver=False,
-    enable_numeric_answer_first_prompt=True,
-    enable_numeric_answer_only_prompt=False,
-    enable_strict_numeric_salvage=False,
-    enable_conditional_token_retry=False,
-    enable_failure_retry_backoff=False,
-    enable_explicit_answer_conflict_retry=False,
-    enable_l2_routing=False,
-    enable_local_repair=False,
-    enable_uncertain_repair=False,
-    enable_sympy_evidence=False,
-    enable_temporary_answer_bank=True,
-    # stateful_tail_completion_v1 stays off on the submission path until the
-    # preregistered P1 replay, P2 fidelity and capability gates pass.
-    enable_stateful_tail_completion=False,
-    enable_contextual_answer_reconstruction=False,
-    reconstruction_max_tokens=4096,
-    reconstruction_context_max_chars=12000,
-    # Official rollback profile: the verified FSDF v1 path owns solve().
-    # Newer FESF/Claim DSL capabilities remain available only to explicit
-    # experimental configs.
-    enable_fork_select_deepen_finish=True,
-    # Forward rollback to the FSDF v1 release anchor.  Candidate canaries are
-    # retained in code and remain opt-in for local arms only.
-    enable_fsdf_diagnostics_v2=False,
-    enable_fsdf_multiline_handoff_v2=False,
-    enable_fsdf_final_confirmation_v2=False,
-    enable_fsdf_finish_prompt_v2=False,
-    enable_fsdf_handoff_first_d=False,
-    enable_fsdf_d_result_to_e=False,
-    enable_fesf_v1=False,
-    enable_fesf_exact_eval=False,
-    enable_fesf_claim_dsl=False,
-)
+# without a config, which resolves here.  The FSDF baseline remains available
+# through an explicit selector for historical comparisons and rollback.
+SUBMISSION_MODE: Final = SUBMISSION_ARM_V213_OFF
 
 
-_ANSWER_MARKER_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]\s*([^\n\r]+)", re.IGNORECASE)
-_ANSWER_MARKER_LINE_STRICT_RE = re.compile(
-    r"^\s*(?:最终答案|final\s+answer|答案)\s*[:：]\s*(.*?)\s*$",
-    re.IGNORECASE,
-)
-_TYPED_ANSWER_LINE_RE = re.compile(
-    r"^\s*(?:ANSWER|FINAL|最终答案|final\s+answer)\s*[:：]\s*(.*?)\s*$",
-    re.IGNORECASE,
-)
-_TYPED_MATH_TOKEN_RE = re.compile(
-    r"^[\s0-9A-Za-z_+*/^=(){}\[\].,<>≤≥±×÷\\-|%!]+$"
-)
-_TYPED_SENTENCE_RE = re.compile(
-    r"(?:因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导|"
-    r"\b(?:therefore|because|the|this|we)\b)"
-    r"|[，。；;、？！:：\"“”‘’]",
-    re.IGNORECASE,
-)
-_TYPED_TAG_RE = re.compile(r"^</?[A-Za-z][^>]*>$")
-_TYPED_PROSE_WORDS = frozenset({
-    "answer", "result", "the", "is", "are", "this", "that", "because",
-    "therefore", "thus", "we", "need", "find", "calculate", "density",
-    "unknown", "final", "value", "solution",
-})
-_TYPED_MATH_WORDS = frozenset({
-    "sqrt", "frac", "dfrac", "tfrac", "times", "cdot", "pm", "pi",
-    "sin", "cos", "tan", "arcsin", "arccos", "arctan", "log", "ln",
-    "exp", "mod", "lim", "sum", "prod", "min", "max", "gcd", "lcm",
-    "det", "infty", "mathrm", "mathbf", "theta", "alpha", "beta", "gamma",
-    "delta", "lambda", "omega", "phi", "psi", "rho", "sigma", "epsilon",
-    "mu", "nu", "kappa", "binom", "mathbb", "mathcal", "mathsf", "matrix",
-    "pmatrix", "bmatrix", "cases", "pmod", "equiv", "geq", "leq", "neq",
-    "subset", "cup", "cap", "forall", "exists", "operatorname", "begin", "end",
-    "left", "right", "overline", "underline", "vec", "hat", "bar", "angle",
-    "triangle", "circ", "degree", "cdots", "ldots", "quad",
-})
-_CHOICE_LINE_RE = re.compile(r"^(?:选项\s*)?([A-Da-d])(?:[.。)）]?)\s*$")
-# A standalone answer line must be pure math (no CJK prose / sentence punctuation).
-_MATH_ONLY_LINE_RE = re.compile(r"^[\sA-Za-z0-9+\-*/=<>≤≥.,(){}[\]^_'\\|±×÷]+$")
-# Natural-language connectives that mark a truncated / prose fragment.
-_CONNECTIVE_RE = re.compile(r"(因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导)")
-_STRICT_THINKING_RE = re.compile(
-    r"\b(?:thinking(?:\s+process)?|analysis|reasoning|draft)\b|思考过程|思维链|内部推理",
-    re.IGNORECASE,
-)
+def build_arm_v212_base_config() -> AgentConfig:
+    """Build the shared ARM v2.1.2 configuration before mode selection."""
+    return _build_arm_v212_base_config(AgentConfig)
 
 
-def extract_final_answer(response: str) -> str:
-    """Return a clean, explicit answer or "" (no arbitrary last-line fallback).
+ARM_V212_BASE_CONFIG = build_arm_v212_base_config()
 
-    Accepts only: a closed ``\\boxed{...}``, an explicit ``最终答案：`` /
-    ``Final answer:`` / ``答案：`` marker with an answer-like value, or a
-    standalone short answer line (option letter / number / fraction / equation /
-    set).  A truncated natural-language tail line is never treated as an answer.
-    """
-    if not isinstance(response, str) or not response.strip():
-        return ""
-    boxed = _extract_boxed_answers(response)
-    if boxed:
-        return boxed[-1]
-    markers = _ANSWER_MARKER_RE.findall(response)
-    for marker in reversed(markers):
-        answer = marker.strip()
-        if answer and not is_placeholder_answer(answer) and _is_answer_like(answer):
-            return answer
-    lines = [line.strip() for line in response.splitlines() if line.strip()]
-    for line in reversed(lines):
-        choice = _CHOICE_LINE_RE.match(line)
-        if choice:
-            return choice.group(1).upper()
-        standalone = _is_standalone_answer_line(line)
-        if standalone is not None:
-            return standalone
-    return ""
 
+def build_submission_config(mode: str = SUBMISSION_MODE) -> AgentConfig:
+    """Build an official-equivalent FSDF, v2.1.2, or v2.1.3 configuration."""
+    return _build_submission_config(mode, AgentConfig, arm_base=ARM_V212_BASE_CONFIG)
 
-def extract_answer_first(response: str) -> str:
-    """Prefer the first standalone answer marker used by the answer-first arm."""
-    if not isinstance(response, str) or not response.strip():
-        return ""
-    for line in response.splitlines():
-        match = _ANSWER_MARKER_LINE_STRICT_RE.match(line)
-        if not match:
-            continue
-        answer = match.group(1).strip()
-        if answer and not is_placeholder_answer(answer) and _is_answer_like(answer):
-            return answer
-    return extract_final_answer(response)
 
+SUBMISSION_CONFIG = build_submission_config(SUBMISSION_MODE)
 
-def extract_typed_answer(response: str) -> str:
-    """Extract only a pure token from an independent ANSWER: line."""
-    if not isinstance(response, str) or not response.strip():
-        return ""
-    for line in response.splitlines():
-        match = _TYPED_ANSWER_LINE_RE.match(line)
-        if not match:
-            continue
-        value = match.group(1).strip()
-        if _is_typed_math_value(value):
-            return value
-    return ""
-
-
-def _is_typed_math_value(value: str) -> bool:
-    """Accept a marked scalar without accepting prompt echoes or prose.
-
-    This remains deliberately conservative: a marked value is useful only when
-    it is a compact mathematical token.  In particular, XML-like placeholders
-    (``<result>``) and concatenated English tails are not answers.
-    """
-    if not isinstance(value, str):
-        return False
-    value = value.strip()
-    if not value or value.upper() == "UNKNOWN" or is_placeholder_answer(value):
-        return False
-    if len(value) > 80 or _TYPED_SENTENCE_RE.search(value):
-        return False
-    if _TYPED_TAG_RE.fullmatch(value):
-        return False
-    if not _TYPED_MATH_TOKEN_RE.fullmatch(value):
-        return False
-    for word in re.findall(r"[A-Za-z]+", value):
-        lowered = word.lower()
-        if lowered in _TYPED_PROSE_WORDS:
-            return False
-        # Long alphabetic runs are prose (e.g. ``Weneedtofind...``), while
-        # short variable names and known LaTeX/math functions are allowed.
-        if len(word) > 3 and lowered not in _TYPED_MATH_WORDS:
-            return False
-    return bool(re.search(r"\d|[=<>≤≥]|[A-Za-z]", value))
-
-
-def extract_numeric_answer(response: str) -> str:
-    """Extract a conservative answer for numeric/choice/fill-blank tasks.""
-
-    This salvage arm only accepts an independent answer-marker line, a closed
-    ``\\boxed{...}``, a standalone option letter, or a short pure-math line.
-    It deliberately does not accept an arbitrary last line or prose sentence.
-    """
-    if not isinstance(response, str) or not response.strip():
-        return ""
-    lines = [line.strip() for line in response.splitlines() if line.strip()]
-    for line in reversed(lines):
-        marker = _ANSWER_MARKER_LINE_STRICT_RE.match(line)
-        if not marker:
-            continue
-        answer = marker.group(1).strip()
-        if r"\boxed{" in answer:
-            boxed_answer = _extract_standalone_boxed_answer(answer)
-            if boxed_answer and _is_strict_numeric_value(boxed_answer):
-                return boxed_answer
-            continue
-        if answer and _is_strict_numeric_value(answer):
-            return answer
-    for line_index in range(len(lines) - 1, -1, -1):
-        line = lines[line_index]
-        answer = _extract_standalone_boxed_answer(line)
-        if answer and _STRICT_THINKING_RE.search("\n".join(lines[:line_index])):
-            continue
-        if answer and _is_strict_numeric_value(answer):
-            return answer
-    last_line = lines[-1] if lines else ""
-    choice = _CHOICE_LINE_RE.match(last_line)
-    if choice:
-        return choice.group(1).upper()
-    if r"\boxed{" in last_line:
-        return ""
-    standalone = _is_standalone_answer_line(last_line)
-    if standalone is not None:
-        return standalone
-    return ""
-
-
-def _extract_standalone_boxed_answer(line: str) -> str:
-    """Extract one boxed value only when the whole line is a boxed answer."""
-    text = line.strip()
-    answers = _extract_boxed_answers(text)
-    if len(answers) != 1 or text.count(r"\boxed{") != 1:
-        return ""
-    start = text.find(r"\boxed{")
-    end = text.rfind("}")
-    prefix = text[:start].strip().strip("$*")
-    suffix = text[end + 1:].strip().strip("$*")
-    if prefix or suffix:
-        return ""
-    return answers[0].strip()
-
-
-def _is_strict_numeric_value(answer: str) -> bool:
-    """Accept only a choice token or an independent pure-math answer."""
-    if not answer or is_placeholder_answer(answer):
-        return False
-    if _CHOICE_LINE_RE.fullmatch(answer.strip()):
-        return True
-    return _is_standalone_answer_line(answer) is not None
-
-
-# ── 13.2 实验 C/D：非数值题型答案段抽取（answer-first 协议）──────────────────
-# 答案前置后，非数值题型（derivation/proof/explanation）的响应以「最终答案：<结论>」
-# 开头，正文在后。这里抽取首个「真正」的答案段，跳过 thinking 复述的占位符。
-_ANSWER_MARKER_POS_RE = re.compile(r"(?:最终答案|final\s+answer|答案)\s*[:：]", re.IGNORECASE)
-# 段边界：下一个结构标题（中英文正文标题 + 答案标记）。
-_ANSWER_SEGMENT_STOP_RE = re.compile(
-    r"\n\s*(?:推导|证明|解释|Derivation|Proof|Explanation|最终答案|final\s+answer|答案)\s*[:：]",
-    re.IGNORECASE,
-)
-# 正文标题（用于 final_response 重建时定位正文起点）。
-_BODY_HEADER_RE = re.compile(
-    r"(?:^|\n)\s*(?:推导|证明|解释|Derivation|Proof|Explanation)\s*[:：]\s*",
-    re.IGNORECASE,
-)
-_ANSWER_ECHO_RE = re.compile(
-    r"only\s+write|complete\s+chain|followed\s+by|final\s+expression|只写|简洁|独立判定|最终表达式|核心回答",
-    re.IGNORECASE,
-)
-# thinking 元文本（假标记常出现在这类句子里）。
-_THINKING_CONTEXT_RE = re.compile(
-    r"system\s+prompt|asks?\s+for|format\s+instruction|following\s+structure|meta-?analysis",
-    re.IGNORECASE,
-)
-
-
-def extract_answer_segment(response: str) -> str:
-    """Return the genuine answer segment from an answer-first response, or "".
-
-    Extracts the first "最终答案：" segment that is a real structural answer
-    block, not a thinking-process echo: it skips placeholder echoes ("<…>"),
-    prompt boilerplate, markers quoted inside thinking text, and markers
-    sitting in meta-instruction sentences ("the system prompt asks for…").
-    The segment is returned verbatim — no global numeric normalization, so
-    proofs, explanations, inequalities, sets and tuples keep their semantics.
-    """
-    if not isinstance(response, str) or not response.strip():
-        return ""
-    for m in _ANSWER_MARKER_POS_RE.finditer(response):
-        seg = _take_answer_segment(response, m.end())
-        if not seg or _is_answer_echo(seg):
-            continue
-        if _is_marker_in_thinking_quote(response, m.start()):
-            continue
-        return seg
-    return ""
-
-
-def _is_marker_in_thinking_quote(text: str, pos: int) -> bool:
-    """True when a marker sits inside a thinking quote / meta sentence, not a
-    standalone structural line."""
-    # 只看标记所在行内、标记前的内容（不跨行，避免误伤下一行的真标记）。
-    line_start = text.rfind("\n", 0, pos) + 1
-    ctx = text[line_start:pos]
-    # Unbalanced double quote (marker inside a quoted echo).
-    if ctx.count('"') % 2 == 1:
-        return True
-    # Unbalanced Chinese quote pair.
-    if ctx.count("“") != ctx.count("”") or ctx.count("‘") != ctx.count("’"):
-        return True
-    # Marker right after a Markdown list bullet ("- Final Answer: …").
-    if re.fullmatch(r"[-*]\s*", ctx.strip()):
-        return True
-    # Meta-instruction sentence on the same line.
-    if _THINKING_CONTEXT_RE.search(ctx):
-        return True
-    return False
-
-
-def _take_answer_segment(text: str, start: int) -> str:
-    """Slice the segment right after a marker, up to the next structure header
-    (推导/证明/解释/最终答案, 中英文) or a blank line."""
-    rest = text[start:]
-    stop = _ANSWER_SEGMENT_STOP_RE.search(rest)
-    blank = re.search(r"\n\s*\n", rest)
-    end = len(rest)
-    if stop:
-        end = min(end, stop.start())
-    if blank:
-        end = min(end, blank.start())
-    return rest[:end].strip()
-
-
-def _is_answer_echo(seg: str) -> bool:
-    """True when a marker segment is a placeholder/prompt echo, not a real answer."""
-    s = seg.strip()
-    if not s:
-        return True
-    if re.match(r"^<[^>]*>", s):
-        return True  # "<只写…>" placeholder copied verbatim
-    if _ANSWER_ECHO_RE.search(s):
-        return True  # prompt boilerplate echoed inside thinking
-    return False
-
-
-_BODY_HEADER_NAME = {
-    TASK_TYPE_DERIVATION: "推导",
-    TASK_TYPE_PROOF: "证明",
-    TASK_TYPE_EXPLANATION: "解释",
-}
-
-
-def reconstruct_final_response(response: str, problem_type: str) -> str:
-    """Rebuild a clean answer-first final_response, or return the original.
-
-    Drops the thinking / prompt echo that precedes the real answer block, keeps
-    the answer conclusion and the body after the structure header, and re-emits
-    them as「最终答案：<结论>」+「<正文标题>：<正文>」.  Never collapses a proof
-    into a bare number.  When the structure cannot be reliably identified, the
-    original response is returned unchanged (no aggressive trimming).
-    """
-    if not isinstance(response, str) or not response.strip():
-        return response or ""
-    answer_pos = -1
-    answer_seg = ""
-    for m in _ANSWER_MARKER_POS_RE.finditer(response):
-        seg = _take_answer_segment(response, m.end())
-        if seg and not _is_answer_echo(seg) and not _is_marker_in_thinking_quote(response, m.start()):
-            answer_pos = m.start()
-            answer_seg = seg
-            break
-    if answer_pos < 0 or not answer_seg:
-        return response  # 无真实答案块 → 不裁剪
-    body_m = _BODY_HEADER_RE.search(response, answer_pos + 1)
-    if not body_m:
-        return response  # 无正文标题 → 不裁剪
-    body = response[body_m.end():].strip()
-    if not body:
-        return response  # 正文为空 → 不裁剪
-    header = _BODY_HEADER_NAME.get(problem_type, "证明")
-    return f"最终答案：{answer_seg}\n\n{header}：\n{body}"
-
-
-# ── 13.2 实验 F：行级结构语法收紧（三状态解析 PREAMBLE→ANSWER→BODY）─────────
-# 实验 E 证明 Prompt 压制语已到天花板。F 从解析层收紧：答案标记/正文标题必须
-# 是独立结构行（行首，允许有限 Markdown 包装），嵌在 thinking 句子、约束说明、
-# 引号、列表里的「最终答案」一律不识别；占位符（<…>/[Core Answer]/[Option
-# Letter]/…）一律拒绝。不做全局数值规范化，不按 thinking/analysis 词删正文句。
-_ANSWER_MARKER_LINE_RE = re.compile(
-    r"^(?:\*\*|\*)?\s*(?:最终答案|final\s+answer|答案)\s*[:：]\s*(.*?)\s*(?:\*\*|\*)?$",
-    re.IGNORECASE,
-)
-_BODY_HEADER_LINE_RE = re.compile(
-    r"^(?:\*\*|\*)?\s*(?:推导|证明|解释|Derivation|Proof|Explanation)"
-    r"(?:\s*(?:块|Block))?\s*[:：]\s*(.*?)\s*(?:\*\*|\*)?$",
-    re.IGNORECASE,
-)
-_PLACEHOLDER_RE = re.compile(r"^(?:<[^>]*>|\[[^\]]*\]|\.{3,}|…{1,})$")
-
-
-def _is_placeholder_segment(seg: str) -> bool:
-    """F：占位符答案段（尖括号/方括号占位符、纯省略号、prompt 复述词）。"""
-    s = seg.strip()
-    if not s:
-        return True
-    if _PLACEHOLDER_RE.match(s):
-        return True
-    if _ANSWER_ECHO_RE.search(s):
-        return True
-    return False
-
-
-def parse_structure_f(response: str, problem_type: str) -> dict:
-    """F 三状态行解析，返回 {status, answer, body}。
-
-    status: "structured"（答案+正文齐全）/ "no_answer_block"（无独立答案标记行）
-            / "no_body"（有答案但无独立正文标题行）。
-    仅接受「独立结构行」：答案标记/正文标题必须是行首（允许 **…** 粗体包装）。
-    不识别特定题号、学科或具体答案。
-    """
-    if not isinstance(response, str) or not response.strip():
-        return {"status": "no_answer_block", "answer": "", "body": ""}
-
-    lines = response.splitlines()
-    answer = ""
-    answer_idx = -1
-    for i, line in enumerate(lines):
-        m = _ANSWER_MARKER_LINE_RE.match(line)
-        if m and not _is_placeholder_segment(m.group(1)):
-            answer = m.group(1).strip()
-            answer_idx = i
-            break
-    if answer_idx < 0:
-        return {"status": "no_answer_block", "answer": "", "body": ""}
-
-    for j in range(answer_idx + 1, len(lines)):
-        m = _BODY_HEADER_LINE_RE.match(lines[j])
-        if m:
-            head_rest = m.group(1).strip()
-            tail = lines[j + 1:]
-            body_lines = ([head_rest] if head_rest else []) + tail
-            body = "\n".join(body_lines).strip()
-            if body:
-                return {"status": "structured", "answer": answer, "body": body}
-            return {"status": "no_body", "answer": answer, "body": ""}
-    return {"status": "no_body", "answer": answer, "body": ""}
-
-
-def reconstruct_final_response_f(response: str, problem_type: str) -> str:
-    """F 版 final_response 重建：仅在结构可靠时裁剪 thinking 前缀。
-
-    无独立答案块或正文标题时返回原始响应（不具备重建条件，不激进裁剪）。
-    """
-    parsed = parse_structure_f(response, problem_type)
-    if parsed["status"] != "structured":
-        return response or ""
-    header = _BODY_HEADER_NAME.get(problem_type, "证明")
-    return f"最终答案：{parsed['answer']}\n\n{header}：\n{parsed['body']}"
-
-
-def _is_answer_like(answer: str) -> bool:
-    """A marker value must look like a short mathematical result, not trailing prose."""
-    s = answer.strip().strip("。；;.,\"'“”’ ")
-    if not s or len(s) > 60:
-        return False
-    if re.search(r"[，,、;；:：=<>]\s*$", s):
-        return False  # ends mid-sentence → truncated
-    if re.search(r"(?:因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导)$", s):
-        return False  # ends with a reasoning connective → truncated
-    return True
-
-
-def _is_standalone_answer_line(line: str) -> str | None:
-    """Return a standalone short math answer line, or None if not answer-like."""
-    s = line.strip()
-    if not s or len(s) > 60 or is_placeholder_answer(s):
-        return None
-    if re.search(r"[，。；;、？！\n]", s):
-        return None  # sentence punctuation → prose, not a bare answer
-    if _CONNECTIVE_RE.search(s):
-        return None  # contains a reasoning connective → prose
-    if not _MATH_ONLY_LINE_RE.fullmatch(s):
-        return None  # contains CJK / non-math characters
-    if not (re.search(r"\d", s) or re.search(r"[=<>≤≥]", s)):
-        return None  # no numeric or relational content
-    return s
-
-
-def _has_placeholder_answer(response: str) -> bool:
-    """True if an answer marker in the response resolves to a placeholder token."""
-    for marker in _ANSWER_MARKER_RE.findall(response or ""):
-        if is_placeholder_answer(marker):
-            return True
-    for boxed in _extract_boxed_answers(response or ""):
-        if is_placeholder_answer(boxed):
-            return True
-    return False
-
-
-def is_placeholder_answer(answer: str) -> bool:
-    """Reject output-format placeholders and prompt echoes that are not answers."""
-    compact = answer.strip().lower().strip("。；;.,\"'”’ ")
-    return compact in {
-        "[answer]", "<answer>", "答案", "answer",
-        "明确写出答案", "写出答案", "请写出答案", "最终答案",
-    }
-
-
-def _truncation_signals(response: str, answer: str) -> list[str]:
-    """Proxy signals for finish_reason=length truncation (client returns str only).
-
-    These are observability-only hints; the solver's only hard decision is
-    ``no clear answer → at most one recovery call``.
-    """
-    signals: list[str] = []
-    text = (response or "").rstrip()
-    if not answer:
-        signals.append("no_extractable_answer")
-    if re.search(r"[，,、;；:：=<>]\s*$", text):
-        signals.append("ends_with_connective_punctuation")
-    if re.search(r"(?:因此|所以|故|综上|代入|根据|由此|从而|于是|接下来|那么|则|即|得到|可得|解得|我们|考虑|推导)$", text):
-        signals.append("ends_with_connective_word")
-    if "\\boxed{" in text and text.rfind("}") < text.rfind("\\boxed{"):
-        signals.append("unclosed_boxed")
-    if text.endswith("\\"):
-        signals.append("ends_with_backslash")
-    return signals
-
-def _extract_boxed_answers(text: str) -> list[str]:
-    answers, cursor = [], 0
-    while True:
-        start = text.find(r"\boxed{", cursor)
-        if start < 0: return answers
-        depth, index = 1, start + len(r"\boxed{")
-        content_start = index
-        while index < len(text) and depth:
-            depth += (text[index] == "{") - (text[index] == "}")
-            index += 1
-        if depth == 0 and (answer := text[content_start:index - 1].strip()): answers.append(answer)
-        cursor = index if index > start else start + 1
-
-def _format_rational(number: Fraction) -> str:
-    return str(number.numerator) if number.denominator == 1 else f"{number.numerator}/{number.denominator}"
-
-def _parse_rational_token(token: str) -> Fraction | None:
-    compact = re.sub(r"\s+", "", token or "")
-    if not compact:
-        return None
-    compact = compact.replace("\\left", "").replace("\\right", "").replace("−", "-")
-    match = re.fullmatch(r"\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}", compact)
-    if match:
-        compact = f"{match.group(1)}/{match.group(2)}"
-    try:
-        return Fraction(Decimal(compact))
-    except (InvalidOperation, ValueError, ZeroDivisionError):
-        try:
-            return Fraction(compact)
-        except (ValueError, ZeroDivisionError):
-            return None
-
-def _canonicalize_multi_numeric_set(answer: str) -> str | None:
-    """Unordered multi-root numeric sets only; ordered tuples/vectors stay untouched.
-
-    Universal surface forms such as ``x=1, x=-1``, ``-1 or 1``, ``{1,-1}``.
-    No problem-id or subject branching.
-    """
-    if not isinstance(answer, str) or not answer.strip():
-        return None
-    text = answer.strip().rstrip("。；;.")
-    # Keep ordered coordinates / inequalities / single expressions alone.
-    if re.fullmatch(r"\([^()]+(?:,[^()]+)+\)", re.sub(r"\s+", "", text)):
-        return None
-    if re.search(r"[<>≤≥]", text):
-        return None
-    # Drop optional set braces after rejecting ordered tuples.
-    bare = text
-    if bare.startswith("{") and bare.endswith("}"):
-        bare = bare[1:-1].strip()
-    # Require an explicit multi-value separator before treating as a set.
-    if not re.search(r",|，|、|\bor\b|或", bare, flags=re.IGNORECASE):
-        return None
-    pieces = [p.strip() for p in re.split(r"(?:,|，|、|\bor\b|或)", bare, flags=re.IGNORECASE) if p.strip()]
-    if len(pieces) < 2:
-        return None
-    values: list[Fraction] = []
-    for piece in pieces:
-        # Strip repeated ``var =`` / ``var:`` labels common in multi-root dumps.
-        piece = re.sub(r"^(?:[A-Za-z\u4e00-\u9fff]+)\s*[=:：]\s*", "", piece.strip())
-        number = _parse_rational_token(piece)
-        if number is None:
-            return None
-        values.append(number)
-    # Unordered set: sort and dedupe exact rationals.
-    ordered = sorted(set(values))
-    return ",".join(_format_rational(v) for v in ordered)
-
-def normalize_answer(answer: str) -> str:
-    if not isinstance(answer, str): return ""
-    multi = _canonicalize_multi_numeric_set(answer)
-    if multi is not None:
-        return multi
-    compact = re.sub(r"\s+", "", answer).rstrip("。；;.,\"")
-    if not compact: return ""
-    # Strip display-math / markdown wrappers so LaTeX answers normalize cleanly.
-    compact = compact.replace("$", "").replace("\\(", "").replace("\\)", "").replace("**", "")
-    compact = compact.replace("\\left", "").replace("\\right", "")
-    match = re.fullmatch(r"\\(?:d?frac)\{([^{}]+)\}\{([^{}]+)\}", compact)
-    if match: compact = f"{match.group(1)}/{match.group(2)}"
-    compact = re.sub(r"\\sqrt\{([^{}]+)\}", r"sqrt(\1)", compact).replace("−", "-").replace("×", "*")
-    number = _parse_rational_token(compact)
-    if number is None:
-        return compact
-    return _format_rational(number)
-
-def answer_equivalence(left: str, right: str) -> str:
-    """Return only proven answer identity; ambiguous expressions stay separate."""
-    normalized_left, normalized_right = normalize_answer(left), normalize_answer(right)
-    if not normalized_left or not normalized_right:
-        return "UNKNOWN"
-    if normalized_left == normalized_right:
-        return "EQUIVALENT"
-    numeric = r"-?\d+(?:/\d+)?"
-    multi_numeric = rf"{numeric}(?:,{numeric})+"
-    if re.fullmatch(numeric, normalized_left) and re.fullmatch(numeric, normalized_right):
-        return "NOT_EQUIVALENT"
-    if re.fullmatch(multi_numeric, normalized_left) and re.fullmatch(multi_numeric, normalized_right):
-        return "NOT_EQUIVALENT"
-    if re.fullmatch(r"[A-D]", normalized_left, re.IGNORECASE) and re.fullmatch(r"[A-D]", normalized_right, re.IGNORECASE):
-        return "NOT_EQUIVALENT"
-    return "UNKNOWN"
-
-
-def has_conflicting_explicit_answers(response: str) -> bool:
-    """True only for two explicit, provably different terminal answers."""
-    answers = [answer.strip() for answer in _ANSWER_MARKER_RE.findall(response) if answer.strip()]
-    return any(
-        answer_equivalence(left, right) == "NOT_EQUIVALENT"
-        for index, left in enumerate(answers)
-        for right in answers[index + 1:]
-    )
-
-
-# ── B1: deterministic verification-gated retry checks ────────────────────
-
-
-def _conflicting_answer_pair(response: str) -> tuple[str, str] | None:
-    """Return the first pair of explicit, provably different answers."""
-    answers = [answer.strip() for answer in _ANSWER_MARKER_RE.findall(response) if answer.strip()]
-    for index, left in enumerate(answers):
-        for right in answers[index + 1:]:
-            if answer_equivalence(left, right) == "NOT_EQUIVALENT":
-                return left, right
-    return None
-
-
-def _single_scalar_value(answer: str) -> Fraction | None:
-    """Return an exact scalar value, or None for structured/non-scalar text."""
-    if not isinstance(answer, str):
-        return None
-    value = re.sub(r"\s+", "", answer)
-    value = re.sub(r"^[A-Za-z\u4e00-\u9fff]{1,6}\s*[＝=:：]", "", value)
-    percent = value.endswith(("%", "％"))
-    if percent:
-        value = value[:-1]
-    if not re.fullmatch(r"[+-]?(?:\d+(?:\.\d+)?|\d+/\d+)", value) and not re.fullmatch(r"\\[df]?rac\{[\d.]+\}\{[\d.]+\}", value):
-        return None
-    parsed = _parse_rational_token(value)
-    if parsed is None:
-        return None
-    return parsed / 100 if percent else parsed
-
-
-_GATE_INTERROGATIVE_RE = re.compile(r"求|多少|几|是否|哪")
-_GATE_PROBABILITY_RE = re.compile(r"概率|可能性")
-_GATE_EXPECTATION_RE = re.compile(r"期望|均值|方差|标准差")
-_GATE_COUNT_RE = re.compile(r"个数|数量|有多少|共有多少|多少个|几种|多少种|种数|条数|人数|件数|方案")
-_GATE_AVERAGE_RE = re.compile(r"平均|比例|百分")
-
-
-def _interrogative_sentences(problem: str) -> list[str]:
-    sentences = re.split(r"[。；;！!？?\n]+", problem or "")
-    return [sentence for sentence in sentences if _GATE_INTERROGATIVE_RE.search(sentence)]
-
-
-def _sanity_violation(problem: str, answer: str) -> str | None:
-    """Return a violated probability/count constraint when it is explicit."""
-    value = _single_scalar_value(answer)
-    if value is None:
-        return None
-    for sentence in _interrogative_sentences(problem):
-        if _GATE_PROBABILITY_RE.search(sentence) and not _GATE_EXPECTATION_RE.search(sentence):
-            if not 0 <= value <= 1:
-                return f"题面所求为概率，取值必须在区间 [0,1] 内（当前 {answer}）"
-        if _GATE_COUNT_RE.search(sentence) and not _GATE_AVERAGE_RE.search(sentence):
-            if value < 0 or value.denominator != 1:
-                return f"题面所求为计数，必须是非负整数（当前 {answer}）"
-    return None
-
-
-_GATE_MODE_PRIORITY = ("truncation", "conflict", "sanity", "unstructured", "placeholder", "no_answer")
-
-
-def run_answer_checks(
-    problem: str,
-    problem_type: str,
-    response: str,
-    answer: str,
-    structured: bool | None,
-) -> dict[str, Any]:
-    """Run B1's six deterministic checks without making a model call."""
-    numeric_type = problem_type not in _NON_NUMERIC_TASK_TYPES
-    signals = _truncation_signals(response, answer)
-    structural = [signal for signal in signals if signal != "no_extractable_answer"]
-    if structural:
-        return {"status": "fail", "mode": "truncation", "detail": {"signals": structural}}
-
-    pair = _conflicting_answer_pair(response or "")
-    if pair:
-        return {"status": "fail", "mode": "conflict", "detail": {"first": pair[0], "second": pair[1]}}
-
-    if not numeric_type:
-        if structured is False:
-            return {"status": "fail", "mode": "unstructured", "detail": None}
-        return {"status": "pass", "mode": None, "detail": None}
-
-    if not answer:
-        mode = "placeholder" if _has_placeholder_answer(response or "") else "no_answer"
-        return {"status": "fail", "mode": mode, "detail": {"signals": signals}}
-    violation = _sanity_violation(problem, answer)
-    if violation:
-        return {"status": "fail", "mode": "sanity", "detail": {"constraint": violation, "answer": answer}}
-    return {"status": "pass", "mode": None, "detail": None}
 
 class ReasoningAgent:
-    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, **_: Any) -> None:
+    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, reference_rag_retriever: Any | None = None, constraint_fit_harness: Any | None = None, bounded_completion_observer: Any | None = None, **_: Any) -> None:
         self.client = client
         # Official platform path (config=None) uses the promoted submission
         # profile; explicitly passed configs (local experiments) win as-is.
         self.config = config or SUBMISSION_CONFIG
+        if self.config.enable_current_cod_numeric and self.config.enable_fork_select_deepen_finish:
+            raise ValueError("current_cod_numeric cannot be combined with FSDF")
         self.sympy_adapter = sympy_adapter
         self.method_rag_retriever = method_rag_retriever
+        self.reference_rag_retriever = reference_rag_retriever
+        self.constraint_fit_harness = constraint_fit_harness
+        self.bounded_completion_observer = bounded_completion_observer
 
     # ── Public API ──────────────────────────────────────────────────────
 
     def solve(self, problem: str, metadata: dict) -> dict:
-        if self.config.enable_temporary_answer_bank:
-            from reasoning_agent.error_notebook.temporary_answer_bank import lookup_temporary_answer
-
-            bank_hit = lookup_temporary_answer(problem)
-            if bank_hit is not None:
-                return {
-                    "final_response": bank_hit.answer,
-                    "trace": [
-                        {
-                            "stage": "temporary_answer_bank",
-                            "status": f"{bank_hit.match_kind}_hit",
-                            "case_id": bank_hit.case_id,
-                            "source_family": bank_hit.source_family,
-                        }
-                    ],
-                }
-        # P0: classify problem type (universal, text-based)
+        legacy_experimental_paths = self._validate_experimental_paths()
+        reference_context, rag_trace, reference_examples, rag_level = self._prepare_reference_rag(problem)
         problem_type = classify_problem_type(problem)
+        skill_context, skill_trace = self._prepare_reference_skills(problem, rag_level)
+        knowledge_context = "\n\n".join(
+            part for part in (reference_context, skill_context) if part
+        )
+        reference_traces = [trace for trace in (rag_trace, skill_trace) if trace is not None]
+        if self.config.enable_constraint_fit_harness:
+            from reasoning_agent.math_harness import (
+                ConstraintFitOrchestrator,
+                FSDFLegacyBackendAdapter,
+                HarnessConfig,
+            )
+
+            # ``enable_temporary_answer_bank=False`` is the hard local
+            # capability/health/A-B boundary.  It wins over an inherited
+            # submission profile so a local harness run cannot accidentally
+            # turn into a lookup run.
+            harness_bank_mode = (
+                self.config.harness_bank_mode
+                if self.config.enable_temporary_answer_bank
+                else "off"
+            )
+            harness = self.constraint_fit_harness or ConstraintFitOrchestrator(
+                self.client,
+                config=HarnessConfig(
+                    attempt_a_max_tokens=self.config.harness_attempt_a_max_tokens,
+                    attempt_b_max_tokens=self.config.harness_attempt_b_max_tokens,
+                    critic_max_tokens=self.config.harness_critic_max_tokens,
+                    repair_max_tokens=self.config.harness_repair_max_tokens,
+                    continuation_max_tokens=self.config.harness_continuation_max_tokens,
+                    max_model_calls=self.config.harness_max_model_calls,
+                    total_token_budget=self.config.harness_total_token_budget,
+                    max_wall_seconds=self.config.harness_max_wall_seconds,
+                    bank_mode=harness_bank_mode,
+                    enable_deep_lane=self.config.enable_constraint_fit_deep_lane,
+                    deep_primary_max_tokens=self.config.harness_deep_primary_max_tokens,
+                    deep_review_max_tokens=self.config.harness_deep_review_max_tokens,
+                    deep_continuation_max_tokens=self.config.harness_deep_continuation_max_tokens,
+                    deep_critic_max_tokens=self.config.harness_deep_critic_max_tokens,
+                    deep_max_model_calls=self.config.harness_deep_max_model_calls,
+                    enable_migration_hardening=self.config.enable_constraint_fit_migration_hardening,
+                    enable_deterministic_playoff=self.config.enable_constraint_fit_deterministic_playoff,
+                    enable_process_audit=self.config.enable_constraint_fit_process_audit,
+                    enable_prefill=self.config.enable_constraint_fit_prefill,
+                    process_audit_max_tokens=self.config.harness_process_audit_max_tokens,
+                    enable_arm_harness=self.config.enable_arm_harness,
+                    arm_harness_version=self.config.arm_harness_version,
+                    arm_v2_mode=self.config.arm_v2_mode,
+                    arm_solver_reasoning_mode=self.config.arm_solver_reasoning_mode,
+                    arm_trust_policy=self.config.arm_trust_policy,
+                    arm_primary_prompt_variant=self.config.arm_primary_prompt_variant,
+                    arm_finalization_margin_seconds=self.config.arm_finalization_margin_seconds,
+                    arm_off_finalizer_max_tokens=self.config.arm_off_finalizer_max_tokens,
+                    arm_off_recovery_max_tokens=self.config.arm_off_recovery_max_tokens,
+                    arm_force_ab_diagnostic=self.config.arm_force_ab_diagnostic,
+                    arm_challenger_shadow=self.config.arm_challenger_shadow,
+                    arm_enable_targeted_repair=self.config.arm_enable_targeted_repair,
+                    arm_enable_fresh_review=self.config.arm_enable_fresh_review,
+                    arm_enable_skill_guidance=self.config.arm_enable_skill_guidance,
+                    arm_enable_skill_for_second=self.config.arm_enable_skill_for_second,
+                    arm_enable_skill_audit=self.config.arm_enable_skill_audit,
+                    arm_max_skill_audits=self.config.arm_max_skill_audits,
+                    arm_timeout_recovery_mode=self.config.arm_timeout_recovery_mode,
+                    arm_primary_timeout_seconds=self.config.arm_primary_timeout_seconds,
+                    arm_second_timeout_with_incumbent_seconds=self.config.arm_second_timeout_with_incumbent_seconds,
+                    arm_second_timeout_without_incumbent_seconds=self.config.arm_second_timeout_without_incumbent_seconds,
+                    arm_second_salvage_timeout_seconds=self.config.arm_second_salvage_timeout_seconds,
+                    arm_second_salvage_max_tokens=self.config.arm_second_salvage_max_tokens,
+                    arm_salvage_timeout_seconds=self.config.arm_salvage_timeout_seconds,
+                    arm_salvage_max_tokens=self.config.arm_salvage_max_tokens,
+                    arm_allow_thinking_on=self.config.arm_allow_thinking_on,
+                    arm_default_lane=self.config.arm_default_lane,
+                    arm_fast_max_calls=self.config.arm_fast_max_calls,
+                    arm_adaptive_max_calls=self.config.arm_adaptive_max_calls,
+                    arm_deep_max_calls=self.config.arm_deep_max_calls,
+                    arm_fast_token_budget=self.config.arm_fast_token_budget,
+                    arm_adaptive_token_budget=self.config.arm_adaptive_token_budget,
+                    arm_deep_token_budget=self.config.arm_deep_token_budget,
+                ),
+                call_observer=(
+                    self.bounded_completion_observer
+                    if self.config.enable_bounded_completion_observation
+                    else None
+                ),
+                observation_context={
+                    "run_id": str(metadata.get("run_id", "solve")),
+                    "item_id": str(metadata.get("item_id", metadata.get("idx", "unknown"))),
+                    "arm_id": str(metadata.get("arm_id", "harness")),
+                },
+                legacy_backend=(
+                    FSDFLegacyBackendAdapter(self.client)
+                    if self.config.enable_constraint_fit_hybrid_router
+                    else None
+                ),
+            )
+            result = self._solve_with_reference(harness, problem, metadata, knowledge_context)
+            # Keep the platform seam safe even when an injected harness or a
+            # future backend violates the output contract.
+            if not isinstance(result, dict):
+                return self._prepend_reference_trace(
+                    {"final_response": "UNKNOWN", "extracted_answer": "", "trace": []},
+                    reference_traces,
+                )
+            final_response = result.get("final_response")
+            if not isinstance(final_response, str) or not final_response.strip():
+                result["final_response"] = "UNKNOWN"
+            if not isinstance(result.get("trace"), list):
+                result["trace"] = []
+            if not isinstance(result.get("extracted_answer", ""), str):
+                result["extracted_answer"] = ""
+            return self._prepend_reference_trace(result, reference_traces)
         host_context = None
         if self.config.enable_host_intake or self.config.enable_bounded_obligation_extractor:
             host_context = prepare_host_loop_context(
@@ -1222,22 +779,6 @@ class ReasoningAgent:
                 extract_obligations=self.config.enable_bounded_obligation_extractor,
             )
 
-        if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
-            raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
-        legacy_experimental_paths = sum(bool(flag) for flag in (
-            self.config.enable_typed_answer_capsule,
-            self.config.enable_condition_checked_selection,
-            self.config.enable_plan_solve_compact,
-            self.config.enable_contextual_answer_reconstruction,
-            self.config.enable_fork_select_deepen_finish,
-            self.config.enable_adaptive_candidate_first,
-        ))
-        if legacy_experimental_paths > 1:
-            raise ValueError("experimental answering paths are mutually exclusive")
-        if self.config.enable_fesf_exact_eval and not self.config.enable_fesf_v1:
-            raise ValueError("enable_fesf_exact_eval requires enable_fesf_v1")
-        if self.config.enable_fesf_v1 and self.config.enable_adaptive_candidate_first:
-            raise ValueError("FESF and adaptive candidate-first paths are mutually exclusive")
         # Claim DSL is meaningful only on the FESF path.  Historical opt-in
         # profiles may inherit the submission flag while selecting another
         # answering path; in that case it is ignored rather than blocking the
@@ -1251,18 +792,44 @@ class ReasoningAgent:
                 from reasoning_agent.fesf_verifiers.claim_executor import build_fesf_claim_executor
 
                 claim_executor = build_fesf_claim_executor()
-            return ForkEvidenceSynthesizeFinishRelay(
+            result = ForkEvidenceSynthesizeFinishRelay(
                 self.client,
                 enable_exact_eval=self.config.enable_fesf_exact_eval,
                 host_context=host_context,
                 claim_executor=claim_executor,
-            ).solve(problem, problem_type).as_dict()
+            ).solve(problem, problem_type, reference_context=knowledge_context).as_dict()
+            return self._prepend_reference_trace(result, reference_traces)
+        if self.config.enable_adaptive_dual_candidate_consensus:
+            short_answer_types = (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION)
+            if problem_type not in short_answer_types:
+                if not self.config.enable_fork_select_deepen_finish:
+                    raise ValueError("CAR-002 requires FSDF for non-short-answer tasks")
+            else:
+                skill_hint = ""
+                if self.config.enable_adaptive_skill_hint:
+                    selected_route, route_directory = select_skill_route(problem, problem_type)
+                    skill_hint = render_route_block(selected_route, route_directory)
+                result = AdaptiveCandidateFirstRelay(
+                    self.client,
+                    temperature=self.config.policy_temperature,
+                    candidate_max_tokens=self.config.adaptive_candidate_max_tokens,
+                    followup_max_tokens=self.config.adaptive_followup_max_tokens,
+                    adjudication_max_tokens=self.config.adaptive_adjudication_max_tokens,
+                    max_model_calls=self.config.adaptive_max_model_calls,
+                    soft_deadline_seconds=self.config.adaptive_soft_deadline_seconds,
+                    hard_deadline_seconds=self.config.adaptive_hard_deadline_seconds,
+                    dual_candidate_consensus=True,
+                    dual_prompt_variant=self.config.adaptive_dual_prompt_variant,
+                    equivalence=answer_equivalence,
+                    normalizer=normalize_answer,
+                ).solve(problem, problem_type, skill_hint=skill_hint, notebook_hint=knowledge_context)
+                return self._prepend_reference_trace(result, reference_traces)
         if self.config.enable_adaptive_candidate_first:
             skill_hint = ""
             if self.config.enable_adaptive_skill_hint:
                 selected_route, route_directory = select_skill_route(problem, problem_type)
                 skill_hint = render_route_block(selected_route, route_directory)
-            return AdaptiveCandidateFirstRelay(
+            result = AdaptiveCandidateFirstRelay(
                 self.client,
                 temperature=self.config.policy_temperature,
                 candidate_max_tokens=self.config.adaptive_candidate_max_tokens,
@@ -1271,7 +838,8 @@ class ReasoningAgent:
                 max_model_calls=self.config.adaptive_max_model_calls,
                 soft_deadline_seconds=self.config.adaptive_soft_deadline_seconds,
                 hard_deadline_seconds=self.config.adaptive_hard_deadline_seconds,
-            ).solve(problem, problem_type, skill_hint=skill_hint)
+            ).solve(problem, problem_type, skill_hint=skill_hint, notebook_hint=knowledge_context)
+            return self._prepend_reference_trace(result, reference_traces)
         if self.config.enable_fork_select_deepen_finish:
             relay_options = RelayOptions(
                 diagnostics_v2=self.config.enable_fsdf_diagnostics_v2,
@@ -1291,9 +859,10 @@ class ReasoningAgent:
                 skill_routes=self.config.enable_fsdf_skill_routes,
                 skill_harness=self.config.enable_fsdf_skill_harness,
             )
-            return ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
-                problem, problem_type
+            result = ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
+                problem, problem_type, reference_context=knowledge_context
             ).as_dict()
+            return self._prepend_reference_trace(result, reference_traces)
         if self.config.enable_contextual_answer_reconstruction:
             return self._solve_contextual_answer_reconstruction(problem, problem_type)
         if self.config.enable_typed_answer_capsule:
@@ -1316,6 +885,9 @@ class ReasoningAgent:
         if self.config.enable_method_rag:
             cards = self._retrieve_method_cards(problem)
             trace.append({"step":"method_rag","status":"used" if cards else "empty","top_k":self.config.method_rag_top_k,"card_ids":[str(card.get("id", "")) for card in cards]})
+        if self.config.enable_reference_rag or self.config.enable_reference_skills:
+            budget["reference_rag_examples"] = reference_examples
+            budget["reference_context"] = knowledge_context
         if self.config.enable_deterministic_solver:
             deterministic_result = self._try_deterministic_solver(problem)
             trace.append({"step": "deterministic_solver", "status": deterministic_result.get("status", "unsupported"), "reason": deterministic_result.get("reason")})
@@ -1385,12 +957,64 @@ class ReasoningAgent:
         trace.append({"step":"finalize","status":"selected","candidate_id":best["candidate_id"],"selection_basis":best["selection_basis"],"model_calls":budget["used"],"problem_type":problem_type,"diagnostic_reasons":list(budget["diagnostic_reasons"])})
         return {"final_response":final_answer,"trace":trace, "extracted_answer": extracted_answer}
 
+    def _validate_experimental_paths(self) -> int:
+        if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
+            raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
+        if self.config.enable_method_rag and self.config.enable_reference_rag:
+            raise ValueError("method_rag and reference_rag are mutually exclusive")
+        harness_path = int(bool(self.config.enable_constraint_fit_harness))
+        legacy_experimental_paths = sum(bool(flag) for flag in (
+            self.config.enable_typed_answer_capsule,
+            self.config.enable_condition_checked_selection,
+            self.config.enable_plan_solve_compact,
+            self.config.enable_contextual_answer_reconstruction,
+            self.config.enable_fork_select_deepen_finish,
+            self.config.enable_adaptive_candidate_first,
+            self.config.enable_current_cod_numeric,
+        ))
+        car002_path = int(bool(self.config.enable_adaptive_dual_candidate_consensus))
+        legacy_experimental_paths += car002_path
+        if harness_path:
+            if any(bool(flag) for flag in (
+                self.config.enable_typed_answer_capsule,
+                self.config.enable_condition_checked_selection,
+                self.config.enable_plan_solve_compact,
+                self.config.enable_contextual_answer_reconstruction,
+                self.config.enable_adaptive_candidate_first,
+                self.config.enable_adaptive_dual_candidate_consensus,
+                self.config.enable_current_cod_numeric,
+                self.config.enable_fesf_v1,
+            )):
+                raise ValueError("Constraint-Fit Math Harness cannot be combined with another experimental path")
+            # FSDF may remain enabled as a legacy fallback, but only an
+            # explicit hybrid-router flag can select that fallback.
+            return legacy_experimental_paths
+        # CAR-002 may coexist with FSDF only as its required fallback for
+        # non-short-answer tasks; every other answering-path combination is
+        # ambiguous and must fail closed.
+        if car002_path and (
+            legacy_experimental_paths - int(bool(self.config.enable_fork_select_deepen_finish)) > 1
+        ):
+            raise ValueError("CAR-002 cannot be combined with another answering path")
+        if not car002_path and legacy_experimental_paths > 1:
+            raise ValueError("experimental answering paths are mutually exclusive")
+        if self.config.enable_fesf_exact_eval and not self.config.enable_fesf_v1:
+            raise ValueError("enable_fesf_exact_eval requires enable_fesf_v1")
+        if self.config.enable_adaptive_candidate_first and self.config.enable_adaptive_dual_candidate_consensus:
+            raise ValueError("CAR-001 and CAR-002 paths are mutually exclusive")
+        if self.config.enable_fesf_v1 and (
+            self.config.enable_adaptive_candidate_first
+            or self.config.enable_adaptive_dual_candidate_consensus
+        ):
+            raise ValueError("FESF and adaptive candidate paths are mutually exclusive")
+        return legacy_experimental_paths
+
     # ── Candidate generation ─────────────────────────────────────────────
 
     def _generate_candidates(
         self, problem: str, generation_calls: int,
         candidates: list[dict[str, Any]], trace: list[dict[str, Any]],
-        budget: dict[str, int], max_tokens: int,
+        budget: dict[str, Any], max_tokens: int,
         task_prompt: str | None = None,
         problem_type: str = TASK_TYPE_CALCULATION,
         reasoner: str | None = None,  # P2: "direct" | "alternative" | None
@@ -1400,6 +1024,8 @@ class ReasoningAgent:
         prompt = task_prompt or self.config.policy_prompt
         if self.config.enable_method_rag:
             prompt = prompt + self._method_context(problem)
+        if self.config.enable_reference_rag or self.config.enable_reference_skills:
+            prompt += str(budget.get("reference_context", ""))
         candidate_start = max((item["candidate_id"] for item in candidates), default=-1) + 1
 
         def _tr(status: str, cid: int, **extras: Any) -> dict[str, Any]:
@@ -1510,9 +1136,15 @@ class ReasoningAgent:
         choice / proof / explanation format constraints are not lost.
         """
         if level == "L0":
+            l0_prompt = (
+                COD_NUMERIC_PROMPT
+                if self.config.enable_current_cod_numeric
+                and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION)
+                else DIRECT_REASONER_PROMPT
+            )
             self._generate_candidates(problem, 1, candidates, trace, budget,
                                       self._policy_max_tokens(level),
-                                      task_prompt=DIRECT_REASONER_PROMPT,
+                                      task_prompt=l0_prompt,
                                       problem_type=problem_type,
                                       reasoner="direct")
             return
@@ -2000,6 +1632,10 @@ class ReasoningAgent:
 
     def _task_policy_prompt(self, problem_type: str) -> str:
         """Return the generation prompt for a given problem type."""
+        if self.config.enable_current_cod_numeric and problem_type in (
+            TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION
+        ):
+            return COD_NUMERIC_PROMPT
         if not self.config.enable_task_aware_prompt:
             return self.config.policy_prompt
         if self.config.enable_numeric_answer_only_prompt and problem_type in (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION):
@@ -2016,6 +1652,101 @@ class ReasoningAgent:
         except Exception:
             return []
         return [card for card in cards if isinstance(card, dict)]
+
+    def _retrieve_reference_examples(self, problem: str) -> list[dict[str, Any]]:
+        if not self.config.enable_reference_rag:
+            return []
+        try:
+            if self.reference_rag_retriever is None:
+                from reference_rag import ReferenceRagRetriever
+
+                self.reference_rag_retriever = ReferenceRagRetriever()
+            rows = self.reference_rag_retriever.search(
+                problem,
+                top_k=max(0, int(self.config.reference_rag_top_k)),
+            )
+        except Exception:
+            return []
+        return [row for row in rows if isinstance(row, dict)]
+
+    def _prepare_reference_rag(
+        self, problem: str
+    ) -> tuple[str, dict[str, Any] | None, list[dict[str, Any]], str]:
+        if not self.config.enable_reference_rag:
+            return "", None, [], "low"
+        references = self._retrieve_reference_examples(problem)
+        try:
+            from reference_rag import render_reference_context
+
+            context = render_reference_context(
+                problem,
+                references,
+                self.config.reference_rag_max_context_chars,
+            )
+        except Exception:
+            context = ""
+        similarities = []
+        for row in references:
+            try:
+                similarities.append(round(float(row.get("similarity", 0.0)), 6))
+            except (TypeError, ValueError):
+                similarities.append(None)
+        top_similarity = similarities[0] if similarities and isinstance(similarities[0], (int, float)) else 0.0
+        trace = {
+            "step": "reference_rag",
+            "status": "used" if references else "empty",
+            "level": "high" if references and top_similarity >= 0.90 else "medium" if references else "low",
+            "top_k": self.config.reference_rag_top_k,
+            "reference_ids": [str(row.get("id", "")) for row in references],
+            "similarities": similarities,
+        }
+        return context, trace, references, trace["level"]
+
+    def _prepare_reference_skills(
+        self, problem: str, rag_level: str
+    ) -> tuple[str, dict[str, Any] | None]:
+        if not self.config.enable_reference_skills:
+            return "", None
+        try:
+            from reference_skills import select_reference_skill_context
+
+            context, trace = select_reference_skill_context(
+                problem,
+                limit=self.config.reference_skill_max_context_chars,
+                suppress=rag_level == "high",
+            )
+            return context, {"step": "reference_skill", **trace}
+        except Exception:
+            return "", {"step": "reference_skill", "status": "unavailable"}
+
+    @staticmethod
+    def _solve_with_reference(
+        backend: Any,
+        problem: str,
+        metadata: dict,
+        reference_context: str,
+    ) -> Any:
+        solve = backend.solve
+        if reference_context:
+            try:
+                parameters = inspect.signature(solve).parameters
+            except (TypeError, ValueError):
+                parameters = {}
+            if "reference_context" in parameters:
+                return solve(problem, metadata, reference_context=reference_context)
+        return solve(problem, metadata)
+
+    @staticmethod
+    def _prepend_reference_trace(
+        result: Any, reference_trace: list[dict[str, Any]] | dict[str, Any] | None
+    ) -> dict[str, Any]:
+        if not isinstance(result, dict):
+            result = {"final_response": "UNKNOWN", "extracted_answer": "", "trace": []}
+        if reference_trace:
+            trace = result.get("trace") if isinstance(result.get("trace"), list) else []
+            events = [reference_trace] if isinstance(reference_trace, dict) else reference_trace
+            result["trace"] = [*events, *trace]
+        return result
 
     @staticmethod
     def _try_deterministic_solver(problem: str) -> dict[str, Any]:

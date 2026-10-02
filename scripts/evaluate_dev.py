@@ -46,46 +46,284 @@ EXPECTED_SUBJECT_COUNTS = {
 }
 
 
+_SUPERSCRIPT_TRANSLATION = str.maketrans({
+    "⁰": "^0", "¹": "^1", "²": "^2", "³": "^3", "⁴": "^4",
+    "⁵": "^5", "⁶": "^6", "⁷": "^7", "⁸": "^8", "⁹": "^9",
+})
+_GREEK_PRESENTATION = {
+    "λ": r"\lambda",
+    "π": r"\pi",
+    "θ": r"\theta",
+    "μ": r"\mu",
+    "σ": r"\sigma",
+    "α": r"\alpha",
+    "β": r"\beta",
+    "γ": r"\gamma",
+    "δ": r"\delta",
+}
+
+
+def _unwrap_outer_braced_command(value: str, command: str) -> str | None:
+    """Return the body only when one LaTeX command wraps the whole value."""
+    prefix = f"\\{command}{{"
+    if not value.startswith(prefix) or not value.endswith("}"):
+        return None
+    depth = 0
+    start = len(prefix) - 1
+    for index in range(start, len(value)):
+        char = value[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return value[len(prefix):-1].strip() if index == len(value) - 1 else None
+    return None
+
+
+def _normalize_unit_surface(value: str) -> str:
+    """Normalize equivalent unit spellings without performing unit conversion."""
+    text = value.replace("²", "^2").replace("³", "^3")
+    text = re.sub(r"\\mathrm\{(ft|in|cm|mm|m|km)\}", r"\1", text, flags=re.I)
+    text = re.sub(r"\^\{([23])\}", r"^\1", text)
+    text = re.sub(r"(?<=\d),(?=\d{3}(?:\D|$))", "", text)
+    replacements = (
+        (r"\bsquare\s+feet\b", "ft^2"),
+        (r"\bsquare\s+foot\b", "ft^2"),
+        (r"\bsq\.?\s*ft\b", "ft^2"),
+        (r"\bsquare\s+inches\b", "in^2"),
+        (r"\bsquare\s+inch\b", "in^2"),
+        (r"\bsq\.?\s*in\b", "in^2"),
+        (r"\bsquare\s+centimeters?\b", "cm^2"),
+        (r"\bsquare\s+millimeters?\b", "mm^2"),
+        (r"\bsquare\s+meters?\b", "m^2"),
+        (r"\bsquare\s+kilometers?\b", "km^2"),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.I)
+    if re.search(r"\b(?:ft|in|cm|mm|m|km)\^[23]\b", text, re.I):
+        text = re.sub(r"\s+(?:and|和|与)\s+", ",", text, flags=re.I)
+        text = text.rstrip(".")
+    return text
+
+
+def _normalize_presentation(answer: str) -> str:
+    """Normalize only representation-level differences, never mathematical content."""
+    value = str(answer or "").strip()
+    changed = True
+    while changed and value:
+        previous = value
+        if len(value) >= 2 and value.startswith("$") and value.endswith("$"):
+            value = value[1:-1].strip()
+        elif value.startswith(r"\(") and value.endswith(r"\)"):
+            value = value[2:-2].strip()
+        elif value.startswith(r"\[") and value.endswith(r"\]"):
+            value = value[2:-2].strip()
+        boxed = _unwrap_outer_braced_command(value, "boxed")
+        if boxed is not None:
+            value = boxed
+        changed = value != previous
+
+    value = value.replace(r"\dfrac", r"\frac").replace(r"\tfrac", r"\frac")
+    value = value.replace(r"\left", "").replace(r"\right", "")
+    value = value.replace(r"\,", "").replace(r"\!", "").replace(r"\;", "").replace(r"\quad", "")
+    value = value.translate(_SUPERSCRIPT_TRANSLATION)
+    for literal, latex in _GREEK_PRESENTATION.items():
+        value = value.replace(literal, latex)
+    value = _normalize_unit_surface(value)
+    return value
+
+
 def normalize(answer: str) -> str:
-    return "".join(answer.split()).rstrip("。；;.").lower()
+    value = _normalize_presentation(answer)
+    return "".join(value.split()).rstrip("。；;.!！?？").lower()
 
 
-def judge_correct(extracted: str, expected: str, problem_type: str = "") -> str:
-    """Three-level answer judge: exact → structured → UNKNOWN.
+def _extract_choice_options(problem: str) -> dict[str, str]:
+    """Extract A-D option text from a conventional inline multiple-choice prompt."""
+    text = str(problem or "")
+    matches = list(re.finditer(r"(?<![A-Za-z0-9])([A-D])\.\s*", text))
+    options: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        value = text[match.end():end].strip()
+        if value:
+            options[match.group(1).upper()] = value
+    return options
 
-    Returns 'correct', 'incorrect', or 'unknown'.
-    Never guesses; UNKNOWN means the judge cannot decide.
+
+def _terminal_gold_alias(expected: str) -> str | None:
+    """Extract a conservative terminal answer from a worked/display gold string."""
+    value = _normalize_presentation(expected).strip()
+    # Textbook-style binary conclusions often start with an explicit Yes/No.
+    semantic = re.match(r"^(yes|no|true|false)\b(?:[.。:：]|\s)", value, re.I)
+    if semantic:
+        return semantic.group(1)
+
+    # A worked gold such as a displayed determinant ending in '= 6' may store
+    # the whole derivation rather than the final answer. Only accept a terminal
+    # RHS on the final line / end of the gold string.
+    match = re.search(r"=(?!=)\s*([^=\n]+?)\s*$", value)
+    if not match:
+        return None
+    rhs = _normalize_presentation(match.group(1)).strip()
+    if not rhs or len(rhs) > 160:
+        return None
+    has_environment = bool(re.search(r"\\(?:begin|end)\{", rhs))
+    matrix_environment = bool(re.search(r"\\begin\{(?:bmatrix|pmatrix|matrix|array)\}", rhs))
+    if (has_environment and not matrix_environment) or re.search(
+        r"\b(?:therefore|thus|hence|because)\b", rhs, re.I
+    ):
+        return None
+    return rhs.rstrip("。；;.")
+
+
+def _display_math_aliases(expected: str) -> list[str]:
+    """Extract bounded display/inline math spans from verbose textbook gold."""
+    raw = str(expected or "")
+    spans: list[str] = []
+    for pattern in (r"\$\$(.+?)\$\$", r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)"):
+        for match in re.finditer(pattern, raw, re.S):
+            value = match.group(1).strip()
+            if 0 < len(value) <= 512:
+                spans.append(value)
+                terminal = _terminal_gold_alias(value)
+                if terminal:
+                    spans.append(terminal)
+    return spans
+
+
+def _canonical_matrix_vector(value: str) -> str | None:
+    """Canonicalize a small LaTeX matrix/vector subset for evaluator equality."""
+    text = _normalize_presentation(value)
+    text = text.replace(r"\left", "").replace(r"\right", "")
+    body = None
+    for env in ("bmatrix", "pmatrix", "matrix"):
+        match = re.search(
+            rf"\\begin\{{{env}\}}(.*?)\\end\{{{env}\}}",
+            text,
+            re.S,
+        )
+        if match:
+            body = match.group(1)
+            break
+    if body is None:
+        match = re.search(
+            r"\\begin\{array\}\{[^{}]*\}(.*?)\\end\{array\}",
+            text,
+            re.S,
+        )
+        if match:
+            body = match.group(1)
+    if body is None:
+        return None
+    rows = [row.strip() for row in re.split(r"\\\\", body) if row.strip()]
+    if not rows:
+        return None
+    canonical_rows: list[str] = []
+    for row in rows:
+        cells = [normalize(cell) for cell in row.split("&")]
+        if not cells or any(not cell for cell in cells):
+            return None
+        canonical_rows.append(",".join(cells))
+    return "matrix[" + ";".join(canonical_rows) + "]"
+
+
+def _expected_answer_aliases(expected: str, problem: str = "") -> list[str]:
+    """Return safe representation aliases for a local benchmark gold answer."""
+    raw = str(expected or "").strip()
+    aliases = [raw] if raw else []
+
+    # Some datasets store "C. <option text>" while others keep only "C".
+    prefixed = re.match(r"^\s*([A-Da-d])\s*[.)）]\s*(.+)$", raw, re.S)
+    expected_letter = None
+    if prefixed:
+        expected_letter = prefixed.group(1).upper()
+        aliases.extend([expected_letter, prefixed.group(2).strip()])
+    elif re.fullmatch(r"\s*[A-Da-d]\s*", raw):
+        expected_letter = raw.strip().upper()
+
+    if expected_letter:
+        option_text = _extract_choice_options(problem).get(expected_letter)
+        if option_text:
+            aliases.append(option_text)
+
+    terminal = _terminal_gold_alias(raw)
+    if terminal:
+        aliases.append(terminal)
+    aliases.extend(_display_math_aliases(raw))
+
+    unique: list[str] = []
+    seen: set[str] = set()
+    for alias in aliases:
+        key = normalize(alias)
+        if key and key not in seen:
+            seen.add(key)
+            unique.append(alias)
+    return unique
+
+
+def judge_correct(
+    extracted: str,
+    expected: str,
+    problem_type: str = "",
+    problem: str = "",
+) -> str:
+    """Conservative local judge with safe gold aliases.
+
+    Returns 'correct', 'incorrect', or 'unknown'.  Gold canonicalization is
+    evaluator-only and is never exposed to the agent.
     """
     norm_ext = normalize(extracted)
-    norm_exp = normalize(expected)
-    # Level 1: normalized exact match
-    if norm_ext == norm_exp:
+    aliases = _expected_answer_aliases(expected, problem)
+    norm_aliases = [normalize(alias) for alias in aliases]
+    if norm_ext and norm_ext in norm_aliases:
         return "correct"
-    # Level 2: choice letters (case-insensitive single letter)
-    if problem_type == TASK_TYPE_CHOICE:
-        ext_letter = norm_ext.strip().upper()
-        exp_letter = norm_exp.strip().upper()
-        if len(ext_letter) == 1 and ext_letter == exp_letter:
+
+    # Choice letters remain decisive when the expected letter is available.
+    ext_letter = norm_ext.strip().upper()
+    expected_letters = {
+        value.strip().upper()
+        for value in norm_aliases
+        if len(value.strip()) == 1 and value.strip().upper() in {"A", "B", "C", "D"}
+    }
+    if problem_type == TASK_TYPE_CHOICE and len(ext_letter) == 1 and ext_letter in {"A", "B", "C", "D"}:
+        if ext_letter in expected_letters:
             return "correct"
-        if len(ext_letter) == 1 and len(exp_letter) == 1:
+        if expected_letters:
             return "incorrect"
-        return "unknown"
-    collection_verdict = _compare_numeric_collections(norm_ext, norm_exp)
-    if collection_verdict is not None:
-        return collection_verdict
-    # Level 2: predictable rational numbers
-    ext_num = _try_parse_rational(norm_ext)
-    exp_num = _try_parse_rational(norm_exp)
-    if ext_num is not None and exp_num is not None:
-        return "correct" if ext_num == exp_num else "incorrect"
-    # Level 3: strict SymPy equivalence for radicals / algebraic expressions
-    # that Level 2 cannot compare.  Never guesses: unsupported → unknown.
-    sympy_eq = _try_sympy_equivalence(norm_ext, norm_exp)
-    if sympy_eq is True:
-        return "correct"
-    if sympy_eq is False:
-        return "incorrect"
-    return "unknown"
+
+    ext_matrix = _canonical_matrix_vector(extracted)
+    provably_incorrect = False
+    for alias, norm_exp in zip(aliases, norm_aliases):
+        exp_matrix = _canonical_matrix_vector(alias)
+        if ext_matrix is not None and exp_matrix is not None:
+            if ext_matrix == exp_matrix:
+                return "correct"
+            continue
+
+        collection_verdict = _compare_numeric_collections(norm_ext, norm_exp)
+        if collection_verdict == "correct":
+            return "correct"
+        if collection_verdict == "incorrect":
+            provably_incorrect = True
+            continue
+
+        ext_num = _try_parse_rational(norm_ext)
+        exp_num = _try_parse_rational(norm_exp)
+        if ext_num is not None and exp_num is not None:
+            if ext_num == exp_num:
+                return "correct"
+            provably_incorrect = True
+            continue
+
+        sympy_eq = _try_sympy_equivalence(norm_ext, norm_exp)
+        if sympy_eq is True:
+            return "correct"
+        if sympy_eq is False:
+            provably_incorrect = True
+
+    return "incorrect" if provably_incorrect else "unknown"
 
 
 def _try_sympy_equivalence(left: str, right: str) -> bool | None:
@@ -142,10 +380,20 @@ def _normalize_sympy_text(text: str) -> str:
     This is evaluator-only normalization.  Unsupported LaTeX remains intact
     and therefore falls through to UNKNOWN rather than being guessed.
     """
-    value = text.strip()
-    value = value.replace(r"\left", "").replace(r"\right", "")
+    value = _normalize_presentation(text)
     value = value.replace(r"\cdot", "*").replace("×", "*")
+    value = value.replace(r"\lambda", "lam")
+    value = value.replace(r"\pi", "pi")
+    value = value.replace(r"\theta", "theta")
+    value = value.replace(r"\mu", "mu")
+    value = value.replace(r"\sigma", "sigma")
+    value = value.replace(r"\alpha", "alpha")
+    value = value.replace(r"\beta", "beta")
+    value = value.replace(r"\gamma", "gamma")
+    value = value.replace(r"\delta", "delta")
     value = re.sub(r"\\sqrt\s*\{([^{}]+)\}", r"sqrt(\1)", value)
+    # LaTeX commonly omits multiplication: 3\sqrt{2} -> 3*sqrt(2).
+    value = re.sub(r"(?<=\d)(?=sqrt\()", "*", value)
     previous = None
     while previous != value:
         previous = value
@@ -155,18 +403,23 @@ def _normalize_sympy_text(text: str) -> str:
 
 
 def _compare_numeric_collections(left: str, right: str) -> str | None:
-    """Compare simple numeric sets without reordering ordered tuples."""
-    if not (left.startswith("{") and left.endswith("}") and right.startswith("{") and right.endswith("}")):
+    """Compare simple numeric sets, accepting an unbraced CSV only against a braced set."""
+    left_braced = left.startswith("{") and left.endswith("}")
+    right_braced = right.startswith("{") and right.endswith("}")
+    if not (left_braced or right_braced):
         return None
-    def parse(value: str) -> set[fractions.Fraction] | None:
-        body = value[1:-1].strip()
+
+    def parse(value: str, braced: bool) -> set[fractions.Fraction] | None:
+        body = value[1:-1].strip() if braced else value.strip()
         if not body:
             return set()
         parts = [part.strip() for part in body.split(",")]
+        if not braced and len(parts) < 2:
+            return None
         parsed = [_try_parse_rational(part) for part in parts]
         return set(parsed) if all(item is not None for item in parsed) else None
-    left_set = parse(left)
-    right_set = parse(right)
+    left_set = parse(left, left_braced)
+    right_set = parse(right, right_braced)
     if left_set is None or right_set is None:
         return None
     return "correct" if left_set == right_set else "incorrect"
@@ -305,7 +558,7 @@ def evaluate_item_record(agent: ReasoningAgent, item: dict[str, Any]) -> dict[st
     # ── P3 metrics ──
     ptype = classify_problem_type(item["problem"])
     extracted = result.get("extracted_answer", "") or ""
-    verdict = judge_correct(extracted, str(item["answer"]), ptype)
+    verdict = judge_correct(extracted, str(item["answer"]), ptype, item["problem"])
     verify_entries = [e for e in trace if e.get("step") == "verify"]
     revise_entries = [e for e in trace if e.get("step") == "revise"]
     reverify_entries = [e for e in trace if e.get("step") == "reverify"]

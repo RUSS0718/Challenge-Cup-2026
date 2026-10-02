@@ -1,45 +1,74 @@
-# 分支与发布面地图(2026-09-08 梳理)
+# 分支与发布面地图（2026-09-21 梳理）
 
-> 目的:终结"两个 main"时代的拓扑混乱。此后引用任何分支,以本文件为准。
+> 目的：记录当前 GitCode 发布面、本地工作分支和历史档案分支。GitHub `origin`
+> 与 GitCode 分开维护；未明确授权时不互相删除或同步。
+
+架构版本谱系见 [`architecture_evolution.md`](architecture_evolution.md)；本表只负责
+ref/worktree 发布拓扑，不重复记录每个实验架构的细节。
 
 ## 发布与镜像
 
 | ref | tip | 角色 |
 | --- | --- | --- |
-| **gitcode/main** | `9f8466e` | **AtomGit/赛事发布面**；FSDF v1 默认路径，分层题面匹配已启用 |
-| **origin/main**(GitHub) | `9f8466e` | GitHub 镜像，与 gitcode/main 同步 |
-| **codex/fsdf-iterative-ab-001** | `9f8466e` | 当前工作分支；包含 CAR/F1 代码和评测工件 |
+| **gitcode/main** | `ca15d39` | **AtomGit/赛事发布面** |
+| **gitcode/codex/harness** | `1bc41ac` | Harness 分支拓扑文档线，非当前 checkout |
+| **local codex/harness** | `1bc41ac` | 保留的 Harness 文档分支，非当前 checkout |
+| **local main** | `7779ab7` | 本地 main，保留但未与 GitCode main 对齐 |
+| **origin/main**（GitHub） | `fc1b671` | GitHub 发布面，未在本轮修改 |
 
-## 工作分支
+## 当前工作分支
 
 | 分支 | tip | 内容 |
 | --- | --- | --- |
-| **codex/btcs-v1** | `30f3aeb` | BTCSv2 模块化开发提交；已推 GitCode，资源窗作废 |
-| **codex/b1-4k-canary** | `b2f01ec` | 已推 GitHub 的实验/证据分支；包含 GSA/ARH 工件与最新研究文档 |
-| **codex/main-integration-20260829** | `d84be6e` | 集成历史分支；内容已快进到 local main，当前无工作树 |
-| **codex/fsdf-v1-code-acceptance-001** | `1afdbe7` | 历史 FSDF 代码验收与发布候选 |
-| codex/c0-evidence-release-20260827 | `0409103` | 历史发布工作树注册；当前本地路径已失效,不得作为发布面 |
-| codex/cod-numeric-candidate-20260827 | `25f99b5`+未提交 CoD | CoD 原始实现存档(实现已移植主线);CoD 线 ARCHIVED |
+| **codex/repo-hygiene-cleanup** | `fca3d2b` | 当前唯一活动 worktree；profile 开关与 worktree 收敛整理 |
 
-## 历史档案分支(全部保留,勿删)
+## GitCode 历史档案分支
 
-- `codex/stable-baseline-8k-k2` @ b8b78aa(无工作树):官方 8k 时代+排除表定稿
-- `codex/weakness-fix-package-14` @ b684729(无工作树):**refine 战役原始工件所在地**(ADR-0002 引用)
-- `codex/deterministic-solver-v1` / `codex/pot-tir-executor` / `codex/resilience-quality-temperature-ab` / `codex/salvage-v1` / `codex/verification-gated-retry`:历史实验存档线
+旧 GitCode 分支名已删除，历史由以下 `archive/...` ref 保留：
 
-## 发布后例行动作(每次 canary 发布/回滚后)
+| 档案分支 | tip |
+| --- | --- |
+| `archive/codex/btcs-v1` | `30f3aeb` |
+| `archive/codex/btcs-v2-main-integration` | `55f80e5` |
+| `archive/codex/deterministic-solver-v1` | `16894d1` |
+| `archive/codex/fsdf-iterative-ab-001` | `e6ea4e8` |
+| `archive/codex/fsdf-v1-code-acceptance-001` | `507ebd3` |
+| `archive/codex/official-output-hygiene-canary` | `1c9908b` |
+| `archive/codex/salvage-v1` | `f706116` |
+| `archive/codex/stateful-tail-v1` | `ca536ce` |
 
-1. local main ff:;
-2. GitHub 镜像同步:发布线克隆内 `git push origin gitcode/main:refs/heads/main`;
-3. 本表三行 tip 更新,随工作分支提交。
+## 本地历史档案分支
+
+本地旧分支均已移动到 `archive/...`；本地 tip 与 GitCode archive tip 可能不同，分别保留
+各自原有历史：
+
+`archive/PRE0-8.30`、`archive/codex/agent-systems-experiments-20260901`、
+`archive/codex/b1-4k-canary`、`archive/codex/btcs-v1`、
+`archive/codex/btcs-v2-main-integration`、`archive/codex/c0-evidence-release-20260827`、
+`archive/codex/cod-numeric-candidate-20260827`、`archive/codex/deterministic-solver-v1`、
+`archive/codex/engineering-v1`、`archive/codex/external70-active`、
+`archive/codex/fsdf-iterative-ab-001`、`archive/codex/fsdf-paired-ab-loop-001`、
+`archive/codex/fsdf-v1-code-acceptance-001`、`archive/codex/main-integration-20260829`、
+`archive/codex/pot-tir-executor`、`archive/codex/resilience-quality-temperature-ab`、
+`archive/codex/salvage-v1`、`archive/codex/stable-baseline-8k-k2`、
+`archive/codex/stateful-tail-v1`、`archive/codex/verification-gated-retry`、
+`archive/codex/weakness-fix-package-14`、`archive/gsa-canary-20260830`、
+`archive/p0-rollback-46c08dd`、`archive/p0-rollback-55f80e5`。
+
+## 发布后例行动作（每次 canary 发布/回滚后）
+
+1. 先在 `codex/repo-hygiene-cleanup` 或新的实验分支完成 scoped commit；
+2. 发布到 GitCode 时显式指定目标 ref，不默认同步 `origin`；
+3. 本表只记录已核验的 commit tip、archive ref 和 worktree 状态。
 
 ## 工作区卫生约定
 
 - `tmp/` 保持 untracked:原始工件先判定、后拷贝归档至 `docs/experiments/`,
   判定未归档的窗不得清理;
-- 当前默认发布代码位于仓库根目录；辅助 worktree 仍作为历史快照保留在 `.worktrees/`，
-  不参与发布。
+- 当前仅保留仓库根目录一个活动 worktree；历史分支和实验工件不参与发布。
+- 2026-09-21 已移除 7 个辅助 worktree；tracked 改动保存到 Git stash，
+  COT/PoT 未跟踪归档移动至 `tmp/archived_worktree_cot-pot-9.16-20260921/`。
 - 原集成目录中的未跟踪缓存已可恢复地归档到 `tmp/archived_worktree_main-integration-20260829/`；
-  本地分支与实验产物均保留。
+  本地 archive 分支与实验产物均保留。
 - 根目录过时的 `P0-提交总结.md` 已归档至 `docs/archive/legacy/`；历史实验报告不删除，
   仅由 `docs/ARCHIVE_INDEX.md` 分类索引。

@@ -747,6 +747,12 @@ def _error_category(exc: BaseException) -> str:
     return "model_error"
 
 
+def _prompt_problem(problem: str, reference_context: str) -> str:
+    if not reference_context or reference_context in problem:
+        return problem
+    return f"{problem}\n\n{reference_context}"
+
+
 class ForkSelectDeepenFinishRelay:
     """Deep FSDF module with one small public interface."""
 
@@ -759,9 +765,12 @@ class ForkSelectDeepenFinishRelay:
         self.client = client
         self.clock = clock
         self.options = options or RelayOptions()
+        self._reference_context = ""
 
-    def solve(self, problem: str, problem_type: str) -> RelayResult:
+    def solve(self, problem: str, problem_type: str, *, reference_context: str = "") -> RelayResult:
         problem_text = problem if isinstance(problem, str) else str(problem)
+        self._reference_context = reference_context
+        prompt_problem = _prompt_problem(problem_text, reference_context)
         state = _SolveState(started_at=self.clock())
         trace: list[dict[str, Any]] = []
 
@@ -773,7 +782,7 @@ class ForkSelectDeepenFinishRelay:
                 trace,
                 "l0",
                 L0_PROMPT,
-                problem_text,
+                prompt_problem,
                 0.6,
                 L0_TOKEN_SEQUENCE[0],
             )
@@ -782,7 +791,7 @@ class ForkSelectDeepenFinishRelay:
 
         response_a = ""
         if self._stage_allowed(state, trace, "analyze", 2048):
-            response_a = self._call(state, trace, "analyze", ANALYZE_PROMPT, problem_text, 0.2, 2048) or ""
+            response_a = self._call(state, trace, "analyze", ANALYZE_PROMPT, prompt_problem, 0.2, 2048) or ""
         if response_a:
             state.analysis_packet_a = _canonical_packet(
                 response_a, _ANALYSIS_FIELDS, _ANALYSIS_LIMIT, _ANALYSIS_FALLBACK_LIMIT
@@ -798,7 +807,7 @@ class ForkSelectDeepenFinishRelay:
                 trace,
                 "fork_b",
                 BRANCH_B_PROMPT,
-                self._fork_user_prompt(problem_text, state.analysis_packet_a, "B"),
+                self._fork_user_prompt(problem_text, state.analysis_packet_a, "B", reference_context),
                 0.6,
                 2048,
             ) or ""
@@ -816,7 +825,7 @@ class ForkSelectDeepenFinishRelay:
                 trace,
                 "fork_c",
                 BRANCH_C_PROMPT,
-                self._fork_user_prompt(problem_text, state.analysis_packet_a, "C"),
+                self._fork_user_prompt(problem_text, state.analysis_packet_a, "C", reference_context),
                 0.6,
                 2048,
             ) or ""
@@ -855,7 +864,7 @@ class ForkSelectDeepenFinishRelay:
                 deepen_prompt = DEEPEN_PROMPT_V2
             else:
                 deepen_prompt = DEEPEN_PROMPT
-            deepen_user = self._deepen_user_prompt(problem_text, state)
+            deepen_user = self._deepen_user_prompt(problem_text, state, reference_context)
             if self.options.skill_routes and harness_route is None:
                 route_block = render_route_block(*select_skill_route(problem_text, problem_type))
                 if route_block:
@@ -935,7 +944,7 @@ class ForkSelectDeepenFinishRelay:
                 trace,
                 "finish",
                 finish_prompt,
-                self._finish_user_prompt(problem_text, state),
+                self._finish_user_prompt(problem_text, state, reference_context),
                 0.0,
                 finish_max_tokens,
             ) or ""
@@ -969,12 +978,12 @@ class ForkSelectDeepenFinishRelay:
         return self._result(state, trace, final_response, source)
 
     @staticmethod
-    def _fork_user_prompt(problem: str, analysis_packet: str, branch: str) -> str:
+    def _fork_user_prompt(problem: str, analysis_packet: str, branch: str, reference_context: str = "") -> str:
         analysis = analysis_packet or "A 状态不可用；只依据原题提出本分支思路。"
-        return f"原题：\n{problem}\n\nA 状态：\n{analysis}\n\n当前分支：{branch}"
+        return f"原题：\n{_prompt_problem(problem, reference_context)}\n\nA 状态：\n{analysis}\n\n当前分支：{branch}"
 
     @staticmethod
-    def _deepen_user_prompt(problem: str, state: _SolveState) -> str:
+    def _deepen_user_prompt(problem: str, state: _SolveState, reference_context: str = "") -> str:
         b = state.idea_packet_b or "B 思路不可用。"
         c = state.idea_packet_c or "C 思路不可用。"
         if not state.idea_packet_b and not state.idea_packet_c:
@@ -985,9 +994,9 @@ class ForkSelectDeepenFinishRelay:
             f"A 状态：\n{state.analysis_packet_a or '不可用'}\n\nB 思路包：\n{b}\n\nC 思路包：\n{c}\n{direct}",
             _DEEP_CONTEXT_LIMIT,
         )
-        return f"原题：\n{problem}\n\n{context}"
+        return f"原题：\n{_prompt_problem(problem, reference_context)}\n\n{context}"
 
-    def _finish_user_prompt(self, problem: str, state: _SolveState) -> str:
+    def _finish_user_prompt(self, problem: str, state: _SolveState, reference_context: str = "") -> str:
         branch = state.selected_branch or self._available_branch(state) or "UNKNOWN"
         if branch == "B":
             selected_idea = state.idea_packet_b
@@ -1041,7 +1050,7 @@ class ForkSelectDeepenFinishRelay:
         if len(context) > _FINISH_CONTEXT_LIMIT:
             state.diagnostics["finish_context_clipped"] = True
         context = _clip(context, _FINISH_CONTEXT_LIMIT)
-        return f"原题：\n{problem}\n\n{context}"
+        return f"原题：\n{_prompt_problem(problem, reference_context)}\n\n{context}"
 
     @staticmethod
     def _available_branch(state: _SolveState) -> str:
@@ -1299,12 +1308,14 @@ class ForkSelectDeepenFinishRelay:
         temperature: float,
         max_tokens: int,
     ) -> str | None:
+        user_prompt = _prompt_problem(user_prompt, self._reference_context)
         if state.logical_calls >= 5:
             return None
         if self._deadline(state) == "hard":
             self._event(trace, state, stage, "skipped", max_tokens, error_category="hard_deadline")
             return None
         state.logical_calls += 1
+        call_started = time.monotonic()
         try:
             response = self.client.chat(
                 messages=[
@@ -1318,16 +1329,45 @@ class ForkSelectDeepenFinishRelay:
             category = _error_category(exc)
             state.sanitized_errors.append(category)
             state.stage_status[stage] = "failed"
-            self._event(trace, state, stage, "failed", max_tokens, error_category=category)
+            self._event(
+                trace,
+                state,
+                stage,
+                "failed",
+                max_tokens,
+                error_category=category,
+                **self._duration_extra(call_started),
+            )
             return None
         if not isinstance(response, str) or not response.strip():
             state.sanitized_errors.append("invalid_response")
             state.stage_status[stage] = "failed"
-            self._event(trace, state, stage, "failed", max_tokens, error_category="invalid_response")
+            self._event(
+                trace,
+                state,
+                stage,
+                "failed",
+                max_tokens,
+                error_category="invalid_response",
+                **self._duration_extra(call_started),
+            )
             return None
         state.stage_status[stage] = "ok"
-        self._event(trace, state, stage, "ok", max_tokens, packet_present=True)
+        self._event(
+            trace,
+            state,
+            stage,
+            "ok",
+            max_tokens,
+            packet_present=True,
+            **self._duration_extra(call_started),
+        )
         return response.strip()
+
+    def _duration_extra(self, started: float) -> dict[str, float]:
+        if not self.options.diagnostics_v2:
+            return {}
+        return {"duration_seconds": round(max(0.0, time.monotonic() - started), 6)}
 
     def _stage_allowed(
         self, state: _SolveState, trace: list[dict[str, Any]], stage: str, max_tokens: int
@@ -1396,6 +1436,7 @@ class ForkSelectDeepenFinishRelay:
             "harness_steps_completed",
             "token_usage",
             "finish_reason",
+            "duration_seconds",
         }})
         trace.append(event)
 

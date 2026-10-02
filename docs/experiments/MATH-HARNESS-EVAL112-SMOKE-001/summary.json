@@ -1,0 +1,33 @@
+{
+  "run_id": "MATH-HARNESS-EVAL112-SMOKE-001",
+  "phase": "team_eval112_smoke",
+  "method_id": "bounded_evidence_trajectory_selection_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "status": "completed",
+  "diagnostic_only": true,
+  "dataset_role": "team_created_answer_bearing_internal",
+  "temporary_answer_bank": "off",
+  "records": 10,
+  "expected_records": 10,
+  "outcome_counts": {
+    "invalid": 10
+  },
+  "verdict_counts": {
+    "unknown": 10
+  },
+  "correct": 0,
+  "incorrect": 0,
+  "invalid": 10,
+  "model_errors": 0,
+  "timeout_count": 0,
+  "candidate_formed_rows": 9,
+  "total_model_calls": 19,
+  "average_model_calls": 1.9,
+  "total_requested_tokens": 69632,
+  "average_duration_seconds": 180.603,
+  "max_duration_seconds": 287.783,
+  "health_pass": true,
+  "elapsed_seconds": 641.596,
+  "capability_conclusion": "NONE",
+  "disposition": "SMOKE_COMPLETE_NO_CAPABILITY_CONCLUSION"
+}

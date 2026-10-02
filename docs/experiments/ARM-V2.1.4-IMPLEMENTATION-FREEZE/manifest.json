@@ -1,0 +1,52 @@
+{
+  "protocol_id": "ARM-v2.1.4-implementation-freeze",
+  "method_id": "ARM-v2.1.4",
+  "dataset_id": "freeze-unverified-local-state",
+  "frozen_commit": "4c0c90b9eaf340121f7314362f6ce16ac758a384",
+  "frozen_branch": "fix/router-generic-fallback",
+  "generated_at": "2026-09-30T00:00:00+08:00",
+  "profiles": [
+    "arm-v2.1.4-off",
+    "arm-v2.1.4-adaptive"
+  ],
+  "historical_profiles": [
+    "arm-v2.1.2-*",
+    "arm-v2.1.3-*"
+  ],
+  "source_hashes": {
+    "user_agent.py": "8c63e308f7213753e849c9d0b0c3dab1ae03784023552c01e0faba288d317ece",
+    "reasoning_agent/submission_config.py": "f6b35a3105d5e07853f985fce71e89b7bd1995abbb74202a12b425c4086750d0",
+    "reasoning_agent/profiles.py": "060cf61f4cd265280adbc301d5d54fc8be2545e28aa6731c9576a305d9b185e7",
+    "reasoning_agent/math_harness.py": "a85eebf9aa829d5a08cf984b290aa70abea26a2058c1185e2c5f82e617f013b8",
+    "reasoning_agent/arm_harness.py": "65761ad091b84da293228b4fb864fecc187501a79bb53f4620e0ed12ab9c612f",
+    "reasoning_agent/arm_harness_v2.py": "78cfa67f01ae822a238bd3b70d4d7d1792f08b072e29dab04b0909b446627317",
+    "reasoning_agent/arm_harness_v213.py": "33838f5a7902cd4b4a1e20ea2c6ca94994a88e51edb60e666665c051f16b5e51",
+    "reasoning_agent/arm_harness_v214.py": "3fdac9da431d4ba65e25a73b725c7757bad6218092ca03771fe9b524b2fd287b",
+    "reasoning_agent/arm_v21_support.py": "b3652f510e07f110def6a0f965ec0afd0167fa2b6c07671ee8ef4ee71269d855",
+    "reasoning_agent/arm_v214_support.py": "6f86d3c0688be7c8f487616cc8049be767c4450a05f5902dd33319e1357d4eeb",
+    "reasoning_agent/arm_v21_diagnostics.py": "f739b4f647d7d496aa3bc1d4af667c6d3f3de34d11f5fd31159909280353fdae",
+    "reasoning_agent/answer_completeness.py": "80ea855ce5ea08dd377ccecd98a045e92217008fb308378f66ee9f3eddd9e57e",
+    "reasoning_agent/answer_completeness_v214.py": "4c112dc979ff7d44cd72aa97349aef06e5f600cc09317f86d50dc49d9872191a",
+    "reasoning_agent/arm_v21_verification.py": "ddc3781f6bdca7281c00778c0d0712e8b2d8577d5fecbde13bdf5ad6abb26292",
+    "reasoning_agent/arm_v214_verification.py": "e88e1762295706c47e08d898a3eedde0e53b4d8fa4a1b733e69c343453705bda",
+    "reasoning_agent/submission_diagnostics.py": "8f787c3a156c1108706a92821506476f39d768b3d8b4bf71a9da4cc1f0e2eeab",
+    "reasoning_agent/candidate_trust.py": "09538ec82b25d326a6834cae3ea4676c498739b540926bee366a6c1dc33d5ba1",
+    "reasoning_agent/candidate_validation.py": "d192131944b853bdaf8bcf522d65f718f50cde41d6c7ca3260f3109c57e04ac6",
+    "reasoning_agent/safe_candidate.py": "fcd8ebcb650d3da5624d00525abd726699e065632bb9bde9d4c494457488bc8b",
+    "reasoning_agent/skill_audit.py": "69307e96875b60494e937ba2fa97a4cd980a78c6cb91a502a05b10b041a1d76b",
+    "reasoning_agent/skill_guidance.py": "6954403846b4e14fc38a90c003ea707ffe9dc84e479ebc0ccf7aebf10029dcd7",
+    "reasoning_agent/runtime_policy.py": "560c3658f47dad39ff41f3dd6c7f0fead4c978cb83ef30dd7a464808631d0488",
+    "reasoning_agent/inference_policy.py": "a58088ba249862e2f226752019dcd794318e9715fdeb150313f6a2bd9c367fa8",
+    "reasoning_agent/harness_contracts.py": "21da94e9a71127111e5ea01a2632dee299f09726b757d9ca5bc7ceab997be556",
+    "reasoning_agent/arm_solver_backend.py": "204e76362fcb7955eae6666acd022bb2b0ead32b07501ada53de766cb868a0bf",
+    "deterministic_math.py": "f26965c9681198993ea37d59130dd8c46c44ab3a13ed1d30dbbae59dee7bf1cf",
+    "scripts/run_submission_promotion.py": "6b526abb9023226660be889e3a4a7fe4a552f6bb39326aa30b85deee18fc78d8",
+    "docs/excluded_approaches.md": "ffe8ba9c62aad92f87398b2a50019b9c7abd0cc70e4521fa16fe56f9a6b772e5"
+  },
+  "answer_bank": {
+    "path": "reasoning_agent/error_notebook/eval_112.json",
+    "tracked": false,
+    "runtime_read_default": false
+  },
+  "artifact_policy": "New run outputs stay under artifacts/<run_id>/ and never overwrite prior runs."
+}

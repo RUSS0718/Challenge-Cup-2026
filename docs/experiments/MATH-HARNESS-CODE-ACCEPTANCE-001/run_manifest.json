@@ -1,0 +1,36 @@
+{
+  "experiment_id": "MATH-HARNESS-CODE-ACCEPTANCE-001",
+  "phase": "zero_model_code_acceptance",
+  "status": "completed",
+  "method_id": "bounded_evidence_trajectory_selection_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "base_commit": "7da72874a0e3708958278c0f9f26c95bf5c03497",
+  "branch": "codex/fsdf-iterative-ab-001",
+  "remote_model_calls": 0,
+  "official_client_network_calls": 0,
+  "configuration": {
+    "AgentConfig.enable_constraint_fit_harness": false,
+    "SUBMISSION_CONFIG.enable_constraint_fit_harness": false,
+    "capability.enable_temporary_answer_bank": false,
+    "submission_simulation.enable_temporary_answer_bank": true
+  },
+  "commands": [
+    "<isolated-python> -m unittest -q tests.test_math_harness tests.test_user_agent tests.test_adaptive_candidate_first tests.test_car001_health_probe",
+    "<isolated-python> -m py_compile reasoning_agent/math_harness.py user_agent.py",
+    "<isolated-python> -c import llm_client; from user_agent import ReasoningAgent; construct official client with placeholder key; no chat"
+  ],
+  "artifacts": [
+    "protocol_snapshot.md",
+    "dataset_manifest.json",
+    "answers.jsonl",
+    "test_output.txt",
+    "report.json",
+    "result.md"
+  ],
+  "release_actions": {
+    "submission_config_changed": false,
+    "commit_created": false,
+    "remote_pushed": false,
+    "official_submission_changed": false
+  }
+}

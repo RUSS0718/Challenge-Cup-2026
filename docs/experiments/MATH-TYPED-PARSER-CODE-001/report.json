@@ -1,0 +1,14 @@
+{
+  "experiment_id": "MATH-TYPED-PARSER-CODE-001",
+  "phase": "typed_parser_code_acceptance",
+  "status": "completed",
+  "positive_shape_cases": 6,
+  "negative_smoke_cases": 7,
+  "typed_complete_positive": 6,
+  "typed_complete_negative": 0,
+  "zero_model_calls": true,
+  "regression_tests": 231,
+  "passed": true,
+  "capability_conclusion": "NONE",
+  "disposition": "CODE_ACCEPTED_DEFAULT_OFF"
+}

@@ -1,0 +1,17 @@
+{
+  "set_a_olymmath_hard": [
+    "OlymMATH-HARD-13-EN",
+    "OlymMATH-HARD-84-ZH",
+    "OlymMATH-HARD-32-ZH"
+  ],
+  "set_b_aime": [
+    "aime-25",
+    "aime-2024-II-2",
+    "aime-15"
+  ],
+  "set_c_hle_math": [
+    "hle-673b5fdff0294e2cbdb5bebb",
+    "hle-6720204c18dac989ee5554d4",
+    "hle-67371dc7fb093fc159cc78e8"
+  ]
+}

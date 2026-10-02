@@ -6,6 +6,8 @@ import json
 import math
 from pathlib import Path
 
+from reasoning_agent.arm_v21_diagnostics import paired_attribution
+
 
 def mcnemar_exact(b: int, c: int) -> float:
     """Two-sided exact binomial McNemar p-value (pure stdlib)."""
@@ -19,10 +21,9 @@ def mcnemar_exact(b: int, c: int) -> float:
 def paired_counts(rows: list[dict], baseline_name: str, treatment_name: str,
                   round_no: int | None = None) -> dict:
     """Pair verdicts per item; unknown/incorrect count as not-correct."""
+    filtered_rows = [row for row in rows if round_no is None or row.get("round") == round_no]
     by_variant: dict[str, dict] = {baseline_name: {}, treatment_name: {}}
-    for row in rows:
-        if round_no is not None and row.get("round") != round_no:
-            continue
+    for row in filtered_rows:
         variant = row.get("variant")
         if variant in by_variant:
             by_variant[variant][row["idx"]] = row.get("verdict", "unknown")
@@ -56,6 +57,7 @@ def paired_counts(rows: list[dict], baseline_name: str, treatment_name: str,
         "mean_gain": (treatment_correct - baseline_correct) / len(base) if base else 0.0,
         "mcnemar_exact_p": p_value,
         "significant_at_0_05": p_value < 0.05,
+        **paired_attribution(filtered_rows, baseline_name, treatment_name),
     }
 
 

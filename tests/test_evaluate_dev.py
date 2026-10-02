@@ -282,6 +282,74 @@ class JudgeCorrectTest(unittest.TestCase):
         self.assertEqual("correct", judge_correct(r"\frac{1}{2}", "0.5"))
         self.assertEqual("correct", judge_correct(r"\sqrt{4}", "2"))
 
+    def test_presentation_wrappers_do_not_create_unknowns(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct(r"4\sqrt{5}", r"$4 \sqrt{5}$"))
+        self.assertEqual("correct", judge_correct(r"\boxed{C}", "C", "choice"))
+        self.assertEqual("incorrect", judge_correct(r"\boxed{1/7}", r"\frac{2}{7}"))
+
+    def test_unicode_and_latex_symbol_forms_are_equivalent(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct(r"(\lambda-2)^2", "(λ-2)²"))
+
+    def test_textbook_display_gold_uses_terminal_equality_alias(self):
+        from scripts.evaluate_dev import judge_correct
+        gold = "$\n\\left|\\begin{array}{lll}\n1 & 2 & 1 \\\\\n2 & 1 & 3 \\\\\n2 & 1 & 1\n\\end{array}\\right|=6\n$"
+        self.assertEqual("correct", judge_correct("6", gold))
+        self.assertEqual("incorrect", judge_correct("5", gold))
+
+    def test_choice_gold_letter_can_match_option_value(self):
+        from scripts.evaluate_dev import judge_correct
+        problem = (
+            r"圆心到直线的距离为 (\quad) "
+            r"A. \sqrt{2} B. 2 C. 3 D. 3 \sqrt{2}"
+        )
+        self.assertEqual("correct", judge_correct(r"3\sqrt{2}", "D", "choice", problem))
+        self.assertEqual("incorrect", judge_correct("2", "D", "choice", problem))
+
+    def test_verbose_choice_gold_exposes_letter_and_option_alias(self):
+        from scripts.evaluate_dev import judge_correct
+        problem = r"求值 (\quad) A. 1 B. 2 C. 3 D. 4"
+        self.assertEqual("correct", judge_correct("3", "C. 3", "choice", problem))
+        self.assertEqual("correct", judge_correct("C", "C. 3", "choice", problem))
+
+    def test_yes_no_textbook_gold_accepts_explicit_binary_conclusion(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual(
+            "correct",
+            judge_correct("Yes", "Yes. It will involve a sum of integer products."),
+        )
+
+    def test_unit_text_matches_latex_unit_gold(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual(
+            "correct",
+            judge_correct(
+                "3630 square feet and 522720 square inches.",
+                r"$3630 \mathrm{ft}^{2}, 522,720 \mathrm{in}^{2}$",
+            ),
+        )
+
+    def test_verbose_vector_gold_matches_matrix_answer(self):
+        from scripts.evaluate_dev import judge_correct
+        extracted = r"\boxed{\begin{bmatrix}-2\\5\\2\end{bmatrix}}"
+        gold = (
+            r"The best approximation is $\mathbf{v}^{\prime}=3\mathbf{u}_{1}-\mathbf{u}_{2}="
+            r"\left[\begin{array}{r}-2\\5\\2\end{array}\right]$."
+        )
+        self.assertEqual("correct", judge_correct(extracted, gold))
+
+    def test_matrix_canonicalization_does_not_guess_different_values(self):
+        from scripts.evaluate_dev import judge_correct
+        extracted = r"\begin{bmatrix}-2\\5\\3\end{bmatrix}"
+        gold = r"$\left[\begin{array}{r}-2\\5\\2\end{array}\right]$"
+        self.assertEqual("unknown", judge_correct(extracted, gold))
+
+    def test_unbraced_numeric_list_matches_braced_set_only(self):
+        from scripts.evaluate_dev import judge_correct
+        self.assertEqual("correct", judge_correct("2,3", "{2,3}"))
+        self.assertEqual("unknown", judge_correct("2,3", "2,3,4"))
+
     def test_unordered_numeric_sets_are_equivalent(self):
         from scripts.evaluate_dev import judge_correct
         self.assertEqual("correct", judge_correct("{1, 1/2, 2}", "{2,0.5,1}"))

@@ -23,12 +23,10 @@ import hashlib
 import json
 import os
 import random
-import re
-import subprocess
 import sys
 import threading
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -36,18 +34,35 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from llm_client import InternChatClient
+from llm_client import DEFAULT_MODEL, InternChatClient
+from scripts.external_hard_sets_artifacts import (
+    ExternalHardSetsArtifactStore,
+    current_git_commit,
+)
 from user_agent import (
+    COD_NUMERIC_PROMPT,
     SUBMISSION_CONFIG,
     ReasoningAgent,
-    answer_equivalence,
+    build_submission_config,
     extract_answer_first,
     extract_final_answer,
+)
+from scripts.external_hard_sets_reporting import (
+    analyze,
+    analyze_claim_dsl_qualification,
+    analyze_skill_qualification,
+    arm_v2_metrics,
+    contract_check,
+    extract_contract_answer,
+    is_unknown_final,
+    judge,
+    math_verify_ok,
+    normalize_answer,
+    stage_health,
 )
 
 POOLS_DIR = ROOT / "sample_data" / "external_hard_sets"
 WRITE_LOCK = threading.Lock()
-INTEGER_RE = re.compile(r"-?\d+")
 SAMPLE_SIZE = 50
 DOMAIN_FLOOR = 2
 
@@ -59,6 +74,7 @@ FAMILIES = {
     # labels are never placed in model messages; they are used only below to
     # score route/artifact telemetry.
     "fesf_skill_qualification": "QUAL",
+    "cod_numeric_parity": "COD-PARITY",
 }
 
 
@@ -77,10 +93,9 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 def sample_set(rows: list[dict[str, Any]], set_id: str, seed: int, size: int) -> list[dict[str, Any]]:
     """Stratified sample with per-domain floor; group-level for set_a."""
-    if set_id == "fesf_skill_qualification":
-        # The qualification fixture is already frozen at 12 applicable and
-        # 12 non-applicable rows.  Sampling it by domain would destroy that
-        # balance, so select the complete file in its recorded order.
+    if set_id in {"fesf_skill_qualification", "cod_numeric_parity"}:
+        # These fixtures are already frozen. Sampling by domain would destroy
+        # their recorded balance, so select the complete file in order.
         if len(rows) != size:
             raise ValueError(f"qualification fixture has {len(rows)} rows, expected {size}")
         return list(rows)
@@ -145,80 +160,6 @@ def sample_set(rows: list[dict[str, Any]], set_id: str, seed: int, size: int) ->
     return picked[:size]
 
 
-def normalize_answer(text: str) -> str:
-    t = str(text or "").strip().strip("$").strip()
-    t = t.replace("\\left", "").replace("\\right", "").replace("\\!", "").replace("\\,", "")
-    t = t.replace("dfrac", "frac").replace("tfrac", "frac")
-    t = re.sub(r"\\text\{[^}]*\}", "", t)
-    t = re.sub(r"\s+", "", t)
-    t = t.rstrip(".")
-    if re.fullmatch(r"-?\d{1,3}(,\d{3})+", t):
-        t = t.replace(",", "")
-    return t.lower()
-
-
-def math_verify_ok(pred: str, gold: str) -> bool | None:
-    """One-shot Math-Verify via the repo subprocess helper (Windows-safe)."""
-    helper = ROOT / "scripts" / "_math_verify_once.py"
-    payload = json.dumps({"pred": pred, "gold": gold})
-    try:
-        proc = subprocess.run(
-            [sys.executable, str(helper), payload],
-            capture_output=True, text=True, timeout=60, encoding="utf-8",
-        )
-        out = proc.stdout.strip()
-        if not out:
-            return None
-        return bool(json.loads(out).get("ok"))
-    except Exception:
-        return None
-
-
-def judge(pred: str, gold: str, family: str) -> dict[str, str]:
-    """Official-style verdict: correct / incorrect / invalid + which check fired."""
-    if not pred or pred.strip().upper() in {"UNKNOWN", "未能生成有效数学答案。"}:
-        return {"verdict": "invalid", "detail": "empty_or_unknown"}
-    if family == "AIME":
-        matches = INTEGER_RE.findall(pred or "")
-        if not matches:
-            return {"verdict": "invalid", "detail": "pred_not_int"}
-        try:
-            ok = int(matches[-1]) == int(str(gold).strip())
-        except ValueError:
-            return {"verdict": "invalid", "detail": "gold_not_int"}
-        return {"verdict": "correct" if ok else "incorrect", "detail": "aime_integer_exact"}
-    if normalize_answer(pred) == normalize_answer(gold):
-        return {"verdict": "correct", "detail": "normalized_string"}
-    mv = math_verify_ok(pred, gold)
-    if mv:
-        return {"verdict": "correct", "detail": "math_verify"}
-    if mv is None and re.fullmatch(r"-?\d+", normalize_answer(pred)) and normalize_answer(pred) == normalize_answer(gold):
-        return {"verdict": "correct", "detail": "int_string"}
-    equiv = answer_equivalence(pred, str(gold))
-    if equiv == "EQUIVALENT":
-        return {"verdict": "correct", "detail": "answer_equivalence"}
-    return {"verdict": "incorrect", "detail": "no_check_matched"}
-
-
-def contract_check(final_response: str, gold: str) -> dict[str, str]:
-    """Strict submission-contract extraction on final_response only."""
-    if not final_response or final_response.strip().upper() in {"UNKNOWN", "未能生成有效数学答案。"}:
-        return {"verdict": "invalid"}
-    extracted = extract_answer_first(final_response) or extract_final_answer(final_response) or ""
-    if not extracted:
-        return {"verdict": "invalid"}
-    family_gold = str(gold)
-    if normalize_answer(extracted) == normalize_answer(family_gold):
-        return {"verdict": "correct"}
-    mv = math_verify_ok(extracted, family_gold)
-    if mv:
-        return {"verdict": "correct"}
-    equiv = answer_equivalence(extracted, family_gold)
-    if equiv == "EQUIVALENT":
-        return {"verdict": "correct"}
-    return {"verdict": "incorrect"}
-
-
 # P0 (FSDF-RELIABILITY-V2): keep stage/failure-category/fallback/budget fields
 # in compacted traces so stage health stays attributable after serialization.
 # Unknown keys are still dropped, so older baseline traces compact unchanged.
@@ -234,12 +175,60 @@ TRACE_KEEP = frozenset({
     "handoff_has_candidate_result", "d_candidate_visible_to_e",
     "e_final_equals_d_candidate", "selected_skill", "harness_route_id",
     "harness_steps_expected", "harness_steps_completed",
+    "duration_seconds",
     "skill_name", "evidence_id", "claim_id", "supported_count",
     "auxiliary_count", "refuted_count", "unresolved_count", "skill_loaded",
     "skill_choice_parsed", "applicability", "error", "execution_status",
     "claim_known", "binding_ok", "tool_request_valid", "evidence_consumed",
     "protocol_error",
+    # ARM-HARNESS-V1 bounded telemetry.  These fields contain only route,
+    # budget, candidate metadata, and request lifecycle status; prompts and
+    # response bodies are intentionally excluded.
+    "arm_policy", "arm_escalation", "arm_lane", "initial_mode",
+    "escalation_mode", "reasoning_mode", "requested_tokens", "from", "to",
+    "candidate_ids", "lane",
+    # ARM-HARNESS-V2 policy and runtime recovery telemetry.  Candidate values
+    # are retained only through the bounded summary projection below.
+    "profile", "max_calls", "token_budget", "allow_second_sample",
+    "allow_resolver", "allow_thinking_on", "failure", "action",
 })
+
+
+def _compact_arm_v2_candidate(value: Any) -> dict[str, Any] | None:
+    """Keep only bounded candidate metadata from the v2 summary event."""
+
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, Any] = {}
+    if "value" in value:
+        result["value"] = str(value["value"] or "")[:256]
+    if "valid" in value:
+        result["valid"] = bool(value["valid"])
+    if "trust" in value:
+        result["trust"] = str(value["trust"] or "")[:32]
+    if "trust_reason" in value:
+        result["trust_reason"] = str(value["trust_reason"] or "")[:240]
+    return result
+
+
+def _compact_arm_v2_summary(entry: dict[str, Any]) -> dict[str, Any]:
+    """Project v2 decision telemetry without retaining prompts or responses."""
+
+    compacted: dict[str, Any] = {
+        key: entry[key]
+        for key in (
+            "method", "stage", "profile", "early_stop", "second_sample_triggered",
+            "agreement", "conflict", "resolver_triggered", "resolver_decision",
+            "runtime_recovery_action", "final_source",
+        )
+        if key in entry
+    }
+    for key in ("candidate_a", "candidate_b"):
+        if key in entry:
+            candidate = _compact_arm_v2_candidate(entry[key])
+            if candidate is not None:
+                compacted[key] = candidate
+    return compacted
 
 _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
     "model_error", "timeout", "rate_limit", "http_status", "request",
@@ -248,31 +237,124 @@ _STAGE_CLIENT_ERROR_CATEGORIES = frozenset({
 
 
 def compact_trace(trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{k: entry[k] for k in entry if k in TRACE_KEEP} for entry in trace]
+    compacted = []
+    for entry in trace:
+        if entry.get("stage") == "evidence_ledger":
+            # Project the ARM ledger onto a small allowlist. In particular,
+            # omit candidate values, parser response text, and any unbounded
+            # objects while retaining mode, budget, and lifecycle evidence.
+            ledger: dict[str, Any] = {
+                key: entry[key]
+                for key in ("method", "harness_version", "stage")
+                if key in entry
+            }
+            ledger["candidates"] = [
+                {
+                    key: candidate[key]
+                    for key in (
+                        "candidate_id", "source", "reasoning_mode",
+                        "answer_type", "extraction_status", "verification_status",
+                    )
+                    if key in candidate
+                }
+                for candidate in entry.get("candidates") or []
+                if isinstance(candidate, dict)
+            ]
+            ledger["calls"] = [
+                {
+                    key: call[key]
+                    for key in (
+                        "call_number", "stage", "requested_tokens", "completion_tokens",
+                        "finish_reason", "duration_ms", "status", "error_category",
+                        "reasoning_mode",
+                    )
+                    if key in call
+                }
+                for call in entry.get("calls") or []
+                if isinstance(call, dict)
+            ]
+            budget = entry.get("budget")
+            if isinstance(budget, dict):
+                ledger["budget"] = {
+                    key: budget[key]
+                    for key in (
+                        "calls", "call_limit", "requested_tokens", "token_limit",
+                        "remaining_requested_tokens", "actual_completion_tokens",
+                        "actual_token_records", "budget_violated",
+                    )
+                    if key in budget
+                }
+            compacted.append(ledger)
+        elif entry.get("stage") == "arm_v2_summary":
+            compacted.append(_compact_arm_v2_summary(entry))
+        else:
+            compacted.append({k: entry[k] for k in entry if k in TRACE_KEEP})
+    return compacted
 
 
-def client_diagnostics(client: Any) -> dict[str, list[Any]]:
+def client_diagnostics(
+    client: Any,
+    trace: list[dict[str, Any]] | None = None,
+) -> dict[str, list[Any]]:
     """Per-task public client diagnostics (call-ordered, bounded).
 
     Each task owns its client, so the lists align with that task's calls even
     under workers=3.  Missing attributes degrade to empty lists instead of
     guessing from response text.
     """
-    def bounded(name: str) -> list[Any]:
+    def bounded(name: str, limit: int = 8) -> list[Any]:
         values = getattr(client, name, None)
         if not isinstance(values, list):
             return []
-        return list(values[:8])
+        return list(values[:limit])
+
+    # The client deliberately does not receive stage labels.  Join its
+    # logical-call index to the solve-local budget ledger, which uses the same
+    # one-based order, without retaining prompts or response content.
+    stages: dict[int, str] = {}
+    for event in trace or []:
+        if event.get("stage") != "evidence_ledger":
+            continue
+        for call in event.get("calls") or []:
+            try:
+                stages[int(call.get("call_number"))] = str(call.get("stage") or "")
+            except (TypeError, ValueError):
+                continue
+        break
+    request_events = bounded("request_diagnostics", 16)
+    requests: list[dict[str, Any]] = []
+    for event in request_events:
+        if not isinstance(event, dict):
+            continue
+        try:
+            logical_index = int(event.get("logical_call_index"))
+        except (TypeError, ValueError):
+            logical_index = -1
+        requests.append({
+            "logical_call_index": logical_index,
+            "request_sequence": event.get("request_sequence"),
+            "stage": stages.get(logical_index + 1, ""),
+            "reasoning_mode": event.get("reasoning_mode"),
+            "thinking_mode": event.get("thinking_mode"),
+            "status": event.get("status"),
+            "requested_tokens": event.get("max_tokens"),
+            "completion_tokens": event.get("completion_tokens"),
+            "finish_reason": event.get("finish_reason"),
+            "duration_seconds": event.get("duration_seconds"),
+            "error_category": event.get("error_category"),
+        })
 
     return {
         "finish_reasons": bounded("finish_reasons"),
         "completion_tokens": bounded("completion_tokens"),
+        "latencies": bounded("latencies"),
+        "requests": requests,
     }
 
 
 # ── Dual-arm support: same-window interleaved arms on the frozen pools ──
-# `v1` is the untouched submission profile (FSDF v1 anchor).  `v2` turns on the
-# four FSDF-RELIABILITY-V2 candidate flags on top of the same profile.  `v2hd`
+# `v1` is the explicit FSDF v1 anchor.  `v2` turns on the four
+# FSDF-RELIABILITY-V2 candidate flags on top of the same profile.  `v2hd`
 # additionally turns on fsdf_handoff_first_d_v1 (D prompt only).  These are
 # exploratory diagnostic arms; combined arms are NOT attributable per variable
 # and produce no capability conclusion by themselves.
@@ -305,15 +387,61 @@ FSDF_CANDIDATE_FLAGS = (
 
 
 def _arm_overrides(enabled: tuple[str, ...] = ()) -> dict[str, bool]:
-    """Pin every candidate flag explicitly so arm semantics survive any
-    future SUBMISSION_CONFIG drift (arms are defined relative to the
-    submission profile with all candidate flags forced, not inherited)."""
-    return {**{flag: False for flag in FSDF_CANDIDATE_FLAGS},
+    """Pin every candidate flag so historical arms stay independent."""
+    return {"enable_current_cod_numeric": False,
+            **{flag: False for flag in FSDF_CANDIDATE_FLAGS},
             **{flag: True for flag in enabled}}
 
 
-ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
+ARM_DEFINITIONS: dict[str, dict[str, Any]] = {
     "v1": _arm_overrides(),
+    # C0/legacy baseline and its single prompt-only CoD candidate.  Both arms
+    # are explicitly bank-off and keep the non-FSDF answering path.
+    "current_c0": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": False,
+        "enable_temporary_answer_bank": False,
+        "enable_current_cod_numeric": False,
+        "enable_contextual_answer_reconstruction": False,
+        "enable_heterogeneous_reasoners": False,
+        "enable_adaptive_voting": True,
+        "max_model_calls": 5,
+        "max_tokens": 4096,
+        "l0_max_tokens": 4096,
+        "enable_numeric_answer_first_prompt": False,
+        "enable_numeric_answer_only_prompt": True,
+    },
+    "current_cod_numeric": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": False,
+        "enable_temporary_answer_bank": False,
+        "enable_current_cod_numeric": True,
+        "enable_contextual_answer_reconstruction": False,
+        "enable_heterogeneous_reasoners": False,
+        "enable_adaptive_voting": True,
+        "max_model_calls": 5,
+        "max_tokens": 4096,
+        "l0_max_tokens": 4096,
+        "enable_numeric_answer_first_prompt": False,
+        "enable_numeric_answer_only_prompt": True,
+    },
+    # Protocol-stability baseline/candidate: both arms are explicitly bank-off
+    # and diagnostics-on; the candidate changes only multi-line D→E handoff.
+    "fsdf_protocol_v1": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": True,
+        "enable_temporary_answer_bank": False,
+        "enable_contextual_answer_reconstruction": False,
+        "enable_fsdf_diagnostics_v2": True,
+    },
+    "fsdf_multiline_handoff_v2": {
+        **_arm_overrides(),
+        "enable_fork_select_deepen_finish": True,
+        "enable_temporary_answer_bank": False,
+        "enable_contextual_answer_reconstruction": False,
+        "enable_fsdf_diagnostics_v2": True,
+        "enable_fsdf_multiline_handoff_v2": True,
+    },
     # Explicit names used by the FESF v1 qualification/A-B protocol.
     "fsdf_v1_tkoff": {
         **_arm_overrides(),
@@ -417,11 +545,112 @@ ARM_DEFINITIONS: dict[str, dict[str, bool]] = {
     )),
 }
 
+# ARM-HARNESS-V1 profiles.  They share the same outer harness and bank-off
+# policy; only the request-level reasoning-mode lane differs.  Keeping these
+# definitions here lets the runner clone the explicit FSDF baseline without
+# mutating or inheriting the official submission path.
+ARM_HARNESS_BASE = {
+    **_arm_overrides(),
+    "enable_constraint_fit_harness": True,
+    "enable_constraint_fit_deep_lane": True,
+    "enable_constraint_fit_hybrid_router": False,
+    "enable_arm_harness": True,
+    "enable_fork_select_deepen_finish": False,
+    "enable_adaptive_candidate_first": False,
+    "enable_adaptive_dual_candidate_consensus": False,
+    "enable_adaptive_voting": False,
+    "enable_heterogeneous_reasoners": False,
+    "enable_numeric_answer_first_prompt": False,
+    "enable_contextual_answer_reconstruction": False,
+    "enable_typed_answer_capsule": False,
+    "enable_condition_checked_selection": False,
+    "enable_plan_solve_compact": False,
+    "enable_fesf_v1": False,
+    "enable_fesf_exact_eval": False,
+    "enable_fesf_claim_dsl": False,
+    "enable_method_rag": False,
+    "enable_reference_rag": False,
+    "enable_reference_skills": False,
+    "enable_host_intake": False,
+    "enable_bounded_obligation_extractor": False,
+    "enable_constraint_fit_migration_hardening": False,
+    "enable_constraint_fit_deterministic_playoff": False,
+    "enable_constraint_fit_process_audit": False,
+    "enable_constraint_fit_prefill": False,
+    "harness_bank_mode": "off",
+    "enable_temporary_answer_bank": False,
+}
+ARM_DEFINITIONS.update({
+    "arm-off": {
+        **ARM_HARNESS_BASE,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+    "arm-on": {
+        **ARM_HARNESS_BASE,
+        "arm_allow_thinking_on": True,
+        "arm_default_lane": "deep_on",
+    },
+    "arm-static": {
+        **ARM_HARNESS_BASE,
+        "arm_allow_thinking_on": True,
+        "arm_default_lane": "static",
+    },
+    "arm-adaptive": {
+        **ARM_HARNESS_BASE,
+        "arm_allow_thinking_on": True,
+        "arm_default_lane": "adaptive",
+    },
+})
+
+# ARM-HARNESS-V2 experiment arms.  They use the same bank-off harness base as
+# v1, but pin the v2 compute/recovery policy so an experiment cannot inherit a
+# future submission-profile change.
+ARM_DEFINITIONS.update({
+    "arm-v2-single": {
+        **ARM_HARNESS_BASE,
+        "arm_harness_version": "v2",
+        "arm_v2_mode": "single",
+        "arm_timeout_recovery_mode": "none",
+        "arm_primary_timeout_seconds": None,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+    "arm-v2-selective": {
+        **ARM_HARNESS_BASE,
+        "arm_harness_version": "v2",
+        "arm_v2_mode": "selective",
+        "arm_timeout_recovery_mode": "none",
+        "arm_primary_timeout_seconds": None,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+    "arm-v2-long-timeout": {
+        **ARM_HARNESS_BASE,
+        "arm_harness_version": "v2",
+        "arm_v2_mode": "long_timeout",
+        "arm_timeout_recovery_mode": "none",
+        "arm_primary_timeout_seconds": 60,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+    "arm-v2-salvage": {
+        **ARM_HARNESS_BASE,
+        "arm_harness_version": "v2",
+        "arm_v2_mode": "salvage",
+        "arm_timeout_recovery_mode": "compact_salvage",
+        "arm_primary_timeout_seconds": 30,
+        "arm_allow_thinking_on": False,
+        "arm_default_lane": "adaptive",
+    },
+})
+
 
 def arm_config(arm: str) -> Any:
     if arm not in ARM_DEFINITIONS:
         raise ValueError(f"unknown arm: {arm} (available: {', '.join(ARM_DEFINITIONS)})")
-    return dataclasses.replace(SUBMISSION_CONFIG, **ARM_DEFINITIONS[arm])
+    base = build_submission_config("fsdf")
+    return dataclasses.replace(base, **ARM_DEFINITIONS[arm])
 
 
 # Per-arm client-level thinking switch: None = server default (env), False =
@@ -435,6 +664,17 @@ ARM_THINKING_MODE: dict[str, bool | None] = {
     "v2hd_bs_hs_tkoff": False,
     "v2hd_hs_sr": False,
     "v2hd_hs_tkh": False,
+    # ARM controls thinking per request through reasoning_mode.  Keeping the
+    # client default at None prevents a process-level switch from contaminating
+    # the paired window.
+    "arm-off": None,
+    "arm-on": None,
+    "arm-static": None,
+    "arm-adaptive": None,
+    "arm-v2-single": None,
+    "arm-v2-selective": None,
+    "arm-v2-long-timeout": None,
+    "arm-v2-salvage": None,
 }
 
 
@@ -502,7 +742,7 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     pred = extract_for_judge(result)
     family = FAMILIES[task["set_id"]]
     native = judge(pred, item["answer"], family)
-    contract = contract_check(final_response, item["answer"])
+    contract = contract_check(final_response, item["answer"], family)
     compact_trace_rows = compact_trace(trace)
     # trace hygiene: the API key must never appear anywhere in the serialized result
     serializable = True
@@ -515,17 +755,85 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     except (TypeError, ValueError):
         serializable = False
         status = status if status != "ok" else "error:not_serializable"
-    format_ok = bool(
-        isinstance(final_response, str) and final_response.strip()
-        and final_response.strip().upper() != "UNKNOWN"
+    nonempty_final = isinstance(final_response, str) and bool(final_response.strip())
+    contract_extractable = bool(extract_contract_answer(final_response, family))
+    format_ok = contract_extractable
+    client_diag = client_diagnostics(client, compact_trace_rows)
+    arm_policy = next(
+        (event for event in compact_trace_rows if event.get("stage") == "arm_policy"),
+        {},
     )
-    client_diag = client_diagnostics(client)
+    arm_escalations = [
+        event for event in compact_trace_rows
+        if event.get("stage") == "arm_escalation"
+    ]
+    v2_summary = next(
+        (event for event in compact_trace_rows if event.get("stage") == "arm_v2_summary"),
+        {},
+    )
+    v2_candidate_a = v2_summary.get("candidate_a") or {}
+    v2_candidate_b = v2_summary.get("candidate_b") or {}
+    evidence = next(
+        (event for event in compact_trace_rows if event.get("stage") == "evidence_ledger"),
+        {},
+    )
+    candidates = [
+        {
+            key: candidate[key]
+            for key in ("candidate_id", "source", "reasoning_mode", "extraction_status", "verification_status")
+            if key in candidate
+        }
+        for candidate in evidence.get("candidates") or []
+        if isinstance(candidate, dict)
+    ]
+    request_modes = [
+        request.get("reasoning_mode")
+        for request in client_diag["requests"]
+        if request.get("reasoning_mode") in {"off", "on", "inherit"}
+    ]
+    request_errors = [
+        request.get("error_category")
+        for request in client_diag["requests"]
+        if request.get("status") == "error" and request.get("error_category")
+    ]
+    if status == "ok" and request_errors and is_unknown_final(final_response):
+        # A request error is a request-level diagnostic.  It becomes a final
+        # solve error only when no usable final response survived.
+        status = f"error:{request_errors[-1]}"
     record = {
         "set_id": task["set_id"],
         "item_id": item["item_id"],
         "arm": arm,
         "pair_order": task.get("pair_order", ""),
-        "thinking_mode": "off" if arm_thinking_mode(arm) is False else "default",
+        "thinking_mode": (
+            "request_scoped" if arm.startswith("arm-")
+            else "off" if arm_thinking_mode(arm) is False
+            else "default"
+        ),
+        "arm_lane": arm_policy.get("lane", ""),
+        "arm_policy": arm_policy,
+        "arm_escalation": arm_escalations,
+        "arm_v2_summary": v2_summary,
+        "candidate_a": v2_candidate_a.get("value"),
+        "candidate_a_valid": v2_candidate_a.get("valid"),
+        "candidate_a_trust": v2_candidate_a.get("trust"),
+        "candidate_b": v2_candidate_b.get("value"),
+        "candidate_b_valid": v2_candidate_b.get("valid"),
+        "candidate_b_trust": v2_candidate_b.get("trust"),
+        "early_stop": bool(v2_summary.get("early_stop")),
+        "second_sample_triggered": bool(v2_summary.get("second_sample_triggered")),
+        "agreement": bool(v2_summary.get("agreement")),
+        "conflict": bool(v2_summary.get("conflict")),
+        "resolver_triggered": bool(v2_summary.get("resolver_triggered")),
+        "resolver_decision": v2_summary.get("resolver_decision"),
+        "runtime_recovery_action": v2_summary.get("runtime_recovery_action"),
+        "final_source": v2_summary.get("final_source"),
+        "initial_mode": arm_policy.get("initial_mode", ""),
+        "escalation_mode": arm_policy.get("escalation_mode", ""),
+        "reasoning_modes": request_modes,
+        "candidate_telemetry": candidates,
+        "candidate_count": len(candidates),
+        "token_budget": arm_policy.get("token_budget"),
         "problem_group_id": item.get("problem_group_id", ""),
         "language": item.get("language", ""),
         "domain": item["domain"],
@@ -539,6 +847,8 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "native": native,
         "contract": contract,
         "verdict_match": native["verdict"] == contract["verdict"],
+        "nonempty_final": nonempty_final,
+        "contract_extractable": contract_extractable,
         "format_ok": format_ok,
         "json_serializable": serializable,
         "model_calls": calls,
@@ -546,6 +856,8 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
         "trace": compact_trace_rows,
         "client_finish_reasons": client_diag["finish_reasons"],
         "client_completion_tokens": client_diag["completion_tokens"],
+        "client_request_diagnostics": client_diag["requests"],
+        "request_error_categories": request_errors,
     }
     # Qualification labels are scorer-only metadata.  ``solve`` above only
     # receives problem text and an index, so this field cannot enter any model
@@ -567,281 +879,6 @@ def solve_one(task: dict[str, Any], timeout: int, api_key: str) -> dict[str, Any
     return record
 
 
-def stage_health(rows: list[dict[str, Any]]) -> dict[str, int]:
-    """Separate counters for stage-level failures visible in compacted traces.
-
-    A solve can return successfully while stages failed internally; these
-    counts survive precisely because ``stage``/``error_category`` are kept in
-    the compact trace.  Historical artifacts that already dropped fields are
-    never back-filled.
-    """
-    counters = {
-        "stage_client_errors": 0,
-        "stage_invalid_responses": 0,
-        "stage_protocol_failures": 0,
-        "stage_skipped": 0,
-        "handoff_missing": 0,
-        "handoff_clipped": 0,
-    }
-    for row in rows:
-        for event in row.get("trace") or []:
-            status = event.get("status")
-            category = event.get("error_category")
-            if status == "failed":
-                if category == "invalid_response":
-                    counters["stage_invalid_responses"] += 1
-                elif category in _STAGE_CLIENT_ERROR_CATEGORIES:
-                    counters["stage_client_errors"] += 1
-            elif status == "protocol_failed":
-                counters["stage_protocol_failures"] += 1
-            elif status == "skipped":
-                counters["stage_skipped"] += 1
-            if event.get("handoff_missing_fields"):
-                counters["handoff_missing"] += 1
-            if event.get("handoff_clipped"):
-                counters["handoff_clipped"] += 1
-    return counters
-
-
-def analyze_skill_qualification(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Score the scorer-only 12/12 Skill qualification labels.
-
-    The model sees only ``problem`` and an opaque index.  All fields used here
-    are copied from the answer record after the solve and therefore cannot be a
-    routing shortcut.  Denominators are exposed so a no-selection/no-request
-    run cannot look like a passing zero.
-    """
-    qrows = [row for row in rows if "qualification_applicable" in row]
-
-    def selected(row: dict[str, Any]) -> bool:
-        return bool(row.get("skill_selected"))
-
-    def tool_events(row: dict[str, Any]) -> list[dict[str, Any]]:
-        return list(row.get("tool_events") or [])
-
-    n = len(qrows)
-    applicable = [row for row in qrows if row.get("qualification_applicable") is True]
-    non_applicable = [row for row in qrows if row.get("qualification_applicable") is False]
-    selected_applicable = [row for row in applicable if selected(row)]
-    selected_non_applicable = [row for row in non_applicable if selected(row)]
-    parsed = sum(1 for row in qrows if row.get("skill_choice_parsed"))
-    matches = sum(1 for row in qrows if selected(row) == bool(row.get("qualification_applicable")))
-
-    events = [event for row in qrows for event in tool_events(row)]
-    complete_rows = sum(
-        1
-        for row in selected_applicable
-        if any(
-            event.get("claim_known")
-            and event.get("binding_ok")
-            and event.get("tool_request_valid")
-            for event in tool_events(row)
-        )
-    )
-    valid_requests = [event for event in events if event.get("tool_request_valid")]
-    execution_successes = [
-        event for event in valid_requests
-        if event.get("execution_status") == "ok"
-        and event.get("status") in {"EXACT", "REFUTED"}
-    ]
-    usable_evidence = [
-        event for event in events
-        if event.get("tool_request_valid")
-        and event.get("binding_ok")
-        and event.get("status") in {"EXACT", "REFUTED"}
-    ]
-    consumed = [event for event in usable_evidence if event.get("evidence_consumed")]
-    wrong_deterministic = sum(
-        1
-        for event in events
-        if event.get("status") in {"EXACT", "REFUTED"}
-        and (
-            not event.get("tool_request_valid")
-            or not event.get("binding_ok")
-            or event.get("execution_status") != "ok"
-        )
-    )
-
-    def ratio(numerator: int, denominator: int) -> float | None:
-        return round(numerator / denominator, 4) if denominator else None
-
-    applicable_selection_rate = ratio(sum(1 for row in applicable if selected(row)), len(applicable))
-    non_applicable_none_rate = ratio(
-        sum(1 for row in non_applicable if not selected(row)), len(non_applicable)
-    )
-    artifact_rate = ratio(complete_rows, len(selected_applicable))
-    valid_request_rate = ratio(len(valid_requests), len(events))
-    execution_rate = ratio(len(execution_successes), len(valid_requests))
-    consumed_rate = ratio(len(consumed), len(usable_evidence))
-    d_protocol_failures = sum(
-        1
-        for row in qrows
-        for event in row.get("trace") or []
-        if event.get("stage") == "synthesize" and event.get("status") == "protocol_failed"
-    )
-
-    gates = {
-        "applicable_selection_ge_10_of_12": len(applicable) == 12 and sum(1 for row in applicable if selected(row)) >= 10,
-        "non_applicable_none_ge_11_of_12": len(non_applicable) == 12 and sum(1 for row in non_applicable if not selected(row)) >= 11,
-        "artifact_complete_ge_80pct": artifact_rate is not None and artifact_rate >= 0.8,
-        "tool_execution_success_ge_90pct": execution_rate is not None and execution_rate >= 0.9,
-        "evidence_consumed_ge_80pct": consumed_rate is not None and consumed_rate >= 0.8,
-        "wrong_supported_or_refuted_zero": wrong_deterministic == 0,
-        # Q is a single candidate arm by design; there is no baseline from
-        # which to estimate a causal reversal.  The observed count is zero and
-        # the later paired capability windows remain the causal gate.
-        "skill_attributable_correct_to_incorrect_zero": True,
-    }
-    return {
-        "n": n,
-        "applicable_n": len(applicable),
-        "non_applicable_n": len(non_applicable),
-        "skill_choice_parse_rate": ratio(parsed, n),
-        "applicable_selected": sum(1 for row in applicable if selected(row)),
-        "applicable_selection_rate": applicable_selection_rate,
-        "non_applicable_none": sum(1 for row in non_applicable if not selected(row)),
-        "non_applicable_none_rate": non_applicable_none_rate,
-        "applicability_match_rate": ratio(matches, n),
-        "selected_applicable_n": len(selected_applicable),
-        "required_artifact_complete": complete_rows,
-        "required_artifact_complete_rate": artifact_rate,
-        "tool_request_n": len(events),
-        "tool_request_valid_n": len(valid_requests),
-        "tool_request_valid_rate": valid_request_rate,
-        "tool_execution_success_n": len(execution_successes),
-        "tool_execution_success_rate": execution_rate,
-        "usable_evidence_n": len(usable_evidence),
-        "evidence_consumed_n": len(consumed),
-        "evidence_consumed_by_d_rate": consumed_rate,
-        "wrong_supported_or_refuted": wrong_deterministic,
-        "skill_attributable_correct_to_incorrect": 0,
-        "d_protocol_failures": d_protocol_failures,
-        "gates": gates,
-        "qualification_pass": all(gates.values()),
-        "causal_note": "single FESF arm; reversal count is observed-zero/not-estimable until paired capability windows",
-    }
-
-
-def analyze_claim_dsl_qualification(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Score Claim DSL telemetry.  Labels never enter model messages."""
-
-    qrows = [row for row in rows if row.get("arm") == "fesf_v1_tkoff_claim_dsl" or "claim_dsl_events" in row]
-    events = [event for row in qrows for event in (row.get("claim_dsl_events") or [])]
-    verify_events = [event for event in events if event.get("evidence_id")]
-    parse_ok = sum(1 for event in events if event.get("execution_status") == "ok")
-    bound = sum(1 for event in verify_events if event.get("binding_ok") and event.get("claim_known"))
-    exact = sum(1 for event in verify_events if event.get("status") == "EXACT")
-    refuted = sum(1 for event in verify_events if event.get("status") == "REFUTED")
-    unknown = sum(1 for event in verify_events if event.get("status") == "UNKNOWN")
-    wrong = sum(
-        1
-        for event in verify_events
-        if event.get("status") in {"EXACT", "REFUTED"}
-        and (
-            not event.get("binding_ok")
-            or not event.get("claim_known")
-            or event.get("execution_status") != "ok"
-        )
-    )
-    unknown_upgraded = sum(
-        1
-        for event in verify_events
-        if event.get("status") == "UNKNOWN" and event.get("evidence_consumed")
-    )
-    max_calls = max((int(row.get("model_calls") or 0) for row in qrows), default=0)
-    top_errors = sum(1 for row in qrows if str(row.get("status", "")).startswith("error"))
-
-    def ratio(numerator: int, denominator: int) -> float | None:
-        return round(numerator / denominator, 4) if denominator else None
-
-    gates = {
-        "wrong_exact_or_refuted_zero": wrong == 0,
-        "unknown_not_consumed": unknown_upgraded == 0,
-        "max_calls_le_5": max_calls <= 5,
-        "top_level_error_lt_10pct": (top_errors / len(qrows) < 0.10) if qrows else False,
-    }
-    return {
-        "n": len(qrows),
-        "claim_dsl_event_n": len(events),
-        "verify_event_n": len(verify_events),
-        "parse_or_execute_ok_n": parse_ok,
-        "bound_n": bound,
-        "exact_n": exact,
-        "refuted_n": refuted,
-        "unknown_n": unknown,
-        "wrong_exact_or_refuted": wrong,
-        "unknown_consumed": unknown_upgraded,
-        "max_calls": max_calls,
-        "top_level_errors": top_errors,
-        "parse_ok_rate": ratio(parse_ok, len(events)),
-        "bound_rate": ratio(bound, len(verify_events)),
-        "gates": gates,
-        "qualification_pass": all(gates.values()),
-        "causal_note": "single Claim DSL arm; no paired baseline, not a capability conclusion",
-    }
-
-
-def analyze(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    out: dict[str, Any] = {"overall": {}, "by_set": {}}
-    def stats(subset: list[dict[str, Any]]) -> dict[str, Any]:
-        n = len(subset)
-        s: dict[str, Any] = {
-            "n": n,
-            "native_correct": sum(1 for r in subset if r["native"]["verdict"] == "correct"),
-            "native_incorrect": sum(1 for r in subset if r["native"]["verdict"] == "incorrect"),
-            "invalid": sum(1 for r in subset if r["native"]["verdict"] == "invalid"),
-            "contract_correct": sum(1 for r in subset if r["contract"]["verdict"] == "correct"),
-            "contract_incorrect": sum(1 for r in subset if r["contract"]["verdict"] == "incorrect"),
-            "contract_invalid": sum(1 for r in subset if r["contract"]["verdict"] == "invalid"),
-            "verdict_mismatch": sum(
-                1 for r in subset
-                if r.get("native", {}).get("verdict") != r.get("contract", {}).get("verdict")
-            ),
-            "format_ok": sum(1 for r in subset if r["format_ok"]),
-            "serializable": sum(1 for r in subset if r["json_serializable"]),
-            "model_error": sum(1 for r in subset if str(r["status"]).startswith("error")),
-            "unknown_final": sum(
-                1 for r in subset
-                if str(r.get("final_response", "")).strip().upper() == "UNKNOWN"
-            ),
-            "mean_calls": round(sum(r["model_calls"] for r in subset) / n, 2) if n else 0,
-            "max_calls": max((r["model_calls"] for r in subset), default=0),
-            "mean_duration_s": round(sum(r["duration_seconds"] for r in subset) / n, 1) if n else 0,
-            "p95_duration_s": round(sorted(r["duration_seconds"] for r in subset)[int(n * 0.95) - 1], 1) if n >= 20 else None,
-        }
-        s["native_accuracy"] = round(s["native_correct"] / n, 4) if n else 0
-        # 完整判定对比：correct 数一致不代表逐题判定一致。
-        s["correct_count_consistent"] = s["native_correct"] == s["contract_correct"]
-        s.update(stage_health(subset))
-        return s
-    out["overall"] = stats(rows)
-    out["judge_note"] = (
-        "native 与 contract 均为本地近似判定（AIME 整数精确 / Math-Verify / 归一化字符串 / "
-        "answer_equivalence / 严格抽取契约），不是真实官方 judger 的等价实现。"
-    )
-    arms = sorted({str(r.get("arm", "")) for r in rows} - {""})
-    if arms:
-        out["by_arm"] = {arm: stats([r for r in rows if str(r.get("arm")) == arm]) for arm in arms}
-    by_domain: dict[str, dict[str, Any]] = {}
-    for domain in sorted({r["domain"] for r in rows}):
-        by_domain[domain] = stats([r for r in rows if r["domain"] == domain])
-    out["by_domain"] = by_domain
-    for set_id in sorted({r["set_id"] for r in rows}):
-        subset = [r for r in rows if r["set_id"] == set_id]
-        entry = stats(subset)
-        entry["by_domain"] = {
-            d: stats([r for r in subset if r["domain"] == d])
-            for d in sorted({r["domain"] for r in subset})
-        }
-        entry["by_language"] = dict(Counter(r["language"] for r in subset))
-        out["by_set"][set_id] = entry
-    if any("qualification_applicable" in row for row in rows):
-        out["skill_qualification"] = analyze_skill_qualification(rows)
-    if any("claim_dsl_events" in row for row in rows):
-        out["claim_dsl_qualification"] = analyze_claim_dsl_qualification(rows)
-    return out
-
-
 def apply_thinking_mode(mode: str) -> None:
     """Set the client-side thinking-mode switch for this process.
 
@@ -857,31 +894,132 @@ def apply_thinking_mode(mode: str) -> None:
     os.environ["INTERN_THINKING_MODE"] = mode
 
 
-def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
+def run_preflight(
+    output_dir: Path | None,
+    timeout: int = 240,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Run three bounded resource requests before a CoD qualification window."""
+    artifacts = ExternalHardSetsArtifactStore.create(
+        root=ROOT,
+        output_dir=output_dir,
+        run_id=run_id,
+        config="external-hard-sets-preflight",
+        dataset="endpoint-health-preflight",
+        model=os.environ.get("INTERN_MODEL", DEFAULT_MODEL),
+        git_commit=current_git_commit(ROOT),
+    )
+    output_dir = artifacts.run_dir
+    requests: list[dict[str, Any]] = []
+    for index in range(3):
+        started = time.perf_counter()
+        client = None
+        status = "ok"
+        error_category = None
+        try:
+            client = InternChatClient(timeout=timeout, retry=1)
+            response = client.chat(
+                [{"role": "user", "content": "Resource preflight. Return exactly PREFLIGHT_OK."}],
+                temperature=0.0,
+                max_tokens=2048,
+            )
+            if not isinstance(response, str) or not response.strip():
+                status = "invalid_response"
+                error_category = "invalid_response"
+        except Exception as exc:
+            status = "error"
+            error_category = getattr(exc, "category", type(exc).__name__)
+        requests.append({
+            "request_index": index + 1,
+            "status": status,
+            "error_category": error_category,
+            "elapsed_seconds": round(time.perf_counter() - started, 3),
+            "finish_reason": client.finish_reasons[-1] if client and client.finish_reasons else None,
+            "completion_tokens": client.completion_tokens[-1] if client and client.completion_tokens else None,
+        })
+    report = {
+        "phase": "P1_resource_preflight",
+        "requests": requests,
+        "success_count": sum(item["status"] == "ok" for item in requests),
+        "client_errors": sum(item["status"] == "error" for item in requests),
+        "timeouts": sum(item["error_category"] == "timeout" for item in requests),
+        "invalid_responses": sum(item["status"] == "invalid_response" for item in requests),
+        "pass": all(item["status"] == "ok" for item in requests),
+        "thinking_mode": "official_default / client thinking_mode=None",
+        "max_tokens": 2048,
+        "request_timeout_seconds": timeout,
+        "run_id": artifacts.context.run_id,
+    }
+    artifacts.save_preflight(report)
+    artifacts.save_manifest(
+        {
+            "phase": report["phase"],
+            "request_timeout_seconds": timeout,
+            "preflight_pass": report["pass"],
+        },
+        status="completed" if report["pass"] else "failed",
+    )
+    return report
+
+
+def run(output_dir: Path | None, timeout: int, workers: int, seed: int, hard_stop_minutes: float,
         sample_size: int, sets: list[str], arms: list[str] | None = None,
-        run_id: str = "EXTERNAL-HARD-SETS-SMOKE-001", pairing: str = "independent",
-        thinking_mode: str = "default") -> None:
+        run_id: str | None = None, pairing: str = "independent",
+        thinking_mode: str = "default", sample_sizes: dict[str, int] | None = None,
+        fixed_items: dict[str, list[str]] | None = None) -> None:
+    """Run a resumable hard-set window and persist it below one run directory."""
     arms = arms or ["v1"]
     for arm in arms:
         arm_config(arm)  # validate early
     if pairing not in ("independent", "paired"):
         raise SystemExit(f"unknown pairing mode: {pairing}")
     apply_thinking_mode(thinking_mode)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    artifacts = ExternalHardSetsArtifactStore.create(
+        root=ROOT,
+        output_dir=output_dir,
+        run_id=run_id,
+        config="external-hard-sets-smoke",
+        dataset=",".join(sets),
+        model=os.environ.get("INTERN_MODEL", DEFAULT_MODEL),
+        git_commit=current_git_commit(ROOT),
+    )
+    output_dir = artifacts.run_dir
+    if set(arms).intersection({"current_c0", "current_cod_numeric"}):
+        preflight_path = output_dir / "preflight.json"
+        if not preflight_path.exists():
+            raise SystemExit("CoD qualification requires a passing preflight.json")
+        if not json.loads(preflight_path.read_text(encoding="utf-8")).get("pass"):
+            raise SystemExit("CoD qualification preflight did not pass")
     api_key = os.environ.get("INTERN_API_KEY", "")
     all_tasks: list[dict[str, Any]] = []
     sampled_manifest: dict[str, list[str]] = {}
+    effective_sample_sizes: dict[str, int] = {}
     for set_id in sets:
         pool_path = (
             ROOT / "sample_data" / "fesf_skill_qualification.jsonl"
             if set_id == "fesf_skill_qualification"
+            else ROOT / "sample_data" / "cod_numeric_parity.jsonl"
+            if set_id == "cod_numeric_parity"
             else POOLS_DIR / f"{set_id}.jsonl"
         )
         rows = load_jsonl(pool_path)
-        picked = sample_set(rows, set_id, seed, sample_size)
-        if len(picked) != sample_size:
-            raise SystemExit(f"{set_id}: sampled {len(picked)} != {sample_size}")
+        size = (sample_sizes or {}).get(set_id, sample_size)
+        if fixed_items and set_id in fixed_items:
+            ids = fixed_items[set_id]
+            if len(ids) != len(set(ids)):
+                raise SystemExit(f"{set_id}: fixed item ids must be unique")
+            by_id = {str(row.get("item_id")): row for row in rows}
+            missing = [item_id for item_id in ids if item_id not in by_id]
+            if missing:
+                raise SystemExit(f"{set_id}: fixed item is missing: {missing}")
+            picked = [by_id[item_id] for item_id in ids]
+            size = len(picked)
+        else:
+            picked = sample_set(rows, set_id, seed, size)
+        if len(picked) != size:
+            raise SystemExit(f"{set_id}: sampled {len(picked)} != {size}")
         sampled_manifest[set_id] = [r["item_id"] for r in picked]
+        effective_sample_sizes[set_id] = len(picked)
         for i, item in enumerate(picked):
             all_tasks.append({"set_id": set_id, "item": item, "seed": seed, "task_idx": f"{set_id}-{i}"})
     rng = random.Random(seed)
@@ -891,7 +1029,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     else:
         assign_arms(all_tasks, arms)
 
-    answers_path = output_dir / "answers.jsonl"
+    answers_path = artifacts.answers_path
     done_keys: set[tuple[str, str, str]] = set()
     if answers_path.exists():
         for row in load_jsonl(answers_path):
@@ -902,9 +1040,13 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     ]
 
     manifest = {
-        "run_id": run_id,
+        "run_id": artifacts.context.run_id,
         "pools_dir": str(POOLS_DIR.relative_to(ROOT)).replace("\\", "/"),
         "pool_sha256": {p.name: sha256_file(p) for p in sorted(POOLS_DIR.glob("*.jsonl"))},
+        "custom_pool_sha256": {
+            "cod_numeric_parity.jsonl": sha256_file(ROOT / "sample_data" / "cod_numeric_parity.jsonl")
+            if "cod_numeric_parity" in sets else None,
+        },
         "qualification_file": (
             "sample_data/fesf_skill_qualification.jsonl"
             if "fesf_skill_qualification" in sets else None
@@ -918,14 +1060,25 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "request_timeout_seconds": timeout,
         "hard_stop_minutes": hard_stop_minutes,
         "sample_size_per_set": sample_size,
+        "sample_sizes": effective_sample_sizes,
+        "fixed_items": fixed_items,
         "sampled_items": sampled_manifest,
         "arms": arms,
         "arm_assignment": "round_robin_over_seeded_shuffle",
         "pairing": pairing,
         "thinking_mode": thinking_mode,
+        "prompt_hashes": {
+            "cod_numeric": hashlib.sha256(COD_NUMERIC_PROMPT.encode("utf-8")).hexdigest(),
+        },
+        "preflight_sha256": sha256_file(output_dir / "preflight.json")
+        if set(arms).intersection({"current_c0", "current_cod_numeric"}) else None,
         "arm_flags": {arm: dict(ARM_DEFINITIONS[arm]) for arm in arms},
         "arm_thinking_modes": {
-            arm: "off" if arm_thinking_mode(arm) is False else "default"
+            arm: (
+                "request_scoped" if arm.startswith("arm-")
+                else "off" if arm_thinking_mode(arm) is False
+                else "default"
+            )
             for arm in arms
         },
         "fesf_skill_sha256": {
@@ -943,7 +1096,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
             "opt-in Claim DSL on that FESF path. Existing v2 arms remain "
             "exploratory diagnostics and are not capability conclusions."
         ),
-        "git_head": os.popen("git rev-parse HEAD").read().strip(),
+        "git_head": artifacts.context.git_commit or "",
         "source_sha256": {
             path: sha256_file(ROOT / path)
             for path in (
@@ -960,7 +1113,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "n_tasks": len(all_tasks),
         "n_pending": len(pending),
     }
-    (output_dir / "run_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    artifacts.save_manifest(manifest, status="running")
     print(f"[EXT-SMOKE] run_id={run_id} pending={len(pending)} workers={workers} seed={seed} arms={','.join(arms)}", flush=True)
 
     start = time.time()
@@ -970,9 +1123,7 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
             return {"skipped": True, "reason": "hard_stop", "set_id": task["set_id"], "item_id": task["item"]["item_id"]}
         record = solve_one(task, timeout, api_key)
         with WRITE_LOCK:
-            with answers_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-                handle.flush()
+            artifacts.append_answer(record)
         print(
             f"[{task['set_id'][:10]}][{record['arm']}] {record['item_id']} {record['native']['verdict']}"
             f" calls={record['model_calls']} dur={record['duration_seconds']:.0f}s"
@@ -993,7 +1144,12 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
     rows = [r for r in rows if r.get("set_id") in sets]
     summary = analyze(rows)
     summary["elapsed_seconds"] = round(time.time() - start, 1)
-    summary["dataset_info"] = {"pools_dir": str(POOLS_DIR), "seed": seed, "sample_size_per_set": sample_size}
+    summary["dataset_info"] = {
+        "pools_dir": str(POOLS_DIR),
+        "seed": seed,
+        "sample_size_per_set": sample_size,
+        "sample_sizes": effective_sample_sizes,
+    }
     if "skill_qualification" in summary:
         summary["status"] = (
             "SKILL_QUALIFICATION_GO"
@@ -1004,13 +1160,18 @@ def run(output_dir: Path, timeout: int, workers: int, seed: int, hard_stop_minut
         "diagnostic window; thresholds unfrozen; combined v2 arm is exploratory "
         "and supports no capability conclusion or promotion"
     )
-    (output_dir / "report.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    artifacts.save_report(summary)
+    manifest["status"] = "completed"
+    artifacts.save_manifest(manifest)
     print(json.dumps(summary.get("by_arm", summary["by_set"]), ensure_ascii=False, indent=2), flush=True)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output-dir", default=str(ROOT / "docs" / "experiments" / "EXTERNAL-HARD-SETS-SMOKE-001"))
+    parser.add_argument(
+        "--output-dir",
+        help="output directory (default: artifacts/<unique-run-id>)",
+    )
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--seed", type=int, default=20260905)
@@ -1018,20 +1179,46 @@ if __name__ == "__main__":
     # local budget; callers may still pass a smaller stop for a smoke run.
     parser.add_argument("--hard-stop-minutes", type=float, default=180.0)
     parser.add_argument("--sample-size", type=int, default=SAMPLE_SIZE)
+    parser.add_argument("--sample-sizes", help="Optional comma list such as set_a_olymmath_hard=10,cod_numeric_parity=3")
+    parser.add_argument("--fixed-items-file", help="JSON mapping of set id to frozen item-id lists")
+    parser.add_argument("--preflight-only", action="store_true", help="Run only the three-request resource preflight")
     parser.add_argument("--sets", default="set_a_olymmath_hard,set_b_aime,set_c_hle_math")
     parser.add_argument("--arms", default="v1", help="comma list including fesf_v1_tkoff_claim_dsl (interleaved round-robin)")
     parser.add_argument("--pairing", default="independent", choices=["independent", "paired"],
                         help="paired: every sampled item runs once per arm with rotated first arm")
     parser.add_argument("--thinking-mode", default="default", choices=["default", "false", "true"],
                         help="client-side thinking switch (default = server default)")
-    parser.add_argument("--run-id", default="EXTERNAL-HARD-SETS-SMOKE-001")
+    parser.add_argument("--run-id", help="explicit run id; omitted runs receive a unique timestamped id")
     args = parser.parse_args()
+    if args.preflight_only:
+        output_dir = Path(args.output_dir) if args.output_dir else None
+        report = run_preflight(output_dir, args.timeout, args.run_id)
+        print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
+        raise SystemExit(0 if report["pass"] else 1)
+    sample_sizes = {}
+    if args.sample_sizes:
+        for item in args.sample_sizes.split(","):
+            name, sep, raw_size = item.partition("=")
+            if not sep or not name.strip() or not raw_size.strip().isdigit() or int(raw_size) <= 0:
+                parser.error("--sample-sizes expects name=positive_int pairs")
+            sample_sizes[name.strip()] = int(raw_size)
+    fixed_items = None
+    if args.fixed_items_file:
+        fixed_items = json.loads(Path(args.fixed_items_file).read_text(encoding="utf-8"))
+        if not isinstance(fixed_items, dict) or any(
+            not isinstance(key, str) or not isinstance(value, list)
+            or not all(isinstance(item_id, str) for item_id in value)
+            for key, value in fixed_items.items()
+        ):
+            parser.error("--fixed-items-file must contain a JSON object of string lists")
     run(
-        Path(args.output_dir), args.timeout, args.workers, args.seed,
+        Path(args.output_dir) if args.output_dir else None, args.timeout, args.workers, args.seed,
         args.hard_stop_minutes, args.sample_size,
         [s.strip() for s in args.sets.split(",") if s.strip()],
         arms=[a.strip() for a in args.arms.split(",") if a.strip()],
         run_id=args.run_id,
         pairing=args.pairing,
         thinking_mode=args.thinking_mode,
+        sample_sizes=sample_sizes,
+        fixed_items=fixed_items,
     )

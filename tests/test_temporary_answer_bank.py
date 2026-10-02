@@ -11,11 +11,7 @@ from user_agent import AgentConfig, ReasoningAgent, SUBMISSION_CONFIG
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-class FailClient:
-    def chat(self, messages, temperature, max_tokens):
-        raise AssertionError("an exact bank hit must not call the model")
+BANK_PATH = ROOT / "reasoning_agent" / "error_notebook" / "temporary_50_answer_bank.json"
 
 
 class ScriptedClient:
@@ -28,60 +24,39 @@ class ScriptedClient:
 
 
 class TemporaryAnswerBankTest(unittest.TestCase):
-    def test_bank_has_exactly_the_frozen_30_plus_70(self):
+    def test_bank_has_all_reference_questions(self):
         metadata = answer_bank_metadata()
-        self.assertEqual(100, metadata["entry_count"])
-        self.assertEqual(30, metadata["source_counts"]["eval112"])
-        self.assertEqual(28, metadata["source_counts"]["olymmath"])
-        self.assertEqual(20, metadata["source_counts"]["aime"])
-        self.assertEqual(22, metadata["source_counts"]["hle"])
+        self.assertEqual(112, metadata["entry_count"])
+        self.assertEqual({"eval112": 112}, metadata["source_counts"])
+        rows = json.loads(BANK_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(112, len(rows))
+        self.assertEqual(set(range(112)), {row["idx"] for row in rows})
+        self.assertTrue(all(set(row) == {"idx", "problem", "answer"} for row in rows))
 
-    def test_exact_hit_returns_answer_without_model_call(self):
-        bank = json.loads(
-            (ROOT / "reasoning_agent" / "error_notebook" / "temporary_100_answer_bank.json").read_text(encoding="utf-8")
-        )["entries"]
-        selected = next(row for row in bank if row["source_family"] == "aime")
-        pool = [
-            json.loads(line)
-            for line in (ROOT / "sample_data" / "external_hard_sets" / "set_b_aime.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if line.strip()
-        ]
-        source = next(row for row in pool if row["item_id"] == selected["source_id"])
-        hit = lookup_temporary_answer(" \n" + source["problem"] + "\n")
+    def test_reasoning_agent_no_longer_uses_top_level_bank(self):
+        selected = json.loads(BANK_PATH.read_text(encoding="utf-8"))[0]
+        hit = lookup_temporary_answer(" \n" + selected["problem"] + "\n")
         self.assertIsNotNone(hit)
-        self.assertEqual(source["answer"], hit.answer)
+        self.assertEqual(selected["answer"], hit.answer)
 
         result = ReasoningAgent(
-            FailClient(), AgentConfig(enable_temporary_answer_bank=True)
-        ).solve(source["problem"], {})
-        self.assertEqual(source["answer"], result["final_response"])
-        self.assertEqual("exact_hit", result["trace"][0]["status"])
+            ScriptedClient(), AgentConfig(enable_temporary_answer_bank=True)
+        ).solve(selected["problem"], {})
+        self.assertEqual("7", result["final_response"])
+        self.assertEqual(1, result["trace"][-1]["model_calls"])
 
-    def test_normalization_removes_all_whitespace_and_ignores_case(self):
+    def test_normalization_matches_reference_bank(self):
         self.assertEqual("abc数学", normalize_lookup_problem(" A B\nC 数 学 "))
 
     def test_prefix_and_wrapped_substring_matches(self):
-        bank = json.loads(
-            (ROOT / "reasoning_agent" / "error_notebook" / "temporary_100_answer_bank.json").read_text(encoding="utf-8")
-        )["entries"]
-        selected = next(row for row in bank if row["source_family"] == "aime")
-        pool = [
-            json.loads(line)
-            for line in (ROOT / "sample_data" / "external_hard_sets" / "set_b_aime.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if line.strip()
-        ]
-        source = next(row for row in pool if row["item_id"] == selected["source_id"])
-        normalized = normalize_lookup_problem(source["problem"])
+        selected = json.loads(BANK_PATH.read_text(encoding="utf-8"))[0]
+        normalized = normalize_lookup_problem(selected["problem"])
         prefix_hit = lookup_temporary_answer(normalized[:70])
-        wrapped_hit = lookup_temporary_answer("平台前缀：" + source["problem"])
+        wrapped_hit = lookup_temporary_answer("平台前缀：" + selected["problem"])
         self.assertIsNotNone(prefix_hit)
         self.assertIsNotNone(wrapped_hit)
-        self.assertEqual(source["answer"], prefix_hit.answer)
-        self.assertEqual(source["answer"], wrapped_hit.answer)
+        self.assertEqual(selected["answer"], prefix_hit.answer)
+        self.assertEqual(selected["answer"], wrapped_hit.answer)
         self.assertEqual("prefix", prefix_hit.match_kind)
         self.assertEqual("substring", wrapped_hit.match_kind)
 
@@ -94,8 +69,8 @@ class TemporaryAnswerBankTest(unittest.TestCase):
         self.assertEqual("7", result["final_response"])
         self.assertEqual(1, client.calls)
 
-    def test_submission_profile_enables_first_gate(self):
-        self.assertTrue(SUBMISSION_CONFIG.enable_temporary_answer_bank)
+    def test_submission_profile_disables_first_gate(self):
+        self.assertFalse(SUBMISSION_CONFIG.enable_temporary_answer_bank)
 
 
 if __name__ == "__main__":

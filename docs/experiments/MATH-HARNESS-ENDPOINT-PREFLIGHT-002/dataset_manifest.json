@@ -1,0 +1,10 @@
+{
+  "dataset_id": "math_harness_endpoint_preflight_v1_retry_002",
+  "source_dataset": "sample_data/external_hard_sets/set_b_aime.jsonl",
+  "source_dataset_sha256": "E39108744B5B0548FCCFC28A089DDD1CCCD0821E7235A6F2E18FA74449CD8315",
+  "rows": 10,
+  "selection_same_as": "MATH-HARNESS-ENDPOINT-PREFLIGHT-001",
+  "temporary_answer_bank_overlap": 0,
+  "answers_loaded_into_prompt": false,
+  "frozen_reason": "user-authorized independent diagnostic retry under the exact 001 protocol; no capability conclusion"
+}
