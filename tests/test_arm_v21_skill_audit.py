@@ -62,11 +62,14 @@ class ARMV21SkillAuditTest(unittest.TestCase):
         client = ScriptedClient([
             {"content": "Final answer: 7", "finish_reason": "stop"},
             {"content": "Final answer: 8", "finish_reason": "stop"},
+            RuntimeError("resolver unavailable"),
         ])
         auditor = FakeAuditor(SkillAuditResult("refuted", "exact-evaluation", "counterexample"))
         result = ConstraintFitOrchestrator(client, config=_config(), skill_auditor=auditor).solve("计算一个复杂的函数极限", {})
-        self.assertEqual("7", result["final_response"])
+        self.assertEqual("8", result["final_response"])
         self.assertEqual(3, len(client.calls))
+        summary = next(item for item in result["trace"] if item.get("stage") == "arm_v2_summary")
+        self.assertEqual("resolver_runtime_failure", summary["fallback_reason"])
 
     def test_unknown_audit_fails_open(self):
         client = ScriptedClient([

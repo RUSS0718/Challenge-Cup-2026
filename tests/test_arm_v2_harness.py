@@ -104,7 +104,7 @@ class ARMHarnessV2Test(unittest.TestCase):
         client = ModeAwareClient([
             {"content": "Final answer: {117,119}", "finish_reason": "stop"},
             {"content": "Final answer: {118,120}", "finish_reason": "stop"},
-            "A",
+            "CHECK: 代入关键约束后仅 A 满足\nDECISION: A",
         ])
         result = ConstraintFitOrchestrator(client, config=_config()).solve("求所有可能的值", {})
 
@@ -139,6 +139,113 @@ class ARMHarnessV2Test(unittest.TestCase):
         self.assertEqual("OBJECTION", summary["challenger_status"])
         self.assertFalse(summary["challenger"]["repairable"])
         self.assertEqual("challenger_shadow", summary["fallback_reason"])
+
+    def test_typed_rejection_falls_back_to_generic_parser(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: 21", "finish_reason": "stop"},
+            {"content": "Final answer: 21", "finish_reason": "stop"},
+        ])
+        result = ConstraintFitOrchestrator(client, config=_config()).solve(
+            "找出所有函数 f，并给出该问题的最终数值结论",
+            {},
+        )
+        self.assertEqual("21", result["final_response"])
+        ledger = self._ledger(result)
+        self.assertTrue(
+            any(
+                check.get("type") == "typed_parser_fallback"
+                for candidate in ledger["candidates"]
+                for check in candidate.get("checks", [])
+            )
+        )
+
+    def test_equivalent_same_response_candidates_are_consolidated(self):
+        client = ModeAwareClient([
+            {
+                "content": (
+                    r"Final answer: \begin{bmatrix}-2\\5\\2\end{bmatrix}" "\n"
+                    r"Final answer: \boxed{\begin{bmatrix}-2\\5\\2\end{bmatrix}}"
+                ),
+                "finish_reason": "stop",
+            },
+            {
+                "content": r"Final answer: \begin{bmatrix}-2\\5\\2\end{bmatrix}",
+                "finish_reason": "stop",
+            },
+        ])
+        result = ConstraintFitOrchestrator(client, config=_config()).solve(
+            "求一个复杂线性代数问题的最终向量",
+            {},
+        )
+        self.assertNotEqual("UNKNOWN", result["final_response"])
+        # Representation-equivalent boxed/unboxed values collapse before they
+        # can become a same-response conflict.
+        primary_values = [
+            candidate["normalized_value"]
+            for candidate in self._ledger(result)["candidates"]
+            if candidate["source"] == "arm_primary"
+        ]
+        self.assertEqual(1, len(set(primary_values)))
+
+    def test_truncated_explicit_primary_is_preserved_as_weak_incumbent(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: 294", "finish_reason": "length"},
+            {"content": "Final answer: 490", "finish_reason": "stop"},
+        ])
+        result = ConstraintFitOrchestrator(client, config=_config()).solve(
+            "求一个复杂组合问题的最终整数值",
+            {},
+        )
+        summary = self._summary(result)
+        self.assertEqual("294", result["final_response"])
+        self.assertTrue(summary["safe_fallback_used"])
+        self.assertEqual("candidate_a", summary["safe_candidate_source"])
+        self.assertEqual("weak_truncated_incumbent", summary["safe_candidate"]["trust_reason"])
+
+    def test_second_timeout_with_incumbent_returns_early_with_bounded_timeout(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: 17", "finish_reason": "stop"},
+            TimeoutError("challenger timeout"),
+        ])
+        result = ConstraintFitOrchestrator(client, config=_config()).solve(
+            "求一个复杂排列组合问题的最终整数值",
+            {},
+        )
+        self.assertEqual("17", result["final_response"])
+        self.assertEqual(180, client.calls[1]["timeout_seconds"])
+        self.assertTrue(self._summary(result)["safe_fallback_used"])
+
+    def test_second_timeout_without_incumbent_uses_third_call_compact_salvage(self):
+        client = ModeAwareClient([
+            {"content": "无法形成最终答案", "finish_reason": "stop"},
+            TimeoutError("challenger timeout"),
+            {"content": "Final answer: 23", "finish_reason": "stop"},
+        ])
+        result = ConstraintFitOrchestrator(client, config=_config()).solve(
+            "求一个复杂组合问题的最终整数值",
+            {},
+        )
+        self.assertEqual("23", result["final_response"])
+        self.assertEqual(3, len(client.calls))
+        self.assertEqual(300, client.calls[1]["timeout_seconds"])
+        self.assertEqual(90, client.calls[2]["timeout_seconds"])
+        self.assertEqual(2048, client.calls[2]["max_tokens"])
+        self.assertEqual(
+            "second_timeout_compact_salvage",
+            self._summary(result)["runtime_recovery_action"],
+        )
+
+    def test_plain_resolver_choice_cannot_replace_incumbent_without_check(self):
+        client = ModeAwareClient([
+            {"content": "Final answer: {1,2}", "finish_reason": "stop"},
+            {"content": "Final answer: {3,4}", "finish_reason": "stop"},
+            "B",
+        ])
+        result = ConstraintFitOrchestrator(client, config=_config()).solve("求所有可能的值", {})
+        summary = self._summary(result)
+        self.assertEqual("{1,2}", result["final_response"])
+        self.assertEqual("UNKNOWN", summary["resolver_decision"])
+        self.assertEqual("missing_targeted_check", summary["resolver"]["resolver_verdict"])
 
     def test_timeout_uses_compact_salvage_without_entering_trust_on_failure(self):
         client = ModeAwareClient([
@@ -336,7 +443,7 @@ class ARMHarnessV2Test(unittest.TestCase):
         client = ModeAwareClient([
             {"content": "Final answer: {1,2}", "finish_reason": "stop"},
             {"content": "Final answer: {3,4}", "finish_reason": "stop"},
-            "A",
+            "CHECK: 直接检查关键约束后 A 成立\nDECISION: A",
         ])
         orchestrator = ConstraintFitOrchestrator(client, config=_config())
 

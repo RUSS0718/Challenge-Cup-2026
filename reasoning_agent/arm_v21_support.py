@@ -334,6 +334,25 @@ class ARMV21StateSupport:
             checkpoint_stage=stage,
         )
 
+    @staticmethod
+    def _checkpoint_weak(
+        candidate: Candidate | None,
+        parsed: Any,
+        safe_state: SafeCandidateState,
+        stage: str,
+    ) -> bool:
+        """Checkpoint a uniquely extracted truncated answer without trusting it."""
+        if candidate is None or not bool(getattr(parsed, "truncated", False)):
+            return False
+        existing = safe_state.get()
+        if existing is not None:
+            return False
+        return safe_state.update_weak(
+            candidate,
+            source={"candidate_a": "candidate_a", "candidate_b": "candidate_b"}.get(stage, candidate.source),
+            checkpoint_stage=f"{stage}_weak",
+        )
+
     def _maybe_audit_skill(
         self,
         problem: str,

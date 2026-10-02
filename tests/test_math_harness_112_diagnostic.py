@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from scripts.run_math_harness_112_diagnostic import (
     EXPECTED_ITEMS,
@@ -6,6 +7,7 @@ from scripts.run_math_harness_112_diagnostic import (
     MAX_REQUESTED_TOKENS,
     build_report,
     diagnostic_config,
+    solve_one,
 )
 
 
@@ -17,6 +19,52 @@ class MathHarness112DiagnosticTest(unittest.TestCase):
         self.assertEqual("off", config.harness_bank_mode)
         self.assertEqual(MAX_CALLS, config.harness_max_model_calls)
         self.assertEqual(MAX_REQUESTED_TOKENS, config.harness_total_token_budget)
+
+    def test_optional_timeout_does_not_override_preserved_final_answer(self):
+        trace = [
+            {"stage": "submission_gateway", "bank_mode": "off", "status": "disabled"},
+            {
+                "stage": "evidence_ledger",
+                "budget": {
+                    "calls": 2,
+                    "requested_tokens": 12288,
+                    "actual_completion_tokens": None,
+                    "actual_token_records": 0,
+                    "budget_violated": False,
+                    "records": [
+                        {"status": "ok", "finish_reason": None, "error_category": None},
+                        {"status": "error", "finish_reason": None, "error_category": "timeout"},
+                    ],
+                },
+                "calls": [
+                    {"status": "ok", "finish_reason": "stop", "error_category": None},
+                    {"status": "error", "finish_reason": None, "error_category": "timeout"},
+                ],
+                "candidates": [],
+            },
+        ]
+
+        class FakeAgent:
+            def __init__(self, client=None, config=None):
+                pass
+
+            def solve(self, problem, metadata):
+                return {
+                    "final_response": "17",
+                    "extracted_answer": "17",
+                    "trace": trace,
+                }
+
+        with patch("scripts.run_math_harness_112_diagnostic.InternChatClient", return_value=object()), patch(
+            "scripts.run_math_harness_112_diagnostic.ReasoningAgent",
+            FakeAgent,
+        ):
+            row = solve_one({"idx": "case-17", "problem": "求值", "answer": "17"})
+
+        self.assertTrue(row["model_error"])
+        self.assertTrue(row["timeout"])
+        self.assertEqual("correct", row["outcome"])
+        self.assertEqual(["stop", "missing"], row["finish_reasons"])
 
     def test_report_is_diagnostic_and_does_not_claim_capability(self):
         rows = [

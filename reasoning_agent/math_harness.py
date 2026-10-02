@@ -175,6 +175,11 @@ class HarnessConfig:
     arm_max_skill_audits: int = 1
     arm_timeout_recovery_mode: str = "none"
     arm_primary_timeout_seconds: int | None = None
+    # GRH v1.1 bounds optional challenger latency independently from Primary.
+    arm_second_timeout_with_incumbent_seconds: int = 180
+    arm_second_timeout_without_incumbent_seconds: int = 300
+    arm_second_salvage_timeout_seconds: int = 90
+    arm_second_salvage_max_tokens: int = 2_048
     arm_salvage_timeout_seconds: int = 15
     arm_salvage_max_tokens: int = 1_024
     arm_allow_thinking_on: bool = False
@@ -217,6 +222,13 @@ class HarnessConfig:
             raise ValueError("invalid_arm_timeout_recovery_mode")
         if self.arm_primary_timeout_seconds is not None and int(self.arm_primary_timeout_seconds) <= 0:
             raise ValueError("arm_primary_timeout_seconds_must_be_positive")
+        if any(int(value) <= 0 for value in (
+            self.arm_second_timeout_with_incumbent_seconds,
+            self.arm_second_timeout_without_incumbent_seconds,
+            self.arm_second_salvage_timeout_seconds,
+            self.arm_second_salvage_max_tokens,
+        )):
+            raise ValueError("arm_second_stage_limits_must_be_positive")
         if int(self.arm_salvage_timeout_seconds) <= 0 or int(self.arm_salvage_max_tokens) <= 0:
             raise ValueError("arm_salvage_limits_must_be_positive")
         if self.arm_default_lane not in {"adaptive", "fast_off", "deep_on", "static"}:

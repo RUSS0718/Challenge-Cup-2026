@@ -81,6 +81,32 @@ def _unwrap_outer_braced_command(value: str, command: str) -> str | None:
     return None
 
 
+def _normalize_unit_surface(value: str) -> str:
+    """Normalize equivalent unit spellings without performing unit conversion."""
+    text = value.replace("²", "^2").replace("³", "^3")
+    text = re.sub(r"\\mathrm\{(ft|in|cm|mm|m|km)\}", r"\1", text, flags=re.I)
+    text = re.sub(r"\^\{([23])\}", r"^\1", text)
+    text = re.sub(r"(?<=\d),(?=\d{3}(?:\D|$))", "", text)
+    replacements = (
+        (r"\bsquare\s+feet\b", "ft^2"),
+        (r"\bsquare\s+foot\b", "ft^2"),
+        (r"\bsq\.?\s*ft\b", "ft^2"),
+        (r"\bsquare\s+inches\b", "in^2"),
+        (r"\bsquare\s+inch\b", "in^2"),
+        (r"\bsq\.?\s*in\b", "in^2"),
+        (r"\bsquare\s+centimeters?\b", "cm^2"),
+        (r"\bsquare\s+millimeters?\b", "mm^2"),
+        (r"\bsquare\s+meters?\b", "m^2"),
+        (r"\bsquare\s+kilometers?\b", "km^2"),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.I)
+    if re.search(r"\b(?:ft|in|cm|mm|m|km)\^[23]\b", text, re.I):
+        text = re.sub(r"\s+(?:and|和|与)\s+", ",", text, flags=re.I)
+        text = text.rstrip(".")
+    return text
+
+
 def _normalize_presentation(answer: str) -> str:
     """Normalize only representation-level differences, never mathematical content."""
     value = str(answer or "").strip()
@@ -104,6 +130,7 @@ def _normalize_presentation(answer: str) -> str:
     value = value.translate(_SUPERSCRIPT_TRANSLATION)
     for literal, latex in _GREEK_PRESENTATION.items():
         value = value.replace(literal, latex)
+    value = _normalize_unit_surface(value)
     return value
 
 
@@ -142,9 +169,64 @@ def _terminal_gold_alias(expected: str) -> str | None:
     rhs = _normalize_presentation(match.group(1)).strip()
     if not rhs or len(rhs) > 160:
         return None
-    if re.search(r"(?:\\begin\{|\\end\{|\b(?:therefore|thus|hence|because)\b)", rhs, re.I):
+    has_environment = bool(re.search(r"\\(?:begin|end)\{", rhs))
+    matrix_environment = bool(re.search(r"\\begin\{(?:bmatrix|pmatrix|matrix|array)\}", rhs))
+    if (has_environment and not matrix_environment) or re.search(
+        r"\b(?:therefore|thus|hence|because)\b", rhs, re.I
+    ):
         return None
     return rhs.rstrip("。；;.")
+
+
+def _display_math_aliases(expected: str) -> list[str]:
+    """Extract bounded display/inline math spans from verbose textbook gold."""
+    raw = str(expected or "")
+    spans: list[str] = []
+    for pattern in (r"\$\$(.+?)\$\$", r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)"):
+        for match in re.finditer(pattern, raw, re.S):
+            value = match.group(1).strip()
+            if 0 < len(value) <= 512:
+                spans.append(value)
+                terminal = _terminal_gold_alias(value)
+                if terminal:
+                    spans.append(terminal)
+    return spans
+
+
+def _canonical_matrix_vector(value: str) -> str | None:
+    """Canonicalize a small LaTeX matrix/vector subset for evaluator equality."""
+    text = _normalize_presentation(value)
+    text = text.replace(r"\left", "").replace(r"\right", "")
+    body = None
+    for env in ("bmatrix", "pmatrix", "matrix"):
+        match = re.search(
+            rf"\\begin\{{{env}\}}(.*?)\\end\{{{env}\}}",
+            text,
+            re.S,
+        )
+        if match:
+            body = match.group(1)
+            break
+    if body is None:
+        match = re.search(
+            r"\\begin\{array\}\{[^{}]*\}(.*?)\\end\{array\}",
+            text,
+            re.S,
+        )
+        if match:
+            body = match.group(1)
+    if body is None:
+        return None
+    rows = [row.strip() for row in re.split(r"\\\\", body) if row.strip()]
+    if not rows:
+        return None
+    canonical_rows: list[str] = []
+    for row in rows:
+        cells = [normalize(cell) for cell in row.split("&")]
+        if not cells or any(not cell for cell in cells):
+            return None
+        canonical_rows.append(",".join(cells))
+    return "matrix[" + ";".join(canonical_rows) + "]"
 
 
 def _expected_answer_aliases(expected: str, problem: str = "") -> list[str]:
@@ -169,6 +251,7 @@ def _expected_answer_aliases(expected: str, problem: str = "") -> list[str]:
     terminal = _terminal_gold_alias(raw)
     if terminal:
         aliases.append(terminal)
+    aliases.extend(_display_math_aliases(raw))
 
     unique: list[str] = []
     seen: set[str] = set()
@@ -210,8 +293,15 @@ def judge_correct(
         if expected_letters:
             return "incorrect"
 
+    ext_matrix = _canonical_matrix_vector(extracted)
     provably_incorrect = False
-    for norm_exp in norm_aliases:
+    for alias, norm_exp in zip(aliases, norm_aliases):
+        exp_matrix = _canonical_matrix_vector(alias)
+        if ext_matrix is not None and exp_matrix is not None:
+            if ext_matrix == exp_matrix:
+                return "correct"
+            continue
+
         collection_verdict = _compare_numeric_collections(norm_ext, norm_exp)
         if collection_verdict == "correct":
             return "correct"

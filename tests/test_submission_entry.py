@@ -13,6 +13,7 @@ from reasoning_agent.profiles import (
     build_profile_config,
     build_submission_arm_config,
 )
+from reasoning_agent.math_harness import HarnessConfig
 from user_agent import (
     ARM_V212_BASE_CONFIG,
     ReasoningAgent,
@@ -43,6 +44,56 @@ class SubmissionEntryTest(unittest.TestCase):
         with patch.object(user_agent, "SUBMISSION_CONFIG", build_submission_config(mode)):
             result = ReasoningAgent(client).solve(problem, {})
         return client, result
+
+    def test_grh_v11_submission_controls_match_experiment(self):
+        config = SUBMISSION_CONFIG
+        self.assertEqual("arm-v2.1.3-off", SUBMISSION_MODE)
+        self.assertTrue(config.enable_constraint_fit_harness)
+        self.assertTrue(config.enable_constraint_fit_deep_lane)
+        self.assertFalse(config.enable_constraint_fit_hybrid_router)
+        self.assertTrue(config.enable_arm_harness)
+        self.assertEqual("v2.1.3", config.arm_harness_version)
+        self.assertEqual("selective", config.arm_v2_mode)
+        self.assertEqual("off", config.arm_solver_reasoning_mode)
+        self.assertEqual("positive_evidence", config.arm_trust_policy)
+        self.assertFalse(config.enable_temporary_answer_bank)
+        self.assertEqual("off", config.harness_bank_mode)
+        self.assertFalse(config.enable_method_rag)
+        self.assertFalse(config.enable_reference_rag)
+        self.assertFalse(config.enable_reference_skills)
+        self.assertFalse(config.arm_enable_skill_guidance)
+        self.assertFalse(config.arm_enable_skill_for_second)
+        self.assertFalse(config.arm_enable_skill_audit)
+        self.assertEqual(600, config.arm_primary_timeout_seconds)
+        self.assertEqual(180, config.arm_second_timeout_with_incumbent_seconds)
+        self.assertEqual(300, config.arm_second_timeout_without_incumbent_seconds)
+        self.assertEqual(90, config.arm_second_salvage_timeout_seconds)
+        self.assertEqual(2048, config.arm_second_salvage_max_tokens)
+        self.assertEqual(3, config.arm_adaptive_max_calls)
+        self.assertEqual(3, config.arm_deep_max_calls)
+        self.assertEqual(16384, config.arm_adaptive_token_budget)
+        self.assertEqual(16384, config.arm_deep_token_budget)
+        harness_config = HarnessConfig(
+            max_model_calls=config.harness_max_model_calls,
+            total_token_budget=config.harness_total_token_budget,
+            enable_deep_lane=config.enable_constraint_fit_deep_lane,
+            deep_max_model_calls=config.harness_deep_max_model_calls,
+        )
+        self.assertEqual(3, harness_config.effective_call_limit)
+        self.assertEqual(16384, harness_config.token_limit)
+
+    def test_grh_submission_routes_uncertain_cases_to_generic(self):
+        cases = (
+            ("证明所有函数的取值范围并求所有解", "low_confidence_generic_fallback"),
+            ("请给出完整证明", "proof_text_generic_fallback"),
+        )
+        for problem, expected_reason in cases:
+            with self.subTest(problem=problem):
+                _, result = self._solve_as_official(SUBMISSION_MODE, problem)
+                route = next(item for item in result["trace"] if item.get("stage") == "route")
+                self.assertEqual("harness", route["target"])
+                self.assertEqual(expected_reason, route["reason"])
+                self.assertFalse(any(item.get("stage") == "legacy_backend" for item in result["trace"]))
 
     def test_default_submission_uses_fsdf_without_arm_policy(self):
         client, result = self._solve_as_official("fsdf", "请证明：若 x=1，则 x=1")

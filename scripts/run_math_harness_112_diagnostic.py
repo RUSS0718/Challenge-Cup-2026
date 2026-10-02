@@ -135,9 +135,12 @@ def solve_one(item: dict[str, Any], timeout: int = REQUEST_TIMEOUT_SECONDS) -> d
     ledger = _trace_entry(trace, "evidence_ledger")
     gateway = _trace_entry(trace, "submission_gateway")
     budget = ledger.get("budget") if isinstance(ledger.get("budget"), dict) else {}
-    call_records = budget.get("records") if isinstance(budget.get("records"), list) else []
+    # The evidence-ledger call events carry the provider finish_reason; older
+    # budget records may intentionally omit it. Prefer the richer events so
+    # truncation diagnostics do not collapse to "missing".
+    call_records = ledger.get("calls") if isinstance(ledger.get("calls"), list) else []
     if not call_records:
-        call_records = ledger.get("calls") if isinstance(ledger.get("calls"), list) else []
+        call_records = budget.get("records") if isinstance(budget.get("records"), list) else []
     call_errors = [
         record for record in call_records
         if isinstance(record, dict) and record.get("status") == "error"
@@ -145,9 +148,25 @@ def solve_one(item: dict[str, Any], timeout: int = REQUEST_TIMEOUT_SECONDS) -> d
     timeout_seen = any(record.get("error_category") == "timeout" for record in call_errors)
     model_error = top_level_status == "model_error" or bool(call_errors)
     problem_type = classify_problem_type(item["problem"])
-    verdict = judge_correct(extracted, str(item.get("answer", "")), problem_type)
+    verdict = judge_correct(
+        extracted,
+        str(item.get("answer", "")),
+        problem_type,
+        str(item.get("problem", "")),
+    )
     invalid = not extracted.strip() or final_response.strip().upper() == "UNKNOWN" or verdict == "unknown"
-    if model_error:
+    selected_decidable_answer = (
+        bool(extracted.strip())
+        and final_response.strip().upper() != "UNKNOWN"
+        and verdict in {"correct", "incorrect"}
+    )
+    # A failed optional model call remains a health signal, but must not erase
+    # a final answer that the harness successfully preserved and submitted.
+    if selected_decidable_answer:
+        outcome = verdict
+    elif top_level_status == "model_error":
+        outcome = "error"
+    elif model_error and not extracted.strip():
         outcome = "error"
     elif invalid:
         outcome = "invalid"
@@ -259,7 +278,10 @@ def build_report(rows: list[dict[str, Any]], elapsed_seconds: float, *, final: b
         "correct": outcome_counts.get("correct", 0),
         "incorrect": outcome_counts.get("incorrect", 0),
         "invalid": outcome_counts.get("invalid", 0),
-        "model_errors": outcome_counts.get("error", 0),
+        # Transport/model health is orthogonal to score outcome.  A row may
+        # preserve a correct incumbent even when an optional challenger timed out.
+        "model_errors": sum(bool(row.get("model_error")) for row in rows),
+        "error_outcomes": outcome_counts.get("error", 0),
         "timeout_count": sum(bool(row.get("timeout")) for row in rows),
         "accuracy_over_expected": outcome_counts.get("correct", 0) / EXPECTED_ITEMS,
         "decided_accuracy": (

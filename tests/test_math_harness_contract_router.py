@@ -8,6 +8,7 @@ from reasoning_agent.math_harness import (
     ANSWER_SHAPE_PARAMETERIZED_EXPRESSION,
     ANSWER_SHAPE_PROOF_TEXT,
     ANSWER_SHAPE_SINGLE_NUMERIC,
+    ANSWER_SHAPE_UNKNOWN,
     REASONING_RISK_DEEP,
     REASONING_RISK_DIRECT,
     ROUTE_CONFIDENCE_HIGH,
@@ -61,11 +62,15 @@ class DualAxisRouterTest(unittest.TestCase):
             ("求方程的所有可能解组成的集合", ANSWER_SHAPE_FINITE_SET),
             ("求 x 的取值范围和区间", ANSWER_SHAPE_INTERVAL_OR_RANGE),
             ("找出所有满足条件的函数 f", ANSWER_SHAPE_FUNCTION_FAMILY),
-            ("证明该不等式对所有实数成立", ANSWER_SHAPE_PROOF_TEXT),
         )
         for problem, expected_shape in cases:
             with self.subTest(problem=problem):
                 self.assertEqual(expected_shape, self.router.route(problem).contract.answer_shape)
+
+    def test_proof_reasoning_without_output_request_is_not_proof_text(self):
+        decision = self.router.route("证明该不等式对所有实数成立")
+        self.assertEqual(ANSWER_SHAPE_UNKNOWN, decision.contract.answer_shape)
+        self.assertEqual(REASONING_RISK_DEEP, decision.contract.reasoning_risk)
 
     def test_proof_and_low_confidence_mixed_fall_back_to_legacy(self):
         proof = self.router.route("证明这个命题")
@@ -73,6 +78,22 @@ class DualAxisRouterTest(unittest.TestCase):
         mixed = self.router.route("证明所有函数的取值范围并求所有解")
         self.assertEqual(ROUTE_CONFIDENCE_LOW, mixed.contract.route_confidence)
         self.assertEqual("legacy_fsdf", mixed.target)
+
+    def test_grh_without_hybrid_uses_generic_fallbacks(self):
+        router = HostRouter(deep_enabled=True, hybrid_enabled=False)
+        low_confidence = router.route("证明所有函数的取值范围并求所有解")
+        proof = router.route("请给出完整证明")
+        deep_disabled = HostRouter(deep_enabled=False, hybrid_enabled=False).route(
+            "找出所有满足条件的函数 f"
+        )
+        for decision in (low_confidence, proof, deep_disabled):
+            with self.subTest(reason=decision.reason):
+                self.assertEqual("harness", decision.target)
+                self.assertEqual("generic", decision.lane)
+        self.assertEqual(ROUTE_CONFIDENCE_LOW, low_confidence.contract.route_confidence)
+        self.assertEqual("low_confidence_generic_fallback", low_confidence.reason)
+        self.assertEqual("proof_text_generic_fallback", proof.reason)
+        self.assertEqual("deep_lane_generic_fallback", deep_disabled.reason)
 
     def test_metadata_cannot_change_contract(self):
         plain = self.router.route("计算 3+4", {})
