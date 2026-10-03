@@ -100,7 +100,8 @@ Evidence Gate                       （结构检查 + 确定性局部验证）
 
 在实验中预注册并写入 manifest，不能出现 v1.3 已暴露的“manifest 为 3 calls、实际 profile 为 5 calls”不一致：
 
-- 每题最多 3 次逻辑模型调用；
+- **提交候选与 P1/P3 默认 profile**：每题最多 3 次逻辑模型调用；
+- **P2 GSA 诊断例外**：实验规范的 3 路候选 + 1 次聚合是最多 4 次调用的独立能力窗，只能按预注册的 GSA manifest 运行，不能悄悄混入 3-call release profile；若官方 profile 不允许第 4 次，必须改成 2 路 + host 聚合或将 GSA 标记为诊断-only；
 - 每题请求 token 总预算不超过 16,384；
 - 官方候选预计整轮不超过 5.5 小时；官方约束仍是并发 3、单题 20 分钟、整轮 6 小时；
 - health retry 最多 1 次且计入调用/成本；不以 retry 掩盖 endpoint 不健康；
@@ -207,7 +208,7 @@ P2 遵守实验规范中的 GSA 顺序：`O=hetero_k5` 健康锚，`M=hetero_k4_
 
 ### P2 验收条件
 
-沿用总规范的硬门：
+沿用总规范的硬门；P2 的 3+1 调用数仅适用于已批准的 GSA 诊断窗，发布前必须再次核对官方 profile 预算：
 
 - fidelity：3+1 transcript 正确，聚合可抽取至少 11/12，context/model error=0；
 - 能力：`G vs M` item-cluster `b>c` 且双侧 `p<0.05`；

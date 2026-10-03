@@ -1,171 +1,201 @@
-# 基于评测采纳报告的 ARM 全架构重设计
+# 基于“评测方法调研采纳报告”的 ARM 全架构重设计
 
 日期：2026-10-03  
-范围：`Challenge-Cup-2026`、Intern-S2 endpoint、ARM v2.1.x、GRH v1.1/v1.2 相关文档与实验记录。  
-状态：架构审阅与实验设计；本文件不修改生产代码、不切换 `SUBMISSION_CONFIG`，也不把零模型回放或跨窗口结果写成能力提升。
+范围：Challenge-Cup-2026、Intern-S2、ARM v2.1.x、GRH v1.1/v1.2/v1.3、frozen-221   
+状态：架构审阅与实验设计；不修改生产代码，不改变 `SUBMISSION_CONFIG`，不构成官方提交授权。
 
-## 1. 结论
+## 1. 审阅结论
 
-ARM 不需要被另一个“更合适的架构”替换。当前真正需要替换的是 ARM 内部职责混合的方式。
+这次不应该把 ARM 替换成另一个名字或另一个大而全的 Agent。更合理的做法是保留 ARM 作为**控制平面**，重新划分它与 solver、验证器、答案表示层之间的责任边界。
 
-建议保留 ARM 作为 **控制平面**，重新定义为：
-
-```text
-ARM = Route + Compute Budget + Candidate Lifecycle + Evidence Policy + Bounded Escalation
-```
-
-把答案表示、候选规范化、确定性检查和最终提交拆成 ARM 外部可独立测试的宿主层：
+建议把下一版称为 **ARM-ARH / Decision-Aware ARM**（暂定名）：
 
 ```text
-Problem
-  ↓
-Task / Output Contract
-  ↓
-ARM Router + Compute Policy
-  ↓
-Solver Backend
-  ├─ Direct / OFF
-  ├─ Structured / OFF or ON
-  └─ Deep Reasoning / ON
-  ↓
-Candidate Ledger
-  ↓
-Host Extraction + Canonicalization（ARH）
-  ↓
-Structural / Completeness Gate
-  ↓
-Deterministic Verification Gate
-  ↓
-ARM Decision State Machine
-  ├─ select incumbent
-  ├─ bounded second route
-  ├─ bounded repair / resolver（实验开关）
-  └─ abstain
-  ↓
-Host Serializer
-  ↓
-Optional OFF Finalizer（仅协议修复，最多一次）
-  ↓
-Final Response
+ARM：路由、预算、升级、候选生命周期和状态机
+Solver：理解题目、选择路线、推导、产生候选
+ARH：抽取、规范化、完整性检查、最终序列化
+Verifier：只执行有边界的确定性检查
+Decision：根据候选和证据选择、保留或 abstain
+Evaluator：统一判分、逐题配对和损伤统计
 ```
 
-这里的 ON/OFF 是阶段职责，不是把同一次调用同时当作“推理器”和“判分器”：
+这不是把 ARM 换成 GRH、FSDF、GSA 或另一个 Council。它是把 ARM 从“同时求解、评价、修复、裁决、格式化”的混合实现改成一个可审计的编排控制器。原有 ARM 的 per-request thinking mode、bounded budget、safe incumbent、candidate ledger 和 A/B 诊断能力保留；结构检查、数学验证和提交格式必须独立出来。
 
-- Thinking ON 负责困难题的理解、路线选择、推导和候选形成；
-- ARM 负责预算、状态、升级条件和不可覆盖规则；
-- Host verifier 负责可计算检查；
-- ARH 负责抽取、规范化和稳定序列化；
-- OFF finalizer（若接口支持 request-local 模式）只修复已闭合候选的协议问题，不重新解题。
+当前最重要的架构原则不是“让 ON 运行更久”，而是让每个阶段只承担一个可验收职责：
 
-如果比赛 client 不支持逐请求设置 `thinking_mode`，就直接使用宿主 serializer，不为了模拟 OFF 再增加一次模型调用。
+1. 模型负责产生数学候选，不负责保证比赛格式。
+2. 候选是否完整，与候选是否有数学证据，必须是两个字段和两个状态。
+3. 可以执行的局部验证优先于另一个 LLM 的泛化评价。
+4. 第二候选必须带来路线或检查增量，不能只是更长的同质自由推理。
+5. `UNKNOWN` 是合法状态，不能为了降低 invalid 把它强行改成 PASS。
+6. 最终答案必须由 host-side contract 生成；模型没有写出 `\\boxed{}` 不能单独造成失分。
+7. 每一个“invalid 下降”都必须同时报告 `invalid→correct`、`invalid→incorrect`、`correct→incorrect` 和 `correct→invalid`。
 
 ## 2. 证据边界
 
 ### 2.1 已确认事实
 
-以下结论来自仓库文档、代码或已封存实验，可直接复核。
+以下结论直接来自仓库文档、源码或已归档实验：
 
-1. [`evaluation_adoption_提分行动_2026-08-29.md`](../evaluation_adoption_提分行动_2026-08-29.md) 对 9 类判分实现做了源码级核对。跨口径的安全表示是“明确答案句式 + `\\boxed{}` + 最简规范形 + 无解释性尾缀”。缺少句式、十进制与最简分数、无序对象、单位覆盖和尾缀污染都会造成判分差异或 `invalid`。
-2. 该报告明确建议 ARH 作为纯后处理：
+- [`evaluation_adoption_提分行动_2026-08-29.md`](../evaluation_adoption_提分行动_2026-08-29.md) 对 9 个判分实现做了源码级核对，指出 `\\boxed{}`、最简规范形、明确答案句式和无解释性尾缀是多种判分口径的共同安全区。
+- 该报告明确建议 ARH 作为纯后处理：数值题同时输出“最终答案：canonical”和 boxed 形态；不新增模型调用，不修改 solver prompt。
+- 该报告建议并行接入 Math-Verify 做本地诊断差集，但不把 Math-Verify 变成本地默认判分器，也不根据未知官方判分器进行投机对齐。
+- 该报告不采纳本地 LLM-as-judge、PRM 运行时组件、强 JSON/XML 默认输出和异常回复剔除分母。
+- [`arm_harness_v1.md`](../architecture/arm_harness_v1.md) 已经支持按请求选择 `on`、`off`、`inherit`，并把 route、mode、budget 和 escalation reason 写进 trace。
+- [`arm_v2.1.3_technical_spec.md`](../9.29/v2.1.3/arm_v2.1.3_technical_spec.md) 已把 ARM 的主要问题定义为“完整候选不等于数学可信”，并要求 forced A/B、positive-evidence gate、bounded second sample 和不创造第三候选的 resolver。
+- [`arm_v2.1.3_acceptance_spec.md`](../9.29/v2.1.3/arm_v2.1.3_acceptance_spec.md) 要求 correctness 优先于 formation，要求报告 A/B/Oracle、`A wrong → B correct`、`A correct → B wrong`，并规定两轮重复和调用上限。
+- [`0003-thinking-on-adaptive-candidate-first-harness.md`](../adr/0003-thinking-on-adaptive-candidate-first-harness.md) 已否决固定多阶段长协议和无条件多路完整求解，选择 bounded candidate-first relay。
+- [`excluded_approaches.md`](../excluded_approaches.md) 明确禁止跨时间窗口归因、VOID 后挑选好看指标、未独立过门就融合多个候选、用 invalid 下降替代 correct 提升和无界 rollout。
+- `reasoning_agent/arm_v21_verification.py` 的默认 `DeterministicVerifier` 仍是 `NOT_APPLICABLE` 占位；因此 ARM 当前 trace 中出现的“verification”不能被写成数学正确性证据。
+- `reasoning_agent/safe_candidate.py` 的 safe candidate 只表示中断时可保留的 incumbent，不表示候选已经被证明正确。
+- `reasoning_agent/fesf_verifiers/adapters.py` 的安全范式是 `EXACT / REFUTED / UNKNOWN`，有限搜索没有找到反例时也不会把结果升级为全称 PASS。
 
-   ```text
-   最终答案：<canonical>
-   $\\boxed{<canonical>}$
-   ```
+### 2.2 数据支持的判断
 
-   它不新增模型调用，不修改 prompt，也不负责判断数学真值。
-3. 同一报告明确不采纳默认 LLM-as-judge、PRM/process 评测、猜测官方判分器、Math-Verify 作为本地唯一口径和强 JSON/XML 输出。
-4. [`docs/architecture/arm_harness_v1.md`](../../architecture/arm_harness_v1.md) 已经把 ARM 的 request-local ON/OFF、`fast_off`、`adaptive`、`deep_on`、有限调用数和候选账本写成实验接口；这说明 ARM 已具备控制平面雏形，不需要再引入一个平行总控架构。
-5. [`docs/adr/0003-thinking-on-adaptive-candidate-first-harness.md`](../../adr/0003-thinking-on-adaptive-candidate-first-harness.md) 要求候选优先、最多三次调用、候选冲突不静默丢弃、safe candidate 只作保护、resolver 不能创造第三答案。
-6. [`reasoning_agent/arm_v21_verification.py`](../../../reasoning_agent/arm_v21_verification.py) 当前默认 `DeterministicVerifier` 是 `NOT_APPLICABLE`。因此“模型写了 CHECK/VERIFIED”不能写成独立数学验证证据。
-7. [`reasoning_agent/safe_candidate.py`](../../../reasoning_agent/safe_candidate.py) 的 safe candidate 是低信任 incumbent，用来防止中断或后续弱候选覆盖已有结果；它不代表数学上正确。
-8. [`reasoning_agent/fesf_verifiers/adapters.py`](../../../reasoning_agent/fesf_verifiers/adapters.py) 已采用 `EXACT / REFUTED / UNKNOWN` 的 fail-closed 思路。有限搜索没有找到反例时仍是 `UNKNOWN`，不能自动升级为 `PASS`。
-9. ARM v2.1.3 验收规范已经把 primary correctness、A/B oracle、`A_wrong→B_correct`、`A_correct→B_wrong`、false trusted primary、重复性、invalid/incomplete、平均调用和晋升门分开定义。它不允许只凭 invalid 减少或调用减少晋升。
-10. [`docs/excluded_approaches.md`](../../excluded_approaches.md) 要求同窗口交错、单变量实验、VOID 先于能力判断、禁止跨窗口归因、禁止题号/答案库特判和无界 rollout。
-
-### 2.2 数据支持的推断
-
-1. 当前 ARM 的主要风险不是“有没有更多模块”，而是结构完整、正常停止或候选存在被过早解释成“数学可信”。这会把生成、验证、选择和序列化问题混在一起。
-2. 现有 221 invalid 遥测显示，大量失败同时具有 `finish_reason=length`、候选记录或第二样本无增量等信号；这支持优先修复候选闭合、验证和提交路径，而不是默认增加长推理。
-3. ARH 与候选生成、路线多样性、确定性验证正交，适合先做零模型 replay，再做逐步 paired 实验。
-4. ARM 的二次调用只有在“路线不同”或“验证增量明确”时才有可能提供能力收益。重复同一自由推理更像随机扰动，不能默认称为有效多样性。
+- 当前 frozen-221 的 invalid 审计显示，很多 invalid 同时具有截断、候选记录或无效第二样本等信号。以已完成的两次 ON 运行遥测为例：221 题 invalid 中有 69 条出现 `finish_reason=length`，70 条有两个候选记录，86 条第二样本没有产生可用新值，且 invalid 的 verification 全为 `NOT_APPLICABLE`。这些集合重叠，不能直接相加成互斥类别，但足以说明“候选闭合、有效验证和收束决策”比单纯增加 token 更接近当前瓶颈。
+- GRH v1.2 的 proxy-221 事后审计显示，跨窗口的 correct 回退不能归因于单一 ARM 机制；首候选波动、boxed 原值与 normalized value 的边界、错误替换和 Resolver 全部 UNKNOWN 同时存在。因此不能以一次回退宣布 ARM 已被证伪，也不能把一次局部回放当成数学提升。
+- ARM-ISOLATION-001 重跑显示高 token 上限本身就会造成明显读超时，裸 endpoint 也会超时；不能把这类健康问题单独归咎于 ARM 状态机。
 
 ### 2.3 尚未验证的假设
 
-- ON solver 是否在官方题型分布上比 OFF 产生更多正确且闭合的候选；
-- 一次 OFF finalizer 是否能净减少 invalid，且不把已有 canonical value 改坏；
-- 当前 endpoint 在复杂请求上的超时是否主要来自 token、排队、网络还是架构 prompt；
-- deterministic verifier 在真实题型上的覆盖率和误拒率；
-- 路由器能否在不使用题号、gold 或 benchmark lookup 的前提下可靠地识别适合 ON 的题。
+- ON solver 是否在 Intern-S2 上稳定产生比 OFF 更正确的困难题候选。
+- 第二条“不同路线”的候选是否能在当前 endpoint 上增加 `A wrong → B correct`，而不是只增加冲突和成本。
+- 一次 OFF finalizer 是否能减少协议 invalid，同时不改动 canonical value。
+- 受限 substitution、symbolic、finite-domain 或 constraint check 在本赛事题型上的覆盖率和误拒率。
+- adaptive router 是否比固定 OFF 或固定 ON 在同一 endpoint 时段内有稳定的 paired 净收益。
 
-这些问题必须通过同题、同评测器、同模型和交错顺序的实验回答，不能由架构图直接推出。
+以上问题只能通过新的、同题交错、同 evaluator 的预注册实验回答，不能从 README、自报分数或历史不同窗口分数推断。
 
-## 3. 为什么不是“删除 ARM、换成新架构”
+## 3. “评测方法调研采纳报告”对架构的直接约束
 
-ARM 已经承担了比赛环境最需要的四项职责：
+### 3.1 ARH 是提交层，不是 solver
 
-| 现有 ARM 职责 | 保留原因 | 重设计后的边界 |
-|---|---|---|
-| request-local reasoning mode | 允许按题或按阶段控制 ON/OFF | 只记录与执行模式，不把模式等同能力结论 |
-| candidate lifecycle | 防止弱候选覆盖已有候选 | 独立保存 raw、canonical、evidence 和版本 |
-| compute allocation | 比赛有调用、token、单题和整轮预算 | 只决定是否升级，不负责“猜正确答案” |
-| trust / escalation | 可把预算投给不稳定题 | trust 表示证据状态，不表示 gold correctness |
-
-需要移出 ARM 内部的职责是：
-
-- 直接把模型输出字符串当最终答案；
-- 用结构完整、正常停止或模型自报检查作为 verified；
-- 用同一个 generic resolver 同时完成数学求解、候选选择和格式修复；
-- 把 `UNKNOWN` 通过 prompt 或额外自由推理强行变成 PASS；
-- 让后续 challenger 无条件覆盖 primary 或 safe incumbent。
-
-所以建议的方向是 **ARM-ARH / Decision-Aware ARM**：ARM 仍是唯一控制平面，ARH、Verifier、Serializer 是受 ARM 调度但可独立验收的能力与卫生组件。这样既不抛弃 ARM 的预算/状态积累，也避免继续扩张一个包含所有职责的巨大 harness。
-
-## 4. 新架构的职责分层
-
-### 4.1 Task Contract：先确定“要交付什么”
-
-每题进入模型前，宿主只生成不含 gold 的任务契约：
-
-```json
-{
-  "answer_type": "integer|rational|expression|tuple|set|choice|proof",
-  "required_fields": ["value", "unit"],
-  "allowed_equivalence": ["rational_normalization", "set_order_insensitive"],
-  "domain_assumptions": ["x != 0"],
-  "completeness_rule": "one_closed_value_or_all_requested_parts",
-  "serialization": "competition_answer_v1"
-}
-```
-
-契约不得包含题号特判、gold、answer bank 或 benchmark lookup。它只描述答案类型、必需字段、合法表面等价和何时算闭合。
-
-### 4.2 ARM Router：只做路由和预算，不做数学判定
-
-Router 输出 `risk_class`、`answer_type`、`route_confidence` 和 `budget_lane`。第一版只允许通用、可审计的特征：题目结构、答案契约、是否多问、是否需要证明或有限约束。不能用题号、题面片段、gold 或历史题答案特判。
-
-建议初始 lane：
-
-| lane | 初始 solver | 触发二次调用 | 上限 |
-|---|---|---|---:|
-| `direct_off` | OFF Direct | 候选缺失、结构失败或负证据 | 2 solver calls |
-| `structured` | OFF/ON Structured | 无正证据、冲突或候选不完整 | 2 solver calls |
-| `deep_on` | ON Deep | 只在候选缺失、截断或高风险冲突时升级 | 2 solver calls |
-
-默认不因为题目更长就强制 ON；路由器只能提出预算策略，不能预言答案正确。
-
-### 4.3 Solver Backend：ARM 调度，solver 解题
-
-统一 backend 接口：
+原报告的 ARH 规格应直接成为 ARM 的最后一层：
 
 ```text
-solve(problem, task_contract, reasoning_mode, token_budget)
-  -> raw_response + runtime_metadata + candidate_events
+Candidate object
+    ↓ canonicalizer
+TaskContract serializer
+    ↓
+最终答案：<canonical>
+\\boxed{<canonical>}
 ```
 
-候选 backend 可以沿用现有 Direct/Structured/Deep 路径，不在此阶段大规模重写 FSDF。ARM 应允许 backend 返回“没有闭合候选”，而不是逼它填一个猜测值。
+这个出口只在 candidate 已经通过题型和完整性门时执行。它可以修复 LaTeX 包装、单位表面形态、选项标签和答案 marker，不能从半截推理中猜一个值，也不能改变 candidate 的数学值。
 
-ON solver 的提示词只需要求通用 checkpoint，供宿主记录：
+非数值题、证明题、多问结构题不应强行套单一 boxed 规则；它们仍然需要各自的 `TaskContract` 和完整性判定。
+
+### 3.2 双判分器只用于差集诊断
+
+默认 evaluator 保持项目冻结的 native 口径；Math-Verify 或其他实现只在本地离线重判中报告差集：
+
+```text
+native verdict
+Math-Verify verdict
+surface / normalization difference
+```
+
+差集用于测量“语义可能存在但表示不兼容”的上限，不允许用更宽松的判分器美化能力结果，也不允许据此反推官方 checker 的非对称细节。
+
+### 3.3 不使用强结构化输出作为默认解法
+
+当前 `InternChatClient.chat()` 的公开 payload 没有确认支持 `response_format`、JSON Schema、grammar 或 tool choice。vLLM、Outlines、Guidance、Instructor、PydanticAI 的结构化输出经验可以用于研究，但必须先做 capability probe；在此之前，默认采用 host-side typed parser、canonicalizer 和 serializer。
+
+这不是拒绝结构化对象，而是把结构化边界放在 host。模型可以被提示输出 `FINAL_CANDIDATE` 和 `EVIDENCE`，但 marker 命中不等于数学证明，host 仍必须重新检查。
+
+### 3.4 不把 LLM judge/PRM 作为默认验证层
+
+数学判分、过程奖励和自然语言评价有不同用途。默认路径不添加 LLM-as-judge 或 PRM；如果后续实验需要 resolver，它只能在 deterministic check 返回 UNKNOWN、已有闭合 candidate 且预算满足时运行一次，并只能返回：
+
+```text
+PASS / FAIL / UNKNOWN + 固定长度 objection
+```
+
+它不能创建 candidate C、重写 canonical value、根据题目重新完整求解或覆盖已经有强证据的 incumbent。
+
+### 3.5 统计纪律属于架构的一部分
+
+每个候选版本都必须固定：dataset manifest、题序、model/version、endpoint、evaluator、canonicalizer、runner、预算和源码 hash。报告同时列 point estimate 和 Wilson 95% 区间；小规模 30 题和 112 题实验不应把 ±1–3 题波动写成确定性能力结论。
+
+## 4. 新架构：Decision-Aware ARM + ARH
+
+### 4.1 总体数据流
+
+```text
+                       ┌──────────────────────────────┐
+                       │ Task Contract / Risk Profile │
+                       │ type, fields, domain, budget │
+                       └──────────────┬───────────────┘
+                                      │
+Problem ──> ARM Router / Compute Policy
+                  │
+          ┌───────┴────────┐
+          │                │
+      Easy/direct       Hard/uncertain
+      OFF Solver        ON Solver
+          │                │
+          └───────┬────────┘
+                  ▼
+        Candidate Event + raw-span hash
+                  ▼
+       ARH extractor / canonicalizer
+                  ▼
+     completeness + contract validation
+                  ▼
+      deterministic verification gates
+          │          │          │
+        PASS       FAIL       UNKNOWN
+          │          │          │
+       select      reject   bounded escalation
+          │                     │
+          │       ┌─────────────┴─────────────┐
+          │       │                           │
+          │   independent route B         abstain/incumbent
+          │       │                           │
+          │       └─────────────┬─────────────┘
+          │                     ▼
+          │        pair comparison / local checks
+          │                     │
+          └─────────────────────┴──────────────┐
+                                                ▼
+                         DecisionRecord: SELECT / REPAIR / ABSTAIN
+                                                ▼
+                         host serializer or one OFF finalizer
+                                                ▼
+                         strict final response + compact trace
+```
+
+### 4.2 ARM 控制平面
+
+ARM 继续负责：
+
+- 读取不含 gold 的 `TaskContract` 和风险配置；
+- 选择初始 OFF/ON 模式与 solver backend；
+- 维护每题的 logical call、token、wall-clock 和 endpoint health ledger；
+- 判断何时需要第二路线、局部验证、协议修复或 abstain；
+- 保存 Primary、Challenger、safe incumbent 和每次版本迁移；
+- 禁止弱候选覆盖已有强证据候选；
+- 在全局预算内终止，不启动无限 ON→ON→ON。
+
+ARM 不再负责：
+
+- 直接把“结构完整”标成数学可信；
+- 依赖模型自报 `CHECK`、`VERIFIED` 或 confidence；
+- 用 Resolver 从两个错误值中创造第三个值；
+- 在 serializer 中猜测缺失答案；
+- 把 parser 成功、invalid 下降或 avg calls 下降写成 correct 提升。
+
+### 4.3 Solver 平面
+
+Solver backend 采用已有接口，不把所有题强塞给一个 generic prompt。第一阶段只保留三种可审计 lane：
+
+| Lane | 适用条件 | 思考模式 | 责任 |
+|---|---|---:|---|
+| `direct` | 低风险、单值/选择、题型契约明确 | OFF 优先 | 快速形成闭合候选 |
+| `structured` | 多步代数、约束、组合、需要中间关系 | ON | 推导路线和候选 |
+| `deep` | 高风险或首候选无法闭合 | ON | 受限深度推理；仍需候选 checkpoint |
+
+ON solver 的 prompt 可以要求通用边界事件：
 
 ```text
 CLAIM: <当前候选或 UNKNOWN>
@@ -174,356 +204,363 @@ FINAL_CANDIDATE: <闭合候选；没有则 UNKNOWN>
 STOP_REASON: <closed|conflict|insufficient|truncated>
 ```
 
-这些 marker 是 telemetry 和抽取边界，不是数学证明。
+这些字段只用于遥测和抽取，不构成 verifier。候选内容与 route tag 分开记录，便于统计“路线多样性”而不是把措辞变化当作独立样本。
 
-### 4.4 Candidate Ledger：保存“模型产生了什么”
+### 4.4 ARH：Answer Representation and Hygiene
 
-Candidate 不应只是字符串。建议在现有 `Candidate` seam 上补足：
+ARH 由四个小模块组成：
+
+1. **Extraction**：按固定优先级读取 typed answer block、明确 final marker、平衡 boxed、题型 parser、standalone value、末行 fallback。
+2. **Canonicalization**：只做 Unicode/LaTeX 表面归一化、有理数约分、允许的集合排序和单位表面统一，不改多问顺序、定义域或数学值。
+3. **Completeness**：区分 closed、partial、conflict、unknown；检查多问、单位、集合、向量、矩阵和 proof contract。
+4. **Serialization**：只接受已选中的 candidate，按 contract 生成比赛格式；若仅 marker 或包装缺失且 canonical value 已确认，才允许一次 finalizer。
+
+建议 Candidate 至少包含：
 
 ```json
 {
   "candidate_id": "c-01",
-  "value": "…",
-  "canonical_value": "…",
-  "answer_type": "rational",
+  "value": "raw value",
+  "canonical_value": "normalized value",
+  "answer_type": "integer|rational|expression|set|choice|proof|unknown",
   "source": "explicit_marker|boxed|terminal_line|checkpoint|fallback",
   "completeness": "closed|partial|conflict|unknown",
   "reasoning_status": "established|tentative|truncated|unknown",
-  "verification_evidence": [],
+  "verification": [],
   "confidence": "deterministic|symbolic|enumerated|nl|unverified",
-  "raw_span_hash": "sha256:…",
+  "raw_span_hash": "sha256:...",
   "serialization_status": "ready|repairable|rejected"
 }
 ```
 
-`confidence` 必须由宿主证据填写，不能采用模型自报 confidence。raw span hash 用于审计来源，不要求把完整长思维写进逐题报告。
+`confidence` 是 host 证据等级，不是模型自报置信度。`raw_span_hash` 用于离线追溯，不要求把完整长思维写入正式 trace。
 
-### 4.5 ARH：抽取、规范化、序列化
+### 4.5 Verification Gate：三态且有边界
 
-ARH 采用固定顺序，避免宽松 fallback 抢走高质量候选：
-
-1. typed answer block；
-2. `FINAL_CANDIDATE` 或明确 answer marker；
-3. 平衡括号的 `\\boxed{...}`；
-4. 题型专用 parser；
-5. standalone numeric/choice/finite-set；
-6. terminal line / RHS fallback；
-7. 无闭合候选时返回 `UNKNOWN`。
-
-canonicalizer 只做表面规范化：Unicode minus、LaTeX 包装、有理数约分、允许的集合顺序和单位表面形式。它不能改变多问顺序、定义域、单位含义或数学值。
-
-数值/表达式题的宿主 serializer 目标是：
+统一接口：
 
 ```text
-最终答案：<canonical>
-$\\boxed{<canonical>}$
+PASS    在明确假设和输入上成立
+FAIL    找到明确反例、代入不成立或结构冲突
+UNKNOWN 超出安全范围、缺少条件或软超时
 ```
 
-非数值题使用对应的题型 contract；不强行套 boxed。serializer 只接受 `SELECTED` candidate，不能自行猜值。
+验证优先级：
 
-ARH 的职责是降低抽取和表示失败；它不能把错误数学候选变正确。因此 ARH 单独通过时只能称为 `hygiene improvement`，除非同一 evaluator 下观察到 `invalid→correct`。
+1. 结构和完整性；
+2. 整数、有理数、有限算术和候选代入；
+3. 受限 AST/SymPy 等价，明确处理定义域；
+4. contract 允许时的有限域枚举；
+5. 模约束、边界、单位、维度和必要条件；
+6. 只检查能形式化的局部证明义务。
 
-### 4.6 Deterministic Verification Gate：先算，再问模型
+“有限样本没有找到反例”返回 UNKNOWN；“模型说 CHECK: PASS”不是 host evidence。默认不使用 LLM judge 代替这些检查。
 
-统一返回三态：
+### 4.6 Decision Layer：候选优先级和状态机
+
+推荐状态机：
 
 ```text
-PASS     在声明的假设和输入范围内成立
-FAIL     找到明确反例、代入不成立或结构冲突
-UNKNOWN  超出安全范围、无法形式化或检查超时
+MISSING → PARSED → CLOSED
+                    ├─ VERIFIED
+                    ├─ REJECTED
+                    └─ UNKNOWN
+                         ↓
+                 SELECTED / REPAIR / ABSTAIN
+                         ↓
+                    SERIALIZED
 ```
 
-推荐顺序：
+冲突候选必须进入 `CONFLICT`，不能用最后出现的文本覆盖早先候选。DecisionRecord 至少记录：
 
-1. 结构与完整性；
-2. 精确数值或代入；
-3. 受限符号等价；
-4. 合同明确的有限域穷举；
-5. 反例搜索；
-6. 边界、模、单位和维度检查；
-7. 可形式化的局部证明义务。
-
-每个 `PASS` 绑定 candidate id、raw hash、check 名称、版本和耗时；`FAIL` 保存短 witness；`UNKNOWN` 保存原因。模型输出中的 `CHECK`、`VERIFIED`、confidence 或“我已检查”都不构成 PASS。
-
-### 4.7 ARM Decision State Machine：只做可解释裁决
-
-```text
-MISSING
-  → PARSED
-  → CLOSED
-  → VERIFIED / REJECTED / UNKNOWN
-  → SELECTED
-  → SERIALIZED
+```json
+{
+  "candidate_ids": ["c-01", "c-02"],
+  "checks": ["substitution:PASS", "domain:UNKNOWN"],
+  "selected_id": null,
+  "decision": "select|repair|abstain",
+  "reason": "...",
+  "abstain_reason": "conflict|incomplete|unsupported|budget"
+}
 ```
 
-冲突进入 `CONFLICT`，不按最后出现顺序覆盖。
+ARM 的 trust gate 从“我是否敢相信这个完整字符串”改成“这个 candidate 当前拥有哪种证据、还缺哪种证据”。
 
-建议的决策优先级：
+### 4.7 有界 escalation
 
-```text
-deterministic PASS
-  > independent route agreement
-  > typed completeness + safe domain
-  > single unverified closed candidate
-  > partial / truncated candidate
-```
+建议沿用当前 ARM 的单题最多 3 个 logical slots，但第三槽互斥：
 
-这不是把多个信号粗暴压成一个浮点分数。每个证据维度都要单独记录：完整性、确定性证据、路线独立性、定义域安全、冲突、截断。
+1. **Primary**：一次 direct/structured/deep solver。
+2. **Second**：只有候选缺失、完整性不足、冲突、截断或无正证据时，调用独立路线 B；B 不能读取 A 的 raw response 或 candidate value。
+3. **Third**：只选择一种动作：
+   - 已有闭合 candidate 且只差格式：一次 OFF finalizer；
+   - 候选冲突且 deterministic 为 UNKNOWN：一个有限 resolver 实验臂；
+   - 没有任何候选：不调用 finalizer，不启动第四次长求解，返回 UNKNOWN/既定 incumbent。
 
-### 4.8 Second Route：路线多样性优先于表述多样性
+deterministic verifier 不消耗模型调用。若 endpoint 不支持 request-local OFF，则直接使用 host serializer，不能为了模拟 OFF 增加一轮长推理。第三槽的 resolver 和 finalizer 不得同时开启。
 
-第二次 solver 调用必须满足以下至少一项：
+### 4.8 路线多样性，而不是表述多样性
 
-- 使用不同的通用 backend 或路线族；
-- 对原题重新建模，不读取 A 的 raw response；
-- 产生可检查的不同中间关系或局部证据；
-- 对 A 提供局部反例/代入义务，而不是再次自由作文。
+Second sample 的路由 tag 至少区分：
 
-不得把仅改变“请更仔细”“再算一次”称为有效多样性。B 不能读取 A 的候选值，否则其一致性不再是独立证据。
+- `algebraic_derivation`；
+- `constraint_elimination`；
+- `invariant_or_counting`；
+- `constructive_or_counterexample`；
+- `finite_check_or_enumeration`；
+- `direct_recompute`。
 
-第二调用的三种用途必须区分：
+实际可用的 route 必须由题型契约、solver 输出的中间关系和通用风险分类产生，不得按题号、gold、answer bank 或 benchmark lookup 特判。若 A 已使用某路线，B 应优先选择不同的通用方法族；若没有足够信息确定路线，使用互盲 fresh candidate，并将“路线未知”写入 trace，而不是假装多样。
 
-| 类型 | 输入 | 允许输出 | 目的 |
-|---|---|---|---|
-| independent solver | 原题 + contract | 新候选/UNKNOWN | 生成路线不同的候选 |
-| targeted challenger | 原题 + A 的有限 claim/evidence | objection + PASS/FAIL/UNKNOWN | 定点找错，不重算全题 |
-| protocol finalizer | 已闭合 candidate + contract | 同值序列化/UNKNOWN | 修 marker、字段或包装 |
+路线多样性本身不等于正确性。只有 `A wrong → B correct` 在同一 evaluator 下出现，并且 B 没有造成过量 `A correct → B wrong`，才说明这条 escalation 值得继续。
 
-一个题最多使用其中两类追加动作，默认总 logical calls 不超过三次；deterministic check 不消耗模型调用。禁止 ON→ON→ON→resolver 的无界链。
+## 5. ARM 旧组件到新组件的映射
 
-### 4.9 Optional OFF Finalizer：只能修协议
-
-只有下列条件同时满足时才允许调用：
-
-- candidate value 已闭合；
-- answer type 和 completeness 已确定；
-- deterministic check 未发现数学冲突；
-- 失败原因仅是 marker、字段、LaTeX 包装或序列化。
-
-适配版提示词：
-
-```text
-You are a bounded final-answer serializer.
-Do not solve the problem again and do not invent a missing result.
-Read the supplied candidate object and task contract.
-Return exactly one object with the existing canonical value, or UNKNOWN.
-You may repair only delimiters, LaTeX wrappers, option labels, units,
-and required field names. You must not change the mathematical value,
-add a new candidate, or turn UNKNOWN evidence into PASS.
-```
-
-宿主必须重新解析 finalizer 输出，并验证 canonical value 与输入相等；不相等就丢弃并记录 `finalizer_value_changed`。如果接口没有 request-local OFF，使用 host serializer，不能为了阶段名称增加长推理。
-
-## 5. ARM 旧组件到新边界的映射
-
-| 旧组件/概念 | 新定位 | 保留/修改 |
+| ARM 旧职责/组件 | 新定位 | 处理方式 |
 |---|---|---|
-| `HostRouter` / ARM route | 估计 contract、风险和预算 lane | 保留，禁止读取 gold |
-| `reasoning_mode` | 每次请求的执行参数 | 保留，不能作为能力结论 |
-| `CandidateTrustPolicy` | 追加证据与分配预算 | 修改；不得把完整格式当数学信任 |
-| `SafeCandidateState` | 中断保护和 incumbent 保存 | 保留；明确 low-confidence |
-| `DeterministicVerifier` | 三态 host gate | 改为窄范围真实 check；默认 unknown 仍安全 |
-| ARM resolver | 有限 A/B 选择器 | 保留为实验开关；不能生成 C、不能重解全题 |
-| ARM salvage/recovery | 分为 candidate recovery 与 protocol finalization | 修改命名和触发条件 |
-| `final_response` | ARH serializer 的输出 | 移出模型自由文本路径 |
-| GSA / voting | 候选聚合实验 | 不作为默认验证器，先独立过门 |
-| skill/RAG | 软建议或独立实验层 | 默认关闭，不能读取答案库 |
+| ARM Router | 控制平面 Router | 保留；只负责风险、题型和预算，不负责猜答案 |
+| `thinking_mode` switching | Compute Policy | 保留 per-request ON/OFF；不把 ON/OFF 当数学能力证明 |
+| Primary candidate | Candidate ledger | 保留原始版本和 canonical 版本，禁止就地覆盖 |
+| Safe Candidate | Safe incumbent | 保留；只表示可追溯的中断候选，不表示 verified |
+| CandidateTrust | Evidence policy | 保留但改为证据分层；完整性不能单独升级 high trust |
+| `DeterministicVerifier` | Verification adapters | 保留接口，替换 `NOT_APPLICABLE` 默认路径前必须逐 check 过门 |
+| Candidate B | Independent route challenger | 保留；必须盲于 A 且记录 route diversity |
+| Resolver | Bounded decision aid | 默认关闭/实验；只能 A/B/UNKNOWN，不能造 C 或重解整题 |
+| Recovery | Typed recovery | 只修复可定位的局部/协议问题；没有 candidate 不进入 finalizer |
+| Final response assembly | ARH Serializer | 从 ARM 中拆出；以 TaskContract 生成 canonical + boxed 形态 |
+| `arm_v21_summary` | Evidence Ledger + DecisionRecord | 扩充字段，区分 candidate、verification、serialization 和 evaluator verdict |
 
-## 6. 221 invalid 的分层救援顺序
+因此，ARM 不是被替换，而是由“求解器中心的混合 harness”变成“证据驱动的编排层”。现有 ARM 文件可继续作为兼容 facade；新逻辑应放进小模块，避免继续扩大单一总控文件。
 
-不能把所有 invalid 都交给模型重算。建议按照离数学答案最近的类别优先：
+## 6. invalid → correct 的切入顺序
 
-| 层级 | 典型现象 | 首选动作 | 预期结果 |
+### 6.1 分类
+
+采用 R/S 双轴，避免把不同问题混成“invalid”：
+
+| 类别 | 现象 | 首选动作 | 是否允许强救援 |
 |---|---|---|---|
-| S1 / R4 | 候选存在，但 boxed、末行、单位、集合、矩阵或多问未抽取 | ARH parser + canonicalizer | invalid→correct；错误抽取必须 fail-closed |
-| S2 / R3/R6 | `finish_reason=length`，但已有闭合候选或 checkpoint | safe incumbent + host serializer | 保留已有候选；不能凭截断自动升信任 |
-| S3 / R2 | A/B 存在冲突，或选择错误 | deterministic comparison → bounded challenger/resolver | 只在有独立证据时切换 |
-| S4 / R3 | canonical value 已确认，只缺提交协议 | 一次 OFF finalizer 或 host serializer | 只修格式，不改数学值 |
-| S5 / R6 | timeout/health error，但已有强证据 incumbent | 保留 incumbent，禁止完整重跑 | 只在 contract 满足时提交 |
-| S6 / R1/R5 | 没有闭合候选、推理本身错、题意/等价规则争议 | abstain / UNKNOWN | 不把 invalid→incorrect 当救援 |
+| R4/S1 parser-contract | 已有语义候选，但 boxed、单位、集合、多问等未抽取 | host parser + canonicalizer + contract | 允许，优先级最高 |
+| R3/S2 finalization-truncation | `finish_reason=length`，但已有闭合候选或 checkpoint | safe incumbent + serializer | 允许；不得改值 |
+| R2/S3 decision | A/B 候选存在，选择错误或无理由 abstain | deterministic comparison，再考虑有限 resolver | 有条件 |
+| R3/S4 protocol-only | canonical value 已确认，仅缺 marker/字段 | 一次 OFF finalizer 或纯 host serializer | 允许一次 |
+| R6/S5 health | timeout/API error，但已有强 incumbent | 保留 incumbent，禁止完整重跑 | 有条件 |
+| R1/S6 reasoning | 没有可复核候选或推导本身错误 | 保持 UNKNOWN/invalid | 禁止强救援 |
+| R5 evaluator-boundary | 等价规则、题型边界或 judge 有争议 | 冻结原答，离线重审 | 禁止用 prompt 改判 |
 
-必须同时记录：
+优先级应是 S1 → S2 → S4 → S3 → S5；S6 不通过“更多 token”伪装成可救援。只有同一 evaluator 重判为 correct，才计入 Invalid Rescue：
 
 ```text
-Invalid Rescue  = invalid → correct
-Invalid Damage  = invalid → incorrect
-Correct Damage  = correct → incorrect + correct → invalid
-Net Correct Gain = new_correct - lost_correct
+Invalid Rescue = invalid → correct
+Invalid Damage = invalid → incorrect
+Correct Damage = correct → incorrect + correct → invalid
+Net Correct Gain = new correct - lost correct
 ```
 
-如果只降低 invalid、correct 不升，标记为 hygiene-only；不能用 coverage 替代 accuracy。
+### 6.2 预期收益边界
 
-## 7. 采用评测调研结果的具体方式
+host parser/replay 可以测量原始 response 中已经存在的可判答案上限，但不能证明模型数学能力增加。safe incumbent 可以减少后续空结果覆盖，但不能把截断片段升级为 verified。finalizer 可以改善协议卫生，但如果它改变 canonical value，立即视为失败并关闭。
 
-### 7.1 ARH 直接采用
+## 7. 实验与验收设计
 
-采用答案句式、canonical 规范形、boxed 双形态和无尾缀输出。该动作零新增调用，先做离线 replay，再做同题 paired 运行。
+### 7.1 单变量顺序
 
-### 7.2 Math-Verify 只作诊断第二口径
-
-并行记录当前 native evaluator 与 Math-Verify 的差集，量化“语义候选存在但表示不一致”的上限。Math-Verify 不替换默认本地口径，不写入官方提交路径。
-
-### 7.3 Wilson 区间和重复实验
-
-112 题或 221 题的小幅变化必须报告 Wilson 95% 区间；单轮 1–3 题波动不能直接解释成架构收益。候选至少做两轮同题交错 A/B。
-
-### 7.4 明确不采纳
-
-- 默认 LLM-as-judge：位置偏差、冗长偏差和同模型自增强风险；
-- 默认 PRM/process judge：它是评测/训练侧组件，不是当前比赛 outcome 的独立证明；
-- 为适配未知官方 verifier 而定制字符串投机；
-- 强 JSON/XML 作为默认 solver 输出：当前 `InternChatClient` 没有公开 `response_format`/grammar 参数，native support 尚未验证；
-- 通过放宽判分、剔除异常或删除无答案题来美化分数。
-
-### 7.5 GSA、hetero+refine、FSDF 的位置
-
-- `hetero+refine` 是采样/修正层实验，与 ARH 正交；必须以独立 paired 结果确认，不因单窗描述性结果直接融合。
-- GSA 是候选聚合器，不是数学 verifier；保持 opt-in，先报告 `A_wrong→B_correct`、`A_correct→B_wrong` 和 resolver/aggregate cost。
-- FSDF 继续作为 solver backend/历史对照，而不是把其多阶段交接强行塞进 ARM 的每题默认路径。
-
-## 8. 实验顺序与验收条件
-
-每一步都保持同一 frozen dataset、同一 model/version/endpoint、同一 evaluator/canonicalizer、同一题序交错和固定 workers。先判 VOID，再判能力。
-
-| 阶段 | 唯一变化 | 模型调用 | 目的 |
+| 实验 | 唯一变化 | 模型调用 | 目的 |
 |---|---|---:|---|
-| E0 | 冻结当前 ARM/GRH baseline | 原配置 | 建立逐题 verdict 和 telemetry |
-| E1 | ARH parser/canonicalizer replay | 0 | 测量纯输出可救援上限 |
-| E2 | ARM candidate ledger + positive-evidence gate | 1–2 | 测量早停损伤、safe incumbent 和截断保护 |
-| E3 | 第二路线/targeted challenger | 1–2 | 测量路线多样性是否产生真实 rescue |
-| E4 | deterministic verification adapters | 1–2 | 测量 host gate 的 rescue/damage |
-| E5 | 一次 OFF finalizer | 1–2 | 只测协议修复，值不变 |
-| E6 | adaptive OFF/ON router | 1–2 | 最后评估 compute allocation |
+| E0 | 冻结现有 ARM baseline | 原配置 | 保存逐题 verdict、health、候选和 finish reason |
+| E1 | 纯 host ARH replay | 0 | 测量 parser/canonicalizer 的真实救援上限 |
+| E2 | ARM ledger + safe incumbent + positive evidence | 与 baseline 相同 | 防止结构和候选迁移损伤 |
+| E3 | E2 + independent route B | +条件 1 | 测量路线多样性是否产生 A/B rescue |
+| E4 | E3 + deterministic gates | +0 | 测量局部验证的 rescue/damage |
+| E5 | E4 + 一次 OFF finalizer | +条件 1 | 只测格式修复，不测重新求解 |
+| E6 | E5 + adaptive OFF/ON router | +条件 0–1 | 最后评估 compute allocation |
 
-### 8.1 必须报告
+每个实验使用同一 frozen set、同一模型版本、同一 endpoint 时段、同一 evaluator/canonicalizer，并按题交错执行。健康 VOID 先于能力判定；错误、timeout 和未完成题留在分母。
 
-- `correct / incorrect / invalid / unknown`；
-- `invalid→correct`、`invalid→incorrect`、`correct→incorrect`、`correct→invalid`；
-- `A_correct`、`B_correct`、`oracle_correct`、`A_wrong→B_correct`、`A_correct→B_wrong`；
-- Decision Completion Rate、Final Candidate Stability、answer marker rate；
-- candidate count、complete/weak rate、conflict rate、finalizer rate；
-- deterministic `PASS/FAIL/UNKNOWN` 及 check type；
-- resolver A/B/UNKNOWN、judge rescue/damage（若做实验）；
-- finish reason、truncation-before-final、平均/P95 latency、调用数、请求/完成 token、timeout、health error；
-- 每一题的 raw span hash、candidate source、selection reason 和 rollback reason。
+### 7.2 必须报告的指标
 
-### 8.2 晋升门
+**正确性**：`correct / incorrect / invalid / unknown`、四类 transition、Invalid Rescue/Damage、Net Correct Gain。  
+**候选质量**：candidate count、closed/weak rate、answer marker rate、Decision Completion Rate、Final Candidate Stability、conflict rate、route diversity、resolver A/B/UNKNOWN、finalizer rate。  
+**运行健康**：logical calls、requested/completion tokens、平均/P95 latency、`finish_reason=length`、timeout、API error、response length。  
+**证据质量**：deterministic PASS/FAIL/UNKNOWN、每个 check 的 witness/hash/version、serializer 是否改变值、safe incumbent 是否被覆盖。
 
-建议区分探索门和正式 ARM 晋升门：
+### 7.3 晋升门
 
-**探索门：** 两轮交错都不得出现净负 correct；`Invalid Rescue > Invalid Damage`；平均调用增幅不超过 0.5/题；P95 不超过 baseline 的 120%。
+区分探索门和 ARM 正式 Full-30 门，避免口径混乱：
 
-**ARM Full-30 正式能力门：** 沿用 `ARM-V2.1.3-ACCEPTANCE` 的严格条件，至少一轮 paired net gain `>= +3`，第二轮方向非负且 correct floor 高于 baseline；`invalid/incomplete <= 5/30`；false trusted primary 明显下降；平均调用满足 OFF `<=2.0`、ON `<=2.5` 的目标和硬上限；Gate A/D/F 必须通过。
+**探索候选至少满足：**
 
-**安全门：**
+- 两轮同题交错；
+- 两轮 Net Correct Gain 均不为负，目标至少一轮 `>= +2`；
+- Invalid Rescue 严格大于 Invalid Damage；
+- Correct Damage 不超过 2 题；
+- error/timeout 增加不超过 1 题；
+- 平均调用增加不超过 0.5/题；
+- P95 不超过 baseline 的 120%；
+- 不使用 gold、题号特判、answer bank、benchmark lookup 或无界 rollout。
 
-- `correct→incorrect` 不超过 2 题；
-- error/timeout 增幅不超过 1 题；
-- finalizer 不能改 canonical value；
-- deterministic checker 不得把 unsupported 误判为 PASS/FAIL；
-- 没有 candidate 时不得调用 finalizer；
-- 不得使用 gold、answer bank、benchmark lookup、题号特判或无界 rollout。
+**ARM v2.1.3 Full-30 正式候选还必须满足既有规范：**
 
-只减少 invalid 或 incomplete，不增加 correct，记录为 hygiene-only；不能进入默认提交。
+- 代码、接口、预算、无 gold 和无循环门全部通过；
+- 同一 30 题的 paired net gain 至少 +3，或达到既有 correct floor；
+- 第二轮方向非负，且不是单轮偶然上涨；
+- invalid/incomplete 不超过既有硬门；
+- false-trusted-primary 相对基线减少；
+- `A wrong → B correct` 大于 `A correct → B wrong`。
 
-## 9. 分阶段实现计划
+只减少 invalid、不增加 correct 的实现标记为 `hygiene-only`，可以保留在 ARH/host 层，但不能称为数学能力晋升。
 
-### P0：证据和 ledger
+### 7.4 NO-GO 条件
 
-- 固定 judge/canonicalizer 版本；
-- 生成 v1.1/v1.2/ARM 工件逐题 ledger；
-- 分开 invalid、unknown、health error、timeout；
-- 记录 raw span hash 和 failure class；
-- 不产生模型调用，不改默认配置。
+以下任一情况立即停止该候选：
 
-验收：每题一条可追溯记录，gold 不进入 solver、trace 或 recovery prompt。
+- finalizer 改变 canonical value；
+- invalid→incorrect 或 correct→incorrect 稳定增加；
+- Resolver 需要重解整题或产生 candidate C；
+- parser 依赖某题编号、gold、答案库或 benchmark lookup；
+- verifier 的 UNKNOWN 被改写为 PASS；
+- 只在一个窗口好看，第二轮方向反转；
+- 健康 VOID 后继续挑选成功题统计；
+- 为维持平均 calls 而接受大量 false-trusted primary；
+- 通过强 JSON/grammar 迫使模型输出低质量值，但只报告 schema success。
 
-### P1：ARH 宿主层
+## 8. 实现步骤与文件边界
 
-- `TaskContract`、`Candidate`、`DecisionRecord` 保持小模块边界；
-- parser、canonicalizer、completeness、serializer 分离；
-- 覆盖整数、有理数、表达式、集合、向量、矩阵、单位、choice、多问；
-- 先做 invalid-dev replay，再用 invalid-holdout 和 valid-regression 验收。
+不要把新的 parser、router、resolver、finalizer 和 telemetry 继续堆进 `harness_contracts.py` 或单一 ARM 总控文件。建议按以下小模块拆分：
 
-验收：纯 replay 的 `invalid→incorrect=0`，不修改任何已有 canonical 数学值；只降低 invalid 时标 hygiene-only。
+```text
+reasoning_agent/task_contract.py
+reasoning_agent/candidate_canonicalizer.py
+reasoning_agent/verification_gates.py
+reasoning_agent/decision_record.py
+reasoning_agent/invalid_recovery.py
+reasoning_agent/finalizer.py
+scripts/audit_invalid_ledger.py
+scripts/replay_invalid_rescue.py
+tests/test_answer_contract.py
+tests/test_verification_gates.py
+tests/test_invalid_replay.py
+tests/test_finalizer_value_lock.py
+```
 
-### P2：ARM 状态和正证据门
+实施顺序：
 
-- primary、safe incumbent、challenger、selected candidate 分开保存；
-- 取消“完整 + stop = trusted”的隐含规则；
-- 让第二调用由缺失、冲突、截断或无正证据触发；
-- B 不读取 A 的 raw response。
+### P0：冻结证据和账本
 
-验收：错误 weak 候选不能自动覆盖正确 incumbent；`A_wrong→B_correct` 与 `A_correct→B_wrong` 可逐题统计。
+- 固定 evaluator、canonicalizer、dataset manifest、runner 和源码 hash；
+- 对已有 v1.1/v1.2/ARM 工件生成逐题 ledger；
+- 分离 invalid、unknown、health error、timeout；
+- 记录 raw span hash、finish reason、candidate source 和 failure class；
+- 零模型调用，不切换默认配置。
 
-### P3：窄范围 deterministic verifier
+验收：每题恰有一条 ledger；每个 invalid 有 R/S 类别或 UNKNOWN；100% 可追溯；gold 不进入 solver 或 recovery prompt。
 
-- 先实现代入、精确数值、定义域、边界、模和有限域检查；
-- 每个 check 有 PASS/FAIL/UNKNOWN 正例、反例、超范围例；
-- 把当前 no-op verifier 的 `NOT_APPLICABLE` 变成明确的适用性记录，而不是假验证。
+### P1：实现 ARH host 层
 
-验收：PASS 可绑定证据；UNKNOWN 不被 resolver 或 prompt 升级为 PASS。
+- 先完成 typed parser、canonicalizer、completeness 和 serializer；
+- 增加整数、有理数、表达式、集合、向量、矩阵、单位、choice、多问和 proof fixtures；
+- 在 invalid-dev 上调试，在 invalid-holdout 和 valid-regression 上验收；
+- 只输出 `最终答案 + boxed` 双形态，不改变模型调用。
 
-### P4：路线多样性和 targeted challenger
+验收：host replay 的 invalid→incorrect 为 0；已有正确答案不因包装归一化变坏；失败有 rejection reason；仅降低 invalid 则标记 hygiene-only。
 
-- B 采用不同路线/后端，不只改变措辞；
-- challenger 输出有限 objection、证据和覆盖范围；
-- 不允许第三候选或完整重解作为默认行为。
+### P2：重构 ARM candidate lifecycle
 
-验收：只有确定性检查或清晰异议支持时才更换 candidate；resolver 只输出 A/B/UNKNOWN。
+- 保留 Primary、B、safe incumbent、budget ledger；
+- 把 completeness、verification、selection、serialization 分成独立状态；
+- 修复 boxed raw value 与 normalized value 的边界；
+- 禁止 weak challenger 覆盖有更强证据的 incumbent；
+- 增加 `false_trusted_primary` 和 `candidate_replacement_reason`。
 
-### P5：一次协议 finalizer
+验收：B 失败不会丢掉合法 A；UNKNOWN 不会恢复被明确撤回的候选；候选版本可从 ledger 重放；所有调用仍受既有上限。
 
-- 仅处理已闭合候选的 marker、字段、LaTeX 包装和单位表面形式；
-- host 比较输入/输出 canonical value；
-- endpoint 不支持 request-local OFF 时关闭该模型调用，使用 host serializer。
+### P3：接入受限 deterministic gates
 
-验收：finalizer value changed、脑补、无候选调用立即 NO-GO。
+- 先做 substitution、numeric、constraint、mod、finite-domain、unit、boundary 中覆盖明确的少数 check；
+- 每个 check 有 PASS、FAIL、UNKNOWN 三类 fixtures；
+- 保存 candidate id、claim hash、check version、耗时和 witness；
+- 任何 unsupported/domain unresolved 都返回 UNKNOWN。
 
-### P6：adaptive ON/OFF
+验收：模型自报 CHECK 不可直接生成 PASS；check 不得误拒已知正确答案；没有全称证据时不输出 verified。
 
-- 最后才引入 router 对 OFF/ON 的分配；
-- 记录误路由和每个 lane 的成本/收益；
-- 不能通过题长或单个关键词直接硬切 ON。
+### P4：路线多样性和有界升级
 
-验收：两轮交错 paired，达到探索门；未达到则回退固定 baseline，不修改官方 profile。
+- 强制 A/B 诊断先于扩大 resolver；
+- B 互盲于 A，使用不同通用 route family 或 fresh independent route；
+- 只在缺失、冲突、截断或无正证据时触发；
+- 第三槽在 finalizer 和 resolver 之间互斥；
+- 不新增第四次调用。
 
-## 10. 回退与 NO-GO
+验收：逐题统计 oracle、A/B transitions、route diversity、平均和 P95 成本；若 Oracle(A,B) 不明显高于 A，停止扩展 resolver，回到 solver/generation。
 
-| 现象 | 处置 |
-|---|---|
-| ARH 把自然语言片段误抽成答案 | 收紧 parser，保留原始 invalid |
-| checkpoint 增加错误候选 | 只保留 telemetry，关闭自动接管 |
-| safe incumbent 被错误 challenger 覆盖 | 恢复版本化候选和证据比较，禁止就地覆盖 |
-| verifier 误拒合法答案 | 降级该 check 为 UNKNOWN，不改 evaluator |
-| finalizer 改变 canonical value | 立即关闭 finalizer，使用 host serializer |
-| resolver 把 UNKNOWN 变成答案 | 禁止 resolver 进入默认路径 |
-| invalid 降低但 correct 不升 | 标 hygiene-only，不宣传提分 |
-| timeout/error 增加或 P95 超门 | 减少 ON 题比例，回退到固定 OFF/host serializer |
-| 两轮结果方向不一致 | 保留实验，不晋升、不融合 |
+### P5：一次 OFF finalizer
 
-以下任一条件应直接 NO-GO：
+- 只接受 closed candidate + protocol-only failure；
+- 输入 TaskContract、canonical value、validation summary 和失败字段；
+- host 比较输入输出 canonical value；
+- 不允许新 candidate、重解、脑补和 UNKNOWN→PASS。
 
-- 读取 gold、answer bank、benchmark lookup 或题号特判；
-- 默认 ON→ON→ON→resolver 无界链；
-- 用 LLM 自报 `CHECK/VERIFIED` 替代 host evidence；
-- 用宽松 evaluator 或剔除异常回复美化 correct；
-- 只有 invalid 下降，没有 `invalid→correct` 净收益；
-- 未过单方法门就把 ARH、GSA、skills、RAG、resolver 一次性融合；
-- VOID 健康窗仍被拿来做能力结论。
+验收：两轮同题交错满足探索门；否则关闭模型 finalizer，保留纯 host serializer。
 
-## 11. 最终建议
+### P6：最后才做 adaptive router
 
-下一阶段不应发布一个与 ARM 平行的新总架构。应将 ARM 收敛为可靠的决策控制层，并按以下顺序增强：
+- easy/direct 走 OFF；hard/uncertain 走 ON；最终都经同一 ARH 和 Verification Gate；
+- 记录 route decision、误路由、成本和结果；
+- 若路由无法稳定区分，退回固定 OFF baseline + bounded host repair，而不是默认全 ON。
 
-1. ARH 宿主输出层，先从现有 invalid 记录中做零模型 replay；
-2. Candidate ledger、safe incumbent 和正证据 gate；
-3. 路线不同的第二候选或 targeted challenger；
-4. 窄范围 deterministic verification；
-5. 候选闭合后的一次协议 finalizer；
-6. 最后才做 adaptive ON/OFF 路由。
+## 9. 外部调研如何采用
 
-这个方案直接采纳 2026-08-29 评测行动报告的可验证部分：输出共识表示、双判分器诊断、Wilson 区间、fail-closed 分母纪律和禁止默认 LLM judge/强结构化输出；同时保留 ARM v2.1.x 已有的 request-local mode、预算账本、候选生命周期和 Full-30 验收门。
+| 来源 | 在新 ARM 中采用 | 明确不照搬 |
+|---|---|---|
+| DeepSeek-Math | 多级抽取、boxed/answer-is 解析、抽取与判分分离 | 不把 boxed 直接当数学 verified |
+| Qwen2.5-Math | 题型 parser、math equality 与有限工具轮次 | 不把工具循环扩成无界 agent |
+| AgentAIMO | parser → arithmetic/symbolic/finite → format 的流水线 | 不直接引入多轮 correction loop |
+| Light-R1 / DeepScaler | extractor、format reward、solver/evaluator 分栏 | ORM 不能代替 proof verifier |
+| open-r1 | finish_reason、usage、有限 retry 和可审计产物 | 训练/生成配置不能直接当比赛配置 |
+| vLLM / Outlines / Guidance / LM Format Enforcer | schema/grammar 的 capability probe 和离线测试 | 当前 client 未确认支持前不依赖 native constrained decoding |
+| Instructor / PydanticAI | typed output、validation error、有限 repair | 不允许无限 retry |
+| LangGraph | loop 结束后的 finalizer seam | 额外模型调用必须计入预算 |
+| Math-Verify | 本地差集诊断 | 不替换默认 evaluator，不美化分数 |
 
-它把“模型不会做”和“模型做到了但没有可靠提交”分开测量：R1 reasoning failure 不强行救援；R2 decision failure 交给有限证据裁决；R3/R4/R6 优先由宿主恢复；R5 evaluator boundary 保留争议。只有在同一 evaluator 下看到 `invalid→correct` 且没有相应 damage，才可以说架构真正提分。
+这些来源证明的是成熟的工程分层模式，不证明它们在 Intern-S2 或本赛事数据上有净 correct 增益。每一项都必须先变成单变量、可回滚、可配对的实验。
 
+## 10. 最终建议
+
+ARM 应继续保留，但它的核心含义需要收窄：
+
+```text
+ARM 不是“另一个会解题的模型”。
+ARM 是控制候选、证据、预算和提交状态的 host 控制器。
+```
+
+建议的下一版本顺序是：
+
+1. 先以 ARH 解决可复用的答案表示和 parser-contract invalid；
+2. 以 safe incumbent 和 checkpoint 解决截断后已有候选的保护；
+3. 以 deterministic verification 解决“能验证就不再调用 LLM”；
+4. 以路线多样性和 A/B Oracle 诊断决定第二候选是否值得；
+5. 只对闭合候选做一次受值锁定的 OFF finalizer；
+6. 最后才做 adaptive ON/OFF compute allocation。
+
+这样设计既采纳了 2026-08-29 评测方法报告中证据最强、风险最低的 ARH 和双判分器诊断，也保留了 ARM 的候选生命周期和预算优势。它把“invalid → correct”放在最可能成功的 host 层先做，但不把 invalid→incorrect、correct damage、健康错误或跨窗口波动隐藏起来。
+
+在 E0–E6 两轮配对实验和既有 ARM Full-30 晋升门全部通过以前，ARM-ARH 只能是实验候选；不能改默认提交配置，不能把本地分数写成官方能力，也不能因为架构图看起来更完整就宣称已经提升。
+
+## 11. 参考索引
+
+- 本仓库：[`evaluation_adoption_提分行动_2026-08-29.md`](../evaluation_adoption_提分行动_2026-08-29.md)
+- 本仓库：[`arm_harness_v1.md`](../architecture/arm_harness_v1.md)
+- 本仓库：[`arm_v2.1.3_technical_spec.md`](../9.29/v2.1.3/arm_v2.1.3_technical_spec.md)
+- 本仓库：[`arm_v2.1.3_acceptance_spec.md`](../9.29/v2.1.3/arm_v2.1.3_acceptance_spec.md)
+- 本仓库：[`0003-thinking-on-adaptive-candidate-first-harness.md`](../adr/0003-thinking-on-adaptive-candidate-first-harness.md)
+- 本仓库：[`excluded_approaches.md`](../excluded_approaches.md)
+- 本仓库：[`verification_decision_output_research_2026-10-03.md`](verification_decision_output_research_2026-10-03.md)
+- DeepSeek-Math：`evaluation/data_processing/answer_extraction.py`、`evaluation/eval/eval_utils.py`，commit `b8b0f8c`
+- Qwen2.5-Math：`evaluation/parser.py`、`math_eval.py`、`grader.py`，commit `a45202b`
+- AgentAIMO：`src/verification/pipeline.py`、`src/solver/answer_selector.py`，commit `5be44b1`
+- Light-R1 / DeepScaler：`system_prompts.py`、`rewards/math_reward.py`，commit `40b5965`
+- vLLM structured outputs：`docs/features/structured_outputs.md`，commit `1a001d5`
+- Outlines：`docs/examples/structured_generation_workflow.md`，commit `c52af84`
+- Instructor：`structured_outputs.md`、`semantic-validation-structured-outputs.md`，commit `e12f8b4`
+- PydanticAI：`docs/output.md`，commit `6695132`
+- LangGraph：`libs/prebuilt/langgraph/prebuilt/chat_agent_executor.py`，commit `7dc9195`
