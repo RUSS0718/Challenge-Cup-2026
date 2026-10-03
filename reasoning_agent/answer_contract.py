@@ -105,6 +105,14 @@ def infer_task_contract(problem: str) -> TaskContract:
     if re.search(r"证明|求证|\bprove\b|\bshow\s+that\b", text, re.I):
         answer_type = AnswerType.PROOF
         fields = ("proof",)
+    elif re.search(
+        r"(?:find|determine|求)\s+(?:all\s+)?(?:positive\s+)?integers|"
+        r"(?:所有|全部)(?:正)?整数",
+        text,
+        re.I,
+    ):
+        answer_type = AnswerType.SET
+        fields = ("value",)
     elif re.search(r"选择|选项|\bchoose\b|\bselect\b", text, re.I):
         answer_type = AnswerType.CHOICE
         fields = ("choice",)

@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from reasoning_agent.eacl_contracts import EACLConfig
 from reasoning_agent.eacl_pipeline import EACLControlPlane
-from scripts.run_eacl import _percentile
+from scripts.run_eacl import (
+    _load_existing_answers,
+    _load_manifest,
+    _metrics_from_answers,
+    _percentile,
+    _validate_resume_manifest,
+)
 
 
 class ScriptedClient:
@@ -31,6 +39,18 @@ class ScriptedClient:
         if isinstance(response, BaseException):
             raise response
         return response
+
+
+class LegacyClient:
+    """Public-contract client without request-scoped reasoning support."""
+
+    def __init__(self, response):
+        self.response = response
+        self.calls = 0
+
+    def chat(self, messages, temperature, max_tokens):
+        self.calls += 1
+        return self.response
 
 
 class EACLControlPlaneTests(unittest.TestCase):
@@ -105,6 +125,43 @@ class EACLControlPlaneTests(unittest.TestCase):
         self.assertEqual("ABSTAIN", result["decision"]["action"])
         self.assertTrue(result["trace"])
 
+    def test_route_b_refutation_fails_closed(self):
+        client = ScriptedClient(["没有形成候选", "FINAL_CANDIDATE: 121"])
+        result = EACLControlPlane(client).solve("计算 5!", {})
+
+        self.assertEqual("UNKNOWN", result["final_response"])
+        self.assertEqual("ABSTAIN", result["decision"]["action"])
+        self.assertEqual("FAIL", result["decision"]["verification"])
+
+    def test_unmarked_unverified_terminal_line_is_not_submitted(self):
+        client = ScriptedClient(["121"])
+        result = EACLControlPlane(client, config=EACLConfig(max_model_calls=1)).solve("求 n", {})
+
+        self.assertEqual("UNKNOWN", result["final_response"])
+        self.assertEqual("ABSTAIN", result["decision"]["action"])
+
+    def test_equal_refuted_candidates_fail_closed(self):
+        client = ScriptedClient(["FINAL_CANDIDATE: 121", "FINAL_CANDIDATE: 121"])
+        result = EACLControlPlane(client).solve("计算 5!", {})
+
+        self.assertEqual("UNKNOWN", result["final_response"])
+        self.assertEqual("ABSTAIN", result["decision"]["action"])
+        self.assertEqual("FAIL", result["decision"]["verification"])
+
+    def test_legacy_client_is_called_once_per_logical_request(self):
+        client = LegacyClient("FINAL_CANDIDATE: 120")
+        result = EACLControlPlane(client).solve("计算 5!", {})
+
+        self.assertEqual(1, client.calls)
+        self.assertEqual(1, result["model_calls"])
+
+    def test_proof_candidate_is_not_serialized_as_scalar_answer(self):
+        client = ScriptedClient(["FINAL_CANDIDATE: x^2+y^2=1"])
+        result = EACLControlPlane(client).solve("证明 x^2+y^2=1", {})
+
+        self.assertEqual("UNKNOWN", result["final_response"])
+        self.assertEqual("", result["extracted_answer"])
+
     def test_expression_contract_accepts_signed_latex_fraction(self):
         client = ScriptedClient(["FINAL_CANDIDATE: -\\dfrac{1}{8}"])
         result = EACLControlPlane(client).solve(
@@ -117,6 +174,55 @@ class EACLControlPlaneTests(unittest.TestCase):
 
     def test_runner_percentile_is_deterministic(self):
         self.assertEqual(3.0, _percentile([1.0, 2.0, 4.0], 0.75))
+
+    def test_runner_loads_last_durable_checkpoint_and_recomputes_metrics(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "answers.jsonl"
+            path.write_text(
+                '{"idx": 1, "status": "success", "final_response": "UNKNOWN", "model_calls": 2}\n'
+                'not-json\n'
+                '{"idx": 1, "status": "success", "final_response": "7", "model_calls": 1}\n',
+                encoding="utf-8",
+            )
+            loaded = _load_existing_answers(path)
+
+        self.assertEqual("7", loaded["1"]["final_response"])
+        metrics = _metrics_from_answers(list(loaded.values()))
+        self.assertEqual(1, metrics["completed"])
+        self.assertEqual(1, metrics["model_calls"])
+        self.assertEqual(1, metrics["records"])
+
+    def test_runner_manifest_loader_rejects_malformed_json_without_raising(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "run_manifest.json"
+            path.write_text("not-json", encoding="utf-8")
+            self.assertEqual({}, _load_manifest(path))
+
+    def test_runner_resume_contract_is_immutable(self):
+        manifest = {
+            "dataset_sha256": "abc",
+            "thinking_on": True,
+            "off_finalizer": False,
+            "max_model_calls": 3,
+            "total_token_budget": 12288,
+        }
+        _validate_resume_manifest(
+            manifest,
+            dataset_sha256="abc",
+            thinking_on=True,
+            off_finalizer=False,
+            max_model_calls=3,
+            total_token_budget=12288,
+        )
+        with self.assertRaisesRegex(ValueError, "resume_config_mismatch:max_model_calls"):
+            _validate_resume_manifest(
+                manifest,
+                dataset_sha256="abc",
+                thinking_on=True,
+                off_finalizer=False,
+                max_model_calls=2,
+                total_token_budget=12288,
+            )
 
 
 if __name__ == "__main__":

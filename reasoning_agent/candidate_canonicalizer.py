@@ -43,19 +43,36 @@ def _hash_span(value: str) -> str:
 def canonicalize(value: str, contract: TaskContract) -> str:
     """Normalize presentation wrappers without reordering mathematical data."""
     text = str(value or "").strip().replace("−", "-").replace("–", "-")
+    text = text.rstrip("。；;.!?？").strip()
     if text.startswith(r"\boxed{") and text.endswith("}"):
         body = text[len(r"\boxed{"):-1]
         if _balanced(body):
             text = body.strip()
-    text = re.sub(r"^\$+|\$+$", "", text).strip()
+    text = text.rstrip("。；;.!?？").strip()
+    if text.startswith("$") and text.endswith("$"):
+        text = text[1:-1].strip()
+    elif text.count("$") == 1 and (text.startswith("$") or text.endswith("$")):
+        text = text.strip("$").strip()
+    if (
+        contract.answer_type in {AnswerType.INTEGER, AnswerType.RATIONAL}
+        and text.startswith("(")
+        and text.endswith(")")
+        and _balanced(text[1:-1])
+    ):
+        inner = text[1:-1].strip()
+        if re.fullmatch(r"[+-]?\d+(?:/\d+)?", inner):
+            text = inner
     text = re.sub(r"^\\(?:dfrac|tfrac)\{([^{}]+)\}\{([^{}]+)\}$", r"\\frac{\1}{\2}", text)
     text = re.sub(r"\\left|\\right|\\,|\\!", "", text)
-    if contract.answer_type == AnswerType.SET and text.startswith("{") and text.endswith("}"):
+    if contract.answer_type == AnswerType.SET:
         # A set is unordered; only this contract permits sorting its numeric surface.
-        parts = [part.strip() for part in text[1:-1].split(",") if part.strip()]
+        body = text[1:-1] if text.startswith("{") and text.endswith("}") else text
+        parts = [part.strip() for part in body.split(",") if part.strip()]
         if parts and all(re.fullmatch(r"[+-]?\d+(?:/\d+)?", part) for part in parts):
             text = "{" + ",".join(sorted(set(parts), key=lambda item: (float(item.split("/")[0]) / float(item.split("/")[1]) if "/" in item else float(item)))) + "}"
-    return re.sub(r"\s+", "", text).rstrip("。；;.!?")
+    if re.search(r"\b(?:and|square|feet|foot|inches|inch|meters?|centimeters?)\b", text, re.I):
+        return re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"\s+", "", text)
 
 
 def _is_placeholder(value: str) -> bool:

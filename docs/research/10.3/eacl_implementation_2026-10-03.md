@@ -20,19 +20,33 @@ Host Intake → ARM Route → Route A/B Solver → Candidate Ledger
 - 确定性求解器只作为已知安全题型的 verifier；
 - `UNKNOWN` 不被当作 `PASS`；
 - 冲突且没有确定性证据时返回 `UNKNOWN`；
+- 未经显式候选协议标记的未验证终答不会直接提交；
+- 确定性 `FAIL` 不能被路线恢复或相同错误候选覆盖；
+- 超过 hard deadline 才返回的响应会被丢弃；
 - OFF finalizer 只能复述已有 canonical candidate，不能改变数学值；
+- proof/explanation 候选没有安全的标量序列化器时保持 `UNKNOWN`；
+- 整数括号、无括号数值集合、终止数学定界符和带单位答案保留通用表示兼容性；
 - trace 只保留候选摘要、hash、调用、token、finish reason 和决策，不保存完整思维链。
 
 独立运行入口：
 
 ```powershell
-$env:PYTHONPATH = "."
 .\.release-venv\Scripts\python.exe scripts\run_eacl.py `
   --input_file sample_data\dev.jsonl `
   --output_root artifacts `
   --max_model_calls 3 `
   --total_token_budget 12288 `
   --thinking_on
+```
+
+中断后可使用固定目录续跑；runner 会按 `idx` 跳过已落盘题目，并校验输入文件 hash、
+thinking/finalizer 开关、调用上限和 token 预算：
+
+```powershell
+.\.release-venv\Scripts\python.exe scripts\run_eacl.py `
+  --input_file sample_data\dev.jsonl `
+  --run_dir artifacts\<run-id> `
+  --resume
 ```
 
 该入口刻意不修改 `main.py` 的官方 profile，避免实验代码未经 paired gate 进入提交路径。
@@ -48,7 +62,7 @@ $env:PYTHONPATH = "."
 - 调用上限和异常分类；
 - 带负号 `\\dfrac` 的表达式规范化。
 
-当前正式工作区的完整 unittest 回归为 `1078 tests OK, 4 skipped`。
+当前正式工作区的完整 unittest 回归为 `1089 tests OK, 4 skipped`。
 
 ## 真实 API smoke
 
@@ -56,13 +70,15 @@ $env:PYTHONPATH = "."
 
 | 题型 | 结果 | 调用 |
 |---|---:|---:|
-| `5!` | `120`，确定性 verifier `PASS` | 1 |
-| 直接数值 `7` | `7`，Route A/B canonical agreement | 2 |
+| 有限域计数 | `72`，Route A/B canonical agreement | 2 |
+| 反函数积分导数 | `-1`，Route A/B canonical agreement | 2 |
 | 复分析留数 | `-1/8`，Route A/B canonical agreement | 2 |
 
-最终 3 题复测使用显式 `--timeout_seconds 180 --retry_count 1 --off_finalizer`，工件为
-`artifacts/20261003-122535444106-grh-eacl-v1/`。本地 evaluator 逐题判定为 `3/3 correct`：
-`72`、`-1`、`-1/8`。该目录属于运行产物，不进入 Git。
+最终 3 题复测使用显式 `--timeout_seconds 180 --retry_count 1 --no-off_finalizer`，工件为
+`artifacts/20261003-133237243969-grh-eacl-v1/`。本地 evaluator 逐题判定为 `3/3 correct`：
+`72`、`-1`、`-1/8`；共 6 次模型调用，请求 token `24576`，实际 completion token `5488`，
+平均单调用延迟 `21.529s`，P95 `34.343s`，`finish_reason=length` 为 0，错误为 0。
+该目录属于运行产物，不进入 Git。
 
 先前使用默认 30 秒客户端超时的运行在第一道长题上出现两次 timeout，EACL 第三次 recovery
 保持 `UNKNOWN`。这被记录为 endpoint 健康差异，不计入能力结论；显式 180 秒后同题得到 `72`。
@@ -73,4 +89,5 @@ $env:PYTHONPATH = "."
 
 - 真实 smoke 中长题 ON 请求在 30 秒 client timeout 下出现过 endpoint timeout；这被记录为运行健康问题，不能归因给数学架构。
 - 确定性 verifier 对未覆盖题型返回 `UNKNOWN`，不会用模型自评替代。
+- 真实 API smoke 只证明端到端协议、候选形成和预算遥测；它没有证明 hidden set 能力提升。
 - EACL 仍是实验 profile；必须完成同题交错的 ARH、Route B、组合栈双轮 paired gate 后，才考虑接入默认提交配置。

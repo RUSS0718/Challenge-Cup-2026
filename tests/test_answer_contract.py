@@ -25,6 +25,15 @@ class AnswerContractTests(unittest.TestCase):
         self.assertEqual("{1,2}", canonicalize("{2, 1}", TaskContract(answer_type=AnswerType.SET)))
         self.assertEqual("(2,1)", canonicalize("(2, 1)", TaskContract(answer_type=AnswerType.TUPLE)))
 
+    def test_numeric_wrappers_and_unbraced_integer_set_are_recovered(self):
+        self.assertEqual("1/3", canonicalize("$1/3$.", TaskContract(answer_type=AnswerType.RATIONAL)))
+        self.assertEqual("3", canonicalize("(3)", TaskContract(answer_type=AnswerType.INTEGER)))
+        self.assertEqual("{2,3,4}", canonicalize("2, 3, 4", TaskContract(answer_type=AnswerType.SET)))
+
+    def test_all_positive_integer_contract_is_a_set(self):
+        contract = infer_task_contract("Find all positive integers n >= 2")
+        self.assertEqual(AnswerType.SET, contract.answer_type)
+
     def test_contract_inference_is_gold_free(self):
         self.assertEqual(AnswerType.PROOF, infer_task_contract("Prove that x > 0").answer_type)
 

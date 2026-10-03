@@ -52,9 +52,12 @@ def _set_shape_is_valid(value: str) -> bool:
     text = _strip_math_wrappers(value).strip()
     if text.startswith(r"\{") and text.endswith(r"\}"):
         text = "{" + text[2:-2].strip() + "}"
-    if not (text.startswith("{") and text.endswith("}")):
-        return False
-    body = text[1:-1].strip()
+    if text.startswith("{") and text.endswith("}"):
+        body = text[1:-1].strip()
+    else:
+        body = text
+        if len(re.split(r"[,，、]", body)) < 2:
+            return False
     if not body:
         return True
     # Structural validation only: singleton and symbolic finite sets are valid.
@@ -100,6 +103,9 @@ def validate_candidate_shape(candidate: Candidate | Any, answer_type: str) -> tu
     Returns a stable reason suitable for the solve ledger.
     """
     value = _strip_math_wrappers(getattr(candidate, "value", ""))
+    value = value.rstrip("。；;.!?？").strip()
+    if value.startswith("$") and value.endswith("$"):
+        value = value[1:-1].strip()
     if not value:
         return False, "empty"
     if _is_placeholder(value):
@@ -108,6 +114,8 @@ def validate_candidate_shape(candidate: Candidate | Any, answer_type: str) -> tu
     candidate_type = getattr(candidate, "answer_type", ANSWER_UNKNOWN)
     expected = candidate_type if answer_type == "scalar" and candidate_type != "scalar" else answer_type
     if expected == ANSWER_INTEGER:
+        if value.startswith("(") and value.endswith(")") and INTEGER_RE.fullmatch(value[1:-1].strip()):
+            return True, "valid_parenthesized_integer"
         return (True, "valid") if INTEGER_RE.fullmatch(value) else (False, "integer_shape")
     if expected == ANSWER_RATIONAL:
         return (True, "valid") if _parse_numeric(value) is not None else (False, "rational_shape")

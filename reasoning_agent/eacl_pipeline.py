@@ -10,6 +10,7 @@ self-reported checks as mathematical evidence.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import re
 import time
 from typing import Any, Callable, Iterable
@@ -46,6 +47,7 @@ _SAFE_SERIALIZE_TYPES = frozenset(
         AnswerType.UNKNOWN,
     }
 )
+_TRUSTED_UNVERIFIED_SOURCES = frozenset({"answer_marker", "typed_answer", "boxed", "choice"})
 
 
 class EACLControlPlane:
@@ -174,7 +176,13 @@ class EACLControlPlane:
             if len(candidates_recovery) == 1:
                 decision = self._decide(primary, candidates_recovery, route)
                 selected = self._find_candidate(ledger.candidates, decision.selected_id)
-        if selected is not None and self.config.enable_off_finalizer and calls < self.config.max_model_calls:
+        if (
+            selected is not None
+            and decision.action == "SELECT"
+            and selected.answer_type in {answer.value for answer in _SAFE_SERIALIZE_TYPES}
+            and self.config.enable_off_finalizer
+            and calls < self.config.max_model_calls
+        ):
             selected, finalizer_call = self._run_off_finalizer(
                 selected,
                 contract,
@@ -248,21 +256,15 @@ class EACLControlPlane:
         ]
         call_started = self.clock()
         try:
-            try:
-                response = self.client.chat(
-                    messages=messages,
-                    temperature=self.config.temperature,
-                    max_tokens=max_tokens,
-                    reasoning_mode=reasoning_mode,
-                )
-                mode_support = True
-            except TypeError:
-                response = self.client.chat(
-                    messages=messages,
-                    temperature=self.config.temperature,
-                    max_tokens=max_tokens,
-                )
-                mode_support = False
+            mode_support = self._client_supports_reasoning_mode()
+            call_kwargs = {
+                "messages": messages,
+                "temperature": self.config.temperature,
+                "max_tokens": max_tokens,
+            }
+            if mode_support:
+                call_kwargs["reasoning_mode"] = reasoning_mode
+            response = self.client.chat(**call_kwargs)
         except Exception as exc:  # public client failures are represented, not raised
             ledger.add_event(
                 "call",
@@ -270,6 +272,17 @@ class EACLControlPlane:
                 status="error",
                 error_category=self._error_category(exc),
                 reasoning_mode=reasoning_mode,
+                duration_ms=round((self.clock() - call_started) * 1000, 1),
+            )
+            return None, 1, max_tokens
+
+        if self.clock() - started >= self.config.hard_deadline_seconds:
+            ledger.add_event(
+                "call",
+                route=route_name,
+                status="late_response_discarded",
+                reasoning_mode=reasoning_mode,
+                mode_support=mode_support,
                 duration_ms=round((self.clock() - call_started) * 1000, 1),
             )
             return None, 1, max_tokens
@@ -296,6 +309,19 @@ class EACLControlPlane:
             duration_ms=round((self.clock() - call_started) * 1000, 1),
         )
         return response.strip(), 1, max_tokens
+
+    def _client_supports_reasoning_mode(self) -> bool:
+        """Detect keyword support before calling so a TypeError cannot duplicate a request."""
+
+        try:
+            parameters = inspect.signature(self.client.chat).parameters.values()
+        except (TypeError, ValueError):
+            return True
+        return any(
+            parameter.name == "reasoning_mode"
+            or parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters
+        )
 
     def _extract_candidates(
         self,
@@ -425,7 +451,11 @@ class EACLControlPlane:
         if len(candidates) != 1:
             return None
         candidate = candidates[0]
-        return candidate if candidate.complete and candidate.shape_valid else None
+        if not candidate.complete or not candidate.shape_valid:
+            return None
+        if candidate.verification == UNKNOWN and candidate.source not in _TRUSTED_UNVERIFIED_SOURCES:
+            return None
+        return candidate
 
     @staticmethod
     def _find_candidate(candidates: Iterable[CandidateRecord], candidate_id: str | None) -> CandidateRecord | None:
@@ -449,6 +479,8 @@ class EACLControlPlane:
                 return DecisionRecord("ABSTAIN", None, None, FAIL, "primary_refuted_without_replacement")
             return DecisionRecord("SELECT", primary.candidate_id, primary.route, primary.verification, "route_a_only")
         if primary is None and secondary is not None:
+            if secondary.verification == FAIL:
+                return DecisionRecord("ABSTAIN", None, None, FAIL, "route_b_candidate_refuted")
             return DecisionRecord("SELECT", secondary.candidate_id, secondary.route, secondary.verification, "route_b_recovered")
         if primary is None and secondary is None:
             return DecisionRecord("ABSTAIN", None, None, UNKNOWN, "no_closed_candidate")
@@ -456,6 +488,8 @@ class EACLControlPlane:
         assert primary is not None and secondary is not None
         relation = value_equivalence(primary.canonical_value, secondary.canonical_value)
         if relation == "EQUIVALENT":
+            if primary.verification == FAIL and secondary.verification == FAIL:
+                return DecisionRecord("ABSTAIN", None, None, FAIL, "agreed_candidate_refuted")
             status = PASS if primary.verification == PASS or secondary.verification == PASS else UNKNOWN
             return DecisionRecord("SELECT", primary.candidate_id, primary.route, status, "route_agreement")
         if primary.verification == PASS and secondary.verification == FAIL:
@@ -517,7 +551,11 @@ class EACLControlPlane:
     ) -> dict[str, Any]:
         """Serialize one solve result through the host-side answer contract."""
 
-        if selected is None or decision.action != "SELECT":
+        if (
+            selected is None
+            or decision.action != "SELECT"
+            or selected.answer_type not in {answer.value for answer in _SAFE_SERIALIZE_TYPES}
+        ):
             final_response = "UNKNOWN"
             extracted = ""
         elif selected.answer_type in {answer.value for answer in _SAFE_SERIALIZE_TYPES}:
