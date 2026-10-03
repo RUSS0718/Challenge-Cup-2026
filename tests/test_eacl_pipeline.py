@@ -13,6 +13,7 @@ from scripts.run_eacl import (
     _load_manifest,
     _metrics_from_answers,
     _percentile,
+    _resumeable_answers,
     _validate_resume_manifest,
 )
 
@@ -223,6 +224,14 @@ class EACLControlPlaneTests(unittest.TestCase):
                 max_model_calls=2,
                 total_token_budget=12288,
             )
+
+    def test_runner_resume_retries_error_checkpoints(self):
+        answers = {
+            "ok": {"status": "success", "final_response": "7"},
+            "error": {"status": "error", "final_response": "UNKNOWN"},
+        }
+        resumed = _resumeable_answers(answers)
+        self.assertEqual({"ok"}, set(resumed))
 
 
 if __name__ == "__main__":

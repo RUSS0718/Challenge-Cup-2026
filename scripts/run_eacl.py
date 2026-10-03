@@ -90,6 +90,16 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _resumeable_answers(answers: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Keep durable results while allowing transient runner errors to retry."""
+
+    return {
+        key: value
+        for key, value in answers.items()
+        if value.get("status") != "error"
+    }
+
+
 def _sha256_file(path: Path) -> str:
     """Hash a dataset so a resumed run cannot silently change its input."""
 
@@ -222,6 +232,8 @@ def run(args: argparse.Namespace) -> Path:
         )
         manager = ArtifactManager.from_context(args.output_root, context)
     existing = _load_existing_answers(manager.run_dir / "answers.jsonl")
+    if args.resume:
+        existing = _resumeable_answers(existing)
     prior_manifest = _load_manifest(manager.run_dir / "run_manifest.json")
     if existing and not args.resume:
         raise FileExistsError("run_dir_contains_answers_use_--resume")

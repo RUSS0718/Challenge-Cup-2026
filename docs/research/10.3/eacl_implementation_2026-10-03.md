@@ -39,8 +39,8 @@ Host Intake → ARM Route → Route A/B Solver → Candidate Ledger
   --thinking_on
 ```
 
-中断后可使用固定目录续跑；runner 会按 `idx` 跳过已落盘题目，并校验输入文件 hash、
-thinking/finalizer 开关、调用上限和 token 预算：
+中断后可使用固定目录续跑；runner 会按 `idx` 跳过已落盘的成功结果、重试 runner error，
+并校验输入文件 hash、thinking/finalizer 开关、调用上限和 token 预算：
 
 ```powershell
 .\.release-venv\Scripts\python.exe scripts\run_eacl.py `
@@ -62,7 +62,7 @@ thinking/finalizer 开关、调用上限和 token 预算：
 - 调用上限和异常分类；
 - 带负号 `\\dfrac` 的表达式规范化。
 
-当前正式工作区的完整 unittest 回归为 `1089 tests OK, 4 skipped`。
+当前正式工作区的完整 unittest 回归为 `1090 tests OK, 4 skipped`。
 
 ## 真实 API smoke
 
