@@ -6,7 +6,7 @@
 
 ## 1. 结论先行
 
-这次不把 ARM 换成另一个同样庞大的状态机。ARM 的问题不是名字或某个 prompt，而是它同时承担了求解、候选生成、升级、恢复、裁决和输出，导致每一层的失败都被混在一起：模型不会做、模型做了但没有闭合候选、候选冲突、解析失败、截断和官方判分不识别，最后都可能表现为 `invalid`。
+这次不把 ARM 换成另一个同样庞大的状态机。ARM 的问题不是名字或某个 prompt，而是当前实现把控制平面和求解、候选生成、升级、恢复、裁决、输出揉在一个 harness 中，导致每一层的失败都被混在一起：模型不会做、模型做了但没有闭合候选、候选冲突、解析失败、截断和官方判分不识别，最后都可能表现为 `invalid`。
 
 新的总架构改为分层管线：
 
@@ -22,7 +22,8 @@ flowchart LR
     D --> C[Answer Contract\ncanonicalize + completeness]
     C --> A[ARH Serializer\nanswer line + boxed]
     A --> O[final_response]
-    X[Legacy ARM / FSDF / FESF] -. diagnostic backend only .-> S
+    X[ARM Control Plane\nroute + budget + lifecycle] -. schedules .-> S
+    Y[FSDF / Direct / Deep / FESF adapters] -. solver backends .-> S
     J[Native evaluator + Math-Verify diagnostic] -. offline only .-> L
 ```
 
@@ -37,7 +38,8 @@ flowchart LR
 | Conservative Decision | 选择、有限升级或 UNKNOWN | 不凭偏好在冲突候选中猜答案 |
 | Answer Contract | 规范化、完整性检查、冲突拒绝 | 不证明数学正确 |
 | ARH Serializer | 输出官方更可能稳定识别的最终文本 | 不重新解题 |
-| Legacy backend | 作为独立实验或回滚锚 | 不进入新默认总控器 |
+| ARM Control Plane | 路由、预算、候选生命周期和升级边界 | 不直接判断数学真值或拼接最终答案 |
+| Solver backend | 提供 Direct、Structured、Deep 或历史 FSDF/FESF 求解实现 | 不拥有全局预算和提交格式 |
 
 ## 2. 证据边界
 
@@ -76,7 +78,7 @@ boxed 包裹 + 最简规范形 + 无解释性尾缀
 
 所有尚未验证的项必须通过冻结集双轮 A/B，不能由一次官方分数或一轮本地 replay 直接推出。
 
-## 3. 为什么不继续扩展 ARM
+## 3. 为什么要重拆 ARM，而不是删除 ARM
 
 当前 ARM 层已经覆盖：
 
@@ -95,7 +97,7 @@ boxed 包裹 + 最简规范形 + 无解释性尾缀
 2. 候选生成与候选裁决共享上下文，第二路线容易变成同路线重复；
 3. 超时、截断、格式失败和数学失败无法在报告中分离。
 
-新设计保留 ARM 代码用于历史复现和独立对照，但总控器不再调用 `arm_harness_v2.py` 作为默认入口。以后新增机制只能进入明确的 Solver、Verification 或 Serialization 层。
+新设计保留 ARM 作为唯一控制平面：它继续管理 route、compute budget、candidate lifecycle 和 bounded escalation；`arm_harness_v2.py` 内部负责求解、格式化和裁决的部分则拆到独立 seam。以后新增机制只能进入明确的 Solver、Verification、Decision 或 Serialization 层，不能再向单体 harness 追加旁路分支。
 
 ## 4. 新架构的运行协议
 
@@ -271,8 +273,8 @@ ARH 是纯后处理候选，零新增模型调用、零 prompt 变化。只有�
 | `invalid_ledger.py` | 保留为离线诊断工具 | 不进入正式题间持久化状态 |
 | `finalizer.py` | 保留为可选 OFF formatter | 只允许复述已有 canonical candidate |
 | `grh_v13.py` | 演化为 `eacl_pipeline.py` | 由 replay 组合器变成正式分层编排器 |
-| `arm_harness_v2.py` | 冻结为 legacy backend | 保留历史复现，不作为总控器 |
-| `arm_v21_support.py` | 冻结 | ARM 专属策略不再扩张 |
+| `arm_harness_v2.py` | 重构为 ARM Control Plane | 保留路由、预算、候选生命周期；移出格式化和数学验证 |
+| `arm_v21_support.py` | 保留为 request-local policy adapter | 不把 ON/OFF 当作正确性证据，不继续扩张专属策略 |
 | `fork_select_deepen_finish.py` | 作为 Route A/B solver backend 实验 | 不允许继续扩大固定五阶段协议 |
 | `math_harness.py` | 拆出 Solver Pool、Decision、Serializer 三个 seam | 当前文件承担过多职责，先做边界拆分 |
 | `safe_candidate.py` | 保留为 ledger state，不作为数学 truth | safe 只表示不丢弃证据 |
@@ -282,7 +284,7 @@ ARH 是纯后处理候选，零新增模型调用、零 prompt 变化。只有�
 
 ### ARM
 
-ARM 降级为历史复现和诊断 backend。它不被删除，因为需要复核历史官方约 23 correct 的运行，但不再作为新默认架构的总控器。
+ARM 保留为控制平面，而不是继续作为包含所有职责的单体 harness。它负责路由、预算、候选生命周期、证据门和有限升级；求解 backend、确定性验证和 ARH 序列化都通过独立接口接入。历史 ARM 配置仍可复现官方约 23 correct 的运行，但它不再定义新的求解、验证和输出实现。
 
 ### FSDF
 
@@ -429,4 +431,4 @@ native evaluator vs Math-Verify delta
 4. 最后才组合候选梯度、验证和输出序列化；
 5. 只有组合臂同时通过正确率、损伤、健康和成本门，才申请新的正式提交配置。
 
-这套架构直接使用提分行动文档中已确认的输出卫生杠杆，同时保留对真实数学能力的严格归因。它把 ARM 的历史价值保留下来，却不再让 ARM 的状态机定义整个系统。
+这套架构直接使用提分行动文档中已确认的输出卫生杠杆，同时保留对真实数学能力的严格归因。它保留 ARM 的控制平面价值，拆掉 ARM 单体内部混合的求解、验证和序列化职责，让整个系统由清晰的接口和验收门组成。
