@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GRH v1.3 invalid ledger row",
+  "type": "object",
+  "required": ["question_id", "old_verdict", "raw_response_hash", "failure_class", "salvage_eligible", "proposed_action", "transition"],
+  "properties": {
+    "run_id": {"type": "string"},
+    "question_id": {"type": "string", "minLength": 1},
+    "old_verdict": {"enum": ["correct", "incorrect", "invalid", "unknown", "error"]},
+    "raw_response_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "finish_reason": {"type": ["string", "null"]},
+    "timeout": {"type": "boolean"},
+    "answer_marker_hit": {"type": "boolean"},
+    "candidate_count": {"type": "integer", "minimum": 0},
+    "candidate_source": {"type": "string"},
+    "candidate_completeness": {"type": "string"},
+    "candidate_type": {"type": "string"},
+    "canonicalization_status": {"type": "string"},
+    "deterministic_check": {"type": "string"},
+    "failure_class": {"enum": ["R1_reasoning_failure", "R2_decision_failure", "R3_finalization_failure", "R4_parser_contract_failure", "R5_evaluator_boundary", "R6_timeout_truncation_health", "UNKNOWN"]},
+    "salvage_eligible": {"type": "boolean"},
+    "proposed_action": {"enum": ["serialize", "safe_incumbent", "off_finalizer", "unknown"]},
+    "new_verdict": {"type": "string"},
+    "transition": {"type": "string"},
+    "reviewer_note": {"type": "string"},
+    "evidence_source": {"type": "string"}
+  },
+  "additionalProperties": false
+}
