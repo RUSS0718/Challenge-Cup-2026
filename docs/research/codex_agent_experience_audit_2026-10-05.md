@@ -43,7 +43,7 @@
 
 仓库扫描到 13 个 Markdown 文件包含“当前默认”“当前正式”或“当前工作区实验配置”这类状态性表述，其中包括历史文档和 `.workbuddy/memory/MEMORY.md`。两个直接冲突例子：
 
-- `.workbuddy/memory/MEMORY.md` 标注为 2026-08-13，并写着“无时间限制、无调用次数硬上限”；当前 [`AGENTS.md`](../AGENTS.md) 明确规定单题 20 分钟、整轮 6 小时及调用/预算约束。
+- `.workbuddy/memory/MEMORY.md` 标注为 2026-08-13，并写着“无时间限制、无调用次数硬上限”；当前 [`AGENTS.md`](../../AGENTS.md) 明确规定单题 20 分钟、整轮 6 小时及调用/预算约束。
 - [`docs/experiments/math_reasoning_agent_experiment_driven_spec_2026-08-29.md`](../experiments/math_reasoning_agent_experiment_driven_spec_2026-08-29.md) 的 2026-09-03 段落把 `contextual_answer_reconstruction_v1` 写成 GitCode main 默认路径；当前 README、CONTEXT 和 CFR 发布协议都把 `arm-v2.1.4-cfr` 作为正式 selector。
 
 这不是代理“不会查”，而是检索结果本身没有可靠的时效优先级。
@@ -63,9 +63,9 @@
   "target_ref": "gitcode/main",
   "commit": "…",
   "submission_mode": "arm-v2.1.4-cfr",
-  "status": "DEPLOYED_UNVALIDATED_CANARY",
+  "status": "DEPLOYED_EVALUATED_NO_PROMOTION",
   "rollback_anchor": "43a02da",
-  "official_evaluation": null,
+  "official_evaluation": true,
   "runtime_file_sha256": {},
   "generated_at": "…"
 }
@@ -106,7 +106,7 @@ python scripts/experiment_status.py --status REJECTED,ARCHIVED
 
 - [`docs/ARCHIVE_INDEX.md`](../ARCHIVE_INDEX.md)、[`docs/official_evaluations/INDEX.md`](../official_evaluations/INDEX.md) 和 [`docs/branches_map.md`](../branches_map.md) 已经在尝试建立导航与证据边界。
 - `docs/releases/arm-v2.1.4-cfr-20261004/manifest.json` 已记录运行文件哈希、回滚锚和未验证状态。
-- [`AGENTS.md`](../AGENTS.md) 已明确赛事时限、隐藏评测约束和实验闭环纪律。
+- [`AGENTS.md`](../../AGENTS.md) 已明确赛事时限、隐藏评测约束和实验闭环纪律。
 - 当前活动 worktree 已收敛为一个，历史 worktree 通过 archive ref 保留。
 
 下一步应把这些已有材料串成机器可查询的入口，而不是再建立一套平行的手工状态文档。
@@ -125,6 +125,8 @@ python scripts/experiment_status.py --status REJECTED,ARCHIVED
   `docs/excluded_approaches.md` 继续作为人读的完整处置表。
 - `scripts/check_doc_freshness.py` 和历史文档的状态 front matter 让过时的“当前默认”表述
   进入可检查路径，而不是靠代理记忆判断。
+- `show_repo_state.py` 和 `run_robustness_matrix.py` 默认只输出状态/结果摘要及工件路径；
+  使用 `--json` 才打印完整机器快照或聚合结果，详细逐题数据仍留在 `artifacts/`。
 
 v2.1.5 的十轮 paired replay 也按上述范围字段落档；结果为
 `ENGINEERING_NOT_ACTIVATED / NO_CAPABILITY_CONCLUSION`，详见
@@ -132,6 +134,12 @@ v2.1.5 的十轮 paired replay 也按上述范围字段落档；结果为
 这次结果没有解锁正式 selector；后续只执行已预注册的 activation probe，避免把未触发
 机制的负结果误写成能力否定。
 
+随后完成了 v2.1.8 的独立 Y01–Y10 外部复验：候选和基线均为 `3/15/7`，平均调用均为
+`2.00`，候选截断 `0` 对基线 `2`，finalizer 触发 `3/25`。窗口出现 1 个
+`correct → incorrect`，invalid 没有下降，因此安全门和探索收益门不通过，候选保持
+默认关闭；Y 的题目、配置和逐题转移已写入实验注册表和 comparison 工件。这个结果把
+“减少截断”与“无损提升答案质量”分开，避免代理把单一卫生指标当成能力晋升依据。
+
 ## 证据边界
 
-线程耗时和搜索计数来自 Codex 线程事件，是检索成本的信号，不是模型能力基准；部分线程有未加载的更早 turn，且少数任务页带 `hasMore=true`。历史文档中的分数和配置只在其注明的范围内成立，不能据此推断 CFR 的官方隐藏集成绩。当前 CFR 发布协议明确写着官方成绩仍为空，见 [`docs/releases/arm-v2.1.4-cfr-20261004/result.md`](../releases/arm-v2.1.4-cfr-20261004/result.md)。
+线程耗时和搜索计数来自 Codex 线程事件，是检索成本的信号，不是模型能力基准；部分线程有未加载的更早 turn，且少数任务页带 `hasMore=true`。历史文档中的分数和配置只在其注明的范围内成立，不能把不同题数的结果直接比较。2026-10-04 官方 100 题报告已归档，但它只支持 `21/6/73` 和 70 次 length 结束的范围内事实，不构成 CFR 的跨数据集能力结论，见 [`docs/official_evaluations/2026-10-04/record.md`](../official_evaluations/2026-10-04/record.md)。

@@ -11,6 +11,7 @@ import argparse
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 import hashlib
+import importlib
 import json
 from pathlib import Path
 import subprocess
@@ -28,18 +29,47 @@ from reasoning_agent.experiment_matrix import (  # noqa: E402
     DATASET_PATHS,
     RoundSpec,
     build_round_config,
+    compact_finalizer_round_specs,
     default_round_specs,
+    external_pressure_round_specs,
+    external_pressure_replication_round_specs,
+    format_matrix_summary,
     load_scored_rows,
     missing_candidate_round_specs,
     recovery_round_specs,
     select_rows,
     summarize_rows,
+    structured_confirmation_round_specs,
 )
 from scripts.evaluate_dev import classify_problem_type, judge_correct  # noqa: E402
 from user_agent import ReasoningAgent  # noqa: E402
 
 
 WRITE_LOCK = threading.Lock()
+
+
+def _merge_counter_dicts(counters: Any) -> dict[str, int]:
+    """Merge bounded integer counter mappings from round reports."""
+
+    merged: dict[str, int] = {}
+    for counter in counters:
+        if not isinstance(counter, Mapping):
+            continue
+        for key, value in counter.items():
+            try:
+                merged[str(key)] = merged.get(str(key), 0) + int(value)
+            except (TypeError, ValueError):
+                continue
+    return merged
+
+
+def _assert_scoring_dependencies() -> None:
+    """Fail before endpoint calls when the local judge cannot score safely."""
+
+    try:
+        importlib.import_module("sympy")
+    except ImportError as exc:
+        raise ValueError("scoring_dependency_unavailable:sympy") from exc
 
 
 def _now() -> str:
@@ -319,6 +349,8 @@ def _run_round(
             f"profile=`{spec.profile}`；records={report['records']}；"
             f"correct={report['correct']}；incorrect={report['incorrect']}；"
             f"invalid={report['invalid']}；truncation_rate={report['truncation_rate']:.3f}。\n\n"
+            f"truncation_count={report['truncation_count']}；"
+            f"compact_finalizer_activations={report['compact_finalizer_activations']}。\n\n"
             "这是 local_replay 诊断，不代表官方隐藏集成绩。\n"
         ),
     )
@@ -374,10 +406,26 @@ def _merge_round_reports(
         known_specs = recovery_round_specs()
     elif selected_ids and all(round_id.startswith("C") for round_id in selected_ids):
         known_specs = missing_candidate_round_specs()
+    elif selected_ids and all(round_id.startswith("V") for round_id in selected_ids):
+        known_specs = structured_confirmation_round_specs()
+    elif selected_ids and all(round_id.startswith("W") for round_id in selected_ids):
+        known_specs = compact_finalizer_round_specs()
+    elif selected_ids and all(round_id.startswith("X") for round_id in selected_ids):
+        known_specs = external_pressure_round_specs()
+    elif selected_ids and all(round_id.startswith("Y") for round_id in selected_ids):
+        known_specs = external_pressure_replication_round_specs()
     elif selected_ids and all(round_id.startswith("R") for round_id in selected_ids):
         known_specs = default_round_specs()
     else:
-        known_specs = (*default_round_specs(), *recovery_round_specs(), *missing_candidate_round_specs())
+        known_specs = (
+            *default_round_specs(),
+            *recovery_round_specs(),
+            *missing_candidate_round_specs(),
+            *structured_confirmation_round_specs(),
+            *compact_finalizer_round_specs(),
+            *external_pressure_round_specs(),
+            *external_pressure_replication_round_specs(),
+        )
     for spec in known_specs:
         report = fresh_by_id.get(spec.round_id)
         if report is None and spec.round_id not in selected_ids:
@@ -406,6 +454,7 @@ def run_matrix(
         raise ValueError("workers_must_be_between_1_and_3")
     if timeout <= 0:
         raise ValueError("timeout_must_be_positive")
+    _assert_scoring_dependencies()
     selected_rounds = rounds or list(default_round_specs())
     output_root.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
@@ -435,6 +484,14 @@ def run_matrix(
         "model_errors": sum(report["model_errors"] for report in reports),
         "total_records": sum(report["records"] for report in reports),
         "total_model_calls": sum(report["total_model_calls"] for report in reports),
+        "truncation_count": sum(report.get("truncation_count", 0) for report in reports),
+        "compact_finalizer_activations": sum(
+            report.get("compact_finalizer_activations", 0) for report in reports
+        ),
+        "compact_finalizer_trigger_reason_counts": _merge_counter_dicts(
+            report.get("compact_finalizer_trigger_reason_counts", {})
+            for report in reports
+        ),
         "rounds": reports,
         "elapsed_seconds": round(time.perf_counter() - started, 3),
     }
@@ -447,7 +504,9 @@ def run_matrix(
             f"# {matrix_id}\n\n"
             f"完成 {aggregate['round_count']} 轮、{aggregate['total_records']} 题；"
             f"correct={aggregate['correct']}；incorrect={aggregate['incorrect']}；"
-            f"invalid={aggregate['invalid']}；model_errors={aggregate['model_errors']}。\n\n"
+            f"invalid={aggregate['invalid']}；model_errors={aggregate['model_errors']}；"
+            f"truncation_count={aggregate['truncation_count']}；"
+            f"compact_finalizer_activations={aggregate['compact_finalizer_activations']}。\n\n"
             "所有结果均为 local_replay，不能替代官方隐藏集评测。\n"
         ),
         encoding="utf-8",
@@ -466,6 +525,7 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--matrix-id", default="ROBUSTNESS-MATRIX-20261005")
+    parser.add_argument("--json", action="store_true", help="print the full aggregate JSON")
     parser.add_argument(
         "--rounds",
         help="Comma-separated round ids such as R01,R02; default runs all ten.",
@@ -473,7 +533,15 @@ def main() -> int:
     args = parser.parse_args()
     available = {
         spec.round_id: spec
-        for spec in (*default_round_specs(), *recovery_round_specs(), *missing_candidate_round_specs())
+        for spec in (
+            *default_round_specs(),
+            *recovery_round_specs(),
+            *missing_candidate_round_specs(),
+            *structured_confirmation_round_specs(),
+            *compact_finalizer_round_specs(),
+            *external_pressure_round_specs(),
+            *external_pressure_replication_round_specs(),
+        )
     }
     selected = None
     if args.rounds:
@@ -489,7 +557,10 @@ def main() -> int:
         timeout=args.timeout,
         matrix_id=args.matrix_id,
     )
-    print(json.dumps(aggregate, ensure_ascii=False, indent=2))
+    if args.json:
+        print(json.dumps(aggregate, ensure_ascii=False, indent=2))
+    else:
+        print(format_matrix_summary(aggregate, Path(args.output_dir).resolve()))
     return 0
 
 

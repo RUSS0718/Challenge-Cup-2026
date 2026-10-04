@@ -82,7 +82,9 @@ final_response + compact trace
 | 2026-09-16 | HENG-only / COT+PoT：Issue #19 公开 client 契约、migration hardening、fallback budget 的独立 profile/A-B | `EXPERIMENTAL` / 非默认 | `fca3d2b`、`archive/codex/pre-cot-pot-20260916`、`HENG-COT-*` |
 | 2026-09-21 | repo-hygiene 内部重构：解析和 Harness contracts 拆为深模块，保留旧导出 facade | `CURRENT` / 行为保持 | `codex/repo-hygiene-cleanup` |
 | 2026-10-04 | GRH v1.1 / 119 回退锚与 invalid rescue 第三轮归档；删除默认关闭的 RAG/Skill 实验闭包 | `ARCHIVED` / `ROLLBACK_ANCHOR` | `43a02da`、`docs/archive/invalid_rescue_round3_2026-10-04.md` |
-| 2026-10-04 | ARM v2.1.4 CFR：Primary → Challenger → 具体异议 Targeted Repair → 精确 Fresh Review | `CURRENT` / `DEPLOYED_UNVALIDATED_CANARY` / `CODE_ACCEPTED` | `docs/releases/arm-v2.1.4-cfr-20261004/` |
+| 2026-10-04 | ARM v2.1.4 CFR：Primary → Challenger → 具体异议 Targeted Repair → 精确 Fresh Review | `CURRENT` / `DEPLOYED_EVALUATED_NO_PROMOTION` / `CODE_ACCEPTED` | `docs/releases/arm-v2.1.4-cfr-20261004/` |
+| 2026-10-05 | ARM v2.1.7 incumbent-only structured confirmation | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/` |
+| 2026-10-05 | ARM v2.1.8 compact finalizer：独立外部长度压力复验 | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/` |
 
 ## FSDF v2 迭代子谱系
 

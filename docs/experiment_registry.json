@@ -6,13 +6,13 @@
   "experiments": [
     {
       "method_id": "ARM-V2.1.4-CFR-20261004",
-      "status": "DEPLOYED_UNVALIDATED_CANARY",
+      "status": "DEPLOYED_EVALUATED_NO_PROMOTION",
       "evaluation_scope": "official_candidate",
-      "dataset_scope": "official hidden set; score pending",
-      "summary": "Primary -> Challenger -> Targeted Repair -> Fresh Review; official hidden-set score is not yet available.",
+      "dataset_scope": "official report, 100 items; not comparable to historical 112-item table",
+      "summary": "Primary -> Challenger -> Targeted Repair -> Fresh Review; official report is archived, but no promotion is inferred across dataset scopes.",
       "baseline": "43a02da",
       "report": "docs/releases/arm-v2.1.4-cfr-20261004/result.md",
-      "last_evidence": "docs/releases/arm-v2.1.4-cfr-20261004/result.md",
+      "last_evidence": "docs/official_evaluations/2026-10-04/report.json",
       "restart_rule": "Run the official evaluation before drawing a capability conclusion; roll back on the protocol gates."
     },
     {
@@ -91,6 +91,50 @@
       "report": "docs/experiments/ARM-V2.1.6-MISSING-CANDIDATE-RECOVERY-20261005/result.md",
       "last_evidence": "docs/experiments/ARM-V2.1.6-MISSING-CANDIDATE-RECOVERY-20261005/result.md",
       "restart_rule": "Keep default-off. A restart requires a materially different missing-candidate formation hypothesis, a clean paired window, and a new preregistration."
+    },
+    {
+      "method_id": "ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005",
+      "status": "NO_GO",
+      "evaluation_scope": "local_replay",
+      "dataset_scope": "fresh 25-item set; 50 paired records across 10 rounds",
+      "summary": "Incumbent-only structured Challenger activated 17/25 times; candidate and baseline both scored 24/0/1 with equal 1.68 average calls and no truncation.",
+      "baseline": "ARM-V2.1.4-CFR-20261004",
+      "report": "docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/result.md",
+      "last_evidence": "docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/comparison.json",
+      "restart_rule": "Keep default-off. A restart requires a different confirmation hypothesis, a new fresh set, and a new paired preregistration; do not treat this no-gain window as a capability verdict."
+    },
+    {
+      "method_id": "ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005",
+      "status": "VOID",
+      "evaluation_scope": "local_replay",
+      "dataset_scope": "external OlymMATH, AIME, and HLE Math pools; 50 paired records",
+      "summary": "First X01-X10 run was voided because SymPy was not preflighted and candidate/baseline second-call budgets differed; its numbers are not evidence.",
+      "baseline": "ARM-V2.1.4-CFR-20261004",
+      "report": "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005/result.md",
+      "last_evidence": "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005/comparison.json",
+      "restart_rule": "Do not reuse this run. The corrected protocol uses method ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005 with dependency preflight and equalized budgets."
+    },
+    {
+      "method_id": "ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005",
+      "status": "EXPLORATORY_GO",
+      "evaluation_scope": "local_replay",
+      "dataset_scope": "external OlymMATH, AIME, and HLE Math pools; 50 paired records",
+      "summary": "Corrected window activated 3/25 candidate records; candidate scored 5/15/5 versus baseline 3/17/5, with zero versus three truncation events and equal 2.00 average calls.",
+      "baseline": "ARM-V2.1.4-CFR-20261004",
+      "report": "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/result.md",
+      "last_evidence": "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/comparison.json",
+      "restart_rule": "Keep default-off. Run a new independent paired replication before any promotion; preserve the no-correct-to-incorrect gate, equalized budgets, dependency preflight, and multi-pool scope."
+    },
+    {
+      "method_id": "ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005",
+      "status": "NO_GO",
+      "evaluation_scope": "local_replay",
+      "dataset_scope": "independent external OlymMATH, AIME, and HLE Math pools; 50 paired records disjoint from X window",
+      "summary": "Independent Y01-Y10 replication activated finalizer 3/25; candidate and baseline both scored 3/15/7 with equal 2.00 average calls, candidate truncations 0 versus 2, and one correct-to-incorrect transition.",
+      "baseline": "ARM-V2.1.4-CFR-20261004",
+      "report": "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/result.md",
+      "last_evidence": "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/comparison.json",
+      "restart_rule": "Keep default-off. Do not promote from this replication; any restart requires a materially different truncation hypothesis, a fresh disjoint paired preregistration, and the no-correct-to-incorrect gate."
     }
   ]
 }

@@ -8,6 +8,7 @@ import unittest
 from reasoning_agent.repo_state import (
     _dirty_paths,
     _recent_manifests,
+    format_repo_state_summary,
     normalized_sha256,
     verify_runtime_hashes,
 )
@@ -59,3 +60,37 @@ class RepoStateTest(unittest.TestCase):
             path.parent.mkdir()
             path.write_text("历史\n", encoding="utf-8")
             self.assertIn("docs/实现文档.md", _dirty_paths(root))
+
+    def test_summary_exposes_release_guard_and_recent_artifact_path(self):
+        """Keep the default status view compact while preserving navigation targets."""
+        summary = format_repo_state_summary(
+            {
+                "repository": {
+                    "branch": "feature/test",
+                    "head_commit": "abc123",
+                    "dirty_tree": True,
+                    "dirty_paths": ["docs/old.md"],
+                },
+                "release": {
+                    "submission_mode": "arm-v2.1.4-cfr",
+                    "status": "DEPLOYED_UNVALIDATED_CANARY",
+                    "selector_matches_runtime": True,
+                    "runtime_hashes": {"status": "pass"},
+                    "target_ref": "gitcode/main",
+                    "rollback_anchor": "43a02da",
+                    "official_evaluation": None,
+                },
+                "recent_runs": [
+                    {
+                        "path": "artifacts/run-1/run_manifest.json",
+                        "run_id": "run-1",
+                        "evaluation_scope": "local_replay",
+                        "status": "completed",
+                        "config": "arm-v2.1.4-cfr",
+                    }
+                ],
+            }
+        )
+        self.assertIn("selector=arm-v2.1.4-cfr", summary)
+        self.assertIn("artifacts/run-1/run_manifest.json", summary)
+        self.assertNotIn('"recent_runs"', summary)

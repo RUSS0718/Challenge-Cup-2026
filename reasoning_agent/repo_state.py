@@ -7,7 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
-from typing import Any
+from typing import Any, Mapping
 
 from reasoning_agent.manifest_schema import normalise_manifest
 
@@ -165,6 +165,57 @@ def build_repo_state(
         },
         "recent_runs": _recent_manifests(root),
     }
+
+
+def format_repo_state_summary(state: Mapping[str, Any]) -> str:
+    """Format the release snapshot as a compact agent-facing status report.
+
+    The summary keeps the checkout, release guard, and recent artifact paths
+    visible without printing the full dirty-path list or nested JSON. Callers
+    that need machine-readable details should serialize the original snapshot.
+    """
+
+    repository = state.get("repository") or {}
+    release = state.get("release") or {}
+    dirty_paths = repository.get("dirty_paths") or []
+    recent_runs = state.get("recent_runs") or []
+
+    dirty = "yes" if repository.get("dirty_tree") else "no"
+    selector_match = "yes" if release.get("selector_matches_runtime") else "no"
+    hash_status = str((release.get("runtime_hashes") or {}).get("status") or "unknown")
+    official = release.get("official_evaluation")
+    official_label = "pending" if official is None else str(official).lower()
+
+    lines = [
+        "repo: "
+        f"branch={repository.get('branch') or 'detached'} "
+        f"head={repository.get('head_commit') or 'unknown'} "
+        f"gitcode_main={repository.get('gitcode_main_commit') or 'unknown'} "
+        f"dirty={dirty} dirty_paths={len(dirty_paths)}",
+        "release: "
+        f"selector={release.get('submission_mode') or 'unknown'} "
+        f"status={release.get('status') or 'unknown'} "
+        f"selector_match={selector_match} runtime_hashes={hash_status}",
+        "release: "
+        f"target={release.get('target_ref') or 'unknown'} "
+        f"rollback={release.get('rollback_anchor') or 'none'} "
+        f"manifest={release.get('manifest_path') or 'unknown'} "
+        f"official_evaluation={official_label}",
+        "recent_runs:",
+    ]
+    if not recent_runs:
+        lines.append("- none")
+    else:
+        for run in recent_runs:
+            lines.append(
+                "- "
+                f"{run.get('path') or 'unknown'} "
+                f"run_id={run.get('run_id') or 'unknown'} "
+                f"scope={run.get('evaluation_scope') or 'unknown'} "
+                f"status={run.get('status') or 'unknown'} "
+                f"config={run.get('config') or 'unknown'}"
+            )
+    return "\n".join(lines)
 
 
 def write_json(path: Path | str, payload: dict[str, Any]) -> None:

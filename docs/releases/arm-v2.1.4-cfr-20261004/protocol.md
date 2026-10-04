@@ -34,7 +34,8 @@ CFR（Challenger → Targeted Repair → Fresh Review）面向 invalid rescue �
 
 ## 资格与验证边界
 
-本协议只记录代码、接口、预算和隐私隔离门；当前没有官方隐藏评测成绩。发布状态应写为
-`DEPLOYED_UNVALIDATED_CANARY`，不能把代理集的 119 正确基线或 CFR 本地 smoke 当作官方结果。
-官方评测完成后，需追加带 run ID、提交 commit、题数和完整五数的结果记录；若 model error、
-invalid damage 或正确数门失败，按发布协议回滚到 `43a02da`。
+本协议只记录代码、接口、预算和隐私隔离门。官方 100 题聚合结果已经归档，发布状态应写为
+`DEPLOYED_EVALUATED_NO_PROMOTION`。该结果不能与 112 题历史行或代理集的 119 正确基线
+直接比较，也不能据此宣称 CFR 能力提升。
+官方报告已由日期页记录 run commit、题数和完整五数；后续若出现 model error、invalid damage
+或正确数门失败，按发布协议回滚到 `43a02da`。

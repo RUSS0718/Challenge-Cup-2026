@@ -1,8 +1,9 @@
 # Challenge Cup 2026 数学推理智能体
 
 当前发布状态以 [`docs/current_release.json`](docs/current_release.json) 为准。开始评测或
-切换分支前，先运行 `python scripts/show_repo_state.py --write --check`；它会核对当前 selector、
-GitCode main、工作树和发布 runtime hash。实验结果的范围和可否重跑，查询
+切换分支前，先运行 `python scripts/show_repo_state.py --write --check`；默认输出简短摘要和最近
+工件路径，它会核对当前 selector、GitCode main、工作树和发布 runtime hash。需要完整机器快照时
+加 `--json`。实验结果的范围和可否重跑，查询
 [`docs/experiment_registry.json`](docs/experiment_registry.json)，完整历史处置仍以
 [`docs/excluded_approaches.md`](docs/excluded_approaches.md) 为准。
 
@@ -13,7 +14,8 @@ Constraint-Fit Harness（Direct/Deep/FSDF fallback）→ 规范化输出，同�
 
 > 当前状态（2026-10-04）：正式无参提交 selector 为 ARM v2.1.4 CFR。CFR 是一套新的
 > Challenger → Targeted Repair → Fresh Review 方案，默认关闭 hybrid router、答案库、RAG
-> 和 Skill；它已完成代码/接口门，官方隐藏集成绩尚待重新评测。GRH v1.1 / 119 正确版本
+> 和 Skill；它已完成代码/接口门，并有 2026-10-04 官方 100 题报告 `21/6/73`。该报告不与
+> 历史 112 题表格直接比较，也不触发 selector 晋升。GRH v1.1 / 119 正确版本
 > 仅作为回滚锚和历史对照保留，invalid rescue 第三轮的方案、结果和回退理由见
 > [`docs/archive/invalid_rescue_round3_2026-10-04.md`](docs/archive/invalid_rescue_round3_2026-10-04.md)，
 > CFR 发布协议见 [`docs/releases/arm-v2.1.4-cfr-20261004/`](docs/releases/arm-v2.1.4-cfr-20261004/)。
@@ -53,9 +55,17 @@ Primary 先形成候选，Challenger 以结构化异议检查具体位置和证�
 任何门失败都保留安全候选或返回 `UNKNOWN`。统一 client dispatch 兼容官方三参数契约，
 不会要求评测平台支持本地扩展参数。
 
-当前状态为 `DEPLOYED_UNVALIDATED_CANARY`：已验证 selector、预算、严格三参数 client、
-metadata/gold 隔离和 trace 卫生；没有官方隐藏集分数，不能从本地 smoke 或 119 回滚锚推导
-能力提升。完整发布协议和离线 verifier 见 `docs/releases/arm-v2.1.4-cfr-20261004/`。
+当前状态为 `DEPLOYED_EVALUATED_NO_PROMOTION`：已验证 selector、预算、严格三参数 client、
+metadata/gold 隔离和 trace 卫生；100 题官方报告已归档，但没有与历史 112 题表格同范围的
+可比结果，不能从本地 smoke 或 119 回滚锚推导能力提升。完整发布协议和离线 verifier 见
+`docs/releases/arm-v2.1.4-cfr-20261004/`。
+
+### ARM v2.1.7 structured confirmation（实验 profile，默认关闭）
+
+该候选只允许 Challenger 确认已有 incumbent 值，不允许生成替代答案或放宽 evaluator。新鲜
+25 题的 10 轮配对结果为候选/基线均 `24/0/1`，候选触发确认 `17/25`，平均调用和截断率
+相同；因此保持默认关闭。预注册和逐题证据见
+`docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/`。
 
 ### Contextual Answer Reconstruction 历史实验路径
 
@@ -124,7 +134,8 @@ flowchart LR
 `SUBMISSION_CONFIG`：先做题型/学科分类，随后由 Constraint-Fit Router 分流，
 direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fallback。
 当前正式 selector 为 `arm-v2.1.4-cfr`；GRH v1.1 / 119 只作为 `43a02da` 回滚锚。CFR 的
-官方隐藏集成绩尚未产生，不能从本地 smoke 或配置切换推导新的能力或成绩结论。
+官方 100 题报告已归档，但不能从不同题数的历史表格、本地 smoke 或配置切换推导新的能力
+或成绩结论。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
@@ -334,8 +345,9 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
   Challenger、Targeted Repair 和 Fresh Review 受结构化证据门控制，RAG、Skill、答案 bank
   和历史候选均关闭，尚未形成新的官方数学能力结论。
 - **历史运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`），仅作为历史发布/回滚参照。
-- **发布状态**：官方无参入口切换到 ARM v2.1.4 CFR，状态为待官方复评的 canary；远端分支
-  状态以发布后的 ref 审计为准。
+- **发布状态**：官方无参入口切换到 ARM v2.1.4 CFR。2026-10-04 的 100 题官方报告已经
+  归档，但题目范围不同于历史 112 题记录，因此状态仍为 `DEPLOYED_EVALUATED_NO_PROMOTION`；
+  远端分支状态以发布后的 ref 审计为准。
 - **已归档/排除**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
   P1 salvage、G 门控、TIR/回代验证、32k 天花板。
 - **暂不引入**:LLM-as-judge 本地判分、PRM 组件、LangGraph/AgentScope、

@@ -23,6 +23,8 @@ docs/official_evaluations/
 - 代码方法与配置必须回查 GitCode commit；单次官方分数不能单独证明方法收益。
 - 原 `docs/experiments/官方评测记录.md` 与 Run #4 raw log 已迁移到本目录并删除旧副本；
   本目录现在是按日期维护的官方评测归档入口。
+- 如果原始下载文件不在当前 checkout，日期页必须明确标注转录状态，不能创建看似原始的
+  `raw/` 文件；机器版聚合值放在日期页的 `report.json`。
 
 ## 官方评分总汇
 
@@ -43,8 +45,11 @@ public regression 分数不放进这张表。
 | Harness-era 2026-09-11 | `3ede125` | 24 / 20 / 68 | 21.4286% | `RAW_LOG` | Harness + Deep + hybrid FSDF + bank-on |
 | Harness-era 2026-09-12 | `bb31ac4` | 29 / 26 / 57 | 25.8929% | `RAW_LOG` | Harness + Deep + hybrid FSDF + bank-on |
 | Harness-era 2026-09-15 | `1507d3a` | 12 / 32 / 68 | 10.7143% | `RAW_LOG` | Harness + Deep + hybrid FSDF，bank-off，Skill-on |
+| Official report 2026-10-04 | `b63059ca9b64a5a49c4add4e1830f23e58a9bb79` | 21 / 6 / 73（100 题） | 77.7778%* | `TRANSCRIBED_AGGREGATE` | ARM v2.1.4 CFR |
 
-说明：Run #6 的现有汇总记录只保留 correct=11、invalid=27、runner error=10，
+说明：2026-10-04 行的 accuracy 只在 27 个 valid records 上计算，不能与 112 题行直接比较；
+原始下载文件未在当前 checkout 中保留，精确聚合字段见日期页 `report.json`。
+Run #6 的现有汇总记录只保留 correct=11、invalid=27、runner error=10，
 当前 checkout 没有完整的 incorrect 数和原始 Run #6 log，因此不填未知数字；
 `9.8214%*` 仅由 11/112 计算，不代表原始日志中的独立 accuracy 字段。
 Run #8 的部分历史材料只保留截断/invalid 线索，未纳入伪完整分数。

@@ -32,6 +32,8 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V214_CFR,
     PROFILE_ARM_V215_BOUNDED_TAIL,
     PROFILE_ARM_V216_MISSING_CANDIDATE,
+    PROFILE_ARM_V217_STRUCTURED_CONFIRMATION,
+    PROFILE_ARM_V218_COMPACT_FINALIZER,
     PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
@@ -74,6 +76,8 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V214_CFR,
                 PROFILE_ARM_V215_BOUNDED_TAIL,
                 PROFILE_ARM_V216_MISSING_CANDIDATE,
+                PROFILE_ARM_V217_STRUCTURED_CONFIRMATION,
+                PROFILE_ARM_V218_COMPACT_FINALIZER,
             ),
             available_profiles(),
         )
@@ -171,6 +175,20 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("v2.1.6", missing_candidate.arm_harness_version)
         self.assertTrue(missing_candidate.enable_arm_harness)
         self.assertEqual("positive_evidence", missing_candidate.arm_trust_policy)
+        self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
+
+    def test_v217_structured_confirmation_profile_is_explicit_and_default_off(self):
+        confirmation = build_profile_config(PROFILE_ARM_V217_STRUCTURED_CONFIRMATION)
+        self.assertEqual("v2.1.7", confirmation.arm_harness_version)
+        self.assertTrue(confirmation.enable_arm_harness)
+        self.assertEqual("positive_evidence", confirmation.arm_trust_policy)
+        self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
+
+    def test_v218_compact_finalizer_profile_is_explicit_and_default_off(self):
+        finalizer = build_profile_config(PROFILE_ARM_V218_COMPACT_FINALIZER)
+        self.assertEqual("v2.1.8", finalizer.arm_harness_version)
+        self.assertTrue(finalizer.enable_arm_harness)
+        self.assertEqual("positive_evidence", finalizer.arm_trust_policy)
         self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
 
     def test_main_parser_accepts_profile_switch(self):

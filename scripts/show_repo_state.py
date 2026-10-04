@@ -10,7 +10,11 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from reasoning_agent.repo_state import build_repo_state, write_json  # noqa: E402
+from reasoning_agent.repo_state import (  # noqa: E402
+    build_repo_state,
+    format_repo_state_summary,
+    write_json,
+)
 
 
 def main() -> int:
@@ -19,13 +23,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="write docs/current_release.json")
     parser.add_argument("--check", action="store_true", help="fail if selector or release hashes disagree")
+    parser.add_argument("--json", action="store_true", help="print the full machine-readable snapshot")
     args = parser.parse_args()
     manifest = ROOT / "docs/releases/arm-v2.1.4-cfr-20261004/manifest.json"
     output = ROOT / "docs/current_release.json"
     state = build_repo_state(ROOT, release_manifest=manifest, state_path=output)
     if args.write:
         write_json(output, state)
-    print(json.dumps(state, ensure_ascii=False, indent=2))
+    if args.json:
+        print(json.dumps(state, ensure_ascii=False, indent=2))
+    else:
+        print(format_repo_state_summary(state))
     release = state["release"]
     if args.check and (
         not release["selector_matches_runtime"]

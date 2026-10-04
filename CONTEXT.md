@@ -4,8 +4,9 @@
 `ReasoningAgent.solve()`,按 `final_response` 的答案正确性评分。
 
 当前运行事实以 `docs/current_release.json` 和对应 release manifest 为准。开始实验前运行
-`python scripts/show_repo_state.py --write --check`；不要根据历史实验文档、长期记忆或目录名推断当前
-selector。实验状态查询使用 `python scripts/experiment_status.py --id <method_id>`。
+`python scripts/show_repo_state.py --write --check`；默认输出摘要和最近工件路径，需完整机器快照时
+加 `--json`。不要根据历史实验文档、长期记忆或目录名推断当前 selector。实验状态查询使用
+`python scripts/experiment_status.py --id <method_id>`。
 
 ## Language
 
@@ -15,7 +16,8 @@ selector。实验状态查询使用 `python scripts/experiment_status.py --id <m
 官方 runner 无参构造时唯一生效的提交配置。当前正式 selector 为
 `arm-v2.1.4-cfr`，即 ARM v2.1.4 CFR（Challenger → Targeted Repair → Fresh Review）。
 改它等于改变官方得分行为；GRH v1.1 / 119 正确版本 `43a02da` 只作为回滚锚和历史对照。
-当前 CFR 尚无官方隐藏集成绩，状态为 `DEPLOYED_UNVALIDATED_CANARY`。
+当前 CFR 已有 2026-10-04 官方 100 题报告（`21/6/73`），但该范围与历史 112 题表格不同，
+不作跨范围能力比较；状态为 `DEPLOYED_EVALUATED_NO_PROMOTION`。
 _Avoid_: 默认配置、线上配置(指代不清)
 
 **ARM v2.1.4 CFR**:
@@ -30,6 +32,12 @@ incumbent。异议解析失败、证据不足、复核不匹配或复核失败�
 改为独立答案形成；已有候选继续走 CFR Challenger。它不能把不存在的答案补成可信答案，
 仍受 positive-evidence Trust Gate 和 fail-closed 规则约束；没有独立 paired window 前不得
 修改 `SUBMISSION_CONFIG`。
+
+**ARM v2.1.7 structured confirmation**:
+实验性、默认关闭的 incumbent-only Challenger。第二次响应必须是结构化 JSON，只有 `PASS`
+且复述已有值才会形成共识；新值、答案标记、UNKNOWN 和 malformed JSON 都 fail-closed。
+fresh 25 题、10 轮 paired replay 的结果为候选/基线均 `24/0/1`，候选激活 `17/25`，没有
+invalid 或成本收益；详见 `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/`。
 
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，

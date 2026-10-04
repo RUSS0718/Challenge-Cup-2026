@@ -12,6 +12,12 @@
 - [CONTEXT.md](../CONTEXT.md)：领域术语与当前默认配置语义。
 - [ARM v2.1.4 CFR 发布协议](releases/arm-v2.1.4-cfr-20261004/protocol.md)：当前正式 selector、
   Challenger/Repair/Review 门和官方复评边界。
+- [ARM v2.1.7 structured confirmation](experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/result.md)：
+  默认关闭的 incumbent-only Challenger 配对结果和处置。
+- [ARM v2.1.8 external length-pressure](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005/result.md)：
+  首次窗口的 VOID 审计记录；纠正后的结果见 [window 002](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/result.md)。
+- [ARM v2.1.8 external length-pressure replication](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/result.md)：
+  使用不重叠外部题目的独立 Y 窗口；安全门未通过，保持默认关闭。
 - [architecture_evolution.md](architecture_evolution.md)：从赛事模板到当前 Harness 的架构谱系、版本状态和证据边界。
 - [official_evaluations/](official_evaluations/)：按北京日期归档官方原始日志与 agent 分析。
 - [excluded_approaches.md](excluded_approaches.md)：实验处置的单一事实源。

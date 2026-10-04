@@ -37,6 +37,7 @@ from reasoning_agent.migration_hardening import (
 from reasoning_agent.client_dispatch import call_chat_compat
 from reasoning_agent.diagnostic_trace import summarize_agent_trace
 from reasoning_agent.inference_policy import CallPolicy, ReasoningMode
+from reasoning_agent.arm_versions import is_supported_arm_harness_version
 from reasoning_agent.harness_contracts import (
     ANSWER_CHOICE,
     ANSWER_DERIVATION,
@@ -201,7 +202,7 @@ class HarnessConfig:
             raise ValueError("total_token_budget must be positive")
         if not math.isfinite(float(self.max_wall_seconds)) or float(self.max_wall_seconds) <= 0:
             raise ValueError("max_wall_seconds must be positive")
-        if self.arm_harness_version not in {"v1", "v2", "v2.1.3", "v2.1.4", "v2.1.5", "v2.1.6"}:
+        if not is_supported_arm_harness_version(self.arm_harness_version):
             raise ValueError("invalid_arm_harness_version")
         if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
             raise ValueError("invalid_arm_solver_reasoning_mode")
