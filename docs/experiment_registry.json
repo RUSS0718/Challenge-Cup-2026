@@ -8,63 +8,77 @@
       "method_id": "ARM-V2.1.4-CFR-20261004",
       "status": "DEPLOYED_UNVALIDATED_CANARY",
       "evaluation_scope": "official_candidate",
+      "dataset_scope": "official hidden set; score pending",
       "summary": "Primary -> Challenger -> Targeted Repair -> Fresh Review; official hidden-set score is not yet available.",
       "baseline": "43a02da",
       "report": "docs/releases/arm-v2.1.4-cfr-20261004/result.md",
+      "last_evidence": "docs/releases/arm-v2.1.4-cfr-20261004/result.md",
       "restart_rule": "Run the official evaluation before drawing a capability conclusion; roll back on the protocol gates."
     },
     {
       "method_id": "GRH-V1.1-20261002",
       "status": "ROLLBACK_ANCHOR",
       "evaluation_scope": "official_candidate",
+      "dataset_scope": "official candidate; local 119 rollback comparison",
       "summary": "Published GRH v1.1 / ARM v2.1.3 OFF release used as the current rollback anchor.",
       "baseline": "43a02da",
       "report": "docs/releases/grh-v1.1-20261002/result.md",
+      "last_evidence": "docs/releases/grh-v1.1-20261002/result.md",
       "restart_rule": "Use only as a comparison or rollback target; do not call its local 119 result an official hidden-set score."
     },
     {
       "method_id": "INVALID-RESCUE-R3-20261004",
       "status": "REJECTED",
       "evaluation_scope": "local_replay",
+      "dataset_scope": "local invalid-rescue replay",
       "summary": "Third invalid-rescue round produced correct damage in strict replay and was archived.",
       "baseline": "43a02da",
       "report": "docs/archive/invalid_rescue_round3_2026-10-04.md",
+      "last_evidence": "docs/archive/invalid_rescue_round3_2026-10-04.md",
       "restart_rule": "Do not replay the same protocol; a restart needs a new hypothesis, method id, and preregistration."
     },
     {
       "method_id": "GRH-V1.3-EACL-20261003",
       "status": "NO_GO",
       "evaluation_scope": "local_replay",
+      "dataset_scope": "proxy 221 replay and host audit",
       "summary": "EACL host replay and architecture audit; no capability promotion evidence.",
       "baseline": "43a02da",
-      "report": "docs/10.3/invalid_rescue_implementation_2026-10-04.md",
+      "report": "docs/experiments/GRH-V1.3-EACL-20261003/result.md",
+      "last_evidence": "docs/experiments/GRH-V1.3-EACL-20261003/result.md",
       "restart_rule": "Keep the host-only audit separate from model capability experiments."
     },
     {
       "method_id": "MATH-HARNESS-EVAL112-SMOKE-001",
       "status": "ARCHIVED",
       "evaluation_scope": "smoke",
+      "dataset_scope": "team-built eval-112 smoke set",
       "summary": "Team-built 112-item smoke run; not an official evaluation and not a hidden-set result.",
       "baseline": "MATH-HARNESS-V1",
       "report": "docs/experiments/MATH-HARNESS-EVAL112-SMOKE-001/",
+      "last_evidence": "docs/experiments/MATH-HARNESS-EVAL112-SMOKE-001/result.md",
       "restart_rule": "Use only for local diagnostics; preserve official/proxy scope separation."
     },
     {
       "method_id": "CAR-001-ADAPTIVE-CANDIDATE-FIRST",
       "status": "DEFAULT_OFF",
       "evaluation_scope": "local_replay",
+      "dataset_scope": "thinking-on local replay and health probes",
       "summary": "Thinking-on adaptive candidate-first specification; independent ability promotion was not established.",
       "baseline": "FSDF",
       "report": "docs/experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-SPEC/",
+      "last_evidence": "docs/experiments/CAR-001-ADAPTIVE-CANDIDATE-FIRST-SPEC/result.md",
       "restart_rule": "Do not enable by copying the spec; create a new preregistered experiment if evidence changes."
     },
     {
       "method_id": "ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005",
       "status": "ENGINEERING_NOT_ACTIVATED",
       "evaluation_scope": "local_replay",
+      "dataset_scope": "official-like hard20, eval-112, and public regression; 50 paired records",
       "summary": "Ten-round paired replay completed with zero bounded-tail activations; candidate and baseline both scored 7 correct, 9 incorrect, 9 invalid.",
       "baseline": "ARM-V2.1.4-CFR-20261004",
       "report": "docs/experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/result.md",
+      "last_evidence": "docs/experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/result.md",
       "restart_rule": "Do not infer capability failure or benefit from this unactivated window; run the separately preregistered length-pressure activation probe before any new real-endpoint window."
     }
   ]
