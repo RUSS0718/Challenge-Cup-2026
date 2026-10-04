@@ -788,8 +788,12 @@ model error 超门或三参数入口失败，回滚到 `43a02da`。协议、mani
 
 | 候选 | 预注册状态 | 处置 |
 |---|---|---|
-| `arm-v2.1.5-bounded-tail`：唯一显式截断尾的 1,024-token 短确认 | `OPEN`；尚未运行 | 只允许运行登记的 10 轮、50 题 local replay；默认关闭，不修改 `SUBMISSION_CONFIG` |
+| `arm-v2.1.5-bounded-tail`：唯一显式截断尾的 1,024-token 短确认 | 10 轮、50 题完成；激活 0 次 | `ENGINEERING_NOT_ACTIVATED / NO_CAPABILITY_CONCLUSION`；默认关闭，不修改 `SUBMISSION_CONFIG` |
 
 该候选只改变 v2.1.4 的第二次请求选择：确认与主候选等价才形成共识；UNKNOWN、冲突或
-不满足截断尾条件时保留 v2.1.4 的安全候选/Challenger 行为。预注册、数据范围和门禁见
-[`docs/experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/preregistration.md`](experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/preregistration.md)。
+不满足截断尾条件时保留 v2.1.4 的安全候选/Challenger 行为。本轮候选与基线均为
+`7 correct / 9 incorrect / 9 invalid`，没有真实确认请求；逐题转移和处置见
+[`ARM-V2.1.5 result`](experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/result.md)。
+若要继续，必须先执行独立的
+[`length-pressure activation probe`](experiments/ARM-V2.1.5-LENGTH-PRESSURE-ACTIVATION-PROBE-20261005/preregistration.md)，
+再以新 method ID 注册真实端点窗口。

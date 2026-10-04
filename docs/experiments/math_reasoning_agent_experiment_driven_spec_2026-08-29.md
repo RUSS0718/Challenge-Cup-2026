@@ -1,3 +1,9 @@
+---
+status: archived
+last_verified: 2026-10-05
+superseded_by: docs/releases/arm-v2.1.4-cfr-20261004/protocol.md
+---
+
 # 数学推理 Agent 实验驱动推进总规范（2026-08-30 最终版）
 
 状态：**FINAL_SPEC / PRE0_EXIT_CONDITIONS_1_5_MET / P0_ROLLBACK_EXECUTED_2026_08_30 /

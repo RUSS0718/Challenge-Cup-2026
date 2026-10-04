@@ -38,15 +38,27 @@ manifest 至少记录：
 
 ```json
 {
+  "manifest_schema_version": 2,
   "run_id": "20260928-135512-arm-adaptive",
-  "git_commit": "abc123",
+  "git_commit": "<40-or-64-lowercase-hex>…",
+  "config_selector": "arm-adaptive",
+  "dataset_id": "eval-112",
   "config": "arm-adaptive",
   "dataset": "eval-112",
+  "evaluation_scope": "local_replay",
+  "official_evaluation": false,
+  "dataset_sha256": "…",
+  "working_tree_dirty": false,
   "model": "...",
   "started_at": "...",
   "status": "completed"
 }
 ```
+
+`evaluation_scope` 必须是 `official`、`proxy`、`local_replay`、`smoke` 或
+`diagnostic`。需要晋升或对比的运行应使用
+`python scripts/validate_run_manifest.py --strict <run_manifest.json>`；严格模式会拒绝
+缺少 commit/dataset hash 或工作树 dirty 的记录。
 
 `reasoning_agent.artifacts.RunContext` 和 `ArtifactManager` 是运行代码的统一
 写入边界。新 harness、评测 runner 或测试辅助脚本应通过它们保存 manifest、

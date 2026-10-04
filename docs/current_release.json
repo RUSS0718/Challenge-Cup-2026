@@ -1,0 +1,120 @@
+{
+  "state_schema_version": 1,
+  "generated_at_utc": "2026-10-04T20:20:18.718602+00:00",
+  "repository": {
+    "root": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026",
+    "branch": "codex/arm-v215-bounded-tail-recovery",
+    "head_commit": "1790cd34fcc8fa487a1617b673c4fbac92ec6c54",
+    "gitcode_main_commit": "b63059ca9b64a5a49c4add4e1830f23e58a9bb79",
+    "dirty_tree": true,
+    "dirty_paths": [
+      "CONTEXT.md",
+      "README.md",
+      "docs/9.28/v1/实现文档.md",
+      "docs/ARCHIVE_INDEX.md",
+      "docs/agents/repository-hygiene.md",
+      "docs/excluded_approaches.md",
+      "docs/experiment_registry.json",
+      "docs/experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/result.md",
+      "docs/experiments/ARM-V2.1.5-LENGTH-PRESSURE-ACTIVATION-PROBE-20261005/preregistration.md",
+      "docs/experiments/math_reasoning_agent_experiment_driven_spec_2026-08-29.md",
+      "docs/experiments/protocol_ab_experiment.md",
+      "docs/research/codex_agent_experience_audit_2026-10-05.md",
+      "pytest.ini",
+      "reasoning_agent/artifacts.py",
+      "reasoning_agent/manifest_schema.py",
+      "reasoning_agent/repo_state.py",
+      "scripts/check_doc_freshness.py",
+      "scripts/experiment_status.py",
+      "scripts/show_repo_state.py",
+      "scripts/validate_run_manifest.py",
+      "tests/test_artifacts.py",
+      "tests/test_doc_freshness.py",
+      "tests/test_manifest_schema.py",
+      "tests/test_repo_state.py",
+      "docs/10.3/invalid_cause_audit_eacl_vs_v11_r3_2026-10-04.json",
+      "docs/10.3/invalid_cause_audit_eacl_vs_v11_r3_2026-10-04.md",
+      "docs/10.3/invalid_rescue_implementation_2026-10-04.md",
+      "docs/10.4/binary_decision_paired_ablation_round3_2026-10-04.json",
+      "docs/10.4/binary_decision_paired_ablation_round3_2026-10-04.md",
+      "docs/10.4/direction_review_round3_2026-10-04.md",
+      "docs/10.4/invalid_audit_replay_2026-10-04.json",
+      "docs/10.4/invalid_audit_replay_2026-10-04.md",
+      "docs/10.4/invalid_rescue_round2_2026-10-04.json",
+      "docs/10.4/invalid_rescue_round2_2026-10-04.md",
+      "docs/10.4/invalid_rescue_round3_surface_serializer_2026-10-04.json",
+      "docs/10.4/invalid_rescue_round3_surface_serializer_2026-10-04.md",
+      "docs/10.4/invalid_rescue_surface_offline_2026-10-04.json",
+      "docs/10.4/multisolution_surface_review_2026-10-04.md",
+      "docs/10.4/parallel_experiment_plan_2026-10-04.md",
+      "docs/10.4/proof_gate_review_round3_2026-10-04.json",
+      "docs/10.4/proof_gate_review_round3_2026-10-04.md",
+      "docs/10.4/r2_single_attribution_replay_2026-10-04.json",
+      "docs/10.4/r5_evaluator_surface_audit_2026-10-04.md"
+    ]
+  },
+  "release": {
+    "target_ref": "gitcode/main",
+    "submission_mode": "arm-v2.1.4-cfr",
+    "runtime_submission_mode": "arm-v2.1.4-cfr",
+    "status": "DEPLOYED_UNVALIDATED_CANARY",
+    "rollback_anchor": "43a02da",
+    "official_evaluation": null,
+    "manifest_path": "docs/releases/arm-v2.1.4-cfr-20261004/manifest.json",
+    "selector_matches_runtime": true,
+    "runtime_hashes": {
+      "status": "fail",
+      "checked": 8,
+      "missing": [],
+      "mismatches": [
+        {
+          "path": "reasoning_agent/profiles.py",
+          "expected": "856a6a493af8ea3fcf3a850b2558adaec672e62141b939549edc9e6dd6b47154",
+          "actual": "4d963b4951cd18cc743b4a543c296f3895676e97c05069fdd774f97d7c43adc4"
+        },
+        {
+          "path": "reasoning_agent/math_harness.py",
+          "expected": "22d13321ba03f29096f4d4848f1b2a34fa677f2fb4f76b0df873247df00f663f",
+          "actual": "99e6e3d37a9c0799c798d80fc55abe79d7cd857b3c9af7a96f4f61d61cdf6389"
+        }
+      ]
+    }
+  },
+  "recent_runs": [
+    {
+      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B10/run_manifest.json",
+      "run_id": "ROBUSTNESS-B10-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "arm-v2.1.4-cfr"
+    },
+    {
+      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B09/run_manifest.json",
+      "run_id": "ROBUSTNESS-B09-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "arm-v2.1.5-bounded-tail"
+    },
+    {
+      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B08/run_manifest.json",
+      "run_id": "ROBUSTNESS-B08-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "arm-v2.1.4-cfr"
+    },
+    {
+      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B07/run_manifest.json",
+      "run_id": "ROBUSTNESS-B07-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "arm-v2.1.5-bounded-tail"
+    },
+    {
+      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B06/run_manifest.json",
+      "run_id": "ROBUSTNESS-B06-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "arm-v2.1.4-cfr"
+    }
+  ]
+}

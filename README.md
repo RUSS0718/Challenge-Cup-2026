@@ -1,5 +1,11 @@
 # Challenge Cup 2026 数学推理智能体
 
+当前发布状态以 [`docs/current_release.json`](docs/current_release.json) 为准。开始评测或
+切换分支前，先运行 `python scripts/show_repo_state.py --write --check`；它会核对当前 selector、
+GitCode main、工作树和发布 runtime hash。实验结果的范围和可否重跑，查询
+[`docs/experiment_registry.json`](docs/experiment_registry.json)，完整历史处置仍以
+[`docs/excluded_approaches.md`](docs/excluded_approaches.md) 为准。
+
 本仓库是挑战杯 2026 人工智能赛道初赛的参赛实现:一个受调用预算约束的数学
 推理智能体。当前提交 profile 的默认流水线为题型/答案形态分类 →
 Constraint-Fit Harness（Direct/Deep/FSDF fallback）→ 规范化输出，同时保持赛事

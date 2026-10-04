@@ -3,6 +3,10 @@
 数学推理智能体,参加挑战杯 2026 AI 赛道。官方评测在隐藏题上调用
 `ReasoningAgent.solve()`,按 `final_response` 的答案正确性评分。
 
+当前运行事实以 `docs/current_release.json` 和对应 release manifest 为准。开始实验前运行
+`python scripts/show_repo_state.py --write --check`；不要根据历史实验文档、长期记忆或目录名推断当前
+selector。实验状态查询使用 `python scripts/experiment_status.py --id <method_id>`。
+
 ## Language
 
 ### 配置与部署

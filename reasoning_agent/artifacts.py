@@ -16,6 +16,8 @@ from pathlib import Path
 import re
 from typing import Any, Iterable, Mapping
 
+from reasoning_agent.manifest_schema import MANIFEST_SCHEMA_VERSION, normalise_manifest
+
 
 def _utc_now() -> str:
     """Return the current time as an ISO-8601 UTC timestamp."""
@@ -41,6 +43,12 @@ class RunContext:
     started_at: str = field(default_factory=_utc_now)
     status: str = "running"
     git_commit: str | None = None
+    evaluation_scope: str = "local_replay"
+    official_evaluation: bool = False
+    dataset_sha256: str | None = None
+    working_tree_dirty: bool | None = None
+    git_tree: str | None = None
+    target_ref: str | None = None
 
     def __post_init__(self) -> None:
         """Reject empty identity fields before any artifact is created."""
@@ -58,6 +66,12 @@ class RunContext:
         dataset: str | None = None,
         model: str | None = None,
         git_commit: str | None = None,
+        evaluation_scope: str = "local_replay",
+        official_evaluation: bool = False,
+        dataset_sha256: str | None = None,
+        working_tree_dirty: bool | None = None,
+        git_tree: str | None = None,
+        target_ref: str | None = None,
     ) -> "RunContext":
         """Create a timestamped context when the caller has no run id."""
 
@@ -69,19 +83,34 @@ class RunContext:
             model=model,
             started_at=_utc_now(),
             git_commit=git_commit,
+            evaluation_scope=evaluation_scope,
+            official_evaluation=official_evaluation,
+            dataset_sha256=dataset_sha256,
+            working_tree_dirty=working_tree_dirty,
+            git_tree=git_tree,
+            target_ref=target_ref,
         )
 
     def as_manifest(self) -> dict[str, Any]:
         """Return the stable provenance fields written to ``run_manifest.json``."""
 
         manifest = {
+            "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
             "run_id": self.run_id,
             "git_commit": self.git_commit,
+            "config_selector": self.config,
+            "dataset_id": self.dataset,
             "config": self.config,
             "dataset": self.dataset,
             "model": self.model,
             "started_at": self.started_at,
             "status": self.status,
+            "evaluation_scope": self.evaluation_scope,
+            "official_evaluation": self.official_evaluation,
+            "dataset_sha256": self.dataset_sha256,
+            "working_tree_dirty": self.working_tree_dirty,
+            "git_tree": self.git_tree,
+            "target_ref": self.target_ref,
         }
         return manifest
 
@@ -186,4 +215,5 @@ class ArtifactManager:
         else:
             manifest = dict(context_or_manifest)
         manifest.update(fields)
+        manifest = normalise_manifest(manifest)
         return self.save_json("run_manifest.json", manifest)

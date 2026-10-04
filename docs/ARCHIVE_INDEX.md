@@ -6,6 +6,9 @@
 
 ## 当前应优先阅读
 
+- [当前发布状态](current_release.json)：由 `scripts/show_repo_state.py` 生成，包含 selector、Git ref、运行工件和 runtime hash 检查。
+- [实验处置注册表](experiment_registry.json)：机器可查询的近期方案状态；完整历史仍以 `excluded_approaches.md` 为准。
+- [代理经历审查](research/codex_agent_experience_audit_2026-10-05.md)：最近十次任务的检索热点、过时文档风险和治理落地记录。
 - [CONTEXT.md](../CONTEXT.md)：领域术语与当前默认配置语义。
 - [ARM v2.1.4 CFR 发布协议](releases/arm-v2.1.4-cfr-20261004/protocol.md)：当前正式 selector、
   Challenger/Repair/Review 门和官方复评边界。

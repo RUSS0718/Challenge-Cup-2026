@@ -60,12 +60,12 @@
     },
     {
       "method_id": "ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005",
-      "status": "OPEN",
+      "status": "ENGINEERING_NOT_ACTIVATED",
       "evaluation_scope": "local_replay",
-      "summary": "One short confirmation is reserved for a unique structurally valid answer marked before a truncated tail.",
+      "summary": "Ten-round paired replay completed with zero bounded-tail activations; candidate and baseline both scored 7 correct, 9 incorrect, 9 invalid.",
       "baseline": "ARM-V2.1.4-CFR-20261004",
-      "report": "docs/experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/preregistration.md",
-      "restart_rule": "Complete the registered ten-round paired window, record the disposition, and require a fresh preregistration for any restart."
+      "report": "docs/experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/result.md",
+      "restart_rule": "Do not infer capability failure or benefit from this unactivated window; run the separately preregistered length-pressure activation probe before any new real-endpoint window."
     }
   ]
 }
