@@ -34,6 +34,10 @@ def build_arm_harness(harness: Any) -> Any:
         from reasoning_agent.arm_harness_v218 import AdaptiveReliabilityHarnessV218
 
         return AdaptiveReliabilityHarnessV218(harness)
+    if version == "v2.1.9":
+        from reasoning_agent.arm_harness_v219 import AdaptiveReliabilityHarnessV219
+
+        return AdaptiveReliabilityHarnessV219(harness)
     if version == "v2.1.4":
         from reasoning_agent.arm_harness_v214 import AdaptiveReliabilityHarnessV214
 

@@ -330,6 +330,74 @@ def external_pressure_replication_round_specs() -> tuple[RoundSpec, ...]:
     return tuple(specs)
 
 
+def incumbent_guard_round_specs() -> tuple[RoundSpec, ...]:
+    """Return ten paired rounds for the v2.1.9 incumbent-guard hypothesis.
+
+    The five groups use external OlymMATH, AIME, and HLE records disjoint from
+    both v2.1.8 pressure windows.  The candidate changes only the finalizer
+    trigger gate; the baseline keeps the same pressure budget and CFR profile.
+    """
+    groups = (
+        (
+            "external_olymmath",
+            (
+                "OlymMATH-HARD-0-EN", "OlymMATH-HARD-1-EN",
+                "OlymMATH-HARD-2-ZH", "OlymMATH-HARD-4-EN",
+                "OlymMATH-HARD-5-ZH",
+            ),
+        ),
+        (
+            "external_olymmath",
+            (
+                "OlymMATH-HARD-6-EN", "OlymMATH-HARD-7-EN",
+                "OlymMATH-HARD-8-ZH", "OlymMATH-HARD-10-EN",
+                "OlymMATH-HARD-11-ZH",
+            ),
+        ),
+        (
+            "external_aime",
+            (
+                "aime-2024-I-7", "aime-2024-I-1", "aime-2024-I-6",
+                "aime-2024-II-15", "aime-2024-II-10",
+            ),
+        ),
+        (
+            "external_hle",
+            (
+                "hle-670c1a137d9abe2d345031d4",
+                "hle-6720f01e936e8e4575f4f3f4",
+                "hle-6725716480b9caf2f8f62d01",
+                "hle-6734b2fec14270a5b42323f5",
+                "hle-6733e070361b540695504b86",
+            ),
+        ),
+        (
+            "external_hle",
+            (
+                "hle-67400254c0ce9147b46fadfb",
+                "hle-6736cea8134f03c3c61391e9",
+                "hle-673b631505be2302d4445ece",
+                "hle-6720204c18dac989ee5554d4",
+                "hle-67371dc7fb093fc159cc78e8",
+            ),
+        ),
+    )
+    specs: list[RoundSpec] = []
+    for index, (dataset, keys) in enumerate(groups, start=1):
+        specs.extend(
+            (
+                RoundSpec(
+                    f"Z{index * 2 - 1:02d}",
+                    "arm-v2.1.9-incumbent-guard",
+                    dataset,
+                    keys,
+                ),
+                RoundSpec(f"Z{index * 2:02d}", "cfr-external-pressure", dataset, keys),
+            )
+        )
+    return tuple(specs)
+
+
 def load_scored_rows(path: Path) -> list[dict[str, Any]]:
     """Load JSON or JSONL rows while retaining a stable string item identifier."""
 
@@ -432,6 +500,13 @@ def build_round_config(spec: RoundSpec) -> Any:
             harness_attempt_b_max_tokens=4_096,
             harness_total_token_budget=16_384,
         )
+    if spec.profile == "arm-v2.1.9-incumbent-guard":
+        return replace(
+            build_profile_config(spec.profile),
+            harness_attempt_a_max_tokens=1_024,
+            harness_attempt_b_max_tokens=4_096,
+            harness_total_token_budget=16_384,
+        )
     if spec.profile == "cfr-external-pressure":
         return replace(
             build_profile_config("arm-v2.1.4-cfr"),
@@ -477,7 +552,9 @@ def summarize_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     failure_reasons: Counter[str] = Counter()
     parser_reasons: Counter[str] = Counter()
     finalizer_reasons: Counter[str] = Counter()
+    incumbent_guard_reasons: Counter[str] = Counter()
     compact_finalizer_activations = 0
+    incumbent_guard_activations = 0
     truncation_count = 0
     for row in rows:
         summary = _latest_summary(row.get("trace"))
@@ -495,12 +572,19 @@ def summarize_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         )
         truncation_count += row_truncations
         for entry in row.get("trace", []) if isinstance(row.get("trace"), list) else []:
-            if not isinstance(entry, Mapping) or entry.get("stage") != "compact_finalizer":
+            if not isinstance(entry, Mapping):
                 continue
-            compact_finalizer_activations += 1
-            reason = entry.get("reason")
-            if reason:
-                finalizer_reasons[str(reason)] += 1
+            stage = entry.get("stage")
+            if stage == "compact_finalizer":
+                compact_finalizer_activations += 1
+                reason = entry.get("reason")
+                if reason:
+                    finalizer_reasons[str(reason)] += 1
+            elif stage == "incumbent_preserving_finalizer_gate":
+                incumbent_guard_activations += 1
+                reason = entry.get("reason")
+                if reason:
+                    incumbent_guard_reasons[str(reason)] += 1
     decided = outcomes.get("correct", 0) + outcomes.get("incorrect", 0)
     total_calls = sum(int(row.get("model_calls", 0) or 0) for row in rows)
     total_finish = sum(finish_reasons.values())
@@ -526,6 +610,8 @@ def summarize_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "parser_reason_counts": dict(parser_reasons),
         "compact_finalizer_activations": compact_finalizer_activations,
         "compact_finalizer_trigger_reason_counts": dict(finalizer_reasons),
+        "incumbent_guard_activations": incumbent_guard_activations,
+        "incumbent_guard_reason_counts": dict(incumbent_guard_reasons),
         "decided_accuracy": outcomes.get("correct", 0) / decided if decided else None,
     }
 
@@ -549,7 +635,8 @@ def format_matrix_summary(aggregate: Mapping[str, Any], artifact_dir: Path | str
             f"model_errors={aggregate.get('model_errors', 0)} "
             f"calls={aggregate.get('total_model_calls', 0)} "
             f"truncations={aggregate.get('truncation_count', 0)} "
-            f"finalizer_activations={aggregate.get('compact_finalizer_activations', 0)}",
+            f"finalizer_activations={aggregate.get('compact_finalizer_activations', 0)} "
+            f"incumbent_guard_activations={aggregate.get('incumbent_guard_activations', 0)}",
             f"artifacts: {root}",
             f"aggregate: {root / 'aggregate.json'}",
             f"summary: {root / 'result.md'}",
@@ -567,6 +654,7 @@ __all__ = [
     "recovery_round_specs",
     "external_pressure_round_specs",
     "external_pressure_replication_round_specs",
+    "incumbent_guard_round_specs",
     "load_scored_rows",
     "select_rows",
     "summarize_rows",

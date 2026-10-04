@@ -67,6 +67,14 @@ metadata/gold 隔离和 trace 卫生；100 题官方报告已归档，但没有�
 相同；因此保持默认关闭。预注册和逐题证据见
 `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/`。
 
+### ARM v2.1.9 incumbent guard（实验 profile，默认关闭）
+
+该候选只改变 v2.1.8 的收束器触发门：Primary 已经形成完整 incumbent 时，第二次请求回到
+原 CFR Challenger；只有缺失或不完整 Primary 才使用 bounded compact finalizer。它不改变
+正式 selector、parser、评分器或调用上限，当前状态为 `OPEN`，待独立 Z01–Z10 paired
+窗口完成后再处置。预注册见
+`docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/preregistration.md`。
+
 ### Contextual Answer Reconstruction 历史实验路径
 
 该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用

@@ -849,3 +849,14 @@ Y 窗口使用与 X01–X10 不重叠的 OlymMATH、AIME 和 HLE Math 题目。�
 但 invalid 没有下降，且出现一个正确到错误的逐题反转，因此不能把截断改善解释为无损能力
 收益。完整证据见
 [`ARM-V2.1.8 replication result`](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/result.md)。
+
+## 七点零三、ARM-V2.1.9-INCUMBENT-GUARD-20261005
+
+| 候选 | 结果 | 处置 |
+| --- | --- | --- |
+| `arm-v2.1.9-incumbent-guard`：完整 incumbent 触发原 CFR Challenger，只有缺失/不完整 Primary 才触发 compact finalizer | `OPEN`；待 Z01–Z10 paired 窗口 | 默认关闭；不修改正式 selector |
+
+该实验只改变 v2.1.8 的 finalizer 触发门，候选和基线共用 1,024/4,096 token
+压力预算，题目与 X/Y 窗口不重叠。预注册门、题目选择和运行命令见
+[`ARM-V2.1.9 preregistration`](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/preregistration.md)。
+在窗口完成并写回 result、comparison 和处置前，不得把候选数字用于晋升或官方结论。

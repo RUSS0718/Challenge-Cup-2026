@@ -21,6 +21,7 @@ from reasoning_agent.experiment_matrix import (
     compact_finalizer_round_specs,
     external_pressure_round_specs,
     external_pressure_replication_round_specs,
+    incumbent_guard_round_specs,
 )
 from scripts.run_robustness_matrix import _call_telemetry, _merge_round_reports, run_matrix
 
@@ -277,6 +278,33 @@ class ExperimentMatrixTest(unittest.TestCase):
             rows = load_scored_rows(DATASET_PATHS[spec.dataset])
             self.assertEqual(list(spec.keys), [row["item_id"] for row in select_rows(rows, spec.keys)])
 
+    def test_incumbent_guard_plan_is_ten_paired_rounds_disjoint_from_prior_windows(self):
+        specs = incumbent_guard_round_specs()
+        self.assertEqual(10, len(specs))
+        self.assertEqual([f"Z{index:02d}" for index in range(1, 11)], [spec.round_id for spec in specs])
+        prior = (*external_pressure_round_specs(), *external_pressure_replication_round_specs())
+        prior_items = {(spec.dataset, key) for spec in prior for key in spec.keys}
+        guard_items = {(spec.dataset, key) for spec in specs for key in spec.keys}
+        self.assertTrue(guard_items.isdisjoint(prior_items))
+        for candidate, baseline in zip(specs[::2], specs[1::2]):
+            self.assertEqual(candidate.dataset, baseline.dataset)
+            self.assertEqual(candidate.keys, baseline.keys)
+            self.assertEqual("arm-v2.1.9-incumbent-guard", candidate.profile)
+            self.assertEqual("cfr-external-pressure", baseline.profile)
+
+    def test_incumbent_guard_profile_keeps_equal_pressure_budget(self):
+        candidate = build_round_config(incumbent_guard_round_specs()[0])
+        baseline = build_round_config(incumbent_guard_round_specs()[1])
+        self.assertEqual("v2.1.9", candidate.arm_harness_version)
+        self.assertEqual("v2.1.4", baseline.arm_harness_version)
+        self.assertEqual(1_024, candidate.harness_attempt_a_max_tokens)
+        self.assertEqual(4_096, candidate.harness_attempt_b_max_tokens)
+        candidate_values = asdict(candidate)
+        baseline_values = asdict(baseline)
+        candidate_values.pop("arm_harness_version")
+        baseline_values.pop("arm_harness_version")
+        self.assertEqual(baseline_values, candidate_values)
+
     def test_missing_scoring_dependency_blocks_network_calls(self):
         """A missing SymPy installation must fail before any round is launched."""
         with tempfile.TemporaryDirectory() as directory:
@@ -307,6 +335,21 @@ class ExperimentMatrixTest(unittest.TestCase):
         self.assertEqual(1, summary["compact_finalizer_activations"])
         self.assertEqual({"primary_truncated": 1}, summary["compact_finalizer_trigger_reason_counts"])
         self.assertEqual(1, summary["truncation_count"])
+
+    def test_summary_counts_incumbent_guard_events(self):
+        summary = summarize_rows(
+            [
+                {
+                    "outcome": "correct",
+                    "verdict": "correct",
+                    "model_calls": 2,
+                    "finish_reasons": ["length", "stop"],
+                    "trace": [{"stage": "incumbent_preserving_finalizer_gate", "reason": "complete_incumbent"}],
+                }
+            ]
+        )
+        self.assertEqual(1, summary["incumbent_guard_activations"])
+        self.assertEqual({"complete_incumbent": 1}, summary["incumbent_guard_reason_counts"])
 
 
 if __name__ == "__main__":

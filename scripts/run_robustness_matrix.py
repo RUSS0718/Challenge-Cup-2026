@@ -33,6 +33,7 @@ from reasoning_agent.experiment_matrix import (  # noqa: E402
     default_round_specs,
     external_pressure_round_specs,
     external_pressure_replication_round_specs,
+    incumbent_guard_round_specs,
     format_matrix_summary,
     load_scored_rows,
     missing_candidate_round_specs,
@@ -414,6 +415,8 @@ def _merge_round_reports(
         known_specs = external_pressure_round_specs()
     elif selected_ids and all(round_id.startswith("Y") for round_id in selected_ids):
         known_specs = external_pressure_replication_round_specs()
+    elif selected_ids and all(round_id.startswith("Z") for round_id in selected_ids):
+        known_specs = incumbent_guard_round_specs()
     elif selected_ids and all(round_id.startswith("R") for round_id in selected_ids):
         known_specs = default_round_specs()
     else:
@@ -425,6 +428,7 @@ def _merge_round_reports(
             *compact_finalizer_round_specs(),
             *external_pressure_round_specs(),
             *external_pressure_replication_round_specs(),
+            *incumbent_guard_round_specs(),
         )
     for spec in known_specs:
         report = fresh_by_id.get(spec.round_id)
@@ -492,6 +496,13 @@ def run_matrix(
             report.get("compact_finalizer_trigger_reason_counts", {})
             for report in reports
         ),
+        "incumbent_guard_activations": sum(
+            report.get("incumbent_guard_activations", 0) for report in reports
+        ),
+        "incumbent_guard_reason_counts": _merge_counter_dicts(
+            report.get("incumbent_guard_reason_counts", {})
+            for report in reports
+        ),
         "rounds": reports,
         "elapsed_seconds": round(time.perf_counter() - started, 3),
     }
@@ -506,7 +517,8 @@ def run_matrix(
             f"correct={aggregate['correct']}；incorrect={aggregate['incorrect']}；"
             f"invalid={aggregate['invalid']}；model_errors={aggregate['model_errors']}；"
             f"truncation_count={aggregate['truncation_count']}；"
-            f"compact_finalizer_activations={aggregate['compact_finalizer_activations']}。\n\n"
+            f"compact_finalizer_activations={aggregate['compact_finalizer_activations']}；"
+            f"incumbent_guard_activations={aggregate['incumbent_guard_activations']}。\n\n"
             "所有结果均为 local_replay，不能替代官方隐藏集评测。\n"
         ),
         encoding="utf-8",
@@ -541,6 +553,7 @@ def main() -> int:
             *compact_finalizer_round_specs(),
             *external_pressure_round_specs(),
             *external_pressure_replication_round_specs(),
+            *incumbent_guard_round_specs(),
         )
     }
     selected = None

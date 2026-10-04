@@ -18,6 +18,8 @@
   首次窗口的 VOID 审计记录；纠正后的结果见 [window 002](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/result.md)。
 - [ARM v2.1.8 external length-pressure replication](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/result.md)：
   使用不重叠外部题目的独立 Y 窗口；安全门未通过，保持默认关闭。
+- [ARM v2.1.9 incumbent guard](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/preregistration.md)：
+  当前 OPEN 的 Z01–Z10 实验；完整 incumbent 保留原 CFR Challenger，收束器只处理缺失/不完整输出。
 - [architecture_evolution.md](architecture_evolution.md)：从赛事模板到当前 Harness 的架构谱系、版本状态和证据边界。
 - [official_evaluations/](official_evaluations/)：按北京日期归档官方原始日志与 agent 分析。
 - [excluded_approaches.md](excluded_approaches.md)：实验处置的单一事实源。

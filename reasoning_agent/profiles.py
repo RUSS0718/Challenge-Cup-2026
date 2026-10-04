@@ -41,6 +41,7 @@ PROFILE_ARM_V215_BOUNDED_TAIL: Final = "arm-v2.1.5-bounded-tail"
 PROFILE_ARM_V216_MISSING_CANDIDATE: Final = "arm-v2.1.6-missing-candidate"
 PROFILE_ARM_V217_STRUCTURED_CONFIRMATION: Final = "arm-v2.1.7-structured-confirmation"
 PROFILE_ARM_V218_COMPACT_FINALIZER: Final = "arm-v2.1.8-compact-finalizer"
+PROFILE_ARM_V219_INCUMBENT_GUARD: Final = "arm-v2.1.9-incumbent-guard"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
@@ -73,6 +74,7 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V216_MISSING_CANDIDATE,
     PROFILE_ARM_V217_STRUCTURED_CONFIRMATION,
     PROFILE_ARM_V218_COMPACT_FINALIZER,
+    PROFILE_ARM_V219_INCUMBENT_GUARD,
 )
 
 
@@ -254,6 +256,11 @@ def build_profile_config(profile: str) -> AgentConfig:
         return replace(
             build_submission_config("arm-v2.1.4-cfr"),
             arm_harness_version="v2.1.8",
+        )
+    if normalized == PROFILE_ARM_V219_INCUMBENT_GUARD:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.1.9",
         )
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

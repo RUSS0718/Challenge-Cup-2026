@@ -18,6 +18,7 @@ SUPPORTED_ARM_HARNESS_VERSIONS = frozenset(
         "v2.1.6",
         "v2.1.7",
         "v2.1.8",
+        "v2.1.9",
     }
 )
 
