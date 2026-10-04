@@ -688,7 +688,7 @@ class HostParser:
 
         if not values and expected not in {ANSWER_PROOF, ANSWER_DERIVATION, ANSWER_EXPLANATION}:
             terminal_patterns = (
-                r"(?i)(?:答案是|结果是|answer\s+is|therefore|thus|所以|因此|最终得到|得到|可得|解得)\s*[:：]?\s*([^\n。；;]{1,128})",
+                r"(?i)(?:(?:答案是|结果是|answer\s+is|最终得到|therefore|thus|所以|因此|得到|可得|解得)\s*[:：]?\s*)+([^\n。；;]{1,128})",
             )
             for pattern in terminal_patterns:
                 matches = list(re.finditer(pattern, text))

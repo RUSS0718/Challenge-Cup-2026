@@ -31,6 +31,7 @@ class CandidateValidationTest(unittest.TestCase):
 
     def test_integer_accepts_only_a_bare_integer(self):
         self.assertEqual((True, "valid"), validate_candidate_shape(_candidate("117", ANSWER_INTEGER), ANSWER_INTEGER))
+        self.assertEqual((True, "valid_parenthesized_integer"), validate_candidate_shape(_candidate("(3)", ANSWER_INTEGER), ANSWER_INTEGER))
         valid, reason = validate_candidate_shape(_candidate("有：", ANSWER_INTEGER), ANSWER_INTEGER)
         self.assertFalse(valid)
         self.assertEqual("integer_shape", reason)
@@ -63,6 +64,11 @@ class CandidateValidationTest(unittest.TestCase):
             _candidate(r"\{\sqrt{2}\}", ANSWER_SET),
             ANSWER_SET,
         )
+        self.assertTrue(valid)
+        self.assertEqual("valid", reason)
+
+    def test_set_accepts_unbraced_numeric_list(self):
+        valid, reason = validate_candidate_shape(_candidate("2,3,4", ANSWER_SET), ANSWER_SET)
         self.assertTrue(valid)
         self.assertEqual("valid", reason)
 

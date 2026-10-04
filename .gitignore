@@ -9,8 +9,8 @@ __pycache__/
 .venv/
 *.py[cod]
 
-# Private answer-bearing curation source; never commit or upload.
-/reasoning_agent/error_notebook/eval_112.json
+# Private answer-bearing curation sources; never commit or upload.
+**/error_notebook/eval_*.json
 
 # WorkBuddy
 .workbuddy/
