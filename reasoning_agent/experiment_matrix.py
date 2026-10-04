@@ -29,6 +29,8 @@ class RoundSpec:
 DATASET_PATHS: dict[str, Path] = {
     "eval": Path("reasoning_agent/error_notebook/eval_112.json"),
     "public": Path("sample_data/public_regression_112.jsonl"),
+    "complex": Path("sample_data/complex_capability_freeze_48.jsonl"),
+    "medium": Path("sample_data/medium_capability_freeze_60.jsonl"),
     "hard20": Path("docs/experiments/V4-HARD20-DUAL-001/official_like_hard20_v1.jsonl"),
 }
 
@@ -107,6 +109,31 @@ def recovery_round_specs() -> tuple[RoundSpec, ...]:
         RoundSpec("B08", "arm-v2.1.4-cfr", "eval", (10, 11, 12, 13, 14)),
         RoundSpec("B09", "arm-v2.1.5-bounded-tail", "public", (5010, 5011, 5012, 5013, 5014)),
         RoundSpec("B10", "arm-v2.1.4-cfr", "public", (5010, 5011, 5012, 5013, 5014)),
+    )
+
+
+def missing_candidate_round_specs() -> tuple[RoundSpec, ...]:
+    """Return ten paired rounds for v2.1.6 missing-candidate recovery.
+
+    The candidate is paired with the unchanged v2.1.4 CFR profile on the same
+    records.  The selected records are disjoint from the v2.1.5 recovery
+    window and cover complex, medium, and official-like hard prompts.
+    """
+    return (
+        RoundSpec("C01", "arm-v2.1.6-missing-candidate", "complex", (6000, 6001, 6002, 6003, 6004)),
+        RoundSpec("C02", "arm-v2.1.4-cfr", "complex", (6000, 6001, 6002, 6003, 6004)),
+        RoundSpec("C03", "arm-v2.1.6-missing-candidate", "complex", (6005, 6006, 6007, 6008, 6009)),
+        RoundSpec("C04", "arm-v2.1.4-cfr", "complex", (6005, 6006, 6007, 6008, 6009)),
+        RoundSpec("C05", "arm-v2.1.6-missing-candidate", "medium", (6100, 6101, 6102, 6103, 6104)),
+        RoundSpec("C06", "arm-v2.1.4-cfr", "medium", (6100, 6101, 6102, 6103, 6104)),
+        RoundSpec("C07", "arm-v2.1.6-missing-candidate", "medium", (6200, 6201, 6202, 6203, 6204)),
+        RoundSpec("C08", "arm-v2.1.4-cfr", "medium", (6200, 6201, 6202, 6203, 6204)),
+        RoundSpec("C09", "arm-v2.1.6-missing-candidate", "hard20", (
+            "2024-I-13", "2024-II-8", "2024-II-12", "2024-I-10", "2024-II-4",
+        )),
+        RoundSpec("C10", "arm-v2.1.4-cfr", "hard20", (
+            "2024-I-13", "2024-II-8", "2024-II-12", "2024-I-10", "2024-II-4",
+        )),
     )
 
 
@@ -196,6 +223,8 @@ def build_round_config(spec: RoundSpec) -> Any:
             max_tokens=4_096,
             capsule_retry_max_tokens=2_048,
         )
+    if spec.profile == "arm-v2.1.6-missing-candidate":
+        return build_profile_config(spec.profile)
     return build_profile_config(spec.profile)
 
 
@@ -266,6 +295,7 @@ __all__ = [
     "RoundSpec",
     "build_round_config",
     "default_round_specs",
+    "missing_candidate_round_specs",
     "recovery_round_specs",
     "load_scored_rows",
     "select_rows",

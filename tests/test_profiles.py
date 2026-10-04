@@ -31,6 +31,7 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V214_ADAPTIVE,
     PROFILE_ARM_V214_CFR,
     PROFILE_ARM_V215_BOUNDED_TAIL,
+    PROFILE_ARM_V216_MISSING_CANDIDATE,
     PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
@@ -72,6 +73,7 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V214_ADAPTIVE,
                 PROFILE_ARM_V214_CFR,
                 PROFILE_ARM_V215_BOUNDED_TAIL,
+                PROFILE_ARM_V216_MISSING_CANDIDATE,
             ),
             available_profiles(),
         )
@@ -162,6 +164,13 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("v2.1.5", bounded_tail.arm_harness_version)
         self.assertTrue(bounded_tail.enable_arm_harness)
         self.assertEqual("positive_evidence", bounded_tail.arm_trust_policy)
+        self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
+
+    def test_v216_missing_candidate_profile_is_explicit_and_default_off(self):
+        missing_candidate = build_profile_config(PROFILE_ARM_V216_MISSING_CANDIDATE)
+        self.assertEqual("v2.1.6", missing_candidate.arm_harness_version)
+        self.assertTrue(missing_candidate.enable_arm_harness)
+        self.assertEqual("positive_evidence", missing_candidate.arm_trust_policy)
         self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
 
     def test_main_parser_accepts_profile_switch(self):

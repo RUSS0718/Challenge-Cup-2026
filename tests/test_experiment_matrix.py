@@ -10,6 +10,7 @@ from reasoning_agent.experiment_matrix import (
     RoundSpec,
     build_round_config,
     load_scored_rows,
+    missing_candidate_round_specs,
     recovery_round_specs,
     select_rows,
     summarize_rows,
@@ -137,6 +138,23 @@ class ExperimentMatrixTest(unittest.TestCase):
             reports, reused = _merge_round_reports(root, selected, fresh)
             self.assertEqual(["B01", "B02"], [report["round_id"] for report in reports])
             self.assertEqual(["B01"], reused)
+
+    def test_missing_candidate_plan_is_ten_disjoint_paired_rounds(self):
+        specs = missing_candidate_round_specs()
+        self.assertEqual(10, len(specs))
+        self.assertEqual([f"C{index:02d}" for index in range(1, 11)], [spec.round_id for spec in specs])
+        for candidate, baseline in zip(specs[::2], specs[1::2]):
+            self.assertEqual(candidate.dataset, baseline.dataset)
+            self.assertEqual(candidate.keys, baseline.keys)
+            self.assertEqual("arm-v2.1.6-missing-candidate", candidate.profile)
+            self.assertEqual("arm-v2.1.4-cfr", baseline.profile)
+
+    def test_missing_candidate_profile_builds_v216_without_changing_budget(self):
+        config = build_round_config(missing_candidate_round_specs()[0])
+        baseline = build_round_config(missing_candidate_round_specs()[1])
+        self.assertEqual("v2.1.6", config.arm_harness_version)
+        self.assertEqual("positive_evidence", config.arm_trust_policy)
+        self.assertEqual(config.harness_attempt_a_max_tokens, baseline.harness_attempt_a_max_tokens)
 
 
 if __name__ == "__main__":

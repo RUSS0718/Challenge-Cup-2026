@@ -797,3 +797,12 @@ model error 超门或三参数入口失败，回滚到 `43a02da`。协议、mani
 若要继续，必须先执行独立的
 [`length-pressure activation probe`](experiments/ARM-V2.1.5-LENGTH-PRESSURE-ACTIVATION-PROBE-20261005/preregistration.md)，
 再以新 method ID 注册真实端点窗口。
+
+## 七、ARM-V2.1.6-MISSING-CANDIDATE-RECOVERY-20261005
+
+| 候选 | 结果 | 处置 |
+|---|---|---|
+| `arm-v2.1.6-missing-candidate`：Primary 无候选时用一次独立短答案形成替代空 Challenger | 10 轮、50 题完成；候选 `20/4/1`，基线 `19/5/1`；触发 `1/25`；0 model error | `EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；invalid 未下降，保持默认关闭 |
+
+唯一逐题变化是 `incorrect → correct` 1 题；由于机制几乎未激活，不能把该变化归因于候选路径。完整结果见
+[`ARM-V2.1.6 result`](experiments/ARM-V2.1.6-MISSING-CANDIDATE-RECOVERY-20261005/result.md)。任何重启都必须提出不同假设、使用干净工作树和新的 paired 预注册。

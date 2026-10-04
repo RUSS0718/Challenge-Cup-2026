@@ -201,7 +201,7 @@ class HarnessConfig:
             raise ValueError("total_token_budget must be positive")
         if not math.isfinite(float(self.max_wall_seconds)) or float(self.max_wall_seconds) <= 0:
             raise ValueError("max_wall_seconds must be positive")
-        if self.arm_harness_version not in {"v1", "v2", "v2.1.3", "v2.1.4", "v2.1.5"}:
+        if self.arm_harness_version not in {"v1", "v2", "v2.1.3", "v2.1.4", "v2.1.5", "v2.1.6"}:
             raise ValueError("invalid_arm_harness_version")
         if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
             raise ValueError("invalid_arm_solver_reasoning_mode")

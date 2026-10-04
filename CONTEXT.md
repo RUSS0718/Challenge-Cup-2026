@@ -25,6 +25,12 @@ incumbent。异议解析失败、证据不足、复核不匹配或复核失败�
 每题最多 4 次模型调用，adaptive/deep 各使用 16,384 token 总预算；答案库、RAG、Skill
 和 hybrid router 均关闭。官方 client 只要求三参数 `chat`，可选请求控制由统一兼容层降级。
 
+**ARM v2.1.6 missing-candidate recovery**:
+实验性、默认关闭的 v2.1.4 派生 profile。仅当 Primary 没有可解析候选时，第二次请求才
+改为独立答案形成；已有候选继续走 CFR Challenger。它不能把不存在的答案补成可信答案，
+仍受 positive-evidence Trust Gate 和 fail-closed 规则约束；没有独立 paired window 前不得
+修改 `SUBMISSION_CONFIG`。
+
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，
 才使用一次受限上下文重构。该路径尚未完成真实能力验证；RAG、工具、MCP、旧

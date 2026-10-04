@@ -260,6 +260,11 @@ v2.1.3 保留为历史显式实验模式；当前正式 selector 为 v2.1.4 CFR�
 python docs/releases/arm-v2.1.4-cfr-20261004/verify.py
 ```
 
+`arm-v2.1.6-missing-candidate` 是仅用于本地配对实验的显式 profile：当 Primary
+没有形成任何候选时，它才把第二次请求改为独立的短答案形成；已有候选仍使用 CFR
+的 Challenger 路径。它不改变正式 selector，也不代表数学能力提升。预注册和运行命令见
+[`docs/experiments/ARM-V2.1.6-MISSING-CANDIDATE-RECOVERY-20261005/preregistration.md`](docs/experiments/ARM-V2.1.6-MISSING-CANDIDATE-RECOVERY-20261005/preregistration.md)。
+
 v2.1.3 的历史 selector 为 `arm-v2.1.3-off`，另有显式实验模式
 `arm-v2.1.3-on`、
 `arm-v2.1.3-adaptive` 和 `arm-v2.1.3-forced-ab`。它们使用正证据 Trust Gate、

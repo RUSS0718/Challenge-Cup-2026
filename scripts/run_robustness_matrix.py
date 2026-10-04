@@ -30,6 +30,7 @@ from reasoning_agent.experiment_matrix import (  # noqa: E402
     build_round_config,
     default_round_specs,
     load_scored_rows,
+    missing_candidate_round_specs,
     recovery_round_specs,
     select_rows,
     summarize_rows,
@@ -371,10 +372,12 @@ def _merge_round_reports(
     selected_ids = {spec.round_id for spec in selected_rounds}
     if selected_ids and all(round_id.startswith("B") for round_id in selected_ids):
         known_specs = recovery_round_specs()
+    elif selected_ids and all(round_id.startswith("C") for round_id in selected_ids):
+        known_specs = missing_candidate_round_specs()
     elif selected_ids and all(round_id.startswith("R") for round_id in selected_ids):
         known_specs = default_round_specs()
     else:
-        known_specs = (*default_round_specs(), *recovery_round_specs())
+        known_specs = (*default_round_specs(), *recovery_round_specs(), *missing_candidate_round_specs())
     for spec in known_specs:
         report = fresh_by_id.get(spec.round_id)
         if report is None and spec.round_id not in selected_ids:
@@ -470,7 +473,7 @@ def main() -> int:
     args = parser.parse_args()
     available = {
         spec.round_id: spec
-        for spec in (*default_round_specs(), *recovery_round_specs())
+        for spec in (*default_round_specs(), *recovery_round_specs(), *missing_candidate_round_specs())
     }
     selected = None
     if args.rounds:
