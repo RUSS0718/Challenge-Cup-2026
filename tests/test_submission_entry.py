@@ -175,6 +175,7 @@ class SubmissionEntryTest(unittest.TestCase):
                 "arm-v2.1.4-off",
                 "arm-v2.1.4-adaptive",
                 "arm-v2.1.4-cfr",
+                "arm-v2.1.5-bounded-tail",
             },
         )
         self.assertEqual(SUBMISSION_CONFIG, build_submission_config(SUBMISSION_MODE))

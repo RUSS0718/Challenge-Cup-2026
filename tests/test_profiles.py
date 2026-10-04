@@ -30,6 +30,7 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V214_OFF,
     PROFILE_ARM_V214_ADAPTIVE,
     PROFILE_ARM_V214_CFR,
+    PROFILE_ARM_V215_BOUNDED_TAIL,
     PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
@@ -70,6 +71,7 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V214_OFF,
                 PROFILE_ARM_V214_ADAPTIVE,
                 PROFILE_ARM_V214_CFR,
+                PROFILE_ARM_V215_BOUNDED_TAIL,
             ),
             available_profiles(),
         )
@@ -154,6 +156,13 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual(16_384, cfr.arm_deep_token_budget)
         self.assertEqual(build_profile_config(PROFILE_SUBMISSION), SUBMISSION_CONFIG)
         self.assertEqual(cfr, SUBMISSION_CONFIG)
+
+    def test_v215_bounded_tail_profile_is_explicit_and_default_off(self):
+        bounded_tail = build_profile_config(PROFILE_ARM_V215_BOUNDED_TAIL)
+        self.assertEqual("v2.1.5", bounded_tail.arm_harness_version)
+        self.assertTrue(bounded_tail.enable_arm_harness)
+        self.assertEqual("positive_evidence", bounded_tail.arm_trust_policy)
+        self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
 
     def test_main_parser_accepts_profile_switch(self):
         argv = [

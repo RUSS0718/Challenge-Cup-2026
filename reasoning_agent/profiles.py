@@ -37,6 +37,7 @@ PROFILE_ARM_V213_OFF_SKILL: Final = "arm-v2.1.3-off-skill"
 PROFILE_ARM_V214_OFF: Final = "arm-v2.1.4-off"
 PROFILE_ARM_V214_ADAPTIVE: Final = "arm-v2.1.4-adaptive"
 PROFILE_ARM_V214_CFR: Final = "arm-v2.1.4-cfr"
+PROFILE_ARM_V215_BOUNDED_TAIL: Final = "arm-v2.1.5-bounded-tail"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
@@ -65,6 +66,7 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V214_OFF,
     PROFILE_ARM_V214_ADAPTIVE,
     PROFILE_ARM_V214_CFR,
+    PROFILE_ARM_V215_BOUNDED_TAIL,
 )
 
 
@@ -227,5 +229,10 @@ def build_profile_config(profile: str) -> AgentConfig:
     }
     if normalized in arm_v214_profiles:
         return build_submission_config(f"arm-v2.1.4-{arm_v214_profiles[normalized]}")
+    if normalized == PROFILE_ARM_V215_BOUNDED_TAIL:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.1.5",
+        )
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")
