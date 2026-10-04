@@ -1,3 +1,9 @@
+---
+status: archived
+last_verified: 2026-10-05
+superseded_by: docs/releases/arm-v2.1.4-cfr-20261004/protocol.md
+---
+
 # 数学推理 Agent 实验驱动推进总规范（2026-08-30 最终版）
 
 状态：**FINAL_SPEC / PRE0_EXIT_CONDITIONS_1_5_MET / P0_ROLLBACK_EXECUTED_2026_08_30 /
@@ -48,9 +54,9 @@ refine 暂停；ARH 后置到正确率 winner 之后；RAG、工具、MCP、沙�
 
 - 新方法、复跑或融合：[`excluded_approaches.md`](../excluded_approaches.md) 与
   [`math_agent_capability_methods_2026-08-27.md`](../research/math_agent_capability_methods_2026-08-27.md)；
-- 判分器、外部题集或污染口径：
-  [`math_agent_evaluation_final_report_2026-08-29.md`](../research/math_agent_evaluation_final_report_2026-08-29.md) 与
-  [`local_evaluation_benchmark_audit_2026-08-29.md`](../research/local_evaluation_benchmark_audit_2026-08-29.md)；
+- 判分器、外部题集或污染口径：历史参考稿
+  `docs/research/math_agent_evaluation_final_report_2026-08-29.md` 和
+  `docs/research/local_evaluation_benchmark_audit_2026-08-29.md` 当前 checkout 未保留；
 - 发布：[`branches_map.md`](../branches_map.md)、官方评测记录和最近一次 release report。
 
 本规范不授权 commit、push、修改 `SUBMISSION_CONFIG`、切换三指针或在作品页面提交。

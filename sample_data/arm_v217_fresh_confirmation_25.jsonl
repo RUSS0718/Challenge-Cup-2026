@@ -1,0 +1,25 @@
+{"idx":"fresh_confirm_01","subject":"algebra","problem":"解方程 3x+5=20。请写出必要的等式变形，并在最后给出唯一数值答案。","answer":"5"}
+{"idx":"fresh_confirm_02","subject":"arithmetic","problem":"求 1+2+3+…+50 的值。请说明所用的求和公式，并在最后给出唯一数值答案。","answer":"1275"}
+{"idx":"fresh_confirm_03","subject":"number_theory","problem":"求 84 与 126 的最大公约数。请给出简短的欧几里得算法计算，并在最后给出唯一数值答案。","answer":"42"}
+{"idx":"fresh_confirm_04","subject":"calculus","problem":"求函数 f(x)=x^3-2x 在 x=1 处的导数。请保留必要步骤，并在最后给出唯一数值答案。","answer":"1"}
+{"idx":"fresh_confirm_05","subject":"calculus","problem":"计算定积分 ∫_0^1 3x^2 dx。请写出原函数和代入过程，并在最后给出唯一数值答案。","answer":"1"}
+{"idx":"fresh_confirm_06","subject":"probability","problem":"一枚公平硬币独立投掷两次，恰好出现两次正面的概率是多少？请说明样本空间，并在最后给出唯一答案。","answer":"1/4"}
+{"idx":"fresh_confirm_07","subject":"linear_algebra","problem":"求矩阵 [[2,1],[3,4]] 的行列式。请写出按二阶行列式展开的计算，并在最后给出唯一数值答案。","answer":"5"}
+{"idx":"fresh_confirm_08","subject":"algebra","problem":"求方程 x^2-5x+6=0 的全部实根。请因式分解并在最后用集合形式给出唯一答案。","answer":"{2,3}"}
+{"idx":"fresh_confirm_09","subject":"number_theory","problem":"求 7^100 除以 6 的余数。请使用同余关系说明理由，并在最后给出唯一数值答案。","answer":"1"}
+{"idx":"fresh_confirm_10","subject":"calculus","problem":"求极限 lim_{x→1}(x^2-1)/(x-1)。请先化简表达式，并在最后给出唯一数值答案。","answer":"2"}
+{"idx":"fresh_confirm_11","subject":"geometry","problem":"半径为 3 的圆面积是多少？请保留 π，并在最后给出唯一表达式答案。","answer":"9π"}
+{"idx":"fresh_confirm_12","subject":"logarithm","problem":"求 log_2(32) 的值。请用 2 的幂说明计算，并在最后给出唯一数值答案。","answer":"5"}
+{"idx":"fresh_confirm_13","subject":"series","problem":"计算等比数列 1+1/2+1/4+1/8+1/16 的和。请列出有限等比求和过程，并在最后给出唯一答案。","answer":"31/16"}
+{"idx":"fresh_confirm_14","subject":"probability","problem":"公平六面骰子一次投掷的数学期望是多少？请列出所有等可能结果，并在最后给出唯一答案。","answer":"7/2"}
+{"idx":"fresh_confirm_15","subject":"absolute_value","problem":"求方程 |x-3|=5 的全部实数解。请分情况讨论，并在最后用集合形式给出唯一答案。","answer":"{-2,8}"}
+{"idx":"fresh_confirm_16","subject":"combinatorics","problem":"求 (1+x)^5 中 x^2 的系数。请说明二项式系数来源，并在最后给出唯一数值答案。","answer":"10"}
+{"idx":"fresh_confirm_17","subject":"sequence","problem":"数列 a_n=2n+1，求 a_7。请代入下标并在最后给出唯一数值答案。","answer":"15"}
+{"idx":"fresh_confirm_18","subject":"analytic_geometry","problem":"求过点 (1,2) 与 (3,6) 的直线斜率。请使用斜率定义并在最后给出唯一数值答案。","answer":"2"}
+{"idx":"fresh_confirm_19","subject":"combinatorics","problem":"5 个不同元素的全排列共有多少种？请说明排列计数理由，并在最后给出唯一数值答案。","answer":"120"}
+{"idx":"fresh_confirm_20","subject":"algebra","problem":"若 2x-7=9，求 x。请写出移项和除法步骤，并在最后给出唯一数值答案。","answer":"8"}
+{"idx":"fresh_confirm_21","subject":"number_theory","problem":"求 1 到 100 中所有偶数的和。请说明等差数列首项、末项和项数，并在最后给出唯一答案。","answer":"2550"}
+{"idx":"fresh_confirm_22","subject":"calculus","problem":"求函数 g(x)=4x^2-3x+1 在 x=2 处的值。请代入并在最后给出唯一数值答案。","answer":"11"}
+{"idx":"fresh_confirm_23","subject":"probability","problem":"从 1、2、3、4 中等概率抽取一个数，抽到偶数的概率是多少？请列出有利结果，并在最后给出唯一答案。","answer":"1/2"}
+{"idx":"fresh_confirm_24","subject":"geometry","problem":"长方形长为 7、宽为 4，面积是多少？请写出面积公式并在最后给出唯一数值答案。","answer":"28"}
+{"idx":"fresh_confirm_25","subject":"modular_arithmetic","problem":"求 12345 除以 10 的余数。请说明十进制个位数规则，并在最后给出唯一数值答案。","answer":"5"}

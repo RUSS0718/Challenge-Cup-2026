@@ -34,8 +34,10 @@ from reasoning_agent.migration_hardening import (
     PLAYOFF_BOTH,
     PLAYOFF_NEITHER,
 )
+from reasoning_agent.client_dispatch import call_chat_compat
 from reasoning_agent.diagnostic_trace import summarize_agent_trace
 from reasoning_agent.inference_policy import CallPolicy, ReasoningMode
+from reasoning_agent.arm_versions import is_supported_arm_harness_version
 from reasoning_agent.harness_contracts import (
     ANSWER_CHOICE,
     ANSWER_DERIVATION,
@@ -200,7 +202,7 @@ class HarnessConfig:
             raise ValueError("total_token_budget must be positive")
         if not math.isfinite(float(self.max_wall_seconds)) or float(self.max_wall_seconds) <= 0:
             raise ValueError("max_wall_seconds must be positive")
-        if self.arm_harness_version not in {"v1", "v2", "v2.1.3", "v2.1.4"}:
+        if not is_supported_arm_harness_version(self.arm_harness_version):
             raise ValueError("invalid_arm_harness_version")
         if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
             raise ValueError("invalid_arm_solver_reasoning_mode")
@@ -1077,22 +1079,9 @@ class ConstraintFitOrchestrator:
             }
 
         if self.config.enable_arm_harness:
-            if self.config.arm_harness_version == "v2.1.4":
-                from reasoning_agent.arm_harness_v214 import AdaptiveReliabilityHarnessV214
+            from reasoning_agent.arm_harness_factory import build_arm_harness
 
-                arm_harness = AdaptiveReliabilityHarnessV214(self)
-            elif self.config.arm_harness_version == "v2.1.3":
-                from reasoning_agent.arm_harness_v213 import AdaptiveReliabilityHarnessV213
-
-                arm_harness = AdaptiveReliabilityHarnessV213(self)
-            elif self.config.arm_harness_version == "v2":
-                from reasoning_agent.arm_harness_v2 import AdaptiveReliabilityHarness
-
-                arm_harness = AdaptiveReliabilityHarness(self)
-            else:
-                from reasoning_agent.arm_harness import AdaptiveReasoningHarness
-
-                arm_harness = AdaptiveReasoningHarness(self)
+            arm_harness = build_arm_harness(self)
             return arm_harness.solve(
                 problem_text[: self.config.max_problem_chars],
                 route,
@@ -1342,6 +1331,7 @@ class ConstraintFitOrchestrator:
         response_metadata: dict[str, Any] = {}
         prefill_result = None
         fallback_records: list[dict[str, Any]] = []
+        request_controls_fallback = False
         try:
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -1410,18 +1400,13 @@ class ConstraintFitOrchestrator:
                 fallback_metadata: dict[str, Any] = {}
                 fallback_error = None
                 try:
-                    fallback_kwargs = (
-                        {"reasoning_mode": reasoning_mode}
-                        if reasoning_mode != "inherit"
-                        else {}
-                    )
-                    if timeout_seconds is not None:
-                        fallback_kwargs["timeout_seconds"] = timeout_seconds
-                    fallback_raw = self.client.chat(
+                    fallback_raw, fallback_controls_fallback = call_chat_compat(
+                        self.client,
                         messages,
                         call_policy.temperature,
                         fallback_reservation.requested_tokens,
-                        **fallback_kwargs,
+                        reasoning_mode=reasoning_mode,
+                        timeout_seconds=timeout_seconds,
                     )
                     fallback_content, fallback_completion, fallback_finish, fallback_unpack_error = _unpack_response(fallback_raw)
                     fallback_metadata = _response_metadata(
@@ -1475,6 +1460,8 @@ class ConstraintFitOrchestrator:
                     fallback_record["timeout_seconds"] = timeout_seconds
                 if reasoning_mode != "inherit":
                     fallback_record["reasoning_mode"] = reasoning_mode
+                if fallback_controls_fallback:
+                    fallback_record["request_controls_fallback"] = True
                 fallback_records.append(fallback_record)
                 self._finish_observed_call(
                     fallback_handle,
@@ -1509,18 +1496,13 @@ class ConstraintFitOrchestrator:
                 finish_reason = prefill_result.finish_reason
                 unpack_error = prefill_result.error_category
             else:
-                request_kwargs = (
-                    {"reasoning_mode": reasoning_mode}
-                    if reasoning_mode != "inherit"
-                    else {}
-                )
-                if timeout_seconds is not None:
-                    request_kwargs["timeout_seconds"] = timeout_seconds
-                raw = self.client.chat(
+                raw, request_controls_fallback = call_chat_compat(
+                    self.client,
                     messages,
                     call_policy.temperature,
                     reservation.requested_tokens,
-                    **request_kwargs,
+                    reasoning_mode=reasoning_mode,
+                    timeout_seconds=timeout_seconds,
                 )
                 content, completion_tokens, finish_reason, unpack_error = _unpack_response(raw)
                 response_metadata = _response_metadata(
@@ -1590,6 +1572,8 @@ class ConstraintFitOrchestrator:
             record["timeout_seconds"] = timeout_seconds
         if reasoning_mode != "inherit":
             record["reasoning_mode"] = reasoning_mode
+        if request_controls_fallback:
+            record["request_controls_fallback"] = True
         if prefill_result is not None:
             record.update(
                 {

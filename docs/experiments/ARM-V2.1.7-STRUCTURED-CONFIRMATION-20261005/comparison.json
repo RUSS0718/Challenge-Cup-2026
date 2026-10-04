@@ -1,0 +1,167 @@
+{
+  "method_id": "ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005",
+  "status": "EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION",
+  "matrix_id": "ARM-V217-STRUCTURED-CONFIRMATION-20261005",
+  "evaluation_scope": "local_replay",
+  "official_evaluation": false,
+  "dataset": "sample_data/arm_v217_fresh_confirmation_25.jsonl",
+  "dataset_sha256": "AB959B997294EBEE36A0010D77FC60DF16ACE1A8D01783C0B461470BF7137C2F",
+  "rounds": [
+    {
+      "round_id": "V01",
+      "profile": "arm-v2.1.7-structured-confirmation",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 5,
+      "incorrect": 0,
+      "invalid": 0,
+      "model_errors": 0,
+      "total_model_calls": 9,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V02",
+      "profile": "arm-v2.1.4-cfr",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 5,
+      "incorrect": 0,
+      "invalid": 0,
+      "model_errors": 0,
+      "total_model_calls": 9,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V03",
+      "profile": "arm-v2.1.7-structured-confirmation",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 5,
+      "incorrect": 0,
+      "invalid": 0,
+      "model_errors": 0,
+      "total_model_calls": 8,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V04",
+      "profile": "arm-v2.1.4-cfr",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 5,
+      "incorrect": 0,
+      "invalid": 0,
+      "model_errors": 0,
+      "total_model_calls": 8,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V05",
+      "profile": "arm-v2.1.7-structured-confirmation",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 4,
+      "incorrect": 0,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 9,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V06",
+      "profile": "arm-v2.1.4-cfr",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 4,
+      "incorrect": 0,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 9,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V07",
+      "profile": "arm-v2.1.7-structured-confirmation",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 5,
+      "incorrect": 0,
+      "invalid": 0,
+      "model_errors": 0,
+      "total_model_calls": 7,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V08",
+      "profile": "arm-v2.1.4-cfr",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 5,
+      "incorrect": 0,
+      "invalid": 0,
+      "model_errors": 0,
+      "total_model_calls": 7,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V09",
+      "profile": "arm-v2.1.7-structured-confirmation",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 5,
+      "incorrect": 0,
+      "invalid": 0,
+      "model_errors": 0,
+      "total_model_calls": 9,
+      "truncation_rate": 0.0
+    },
+    {
+      "round_id": "V10",
+      "profile": "arm-v2.1.4-cfr",
+      "dataset_sha256": "ab959b997294ebee36a0010d77fc60df16ace1a8d01783c0b461470bf7137c2f",
+      "records": 5,
+      "correct": 5,
+      "incorrect": 0,
+      "invalid": 0,
+      "model_errors": 0,
+      "total_model_calls": 9,
+      "truncation_rate": 0.0
+    }
+  ],
+  "profiles": {
+    "arm-v2.1.4-cfr": {
+      "records": 25,
+      "correct": 24,
+      "incorrect": 0,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 42,
+      "average_model_calls": 1.68,
+      "finish_reason_counts": {
+        "stop": 42
+      },
+      "truncation_rate": 0.0,
+      "structured_confirmation_activations": 0
+    },
+    "arm-v2.1.7-structured-confirmation": {
+      "records": 25,
+      "correct": 24,
+      "incorrect": 0,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 42,
+      "average_model_calls": 1.68,
+      "finish_reason_counts": {
+        "stop": 42
+      },
+      "truncation_rate": 0.0,
+      "structured_confirmation_activations": 17
+    }
+  },
+  "paired_transitions": {
+    "correct->correct": 24,
+    "invalid->invalid": 1
+  },
+  "outcome_differences": [],
+  "evidence_boundary": "The runner and judge are local replay; no official selector or evaluator was changed."
+}

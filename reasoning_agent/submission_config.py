@@ -20,6 +20,7 @@ SUBMISSION_ARM_V213_ON: Final = "arm-v2.1.3-on"
 SUBMISSION_ARM_V213_ADAPTIVE: Final = "arm-v2.1.3-adaptive"
 SUBMISSION_ARM_V214_OFF: Final = "arm-v2.1.4-off"
 SUBMISSION_ARM_V214_ADAPTIVE: Final = "arm-v2.1.4-adaptive"
+SUBMISSION_ARM_V214_CFR: Final = "arm-v2.1.4-cfr"
 SUBMISSION_MODES: Final = (
     SUBMISSION_FSDF,
     SUBMISSION_ARM_V212_OFF,
@@ -30,10 +31,11 @@ SUBMISSION_MODES: Final = (
     SUBMISSION_ARM_V213_ADAPTIVE,
     SUBMISSION_ARM_V214_OFF,
     SUBMISSION_ARM_V214_ADAPTIVE,
+    SUBMISSION_ARM_V214_CFR,
 )
 ARM_V212_MODES: Final = ("off", "on", "adaptive")
 ARM_V213_MODES: Final = ("off", "on", "adaptive")
-ARM_V214_MODES: Final = ("off", "adaptive")
+ARM_V214_MODES: Final = ("off", "adaptive", "cfr")
 ConfigFactory = Callable[..., Any]
 
 
@@ -58,9 +60,6 @@ def _build_fsdf_config(config_factory: ConfigFactory) -> Any:
         enable_heterogeneous_reasoners=True,
         enable_step_verification=False,
         enable_step_revision=False,
-        enable_method_rag=False,
-        enable_reference_rag=False,
-        enable_reference_skills=False,
         enable_deterministic_solver=False,
         enable_numeric_answer_first_prompt=True,
         enable_numeric_answer_only_prompt=False,
@@ -133,8 +132,8 @@ def build_arm_v214_base_config(config_factory: ConfigFactory) -> Any:
         arm_harness_version="v2.1.4",
         arm_adaptive_max_calls=4,
         arm_deep_max_calls=4,
-        arm_adaptive_token_budget=20_480,
-        arm_deep_token_budget=20_480,
+        arm_adaptive_token_budget=16_384,
+        arm_deep_token_budget=16_384,
         arm_challenger_shadow=False,
         arm_enable_targeted_repair=True,
         arm_enable_fresh_review=True,
@@ -171,6 +170,7 @@ def build_submission_config(
     is_v214 = normalized in {
         SUBMISSION_ARM_V214_OFF,
         SUBMISSION_ARM_V214_ADAPTIVE,
+        SUBMISSION_ARM_V214_CFR,
     }
     base = (
         build_arm_v214_base_config(config_factory)
@@ -181,6 +181,22 @@ def build_submission_config(
     )
     if normalized == SUBMISSION_ARM_V213_OFF:
         base = replace(base, enable_constraint_fit_hybrid_router=False)
+    if normalized == SUBMISSION_ARM_V214_CFR:
+        return replace(
+            base,
+            enable_constraint_fit_hybrid_router=False,
+            arm_v2_mode="selective",
+            arm_solver_reasoning_mode="off",
+            arm_allow_thinking_on=False,
+            arm_trust_policy="positive_evidence",
+            arm_challenger_shadow=False,
+            arm_enable_targeted_repair=True,
+            arm_enable_fresh_review=True,
+            arm_adaptive_max_calls=4,
+            arm_deep_max_calls=4,
+            arm_adaptive_token_budget=16_384,
+            arm_deep_token_budget=16_384,
+        )
     arm_mode = normalized.rsplit("-", 1)[-1]
     return replace(
         base,
@@ -200,6 +216,7 @@ __all__ = [
     "SUBMISSION_ARM_V213_OFF",
     "SUBMISSION_ARM_V213_ON",
     "SUBMISSION_ARM_V214_ADAPTIVE",
+    "SUBMISSION_ARM_V214_CFR",
     "SUBMISSION_ARM_V214_OFF",
     "SUBMISSION_FSDF",
     "SUBMISSION_MODES",

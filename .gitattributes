@@ -1,1 +1,13 @@
 docs/official_evaluations/**/*.log -whitespace
+
+# Preserve the recorded GRH v1.1 experiment checkout line endings.
+user_agent.py text eol=crlf
+scripts/run_math_harness_112_diagnostic.py text eol=crlf
+scripts/evaluate_dev.py text eol=crlf
+reasoning_agent/math_harness.py text eol=crlf
+reasoning_agent/harness_contracts.py text eol=crlf
+reasoning_agent/arm_harness_v213.py text eol=lf
+reasoning_agent/arm_harness_v2.py text eol=crlf
+reasoning_agent/fork_select_deepen_finish.py text eol=crlf
+reasoning_agent/skills/math_routes.json text eol=crlf
+reasoning_agent/skills/references/directed_frontier_transfer.md text eol=crlf
