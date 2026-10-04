@@ -35,8 +35,7 @@ def main():
     assert config.arm_trust_policy == "positive_evidence"
     assert config.enable_constraint_fit_harness and config.enable_constraint_fit_deep_lane
     assert not any((config.enable_constraint_fit_hybrid_router,
-                    config.enable_temporary_answer_bank, config.enable_reference_rag,
-                    config.enable_method_rag, config.enable_reference_skills,
+                    config.enable_temporary_answer_bank,
                     config.arm_enable_skill_guidance))
     assert config.harness_bank_mode == "off"
     assert config.arm_adaptive_max_calls == config.arm_deep_max_calls == 3

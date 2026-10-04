@@ -29,6 +29,7 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V213_OFF_SKILL,
     PROFILE_ARM_V214_OFF,
     PROFILE_ARM_V214_ADAPTIVE,
+    PROFILE_ARM_V214_CFR,
     PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
@@ -68,6 +69,7 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V213_OFF_SKILL,
                 PROFILE_ARM_V214_OFF,
                 PROFILE_ARM_V214_ADAPTIVE,
+                PROFILE_ARM_V214_CFR,
             ),
             available_profiles(),
         )
@@ -89,7 +91,6 @@ class ProfileConfigTest(unittest.TestCase):
         config = build_profile_config(PROFILE_AGENT_DEFAULT)
         self.assertFalse(config.enable_fork_select_deepen_finish)
         self.assertFalse(config.enable_constraint_fit_harness)
-        self.assertFalse(config.enable_reference_rag)
         self.assertFalse(config.enable_arm_harness)
 
     def test_arm_profiles_are_explicit_and_submission_stays_off(self):
@@ -137,7 +138,22 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("adaptive", adaptive.arm_solver_reasoning_mode)
         self.assertTrue(forced.arm_force_ab_diagnostic)
         self.assertTrue(SUBMISSION_CONFIG.enable_arm_harness)
-        self.assertEqual(build_profile_config(PROFILE_ARM_V213_OFF), SUBMISSION_CONFIG)
+
+    def test_v214_cfr_profile_matches_the_new_submission_selector(self):
+        cfr = build_profile_config(PROFILE_ARM_V214_CFR)
+        self.assertEqual("v2.1.4", cfr.arm_harness_version)
+        self.assertEqual("selective", cfr.arm_v2_mode)
+        self.assertEqual("off", cfr.arm_solver_reasoning_mode)
+        self.assertEqual("positive_evidence", cfr.arm_trust_policy)
+        self.assertFalse(cfr.enable_constraint_fit_hybrid_router)
+        self.assertTrue(cfr.arm_enable_targeted_repair)
+        self.assertTrue(cfr.arm_enable_fresh_review)
+        self.assertEqual(4, cfr.arm_adaptive_max_calls)
+        self.assertEqual(4, cfr.arm_deep_max_calls)
+        self.assertEqual(16_384, cfr.arm_adaptive_token_budget)
+        self.assertEqual(16_384, cfr.arm_deep_token_budget)
+        self.assertEqual(build_profile_config(PROFILE_SUBMISSION), SUBMISSION_CONFIG)
+        self.assertEqual(cfr, SUBMISSION_CONFIG)
 
     def test_main_parser_accepts_profile_switch(self):
         argv = [

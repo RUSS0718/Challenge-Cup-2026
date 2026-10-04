@@ -754,9 +754,6 @@ def summarize_budget_config(agent: ReasoningAgent) -> dict[str, Any]:
         "enable_heterogeneous_reasoners": getattr(config, "enable_heterogeneous_reasoners", None),
         "enable_step_verification": getattr(config, "enable_step_verification", None),
         "enable_step_revision": getattr(config, "enable_step_revision", None),
-        "enable_method_rag": getattr(config, "enable_method_rag", None),
-        "method_rag_top_k": getattr(config, "method_rag_top_k", None),
-        "method_rag_max_context_chars": getattr(config, "method_rag_max_context_chars", None),
         "enable_deterministic_solver": getattr(config, "enable_deterministic_solver", None),
         "enable_numeric_answer_first_prompt": getattr(config, "enable_numeric_answer_first_prompt", None),
         "enable_numeric_answer_only_prompt": getattr(config, "enable_numeric_answer_only_prompt", None),
@@ -799,10 +796,6 @@ def parse_args() -> argparse.Namespace:
     parser.set_defaults(enable_step_revision=AgentConfig.enable_step_revision)
     # ── Answer saving ──
     parser.add_argument("--save-answers-to", help="Save compact {idx, extracted_answer, verdict} JSONL for offline re-judging.")
-    parser.add_argument("--enable-method-rag", action="store_true", help="Experimental offline method-card retrieval; default off.")
-    parser.add_argument("--method-cards", default="method_cards.jsonl", help="Path to committed method cards for the RAG experiment.")
-    parser.add_argument("--method-rag-top-k", type=int, default=2)
-    parser.add_argument("--method-rag-max-context-chars", type=int, default=4000)
     parser.add_argument("--enable-deterministic-solver", action="store_true")
     parser.add_argument("--enable-numeric-answer-first-prompt", action="store_true",
                         help="Experimental numeric A/B prompt; default off.")
@@ -837,20 +830,13 @@ def main() -> None:
             max_model_calls=args.max_model_calls if args.max_model_calls is not None else AgentConfig.max_model_calls,
             max_tokens=args.max_tokens if args.max_tokens is not None else AgentConfig.max_tokens,
             policy_prompt=(ANSWER_FIRST_POLICY_PROMPT if args.answer_first_prompt else (ANSWER_ONLY_POLICY_PROMPT if args.answer_only_prompt else AgentConfig.policy_prompt)),
-            enable_method_rag=args.enable_method_rag,
-            method_rag_top_k=args.method_rag_top_k,
-            method_rag_max_context_chars=args.method_rag_max_context_chars,
             enable_deterministic_solver=args.enable_deterministic_solver,
             enable_numeric_answer_first_prompt=args.enable_numeric_answer_first_prompt,
             enable_strict_numeric_salvage=args.enable_strict_numeric_salvage,
             enable_conditional_token_retry=args.enable_conditional_token_retry,
             conditional_retry_max_tokens=args.conditional_retry_max_tokens,
         )
-        method_rag_retriever = None
-        if args.enable_method_rag:
-            from method_rag import MethodCardRetriever
-            method_rag_retriever = MethodCardRetriever(Path(args.method_cards))
-        agent = ReasoningAgent(client=InternChatClient(timeout=args.timeout_seconds, retry=args.retry_count), config=config, method_rag_retriever=method_rag_retriever)
+        agent = ReasoningAgent(client=InternChatClient(timeout=args.timeout_seconds, retry=args.retry_count), config=config)
         total_timeout = args.total_timeout_seconds
         if total_timeout is None:
             base_calls = max(config.max_model_calls, config.l2_max_model_calls if config.enable_l2_routing else 0)
@@ -869,9 +855,6 @@ def main() -> None:
         report["uncertain_repair_enabled"] = args.enable_uncertain_repair
         report["answer_only_prompt_enabled"] = args.answer_only_prompt
         report["answer_first_prompt_enabled"] = args.answer_first_prompt
-        report["method_rag_enabled"] = args.enable_method_rag
-        report["method_rag_top_k"] = args.method_rag_top_k if args.enable_method_rag else None
-        report["method_rag_max_context_chars"] = args.method_rag_max_context_chars if args.enable_method_rag else None
         report["deterministic_solver_enabled"] = args.enable_deterministic_solver
         report["numeric_answer_first_prompt_enabled"] = args.enable_numeric_answer_first_prompt
         report["strict_numeric_salvage_enabled"] = args.enable_strict_numeric_salvage

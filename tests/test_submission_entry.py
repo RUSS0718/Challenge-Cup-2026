@@ -46,8 +46,7 @@ class SubmissionEntryTest(unittest.TestCase):
         return client, result
 
     def test_grh_v11_submission_controls_match_experiment(self):
-        config = SUBMISSION_CONFIG
-        self.assertEqual("arm-v2.1.3-off", SUBMISSION_MODE)
+        config = build_submission_config("arm-v2.1.3-off")
         self.assertTrue(config.enable_constraint_fit_harness)
         self.assertTrue(config.enable_constraint_fit_deep_lane)
         self.assertFalse(config.enable_constraint_fit_hybrid_router)
@@ -58,9 +57,6 @@ class SubmissionEntryTest(unittest.TestCase):
         self.assertEqual("positive_evidence", config.arm_trust_policy)
         self.assertFalse(config.enable_temporary_answer_bank)
         self.assertEqual("off", config.harness_bank_mode)
-        self.assertFalse(config.enable_method_rag)
-        self.assertFalse(config.enable_reference_rag)
-        self.assertFalse(config.enable_reference_skills)
         self.assertFalse(config.arm_enable_skill_guidance)
         self.assertFalse(config.arm_enable_skill_for_second)
         self.assertFalse(config.arm_enable_skill_audit)
@@ -81,6 +77,20 @@ class SubmissionEntryTest(unittest.TestCase):
         )
         self.assertEqual(3, harness_config.effective_call_limit)
         self.assertEqual(16384, harness_config.token_limit)
+
+    def test_cfr_is_the_promoted_official_configuration(self):
+        self.assertEqual("arm-v2.1.4-cfr", SUBMISSION_MODE)
+        config = SUBMISSION_CONFIG
+        self.assertEqual("v2.1.4", config.arm_harness_version)
+        self.assertFalse(config.enable_constraint_fit_hybrid_router)
+        self.assertEqual("off", config.arm_solver_reasoning_mode)
+        self.assertEqual("positive_evidence", config.arm_trust_policy)
+        self.assertTrue(config.arm_enable_targeted_repair)
+        self.assertTrue(config.arm_enable_fresh_review)
+        self.assertEqual(4, config.arm_adaptive_max_calls)
+        self.assertEqual(4, config.arm_deep_max_calls)
+        self.assertEqual(16384, config.arm_adaptive_token_budget)
+        self.assertEqual(16384, config.arm_deep_token_budget)
 
     def test_grh_submission_routes_uncertain_cases_to_generic(self):
         cases = (
@@ -162,6 +172,9 @@ class SubmissionEntryTest(unittest.TestCase):
                 "arm-v2.1.3-off",
                 "arm-v2.1.3-on",
                 "arm-v2.1.3-adaptive",
+                "arm-v2.1.4-off",
+                "arm-v2.1.4-adaptive",
+                "arm-v2.1.4-cfr",
             },
         )
         self.assertEqual(SUBMISSION_CONFIG, build_submission_config(SUBMISSION_MODE))

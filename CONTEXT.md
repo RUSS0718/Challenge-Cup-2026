@@ -8,11 +8,18 @@
 ### 配置与部署
 
 **SUBMISSION_CONFIG / canary profile**:
-官方 runner 无参构造时唯一生效的提交配置。2026-09-03 经用户明确授权切换为
-`contextual_answer_reconstruction_v1`，随后于 2026-09-04 经用户再次明确授权切换为
-`fork_select_deepen_finish_v1`；运营参考锚为 `hetero_k5 @ 25f99b5`
-（GitCode `34bc353`）。改它等于改变官方得分行为。
+官方 runner 无参构造时唯一生效的提交配置。当前正式 selector 为
+`arm-v2.1.4-cfr`，即 ARM v2.1.4 CFR（Challenger → Targeted Repair → Fresh Review）。
+改它等于改变官方得分行为；GRH v1.1 / 119 正确版本 `43a02da` 只作为回滚锚和历史对照。
+当前 CFR 尚无官方隐藏集成绩，状态为 `DEPLOYED_UNVALIDATED_CANARY`。
 _Avoid_: 默认配置、线上配置(指代不清)
+
+**ARM v2.1.4 CFR**:
+Primary 先生成一个候选；Challenger 必须给出结构化、可定位且带证据的异议，才可执行
+一次 Targeted Repair；Fresh Review 必须精确复核同一异议并返回 `PASS`，修复候选才能替换
+incumbent。异议解析失败、证据不足、复核不匹配或复核失败时保留安全候选或返回 `UNKNOWN`。
+每题最多 4 次模型调用，adaptive/deep 各使用 16,384 token 总预算；答案库、RAG、Skill
+和 hybrid router 均关闭。官方 client 只要求三参数 `chat`，可选请求控制由统一兼容层降级。
 
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，
@@ -20,9 +27,9 @@ _Avoid_: 默认配置、线上配置(指代不清)
 BTCS/KCV/PS-C/V5 路径均关闭。
 
 **FSDF v1**:
-当前经用户授权的官方默认路径：Analyze → B/C Fork → D Select/Deepen → E Finish，
+历史官方默认路径和 CFR 的显式对照：Analyze → B/C Fork → D Select/Deepen → E Finish，
 固定最多五次调用和 `[2048, 2048, 2048, 8192, 4096]` token 序列。仅完成零模型代码验收，
-不产生数学能力或正确率结论；`SUBMISSION_CONFIG` 中 contextual reconstruction 保持关闭。
+不产生数学能力或正确率结论；当前 `SUBMISSION_CONFIG` 不再启用 FSDF 作为正式 selector。
 
 **异构候选**:
 同一 client 下采用互补求解策略产生的候选；不等同于多模型集成。

@@ -36,6 +36,7 @@ PROFILE_ARM_V213_FORCED_AB: Final = "arm-v2.1.3-forced-ab"
 PROFILE_ARM_V213_OFF_SKILL: Final = "arm-v2.1.3-off-skill"
 PROFILE_ARM_V214_OFF: Final = "arm-v2.1.4-off"
 PROFILE_ARM_V214_ADAPTIVE: Final = "arm-v2.1.4-adaptive"
+PROFILE_ARM_V214_CFR: Final = "arm-v2.1.4-cfr"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
@@ -63,6 +64,7 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V213_OFF_SKILL,
     PROFILE_ARM_V214_OFF,
     PROFILE_ARM_V214_ADAPTIVE,
+    PROFILE_ARM_V214_CFR,
 )
 
 
@@ -221,6 +223,7 @@ def build_profile_config(profile: str) -> AgentConfig:
     arm_v214_profiles = {
         PROFILE_ARM_V214_OFF: "off",
         PROFILE_ARM_V214_ADAPTIVE: "adaptive",
+        PROFILE_ARM_V214_CFR: "cfr",
     }
     if normalized in arm_v214_profiles:
         return build_submission_config(f"arm-v2.1.4-{arm_v214_profiles[normalized]}")

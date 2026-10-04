@@ -1,6 +1,8 @@
 {
   "protocol_id": "ARM-v2.1.4-implementation-freeze",
   "method_id": "ARM-v2.1.4",
+  "status": "ARCHIVED_HISTORICAL_FREEZE",
+  "superseded_by": "ARM-V2.1.4-CFR-20261004",
   "dataset_id": "freeze-unverified-local-state",
   "frozen_commit": "4c0c90b9eaf340121f7314362f6ce16ac758a384",
   "frozen_branch": "fix/router-generic-fallback",

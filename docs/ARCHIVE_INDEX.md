@@ -7,6 +7,8 @@
 ## 当前应优先阅读
 
 - [CONTEXT.md](../CONTEXT.md)：领域术语与当前默认配置语义。
+- [ARM v2.1.4 CFR 发布协议](releases/arm-v2.1.4-cfr-20261004/protocol.md)：当前正式 selector、
+  Challenger/Repair/Review 门和官方复评边界。
 - [architecture_evolution.md](architecture_evolution.md)：从赛事模板到当前 Harness 的架构谱系、版本状态和证据边界。
 - [official_evaluations/](official_evaluations/)：按北京日期归档官方原始日志与 agent 分析。
 - [excluded_approaches.md](excluded_approaches.md)：实验处置的单一事实源。
@@ -34,6 +36,9 @@
 
 ## 已归档的旧总结
 
+- [invalid_rescue_round3_2026-10-04.md](archive/invalid_rescue_round3_2026-10-04.md)：
+  invalid rescue 第三轮综合归档。全量回放出现正确损失，因此 43a02da 保留为回滚锚；相关
+  实验代码和大型参考资源已从发布树移除。当前正式路径见 CFR 发布协议。
 - [P0-提交总结-2026-07.md](archive/legacy/P0-提交总结-2026-07.md)：已移出根目录，
   仅用于历史追溯。
 - [TODO_LIST-2026-07.md](archive/legacy/TODO_LIST-2026-07.md)：已移出根目录，早期任务

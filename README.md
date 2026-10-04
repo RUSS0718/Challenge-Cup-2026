@@ -5,9 +5,12 @@
 Constraint-Fit Harness（Direct/Deep/FSDF fallback）→ 规范化输出，同时保持赛事
 规定的单文件入口与公开 client 契约。
 
-> 当前状态（2026-09-29）：正式无参提交 selector 为 ARM v2.1.3 OFF，关闭 reference-example
-> RAG、Skill 和答案 bank；FSDF 作为显式 baseline 保留。CAR、FESF、Claim DSL、Host Loop、
-> 工具和 MCP 保留为显式实验层，不属于默认路径。
+> 当前状态（2026-10-04）：正式无参提交 selector 为 ARM v2.1.4 CFR。CFR 是一套新的
+> Challenger → Targeted Repair → Fresh Review 方案，默认关闭 hybrid router、答案库、RAG
+> 和 Skill；它已完成代码/接口门，官方隐藏集成绩尚待重新评测。GRH v1.1 / 119 正确版本
+> 仅作为回滚锚和历史对照保留，invalid rescue 第三轮的方案、结果和回退理由见
+> [`docs/archive/invalid_rescue_round3_2026-10-04.md`](docs/archive/invalid_rescue_round3_2026-10-04.md)，
+> CFR 发布协议见 [`docs/releases/arm-v2.1.4-cfr-20261004/`](docs/releases/arm-v2.1.4-cfr-20261004/)。
 
 ## 当前 Agent 架构
 
@@ -29,33 +32,29 @@ flowchart TD
 
 | 层 | 在役实现 | 备注 |
 | --- | --- | --- |
-| 语义参考 RAG | Qwen3-Embedding-0.6B + Chroma 15,383 条 | 代码保留；提交 profile 默认关闭 |
 | 题型/学科分类 | 纯文本规则六类答案形态 + 18 学科词汇路由 | 常开；不读 metadata |
-| 学科 Skill | Intern1 18 份手册的安全投影 | 代码保留；提交 profile 默认关闭 |
 | 生成/路由 | Direct A/B、Deep primary/review、FSDF A/B/C/D/E | 由 HostRouter 按合同分流 |
 | 选择 | Evidence Ledger + HostParser/TypedParser | 非法、冲突或不可验证时 `UNKNOWN` |
-| 预算 | Harness 每题最多 5 次模型调用 | Harness 总预算 16,384 tokens；FSDF 有自身有界预算 |
+| 预算 | CFR 每题最多 4 次模型调用 | adaptive/deep 总预算各 16,384 tokens；FSDF 仅作显式历史对照 |
 | 表示 | 结构化候选、typed parse、handoff | `UNKNOWN` fail-closed |
 | 输出 | `final_response` 非空保证;失败路径返回兜底句 | trace 仅记决策摘要 |
 
-### Constraint-Fit Math Harness（MATH-HARNESS-V1，提交 profile 开启）
+### ARM v2.1.4 CFR（提交 profile 开启）
 
-新 Harness 位于 `reasoning_agent/math_harness.py`，通过 `ReasoningAgent.solve()` 接入；
-候选实现为
-`bounded_evidence_trajectory_selection_v1`。它使用有限 A/B 轨迹、Evidence Ledger、
-保守选择、截断单次恢复和 5 次/16384 token 硬预算。FSDF 仍保留为 legacy backend；
-提交 profile 开启 Harness、Deep lane 与 Generic fallback；ARM v2.1.3 OFF 不走 hybrid FSDF，RAG、Skill 和答案 bank 不进入正式路径。
+新方案位于 `reasoning_agent/arm_harness_v214.py`，通过 `ReasoningAgent.solve()` 接入；
+Primary 先形成候选，Challenger 以结构化异议检查具体位置和证据，只有可修复异议才进入
+一次 Targeted Repair，Fresh Review 必须精确匹配异议并返回 `PASS` 才能替换 incumbent。
+任何门失败都保留安全候选或返回 `UNKNOWN`。统一 client dispatch 兼容官方三参数契约，
+不会要求评测平台支持本地扩展参数。
 
-该候选已完成双轴 Router、typed parser 和 Deep 状态机的零模型代码验收；随后按新 spec
-执行 fresh 6 题 formation probe，但首 3 题均在固定 1200 秒 `deep_primary` 边界超时，
-触发立即停止门。因此 formation 本身为 `NO_GO / NO_CAPABILITY_CONCLUSION`；这是用户明确
-授权的提交配置覆盖，尚未形成能力 A/B 证据。formation 工件见
-`docs/experiments/MATH-DEEP-FORMATION-PROBE-001/`。
+当前状态为 `DEPLOYED_UNVALIDATED_CANARY`：已验证 selector、预算、严格三参数 client、
+metadata/gold 隔离和 trace 卫生；没有官方隐藏集分数，不能从本地 smoke 或 119 回滚锚推导
+能力提升。完整发布协议和离线 verifier 见 `docs/releases/arm-v2.1.4-cfr-20261004/`。
 
 ### Contextual Answer Reconstruction 历史实验路径
 
 该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用
-`SUBMISSION_MODE=arm-v2.1.3-off`，FSDF 仅作为显式 baseline。
+`SUBMISSION_MODE=arm-v2.1.4-cfr`，FSDF 和 GRH v1.1 / 119 仅作为显式历史对照。
 
 ## 项目架构与发布流
 
@@ -99,7 +98,7 @@ flowchart LR
 │   ├── medium_capability_freeze_60.jsonl
 │   └── complex_capability_freeze_48.jsonl
 ├── reasoning_agent/error_notebook/eval_112.json # 本地 112 题测试集
-├── tests/                               # 本地回归测试(当前全量 945 项,4 项跳过)
+├── tests/                               # 本地回归测试(当前全量 1049 项,4 项跳过)
 ├── docs/
 │   ├── excluded_approaches.md           # 淘汰方案单一事实源
 │   ├── ARCHIVE_INDEX.md                 # 当前/历史文档分类索引
@@ -110,23 +109,20 @@ flowchart LR
 │   ├── agents/                          # 工作流与仓库卫生约定
 │   ├── architecture_evolution.md        # 版本/架构演进总表
 │   └── branches_map.md                  # 分支与发布面地图
-├── method_cards.jsonl 等                 # opt-in 实验离线资产
 └── artifacts/<run_id>/                 # 被忽略的本地运行产物
 ```
 
 ## 提交配置与实验开关板
 
 官方 runner 以 `ReasoningAgent(client=official_client)` 无参构造，解析到当前分支的
-`SUBMISSION_CONFIG`：reference-example RAG 与 Skill 保持关闭，先做题型/学科分类，随后由 Constraint-Fit Router 分流，
+`SUBMISSION_CONFIG`：先做题型/学科分类，随后由 Constraint-Fit Router 分流，
 direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fallback。
-当前正式 selector 为 `arm-v2.1.3-off`；Deep formation 与 Direct Health 的历史健康门
-结论仍然保留，不能从本次配置切换推导新的能力或成绩结论。
+当前正式 selector 为 `arm-v2.1.4-cfr`；GRH v1.1 / 119 只作为 `43a02da` 回滚锚。CFR 的
+官方隐藏集成绩尚未产生，不能从本地 smoke 或配置切换推导新的能力或成绩结论。
 
 | 开关 | 在役 | 说明 |
 | --- | --- | --- |
 | `enable_fork_select_deepen_finish` | ✅ | Constraint-Fit 的 FSDF legacy fallback |
-| `enable_reference_rag` | ⬜ | 提交路径关闭；仅显式实验配置启用 |
-| `enable_reference_skills` | ⬜ | 提交路径关闭；仅显式实验配置启用 |
 | `enable_temporary_answer_bank` | ⬜ | 默认路径已移除；底层旧 gateway 仅保留显式测试兼容 |
 | `enable_contextual_answer_reconstruction` | ⬜ | 历史实验路径 |
 | `enable_adaptive_voting`(k5/threshold3) | ✅ | FSDF v1 候选一致性投票 |
@@ -138,7 +134,6 @@ direct 进入 Direct Harness，deep/structured/低置信题进入 FSDF legacy fa
 | `enable_re2_reread`(Re2) | ⬜ | ARCHIVED(官方回滚) |
 | `enable_failure_salvage`(P1) | ⬜ | ARCHIVED |
 | `enable_verification_gated_retry`(B1) | ⬜ | 被投票路径替代 |
-| `enable_method_rag` | ⬜ | 永久排除(双轮双负) |
 
 ### Official-equivalent submission modes
 
@@ -148,16 +143,16 @@ implementation details:
 ```python
 from user_agent import ReasoningAgent, build_submission_config
 
-SUBMISSION_MODE = "arm-v2.1.3-off"
+SUBMISSION_MODE = "arm-v2.1.4-cfr"
 SUBMISSION_CONFIG = build_submission_config(SUBMISSION_MODE)
 agent = ReasoningAgent(client=official_client)  # config=None -> SUBMISSION_MODE
 ```
 
-Allowed values include `fsdf`, the v2.1.2 ARM modes, and the explicit
-v2.1.3 modes `arm-v2.1.3-off`, `arm-v2.1.3-on`, and
-`arm-v2.1.3-adaptive`. The current authorized selector is
-`arm-v2.1.3-off`; the promotion runner's A arm remains a fixed FSDF baseline
-and is independent of the formal selector.
+Allowed values include `fsdf`, the v2.1.2/v2.1.3 ARM modes, and the explicit
+v2.1.4 modes `arm-v2.1.4-off`, `arm-v2.1.4-adaptive`, and
+`arm-v2.1.4-cfr`. The current authorized selector is `arm-v2.1.4-cfr`;
+the promotion runner's A arm remains a fixed FSDF baseline and is independent
+of the formal selector.
 
 ## 赛事接口
 
@@ -250,7 +245,16 @@ telemetry；Primary/Second 要求显式 `Final answer:` 终答，`answers.jsonl`
 不保存完整内容。数据集缺失、答案字段缺失或记录数不符合 `--expected-records` 时 runner
 会直接失败。本地结果不自动触发提交晋升。
 
-v2.1.3 的正式 selector 为 `arm-v2.1.3-off`，另有显式实验模式
+v2.1.3 保留为历史显式实验模式；当前正式 selector 为 v2.1.4 CFR。CFR 的
+`arm-v2.1.4-off`、`arm-v2.1.4-adaptive` 和 `arm-v2.1.4-cfr` 均共享 v2.1.4
+实现；CFR 将 Challenger、Targeted Repair 与 Fresh Review 固定为正式 selector，
+关闭 hybrid router 并使用 OFF 求解策略：
+
+```powershell
+python docs/releases/arm-v2.1.4-cfr-20261004/verify.py
+```
+
+v2.1.3 的历史 selector 为 `arm-v2.1.3-off`，另有显式实验模式
 `arm-v2.1.3-on`、
 `arm-v2.1.3-adaptive` 和 `arm-v2.1.3-forced-ab`。它们使用正证据 Trust Gate、
 structured backend 归因、ON continuation/OFF recovery 和 response-free
@@ -284,7 +288,7 @@ gate 默认要求正确数不低于 FSDF、invalid 不增加、runner error 不�
 
 ARM 配置及其逐次调用 reasoning mode 仅用于代码和本地实验验证；启用 ON 的
 profile 会显式发送 `thinking_mode=true`，运行前应按冻结实验协议检查 endpoint 健康。
-当前 `SUBMISSION_CONFIG` 启用 ARM v2.1.3 OFF；代码路径不代表数学能力或官方成绩提升，
+当前 `SUBMISSION_CONFIG` 启用 ARM v2.1.4 CFR；代码路径不代表数学能力或官方成绩提升，
 正式成绩仍需独立官方评测。
 
 该开关只影响本地 `main.py` runner；官方仍通过
@@ -315,10 +319,12 @@ import;`ReasoningAgent(client=official_client)` 可初始化;client 失败时仍
 
 ## 当前路线
 
-- **当前 checkout**：ARM v2.1.3 OFF 位于 Constraint-Fit Harness 的 Direct/Deep/FSDF fallback seam；
-  reference RAG、Skill、答案 bank 和历史候选均关闭，尚未形成新的数学能力结论。
+- **当前 checkout**：ARM v2.1.4 CFR 位于 Constraint-Fit Harness 的 Direct/Deep seam；
+  Challenger、Targeted Repair 和 Fresh Review 受结构化证据门控制，RAG、Skill、答案 bank
+  和历史候选均关闭，尚未形成新的官方数学能力结论。
 - **历史运营锚**：`hetero_k5 @ 25f99b5`（GitCode `34bc353`），仅作为历史发布/回滚参照。
-- **发布状态**：官方无参入口切换到 ARM v2.1.3 OFF；远端分支状态以发布后的 ref 审计为准。
+- **发布状态**：官方无参入口切换到 ARM v2.1.4 CFR，状态为待官方复评的 canary；远端分支
+  状态以发布后的 ref 审计为准。
 - **已归档/排除**(详见 `docs/excluded_approaches.md`):method_rag、Re2、CoD、
   P1 salvage、G 门控、TIR/回代验证、32k 天花板。
 - **暂不引入**:LLM-as-judge 本地判分、PRM 组件、LangGraph/AgentScope、

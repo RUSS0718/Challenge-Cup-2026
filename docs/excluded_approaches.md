@@ -1,4 +1,4 @@
-# 已排除方案与实验处置注册表（截至 2026-08-27）
+# 已排除方案与实验处置注册表（截至 2026-10-04）
 
 > 目的：任何新会话、成员或联网调研在提出实验前先查此表，避免重复试错。
 > 官方评测是最终裁决；本地数据只用于预筛。同窗口交错是能力比较的必要条件。
@@ -158,7 +158,9 @@
    的排序逐个做代码缝隙与预算审计，再写单方法预注册。
 4. 只有独立通过的单方法才可进入融合；优先考虑“能力方法 + 已证明的成本控制”，不融合两个
    尚未验证的能力方法。
-5. 官方候选始终从 `b8b78aa` 对照面构造聚焦单变量 diff；本地 main/实验分支不得直接推送。
+5. 当前官方候选由 `ARM-V2.1.4-CFR-20261004` 协议约束；发布到 GitCode main 前必须先通过
+   离线 verifier、公开 client 契约和提交门禁，`43a02da` 保留为回滚锚。历史实验分支不得
+   直接冒充官方成绩。
 
 ## 六点九、FSDF-V1-CODE-ACCEPTANCE-001（2026-09-04）
 
@@ -765,3 +767,19 @@ native/contract 在本窗一致；这些均为本地 smoke 证据，不是官方
 隔离重跑显示 `8192` token 档的裸端点也发生 6/6 超时，因此不支持把超时单独归因于 ARM Agent；但部分实验格未收到响应，不能比较完整能力或建立 endpoint 与 Agent 的唯一因果关系。结果审计已成为后续实验的固定报告基座，但不会把本地 native/contract 判定当作官方 judger 等价物，也不会把 timeout 后的 `invalid` 自动改写成模型错误或正确答案。
 
 完整可读归档见 [`docs/9.28/v2/ARM-Harness v2 完成情况归档.md`](9.28/v2/ARM-Harness%20v2%20完成情况归档.md)；raw 请求和机器汇总继续按仓库卫生规则留在本地实验目录，不作为新提交的必要内容。
+
+## 六点五十八、ARM-V2.1.4-CFR-20261004
+
+| 候选 | 代码/接口证据 | 处置 |
+|---|---|---|
+| `arm-v2.1.4-cfr`：Primary → Challenger → Targeted Repair → Fresh Review | 结构化异议、可修复证据门、精确 issue 对齐、严格三参数 client 降级、bank/RAG/Skill 隔离；相关回归和离线 verifier 通过 | `DEPLOYED_UNVALIDATED_CANARY / CODE_ACCEPTED / NO_OFFICIAL_CONCLUSION` |
+
+CFR 是 invalid rescue 的全新方法 ID，不是 GRH v1.1 / 119 基线的别名，也不把旧
+`arm-v2.1.4-off`/`adaptive` freeze 当作正式 selector。默认配置为 `selective`、solver
+reasoning off、正证据 Trust Gate、4 次调用和 16,384 token；hybrid router、答案库、RAG
+和 Skill 关闭。Fresh Review 不通过时保留 incumbent，避免把未经证据支持的修复写回最终答案。
+
+截至本登记日没有官方隐藏集成绩，不能填写正确数、invalid 或相对 119 的提升。官方评测后
+必须追加不可变 run ID、提交 commit、完整五数和健康门结果；若出现 correct→invalid 损失、
+model error 超门或三参数入口失败，回滚到 `43a02da`。协议、manifest 和 verifier 见
+[`docs/releases/arm-v2.1.4-cfr-20261004/`](releases/arm-v2.1.4-cfr-20261004/)。
