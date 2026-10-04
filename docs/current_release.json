@@ -1,10 +1,10 @@
 {
   "state_schema_version": 1,
-  "generated_at_utc": "2026-10-04T20:30:52.313516+00:00",
+  "generated_at_utc": "2026-10-04T21:01:44.146313+00:00",
   "repository": {
     "root": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026",
     "branch": "codex/arm-v215-bounded-tail-recovery",
-    "head_commit": "4bde4c213242213097ae3e6140fc277a69ca1b53",
+    "head_commit": "073e688f69a24728efe057f867ebdaea5951c57e",
     "gitcode_main_commit": "b63059ca9b64a5a49c4add4e1830f23e58a9bb79",
     "dirty_tree": true,
     "dirty_paths": [
@@ -46,48 +46,48 @@
         {
           "path": "reasoning_agent/profiles.py",
           "expected": "856a6a493af8ea3fcf3a850b2558adaec672e62141b939549edc9e6dd6b47154",
-          "actual": "4d963b4951cd18cc743b4a543c296f3895676e97c05069fdd774f97d7c43adc4"
+          "actual": "922d31958f51a9773b90fecbc96835e8f6f0f10ea366785b61e1d446a107d6ad"
         },
         {
           "path": "reasoning_agent/math_harness.py",
           "expected": "22d13321ba03f29096f4d4848f1b2a34fa677f2fb4f76b0df873247df00f663f",
-          "actual": "99e6e3d37a9c0799c798d80fc55abe79d7cd857b3c9af7a96f4f61d61cdf6389"
+          "actual": "7e22ecf480d70212c2cfd033d7a3b134ea0b55621e9944328a70669f8013f742"
         }
       ]
     }
   },
   "recent_runs": [
     {
-      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B10/run_manifest.json",
-      "run_id": "ROBUSTNESS-B10-20261005",
+      "path": "artifacts/arm-v216-missing-candidate-recovery-20261005/C10/run_manifest.json",
+      "run_id": "ROBUSTNESS-C10-20261005",
       "status": "completed",
       "evaluation_scope": "local_replay",
       "config": "arm-v2.1.4-cfr"
     },
     {
-      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B09/run_manifest.json",
-      "run_id": "ROBUSTNESS-B09-20261005",
+      "path": "artifacts/arm-v216-missing-candidate-recovery-20261005/C09/run_manifest.json",
+      "run_id": "ROBUSTNESS-C09-20261005",
       "status": "completed",
       "evaluation_scope": "local_replay",
-      "config": "arm-v2.1.5-bounded-tail"
+      "config": "arm-v2.1.6-missing-candidate"
     },
     {
-      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B08/run_manifest.json",
-      "run_id": "ROBUSTNESS-B08-20261005",
+      "path": "artifacts/arm-v216-missing-candidate-recovery-20261005/C08/run_manifest.json",
+      "run_id": "ROBUSTNESS-C08-20261005",
       "status": "completed",
       "evaluation_scope": "local_replay",
       "config": "arm-v2.1.4-cfr"
     },
     {
-      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B07/run_manifest.json",
-      "run_id": "ROBUSTNESS-B07-20261005",
+      "path": "artifacts/arm-v216-missing-candidate-recovery-20261005/C07/run_manifest.json",
+      "run_id": "ROBUSTNESS-C07-20261005",
       "status": "completed",
       "evaluation_scope": "local_replay",
-      "config": "arm-v2.1.5-bounded-tail"
+      "config": "arm-v2.1.6-missing-candidate"
     },
     {
-      "path": "artifacts/arm-v215-bounded-tail-recovery-20261005/B06/run_manifest.json",
-      "run_id": "ROBUSTNESS-B06-20261005",
+      "path": "artifacts/arm-v216-missing-candidate-recovery-20261005/C06/run_manifest.json",
+      "run_id": "ROBUSTNESS-C06-20261005",
       "status": "completed",
       "evaluation_scope": "local_replay",
       "config": "arm-v2.1.4-cfr"
