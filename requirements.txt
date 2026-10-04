@@ -1,8 +1,2 @@
 requests>=2.31.0
 sympy>=1.13,<1.15
-
-# Optional reference-example RAG assets (loaded only when the candidate flag is enabled).
-chromadb==1.5.9
-sentence-transformers==6.0.1
-torch==2.6.0
-transformers==5.17.0
