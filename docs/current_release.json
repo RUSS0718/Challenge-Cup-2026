@@ -1,0 +1,140 @@
+{
+  "state_schema_version": 1,
+  "generated_at_utc": "2026-10-04T23:27:31.037427+00:00",
+  "repository": {
+    "root": "D:\\project\\challenge_cup_2026\\Challenge-Cup-2026",
+    "branch": "codex/arm-v215-bounded-tail-recovery",
+    "head_commit": "06fff479a54f25541a38eabb79174275b26a86ae",
+    "gitcode_main_commit": "b63059ca9b64a5a49c4add4e1830f23e58a9bb79",
+    "dirty_tree": true,
+    "dirty_paths": [
+      "CONTEXT.md",
+      "README.md",
+      "docs/ARCHIVE_INDEX.md",
+      "docs/architecture_evolution.md",
+      "docs/excluded_approaches.md",
+      "docs/experiment_registry.json",
+      "docs/experiments/math_reasoning_agent_experiment_driven_spec_2026-08-29.md",
+      "docs/official_evaluations/INDEX.md",
+      "docs/official_evaluations/README.md",
+      "docs/releases/arm-v2.1.4-cfr-20261004/manifest.json",
+      "docs/releases/arm-v2.1.4-cfr-20261004/protocol.md",
+      "docs/releases/arm-v2.1.4-cfr-20261004/result.md",
+      "docs/research/codex_agent_experience_audit_2026-10-05.md",
+      "reasoning_agent/arm_harness_factory.py",
+      "reasoning_agent/experiment_matrix.py",
+      "reasoning_agent/math_harness.py",
+      "reasoning_agent/profiles.py",
+      "reasoning_agent/repo_state.py",
+      "scripts/run_robustness_matrix.py",
+      "scripts/show_repo_state.py",
+      "tests/test_experiment_matrix.py",
+      "tests/test_profiles.py",
+      "tests/test_repo_state.py",
+      "docs/10.3/invalid_cause_audit_eacl_vs_v11_r3_2026-10-04.json",
+      "docs/10.3/invalid_cause_audit_eacl_vs_v11_r3_2026-10-04.md",
+      "docs/10.3/invalid_rescue_implementation_2026-10-04.md",
+      "docs/10.4/binary_decision_paired_ablation_round3_2026-10-04.json",
+      "docs/10.4/binary_decision_paired_ablation_round3_2026-10-04.md",
+      "docs/10.4/direction_review_round3_2026-10-04.md",
+      "docs/10.4/invalid_audit_replay_2026-10-04.json",
+      "docs/10.4/invalid_audit_replay_2026-10-04.md",
+      "docs/10.4/invalid_rescue_round2_2026-10-04.json",
+      "docs/10.4/invalid_rescue_round2_2026-10-04.md",
+      "docs/10.4/invalid_rescue_round3_surface_serializer_2026-10-04.json",
+      "docs/10.4/invalid_rescue_round3_surface_serializer_2026-10-04.md",
+      "docs/10.4/invalid_rescue_surface_offline_2026-10-04.json",
+      "docs/10.4/multisolution_surface_review_2026-10-04.md",
+      "docs/10.4/parallel_experiment_plan_2026-10-04.md",
+      "docs/10.4/proof_gate_review_round3_2026-10-04.json",
+      "docs/10.4/proof_gate_review_round3_2026-10-04.md",
+      "docs/10.4/r2_single_attribution_replay_2026-10-04.json",
+      "docs/10.4/r5_evaluator_surface_audit_2026-10-04.md",
+      "docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/comparison.json",
+      "docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/preregistration.md",
+      "docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/result.md",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/comparison.json",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/preregistration.md",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/result.md",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005/comparison.json",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005/preregistration.md",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005/result.md",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/comparison.json",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/preregistration.md",
+      "docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/result.md",
+      "docs/official_evaluations/2026-10-04/agent_analysis.md",
+      "docs/official_evaluations/2026-10-04/raw/README.md",
+      "docs/official_evaluations/2026-10-04/record.md",
+      "reasoning_agent/arm_harness_v217.py",
+      "reasoning_agent/arm_harness_v218.py",
+      "reasoning_agent/arm_versions.py",
+      "sample_data/arm_v217_fresh_confirmation_25.jsonl",
+      "tests/test_arm_v217_structured_confirmation.py",
+      "tests/test_arm_v218_compact_finalizer.py"
+    ]
+  },
+  "release": {
+    "target_ref": "gitcode/main",
+    "submission_mode": "arm-v2.1.4-cfr",
+    "runtime_submission_mode": "arm-v2.1.4-cfr",
+    "status": "DEPLOYED_EVALUATED_NO_PROMOTION",
+    "rollback_anchor": "43a02da",
+    "official_evaluation": true,
+    "manifest_path": "docs/releases/arm-v2.1.4-cfr-20261004/manifest.json",
+    "selector_matches_runtime": true,
+    "runtime_hashes": {
+      "status": "fail",
+      "checked": 8,
+      "missing": [],
+      "mismatches": [
+        {
+          "path": "reasoning_agent/profiles.py",
+          "expected": "856a6a493af8ea3fcf3a850b2558adaec672e62141b939549edc9e6dd6b47154",
+          "actual": "5f4ddd23099e95d3fc2081bdf13e71b6fd29d3448b912ac1fa613c84209f7b17"
+        },
+        {
+          "path": "reasoning_agent/math_harness.py",
+          "expected": "22d13321ba03f29096f4d4848f1b2a34fa677f2fb4f76b0df873247df00f663f",
+          "actual": "6f690d2024c7606539ca16809e607f523afe93329f8c43f231193a2c24bca1ee"
+        }
+      ]
+    }
+  },
+  "recent_runs": [
+    {
+      "path": "artifacts/arm-v218-external-length-pressure-replication-20261005/Y10/run_manifest.json",
+      "run_id": "ROBUSTNESS-Y10-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "cfr-external-pressure"
+    },
+    {
+      "path": "artifacts/arm-v218-external-length-pressure-replication-20261005/Y09/run_manifest.json",
+      "run_id": "ROBUSTNESS-Y09-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "arm-v2.1.8-external-pressure"
+    },
+    {
+      "path": "artifacts/arm-v218-external-length-pressure-replication-20261005/Y08/run_manifest.json",
+      "run_id": "ROBUSTNESS-Y08-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "cfr-external-pressure"
+    },
+    {
+      "path": "artifacts/arm-v218-external-length-pressure-replication-20261005/Y07/run_manifest.json",
+      "run_id": "ROBUSTNESS-Y07-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "arm-v2.1.8-external-pressure"
+    },
+    {
+      "path": "artifacts/arm-v218-external-length-pressure-replication-20261005/Y06/run_manifest.json",
+      "run_id": "ROBUSTNESS-Y06-20261005",
+      "status": "completed",
+      "evaluation_scope": "local_replay",
+      "config": "cfr-external-pressure"
+    }
+  ]
+}

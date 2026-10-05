@@ -36,6 +36,13 @@ PROFILE_ARM_V213_FORCED_AB: Final = "arm-v2.1.3-forced-ab"
 PROFILE_ARM_V213_OFF_SKILL: Final = "arm-v2.1.3-off-skill"
 PROFILE_ARM_V214_OFF: Final = "arm-v2.1.4-off"
 PROFILE_ARM_V214_ADAPTIVE: Final = "arm-v2.1.4-adaptive"
+PROFILE_ARM_V214_CFR: Final = "arm-v2.1.4-cfr"
+PROFILE_ARM_V215_BOUNDED_TAIL: Final = "arm-v2.1.5-bounded-tail"
+PROFILE_ARM_V216_MISSING_CANDIDATE: Final = "arm-v2.1.6-missing-candidate"
+PROFILE_ARM_V217_STRUCTURED_CONFIRMATION: Final = "arm-v2.1.7-structured-confirmation"
+PROFILE_ARM_V218_COMPACT_FINALIZER: Final = "arm-v2.1.8-compact-finalizer"
+PROFILE_ARM_V219_INCUMBENT_GUARD: Final = "arm-v2.1.9-incumbent-guard"
+PROFILE_ARM_V220_ANSWER_COMMIT: Final = "arm-v2.2-answer-commit"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
@@ -63,6 +70,13 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V213_OFF_SKILL,
     PROFILE_ARM_V214_OFF,
     PROFILE_ARM_V214_ADAPTIVE,
+    PROFILE_ARM_V214_CFR,
+    PROFILE_ARM_V215_BOUNDED_TAIL,
+    PROFILE_ARM_V216_MISSING_CANDIDATE,
+    PROFILE_ARM_V217_STRUCTURED_CONFIRMATION,
+    PROFILE_ARM_V218_COMPACT_FINALIZER,
+    PROFILE_ARM_V219_INCUMBENT_GUARD,
+    PROFILE_ARM_V220_ANSWER_COMMIT,
 )
 
 
@@ -221,8 +235,39 @@ def build_profile_config(profile: str) -> AgentConfig:
     arm_v214_profiles = {
         PROFILE_ARM_V214_OFF: "off",
         PROFILE_ARM_V214_ADAPTIVE: "adaptive",
+        PROFILE_ARM_V214_CFR: "cfr",
     }
     if normalized in arm_v214_profiles:
         return build_submission_config(f"arm-v2.1.4-{arm_v214_profiles[normalized]}")
+    if normalized == PROFILE_ARM_V215_BOUNDED_TAIL:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.1.5",
+        )
+    if normalized == PROFILE_ARM_V216_MISSING_CANDIDATE:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.1.6",
+        )
+    if normalized == PROFILE_ARM_V217_STRUCTURED_CONFIRMATION:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.1.7",
+        )
+    if normalized == PROFILE_ARM_V218_COMPACT_FINALIZER:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.1.8",
+        )
+    if normalized == PROFILE_ARM_V219_INCUMBENT_GUARD:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.1.9",
+        )
+    if normalized == PROFILE_ARM_V220_ANSWER_COMMIT:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.2",
+        )
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

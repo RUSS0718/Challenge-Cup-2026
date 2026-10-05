@@ -117,38 +117,6 @@ class AnswerHandlingTest(unittest.TestCase):
 
 
 class ReasoningAgentTest(unittest.TestCase):
-    def test_method_rag_is_disabled_by_default(self):
-        class Retriever:
-            def search(self, query, top_k):
-                raise AssertionError("disabled path must not retrieve cards")
-        client = FakeClient(["最终答案：7"])
-        result = ReasoningAgent(client, AgentConfig(enable_step_verification=False), method_rag_retriever=Retriever()).solve("计算 3+4", {})
-        self.assertEqual("7", result["final_response"])
-        self.assertFalse(any(entry.get("step") == "method_rag" for entry in result["trace"]))
-
-    def test_method_rag_experiment_adds_only_retrieved_context(self):
-        class Retriever:
-            def search(self, query, top_k):
-                self.query, self.top_k = query, top_k
-                return [{"id": "amgm", "title": "AM-GM", "signals": "正数 固定和", "conditions": "正数", "method": "ab≤((a+b)/2)^2", "pitfalls": "负数不能直接套用"}]
-        retriever = Retriever()
-        client = FakeClient(["最终答案：7"])
-        result = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_method_rag=True, method_rag_top_k=2), method_rag_retriever=retriever).solve("固定和求乘积最大", {})
-        sent = client.calls[0][0][0]["content"]
-        self.assertIn("AM-GM", sent)
-        self.assertEqual(2, retriever.top_k)
-        rag_entries = [entry for entry in result["trace"] if entry.get("step") == "method_rag"]
-        self.assertEqual(["amgm"], rag_entries[0]["card_ids"])
-
-    def test_method_rag_context_is_bounded(self):
-        class Retriever:
-            def search(self, query, top_k):
-                return [{"id": "large", "title": "T" * 1000, "signals": "S" * 1000, "conditions": "C" * 1000, "method": "M" * 1000, "pitfalls": "P" * 1000}]
-        client = FakeClient(["最终答案：7"])
-        agent = ReasoningAgent(client, AgentConfig(enable_step_verification=False, enable_method_rag=True, method_rag_max_context_chars=100), method_rag_retriever=Retriever())
-        agent.solve("题", {})
-        self.assertLessEqual(len(client.calls[0][0][0]["content"]), len(CALCULATION_PROMPT) + 100)
-
     def test_deterministic_solver_is_explicit_opt_in(self):
         client = FakeClient(["最终答案：999"])
         disabled = ReasoningAgent(client, AgentConfig(enable_step_verification=False)).solve("计算 6!", {})

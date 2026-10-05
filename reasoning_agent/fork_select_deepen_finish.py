@@ -149,6 +149,7 @@ L0_PROMPT = """这是一个已由确定性简单算式识别器命中的 L0 题�
 # 资源来自仓库相对路径；加载失败/格式错误 → 空表（回退前沿行为）。宿主筛选不消耗
 # 模型调用；D 可在目录内声明改选，非法 ID 回退宿主预选。
 _SKILL_ROUTES_PATH = Path(__file__).resolve().parent / "skills" / "math_routes.json"
+_SKILL_REFERENCE_ROOT = Path(__file__).resolve().parent / "skills" / "references"
 
 
 def _load_skill_routes() -> dict[str, dict[str, Any]]:
@@ -168,15 +169,22 @@ SKILL_ROUTES = _load_skill_routes()
 _ROUTE_TYPE_AFFINITY = {
     "elimination_substitution": {"calculation", "fill_blank", "choice", "derivation"},
     "symmetry_invariant": {"calculation", "derivation"},
+    "directed_frontier_transfer": {"calculation", "derivation", "proof"},
     "case_partition_boundary": {"derivation", "proof", "explanation"},
     "bound_construction": {"proof", "derivation", "explanation"},
 }
 _ROUTE_KEYWORDS = {
     "symmetry_invariant": ("对称", "周期", "不变", "旋转", "交换"),
+    "directed_frontier_transfer": (
+        "排列", "permutation", "ordered pairs", "xᵢ", "yᵢ", "相邻", "adjacent",
+        "consecutive", "网格", "grid", "圆柱", "cylinder", "Hamiltonian",
+        "水平", "horizontal", "竖直", "vertical",
+    ),
     "case_partition_boundary": ("分类", "讨论", "情形", "分段", "绝对值", "是否存在"),
     "bound_construction": ("证明", "不等", "最值", "存在", "构造", "至少", "至多"),
     "elimination_substitution": ("方程", "求", "解", "代入", "消元"),
 }
+_ROUTE_MIN_KEYWORD_HITS = {"directed_frontier_transfer": 2}
 
 
 def select_skill_route(problem_text: str, problem_type: str) -> tuple[str | None, list[str]]:
@@ -188,11 +196,17 @@ def select_skill_route(problem_text: str, problem_type: str) -> tuple[str | None
     """
     if not SKILL_ROUTES:
         return None, []
-    lowered = problem_text[:1200]
+    lowered = problem_text[:1200].casefold()
     scored: list[tuple[int, str]] = []
     for route_id in SKILL_ROUTES:
         score = 2 if problem_type in _ROUTE_TYPE_AFFINITY.get(route_id, set()) else 0
-        score += sum(2 for kw in _ROUTE_KEYWORDS.get(route_id, ()) if kw in lowered)
+        keyword_hits = sum(
+            1 for kw in _ROUTE_KEYWORDS.get(route_id, ()) if kw.casefold() in lowered
+        )
+        if keyword_hits < _ROUTE_MIN_KEYWORD_HITS.get(route_id, 0):
+            score = 0
+        else:
+            score += 2 * keyword_hits
         scored.append((score, route_id))
     scored.sort(key=lambda t: (-t[0], t[1]))
     scored = [s for s in scored if s[0] > 0] or [(0, sorted(SKILL_ROUTES)[0])]
@@ -216,6 +230,17 @@ def render_route_block(selected: str | None, directory: list[str]) -> str:
     for step_idx, step in enumerate(route.get("steps") or [], 1):
         lines.append(f"{step_idx}. {step}")
     lines.append(f"预期产物：{route.get('products', '')}")
+    reference_name = route.get("reference")
+    if isinstance(reference_name, str) and reference_name.strip():
+        reference_path = (_SKILL_REFERENCE_ROOT / reference_name).resolve()
+        if reference_path.is_file() and _SKILL_REFERENCE_ROOT.resolve() in reference_path.parents:
+            try:
+                reference = reference_path.read_text(encoding="utf-8").strip()
+            except (OSError, UnicodeError):
+                reference = ""
+            if reference:
+                lines.append("条件参考：")
+                lines.append(reference)
     lines.append("你可改选目录中更适用的路线：改选时单独一行输出 SELECTED_SKILL: <目录内 ID>；"
                  "不适用时不要声明路线，按原有流程执行。")
     return "\n".join(lines)

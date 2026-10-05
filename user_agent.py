@@ -1,6 +1,5 @@
 """Budgeted mathematical reasoning agent with deterministic answer handling."""
 from __future__ import annotations
-import inspect
 import math
 import re
 import time
@@ -8,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from reasoning_agent.submission_config import (
-    SUBMISSION_ARM_V213_OFF,
+    SUBMISSION_ARM_V214_CFR,
     build_arm_v212_base_config as _build_arm_v212_base_config,
     build_submission_config as _build_submission_config,
 )
@@ -384,18 +383,6 @@ class AgentConfig:
     # P3 needs extra call budget beyond generation + audit.  When P3 is
     # re-enabled later, this boost reserves room for verify + revise + re-verify.
     p3_call_boost: int = 3
-    # Offline method-card RAG experiment. Disabled by default; the official
-    # path must remain independent of local assets until an A/B gate passes.
-    enable_method_rag: bool = False
-    method_rag_top_k: int = 2
-    method_rag_max_context_chars: int = 4000
-    # Intern1 reference-example RAG. It is separate from the rejected
-    # method-card experiment; the submission profile keeps it disabled.
-    enable_reference_rag: bool = False
-    reference_rag_top_k: int = 2
-    reference_rag_max_context_chars: int = 4000
-    enable_reference_skills: bool = False
-    reference_skill_max_context_chars: int = 3200
     enable_deterministic_solver: bool = False
     # Experimental A/B switches.  All remain opt-in; the current F+4096 path
     # is the default baseline until a freeze-set gate promotes a candidate.
@@ -619,9 +606,10 @@ class AgentConfig:
 
 # ── Submission profile ────────────────────────────────────────────────────
 # The official runner constructs ``ReasoningAgent(client=official_client)``
-# without a config, which resolves here.  The FSDF baseline remains available
-# through an explicit selector for historical comparisons and rollback.
-SUBMISSION_MODE: Final = SUBMISSION_ARM_V213_OFF
+# without a config, which resolves here.  Historical FSDF and ARM profiles
+# remain available through explicit selectors; the default is the fresh
+# challenger‑repair‑review canary rather than the archived 119 baseline.
+SUBMISSION_MODE: Final = SUBMISSION_ARM_V214_CFR
 
 
 def build_arm_v212_base_config() -> AgentConfig:
@@ -633,7 +621,7 @@ ARM_V212_BASE_CONFIG = build_arm_v212_base_config()
 
 
 def build_submission_config(mode: str = SUBMISSION_MODE) -> AgentConfig:
-    """Build an official-equivalent FSDF, v2.1.2, or v2.1.3 configuration."""
+    """Build an official-equivalent configuration for the selected mode."""
     return _build_submission_config(mode, AgentConfig, arm_base=ARM_V212_BASE_CONFIG)
 
 
@@ -641,7 +629,7 @@ SUBMISSION_CONFIG = build_submission_config(SUBMISSION_MODE)
 
 
 class ReasoningAgent:
-    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, method_rag_retriever: Any | None = None, reference_rag_retriever: Any | None = None, constraint_fit_harness: Any | None = None, bounded_completion_observer: Any | None = None, **_: Any) -> None:
+    def __init__(self, client: Any, config: AgentConfig | None = None, sympy_adapter: Any | None = None, constraint_fit_harness: Any | None = None, bounded_completion_observer: Any | None = None, **_: Any) -> None:
         self.client = client
         # Official platform path (config=None) uses the promoted submission
         # profile; explicitly passed configs (local experiments) win as-is.
@@ -649,8 +637,6 @@ class ReasoningAgent:
         if self.config.enable_current_cod_numeric and self.config.enable_fork_select_deepen_finish:
             raise ValueError("current_cod_numeric cannot be combined with FSDF")
         self.sympy_adapter = sympy_adapter
-        self.method_rag_retriever = method_rag_retriever
-        self.reference_rag_retriever = reference_rag_retriever
         self.constraint_fit_harness = constraint_fit_harness
         self.bounded_completion_observer = bounded_completion_observer
 
@@ -658,13 +644,7 @@ class ReasoningAgent:
 
     def solve(self, problem: str, metadata: dict) -> dict:
         legacy_experimental_paths = self._validate_experimental_paths()
-        reference_context, rag_trace, reference_examples, rag_level = self._prepare_reference_rag(problem)
         problem_type = classify_problem_type(problem)
-        skill_context, skill_trace = self._prepare_reference_skills(problem, rag_level)
-        knowledge_context = "\n\n".join(
-            part for part in (reference_context, skill_context) if part
-        )
-        reference_traces = [trace for trace in (rag_trace, skill_trace) if trace is not None]
         if self.config.enable_constraint_fit_harness:
             from reasoning_agent.math_harness import (
                 ConstraintFitOrchestrator,
@@ -754,14 +734,11 @@ class ReasoningAgent:
                     else None
                 ),
             )
-            result = self._solve_with_reference(harness, problem, metadata, knowledge_context)
+            result = harness.solve(problem, metadata)
             # Keep the platform seam safe even when an injected harness or a
             # future backend violates the output contract.
             if not isinstance(result, dict):
-                return self._prepend_reference_trace(
-                    {"final_response": "UNKNOWN", "extracted_answer": "", "trace": []},
-                    reference_traces,
-                )
+                return {"final_response": "UNKNOWN", "extracted_answer": "", "trace": []}
             final_response = result.get("final_response")
             if not isinstance(final_response, str) or not final_response.strip():
                 result["final_response"] = "UNKNOWN"
@@ -769,7 +746,7 @@ class ReasoningAgent:
                 result["trace"] = []
             if not isinstance(result.get("extracted_answer", ""), str):
                 result["extracted_answer"] = ""
-            return self._prepend_reference_trace(result, reference_traces)
+            return result
         host_context = None
         if self.config.enable_host_intake or self.config.enable_bounded_obligation_extractor:
             host_context = prepare_host_loop_context(
@@ -797,8 +774,8 @@ class ReasoningAgent:
                 enable_exact_eval=self.config.enable_fesf_exact_eval,
                 host_context=host_context,
                 claim_executor=claim_executor,
-            ).solve(problem, problem_type, reference_context=knowledge_context).as_dict()
-            return self._prepend_reference_trace(result, reference_traces)
+            ).solve(problem, problem_type).as_dict()
+            return result
         if self.config.enable_adaptive_dual_candidate_consensus:
             short_answer_types = (TASK_TYPE_CHOICE, TASK_TYPE_FILL_BLANK, TASK_TYPE_CALCULATION)
             if problem_type not in short_answer_types:
@@ -822,8 +799,8 @@ class ReasoningAgent:
                     dual_prompt_variant=self.config.adaptive_dual_prompt_variant,
                     equivalence=answer_equivalence,
                     normalizer=normalize_answer,
-                ).solve(problem, problem_type, skill_hint=skill_hint, notebook_hint=knowledge_context)
-                return self._prepend_reference_trace(result, reference_traces)
+                ).solve(problem, problem_type, skill_hint=skill_hint)
+                return result
         if self.config.enable_adaptive_candidate_first:
             skill_hint = ""
             if self.config.enable_adaptive_skill_hint:
@@ -838,8 +815,8 @@ class ReasoningAgent:
                 max_model_calls=self.config.adaptive_max_model_calls,
                 soft_deadline_seconds=self.config.adaptive_soft_deadline_seconds,
                 hard_deadline_seconds=self.config.adaptive_hard_deadline_seconds,
-            ).solve(problem, problem_type, skill_hint=skill_hint, notebook_hint=knowledge_context)
-            return self._prepend_reference_trace(result, reference_traces)
+            ).solve(problem, problem_type, skill_hint=skill_hint)
+            return result
         if self.config.enable_fork_select_deepen_finish:
             relay_options = RelayOptions(
                 diagnostics_v2=self.config.enable_fsdf_diagnostics_v2,
@@ -860,9 +837,9 @@ class ReasoningAgent:
                 skill_harness=self.config.enable_fsdf_skill_harness,
             )
             result = ForkSelectDeepenFinishRelay(self.client, options=relay_options).solve(
-                problem, problem_type, reference_context=knowledge_context
+                problem, problem_type
             ).as_dict()
-            return self._prepend_reference_trace(result, reference_traces)
+            return result
         if self.config.enable_contextual_answer_reconstruction:
             return self._solve_contextual_answer_reconstruction(problem, problem_type)
         if self.config.enable_typed_answer_capsule:
@@ -882,12 +859,6 @@ class ReasoningAgent:
         if self.config.enable_step_verification:
             budget["limit"] += self.config.p3_call_boost
         trace.append({"step":"route_budget","level":level,"generation_calls":generation_calls,"max_model_calls":budget["limit"],"problem_type":problem_type})
-        if self.config.enable_method_rag:
-            cards = self._retrieve_method_cards(problem)
-            trace.append({"step":"method_rag","status":"used" if cards else "empty","top_k":self.config.method_rag_top_k,"card_ids":[str(card.get("id", "")) for card in cards]})
-        if self.config.enable_reference_rag or self.config.enable_reference_skills:
-            budget["reference_rag_examples"] = reference_examples
-            budget["reference_context"] = knowledge_context
         if self.config.enable_deterministic_solver:
             deterministic_result = self._try_deterministic_solver(problem)
             trace.append({"step": "deterministic_solver", "status": deterministic_result.get("status", "unsupported"), "reason": deterministic_result.get("reason")})
@@ -960,8 +931,6 @@ class ReasoningAgent:
     def _validate_experimental_paths(self) -> int:
         if self.config.enable_condition_checked_selection and self.config.enable_plan_solve_compact:
             raise ValueError("KCV and PS-C experimental paths are mutually exclusive")
-        if self.config.enable_method_rag and self.config.enable_reference_rag:
-            raise ValueError("method_rag and reference_rag are mutually exclusive")
         harness_path = int(bool(self.config.enable_constraint_fit_harness))
         legacy_experimental_paths = sum(bool(flag) for flag in (
             self.config.enable_typed_answer_capsule,
@@ -1022,10 +991,6 @@ class ReasoningAgent:
         continuation_tail: str | None = None,  # stateful_tail_completion_v1 fifth slot
     ) -> None:
         prompt = task_prompt or self.config.policy_prompt
-        if self.config.enable_method_rag:
-            prompt = prompt + self._method_context(problem)
-        if self.config.enable_reference_rag or self.config.enable_reference_skills:
-            prompt += str(budget.get("reference_context", ""))
         candidate_start = max((item["candidate_id"] for item in candidates), default=-1) + 1
 
         def _tr(status: str, cid: int, **extras: Any) -> dict[str, Any]:
@@ -1644,110 +1609,6 @@ class ReasoningAgent:
             return NUMERIC_ANSWER_FIRST_PROMPT
         return TASK_PROMPTS.get(problem_type, self.config.policy_prompt)
 
-    def _retrieve_method_cards(self, problem: str) -> list[dict[str, Any]]:
-        if not self.config.enable_method_rag or self.method_rag_retriever is None:
-            return []
-        try:
-            cards = self.method_rag_retriever.search(problem, top_k=max(0, int(self.config.method_rag_top_k)))
-        except Exception:
-            return []
-        return [card for card in cards if isinstance(card, dict)]
-
-    def _retrieve_reference_examples(self, problem: str) -> list[dict[str, Any]]:
-        if not self.config.enable_reference_rag:
-            return []
-        try:
-            if self.reference_rag_retriever is None:
-                from reference_rag import ReferenceRagRetriever
-
-                self.reference_rag_retriever = ReferenceRagRetriever()
-            rows = self.reference_rag_retriever.search(
-                problem,
-                top_k=max(0, int(self.config.reference_rag_top_k)),
-            )
-        except Exception:
-            return []
-        return [row for row in rows if isinstance(row, dict)]
-
-    def _prepare_reference_rag(
-        self, problem: str
-    ) -> tuple[str, dict[str, Any] | None, list[dict[str, Any]], str]:
-        if not self.config.enable_reference_rag:
-            return "", None, [], "low"
-        references = self._retrieve_reference_examples(problem)
-        try:
-            from reference_rag import render_reference_context
-
-            context = render_reference_context(
-                problem,
-                references,
-                self.config.reference_rag_max_context_chars,
-            )
-        except Exception:
-            context = ""
-        similarities = []
-        for row in references:
-            try:
-                similarities.append(round(float(row.get("similarity", 0.0)), 6))
-            except (TypeError, ValueError):
-                similarities.append(None)
-        top_similarity = similarities[0] if similarities and isinstance(similarities[0], (int, float)) else 0.0
-        trace = {
-            "step": "reference_rag",
-            "status": "used" if references else "empty",
-            "level": "high" if references and top_similarity >= 0.90 else "medium" if references else "low",
-            "top_k": self.config.reference_rag_top_k,
-            "reference_ids": [str(row.get("id", "")) for row in references],
-            "similarities": similarities,
-        }
-        return context, trace, references, trace["level"]
-
-    def _prepare_reference_skills(
-        self, problem: str, rag_level: str
-    ) -> tuple[str, dict[str, Any] | None]:
-        if not self.config.enable_reference_skills:
-            return "", None
-        try:
-            from reference_skills import select_reference_skill_context
-
-            context, trace = select_reference_skill_context(
-                problem,
-                limit=self.config.reference_skill_max_context_chars,
-                suppress=rag_level == "high",
-            )
-            return context, {"step": "reference_skill", **trace}
-        except Exception:
-            return "", {"step": "reference_skill", "status": "unavailable"}
-
-    @staticmethod
-    def _solve_with_reference(
-        backend: Any,
-        problem: str,
-        metadata: dict,
-        reference_context: str,
-    ) -> Any:
-        solve = backend.solve
-        if reference_context:
-            try:
-                parameters = inspect.signature(solve).parameters
-            except (TypeError, ValueError):
-                parameters = {}
-            if "reference_context" in parameters:
-                return solve(problem, metadata, reference_context=reference_context)
-        return solve(problem, metadata)
-
-    @staticmethod
-    def _prepend_reference_trace(
-        result: Any, reference_trace: list[dict[str, Any]] | dict[str, Any] | None
-    ) -> dict[str, Any]:
-        if not isinstance(result, dict):
-            result = {"final_response": "UNKNOWN", "extracted_answer": "", "trace": []}
-        if reference_trace:
-            trace = result.get("trace") if isinstance(result.get("trace"), list) else []
-            events = [reference_trace] if isinstance(reference_trace, dict) else reference_trace
-            result["trace"] = [*events, *trace]
-        return result
-
     @staticmethod
     def _try_deterministic_solver(problem: str) -> dict[str, Any]:
         try:
@@ -1756,23 +1617,6 @@ class ReasoningAgent:
             return result if isinstance(result, dict) else {"status": "unsupported", "reason": "invalid_solver_result"}
         except Exception as exc:
             return {"status": "unsupported", "reason": f"solver_error:{type(exc).__name__}"}
-
-    def _method_context(self, problem: str) -> str:
-        cards = self._retrieve_method_cards(problem)
-        if not cards:
-            return ""
-        snippets = []
-        for card in cards:
-            snippets.append(
-                "方法：{title}\n适用信号：{signals}\n必要条件：{conditions}\n标准变换：{method}\n常见误用：{pitfalls}".format(
-                    title=card.get("title", ""), signals=card.get("signals", ""),
-                    conditions=card.get("conditions", ""), method=card.get("method", ""),
-                    pitfalls=card.get("pitfalls", ""),
-                )
-            )
-        context = "\n\n参考方法卡（仅作方法提示；必须自行核对条件，不得把卡片示例当作本题答案）：\n" + "\n\n".join(snippets)
-        limit = max(0, int(self.config.method_rag_max_context_chars))
-        return context[:limit] if limit else ""
 
     def _format_task_final_response(self, best: dict[str, Any], problem_type: str) -> str:
         """Format final_response according to problem type conventions.

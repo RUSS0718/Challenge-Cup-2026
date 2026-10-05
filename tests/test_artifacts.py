@@ -31,10 +31,15 @@ class ArtifactManagerTest(unittest.TestCase):
             )
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(context.run_id, manifest["run_id"])
+            self.assertEqual("arm-adaptive", manifest["config_selector"])
+            self.assertEqual("eval-112", manifest["dataset_id"])
             self.assertEqual("arm-adaptive", manifest["config"])
             self.assertEqual("eval-112", manifest["dataset"])
             self.assertEqual("intern-s2", manifest["model"])
             self.assertEqual("completed", manifest["status"])
+            self.assertEqual(2, manifest["manifest_schema_version"])
+            self.assertEqual("local_replay", manifest["evaluation_scope"])
+            self.assertFalse(manifest["official_evaluation"])
 
     def test_named_writers_share_one_run_directory(self):
         """Write common experiment outputs through one persistence boundary."""

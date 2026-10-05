@@ -1,3 +1,9 @@
+---
+status: archived
+last_verified: 2026-10-05
+superseded_by: docs/current_release.json
+---
+
 # 输出协议 A/B 实验
 
 当前默认路径保持 `F+4096`。实验开关全部默认关闭，不能把实验结果自动写回默认配置。
