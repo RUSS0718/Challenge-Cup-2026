@@ -1,6 +1,6 @@
 # 数学推理智能体架构演进总表
 
-更新时间：2026-10-04
+更新时间：2026-10-05
 
 本表回答“每个版本的架构是什么、解决什么问题、现在是否还在默认路径”。
 它记录的是架构家族和关键版本，不把每个温度、token、题集或单题 A/B 变体伪装成
@@ -19,7 +19,7 @@
 | `ARCHIVED` | 实验已封卷，保留用于复核，不应原样复跑 |
 | `REJECTED` / `NO_GO` | 已有证据不支持晋升，除非新假设、新编号和新预注册 |
 
-## 当前架构（2026-10-04）
+## 当前架构（2026-10-05）
 
 当前活动分支为 `codex/arm-v214-cfr`，GitCode 发布面将采用本协议对应的 CFR 提交，
 `43a02da` 作为回滚锚，运行时核心仍保持
@@ -86,7 +86,7 @@ final_response + compact trace
 | 2026-10-05 | ARM v2.1.7 incumbent-only structured confirmation | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/` |
 | 2026-10-05 | ARM v2.1.8 compact finalizer：独立外部长度压力复验 | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/` |
 | 2026-10-05 | ARM v2.1.9 incumbent guard：完整 incumbent 保留 CFR Challenger，收束器只处理缺失/不完整输出 | `NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/` |
-| 2026-10-05 | ARM v2.2 answer-commit-first：第一次请求先提交唯一答案，再进行最多四行核对；第二次仍走 CFR Challenger | `OPEN` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/` |
+| 2026-10-05 | ARM v2.2 answer-commit-first：第一次请求先提交唯一答案，再进行最多四行核对；第二次仍走 CFR Challenger | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/` |
 
 ## FSDF v2 迭代子谱系
 

@@ -48,9 +48,10 @@ invalid 或成本收益；详见 `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRM
 **ARM v2.2 answer-commit-first**:
 实验性、默认关闭的首轮答案提交协议。第一次请求必须先输出唯一 `Final answer`，随后最多
 四行核对；第二次请求仍使用 v2.1.4 CFR Challenger。它针对官方 70/200 次 length 和 73
-个 invalid 的工程风险，不等同于数学能力提升。Q01–Q10 预注册见
-`docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md`；在安全门通过前
-不得修改 `SUBMISSION_CONFIG`。
+个 invalid 的工程风险，不等同于数学能力提升。Q01–Q10 的候选/基线为 `0/15/10` 对
+`1/15/9`，截断从 3 降到 0，但出现 1 个 `correct → incorrect`，状态为
+`EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册和结果见
+`docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/`；不得修改 `SUBMISSION_CONFIG`。
 
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，

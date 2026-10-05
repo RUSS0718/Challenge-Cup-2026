@@ -867,9 +867,12 @@ Y 窗口使用与 X01–X10 不重叠的 OlymMATH、AIME 和 HLE Math 题目。�
 
 | 候选 | 预注册状态 | 处置 |
 | --- | --- | --- |
-| `arm-v2.2-answer-commit`：第一次请求先提交唯一 `Final answer`，再进行最多四行核对；第二次仍走 CFR Challenger | `OPEN`；待 Q01–Q10 配对窗口 | 默认关闭；不得在结果前修改正式 selector |
+| `arm-v2.2-answer-commit`：第一次请求先提交唯一 `Final answer`，再进行最多四行核对；第二次仍走 CFR Challenger | Q01–Q10 完成；候选 `0/15/10`，基线 `1/15/9`，截断 `0` 对 `3`，0 model error | `EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；默认关闭 |
 
 该假设改变第一次答案形成顺序，不复用 v2.1.8/2.1.9 的截断后收束器。候选和基线共用
 2,048/4,096 token 请求预算，题目来自与 X/Y/Z 不重叠的外部 OlymMATH、AIME 和 HLE 池。
-预注册、具体题目和门槛见
-[`ARM-V2.2 preregistration`](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md)。
+截断事件减少 3 个，但出现 1 个 `correct → incorrect`，invalid 反而增加 1 个，安全门和
+探索收益门均失败；不得修改 `SUBMISSION_CONFIG`、正式 selector、GitCode main 或官方作品。
+预注册、逐题转移和门判定见
+[`ARM-V2.2 result`](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/result.md) 与
+[`comparison.json`](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/comparison.json)。

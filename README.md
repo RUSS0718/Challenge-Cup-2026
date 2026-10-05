@@ -79,8 +79,10 @@ metadata/gold 隔离和 trace 卫生；100 题官方报告已归档，但没有�
 
 该候选针对官方报告中的 `70/200` 次 `length` 和 `73` 个 `invalid`：第一次请求先提交一行
 唯一 `Final answer`，再允许最多四行核对；第二次仍使用 v2.1.4 CFR Challenger。它与
-v2.1.8/2.1.9 的截断后收束不同，当前只完成代码门和 Q01–Q10 预注册，不改变正式 selector。
-预注册见 `docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md`。
+v2.1.8/2.1.9 的截断后收束不同。Q01–Q10 的候选/基线结果为 `0/15/10` 对 `1/15/9`；
+截断从 3 降到 0，但出现 1 个 `correct → incorrect`，因此保持
+`EXPLORATORY_NO_GO / DEFAULT_OFF`，不改变正式 selector。预注册和完整结果见
+`docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/`。
 
 ### Contextual Answer Reconstruction 历史实验路径
 

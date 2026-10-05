@@ -1,6 +1,6 @@
 # ARM-V2.2-ANSWER-COMMIT-20261005 — preregistration
 
-状态：`OPEN / DEFAULT_OFF`
+状态：`COMPLETED / EXPLORATORY_NO_GO / DEFAULT_OFF`
 
 ## 目的与假设
 
@@ -58,3 +58,7 @@ python scripts/run_robustness_matrix.py `
 
 原始 answers、report、manifest 和 trace 保留在被忽略的 `artifacts/`；提交只保留压缩后的
 result、comparison 和注册表记录。
+
+结果：候选 `0/15/10`、基线 `1/15/9`；候选截断事件 `0`、基线 `3`，但出现 1 个
+`correct → incorrect`，因此安全门和探索收益门未通过。详见
+[`result.md`](result.md) 与 [`comparison.json`](comparison.json)。

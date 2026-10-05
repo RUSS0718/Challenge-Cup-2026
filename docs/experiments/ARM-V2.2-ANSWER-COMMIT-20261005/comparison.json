@@ -1,0 +1,1000 @@
+{
+  "method_id": "ARM-V2.2-ANSWER-COMMIT-20261005",
+  "status": "EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION",
+  "matrix_id": "ARM-V2.2-ANSWER-COMMIT-20261005",
+  "run_id": "ARM-V2.2-ANSWER-COMMIT-20261005",
+  "evaluation_scope": "local_replay",
+  "official_evaluation": false,
+  "preregistration": "docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md",
+  "round_ids": [
+    "Q01",
+    "Q02",
+    "Q03",
+    "Q04",
+    "Q05",
+    "Q06",
+    "Q07",
+    "Q08",
+    "Q09",
+    "Q10"
+  ],
+  "paired_records": 25,
+  "preflight": {
+    "scoring_dependency": "sympy",
+    "sympy_import_verified": true,
+    "configuration_equal_except": [
+      "arm_harness_version",
+      "primary_prompt_variant"
+    ],
+    "candidate_primary_tokens": 2048,
+    "baseline_primary_tokens": 2048,
+    "ordinary_second_tokens": 4096,
+    "total_token_budget": 16384,
+    "run_git_commit": "f4b83f269998097486ce9ad7ef82fa54907e710f",
+    "working_tree_dirty": true,
+    "gold_passed_to_agent": false,
+    "all_manifests_completed": true,
+    "all_rounds_present": true,
+    "all_dataset_hashes_match_pairs": true,
+    "candidate_prompt_variant_count": 25
+  },
+  "datasets": [
+    {
+      "candidate_round": "Q01",
+      "baseline_round": "Q02",
+      "dataset": "external_olymmath",
+      "dataset_sha256": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+      "records": 5,
+      "selected_items_equal": true,
+      "candidate": {
+        "correct": 0,
+        "incorrect": 4,
+        "invalid": 1,
+        "model_errors": 0
+      },
+      "baseline": {
+        "correct": 1,
+        "incorrect": 3,
+        "invalid": 1,
+        "model_errors": 0
+      },
+      "candidate_truncation_count": 0,
+      "baseline_truncation_count": 1
+    },
+    {
+      "candidate_round": "Q03",
+      "baseline_round": "Q04",
+      "dataset": "external_olymmath",
+      "dataset_sha256": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+      "records": 5,
+      "selected_items_equal": true,
+      "candidate": {
+        "correct": 0,
+        "incorrect": 2,
+        "invalid": 3,
+        "model_errors": 0
+      },
+      "baseline": {
+        "correct": 0,
+        "incorrect": 2,
+        "invalid": 3,
+        "model_errors": 0
+      },
+      "candidate_truncation_count": 0,
+      "baseline_truncation_count": 1
+    },
+    {
+      "candidate_round": "Q05",
+      "baseline_round": "Q06",
+      "dataset": "external_aime",
+      "dataset_sha256": "e39108744b5b0548fccfc28a089ddd1cccd0821e7235a6f2e18fa74449cd8315",
+      "records": 5,
+      "selected_items_equal": true,
+      "candidate": {
+        "correct": 0,
+        "incorrect": 4,
+        "invalid": 1,
+        "model_errors": 0
+      },
+      "baseline": {
+        "correct": 0,
+        "incorrect": 4,
+        "invalid": 1,
+        "model_errors": 0
+      },
+      "candidate_truncation_count": 0,
+      "baseline_truncation_count": 1
+    },
+    {
+      "candidate_round": "Q07",
+      "baseline_round": "Q08",
+      "dataset": "external_hle",
+      "dataset_sha256": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8",
+      "records": 5,
+      "selected_items_equal": true,
+      "candidate": {
+        "correct": 0,
+        "incorrect": 4,
+        "invalid": 1,
+        "model_errors": 0
+      },
+      "baseline": {
+        "correct": 0,
+        "incorrect": 4,
+        "invalid": 1,
+        "model_errors": 0
+      },
+      "candidate_truncation_count": 0,
+      "baseline_truncation_count": 0
+    },
+    {
+      "candidate_round": "Q09",
+      "baseline_round": "Q10",
+      "dataset": "external_hle",
+      "dataset_sha256": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8",
+      "records": 5,
+      "selected_items_equal": true,
+      "candidate": {
+        "correct": 0,
+        "incorrect": 1,
+        "invalid": 4,
+        "model_errors": 0
+      },
+      "baseline": {
+        "correct": 0,
+        "incorrect": 2,
+        "invalid": 3,
+        "model_errors": 0
+      },
+      "candidate_truncation_count": 0,
+      "baseline_truncation_count": 0
+    }
+  ],
+  "rounds": [
+    {
+      "round_id": "Q01",
+      "profile": "arm-v2.2-answer-commit",
+      "dataset": "external_olymmath",
+      "dataset_sha256": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 4,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 10
+      },
+      "truncation_count": 0,
+      "selected_items": [
+        "OlymMATH-HARD-13-ZH",
+        "OlymMATH-HARD-15-ZH",
+        "OlymMATH-HARD-17-ZH",
+        "OlymMATH-HARD-18-EN",
+        "OlymMATH-HARD-19-EN"
+      ]
+    },
+    {
+      "round_id": "Q02",
+      "profile": "cfr-answer-commit-pressure",
+      "dataset": "external_olymmath",
+      "dataset_sha256": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+      "records": 5,
+      "correct": 1,
+      "incorrect": 3,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 9,
+        "length": 1
+      },
+      "truncation_count": 1,
+      "selected_items": [
+        "OlymMATH-HARD-13-ZH",
+        "OlymMATH-HARD-15-ZH",
+        "OlymMATH-HARD-17-ZH",
+        "OlymMATH-HARD-18-EN",
+        "OlymMATH-HARD-19-EN"
+      ]
+    },
+    {
+      "round_id": "Q03",
+      "profile": "arm-v2.2-answer-commit",
+      "dataset": "external_olymmath",
+      "dataset_sha256": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 2,
+      "invalid": 3,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 10
+      },
+      "truncation_count": 0,
+      "selected_items": [
+        "OlymMATH-HARD-20-ZH",
+        "OlymMATH-HARD-21-EN",
+        "OlymMATH-HARD-22-ZH",
+        "OlymMATH-HARD-23-ZH",
+        "OlymMATH-HARD-24-EN"
+      ]
+    },
+    {
+      "round_id": "Q04",
+      "profile": "cfr-answer-commit-pressure",
+      "dataset": "external_olymmath",
+      "dataset_sha256": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 2,
+      "invalid": 3,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 9,
+        "length": 1
+      },
+      "truncation_count": 1,
+      "selected_items": [
+        "OlymMATH-HARD-20-ZH",
+        "OlymMATH-HARD-21-EN",
+        "OlymMATH-HARD-22-ZH",
+        "OlymMATH-HARD-23-ZH",
+        "OlymMATH-HARD-24-EN"
+      ]
+    },
+    {
+      "round_id": "Q05",
+      "profile": "arm-v2.2-answer-commit",
+      "dataset": "external_aime",
+      "dataset_sha256": "e39108744b5b0548fccfc28a089ddd1cccd0821e7235a6f2e18fa74449cd8315",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 4,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 10
+      },
+      "truncation_count": 0,
+      "selected_items": [
+        "aime-2024-II-9",
+        "aime-2024-II-14",
+        "aime-2024-II-5",
+        "aime-2024-II-2",
+        "aime-2024-II-1"
+      ]
+    },
+    {
+      "round_id": "Q06",
+      "profile": "cfr-answer-commit-pressure",
+      "dataset": "external_aime",
+      "dataset_sha256": "e39108744b5b0548fccfc28a089ddd1cccd0821e7235a6f2e18fa74449cd8315",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 4,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 9,
+        "length": 1
+      },
+      "truncation_count": 1,
+      "selected_items": [
+        "aime-2024-II-9",
+        "aime-2024-II-14",
+        "aime-2024-II-5",
+        "aime-2024-II-2",
+        "aime-2024-II-1"
+      ]
+    },
+    {
+      "round_id": "Q07",
+      "profile": "arm-v2.2-answer-commit",
+      "dataset": "external_hle",
+      "dataset_sha256": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 4,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 10
+      },
+      "truncation_count": 0,
+      "selected_items": [
+        "hle-66fbd5aca177ae967e47041b",
+        "hle-6718977144d804f3d0418866",
+        "hle-67053981f8ad2742675478b4",
+        "hle-6742f485e9256150e88912f1",
+        "hle-6721154d5968ddcc0df3a25c"
+      ]
+    },
+    {
+      "round_id": "Q08",
+      "profile": "cfr-answer-commit-pressure",
+      "dataset": "external_hle",
+      "dataset_sha256": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 4,
+      "invalid": 1,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 10
+      },
+      "truncation_count": 0,
+      "selected_items": [
+        "hle-66fbd5aca177ae967e47041b",
+        "hle-6718977144d804f3d0418866",
+        "hle-67053981f8ad2742675478b4",
+        "hle-6742f485e9256150e88912f1",
+        "hle-6721154d5968ddcc0df3a25c"
+      ]
+    },
+    {
+      "round_id": "Q09",
+      "profile": "arm-v2.2-answer-commit",
+      "dataset": "external_hle",
+      "dataset_sha256": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 1,
+      "invalid": 4,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 10
+      },
+      "truncation_count": 0,
+      "selected_items": [
+        "hle-66fc633698a7264ef58309c0",
+        "hle-66fb8135483861eb2d0252a3",
+        "hle-6730ab9b1c5695f59ab6a5e8",
+        "hle-66ecd3c6e8b95a8f971fb485",
+        "hle-66ef98088171e6ed71be1454"
+      ]
+    },
+    {
+      "round_id": "Q10",
+      "profile": "cfr-answer-commit-pressure",
+      "dataset": "external_hle",
+      "dataset_sha256": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8",
+      "records": 5,
+      "correct": 0,
+      "incorrect": 2,
+      "invalid": 3,
+      "model_errors": 0,
+      "total_model_calls": 10,
+      "average_model_calls": 2.0,
+      "finish_reason_counts": {
+        "stop": 10
+      },
+      "truncation_count": 0,
+      "selected_items": [
+        "hle-66fc633698a7264ef58309c0",
+        "hle-66fb8135483861eb2d0252a3",
+        "hle-6730ab9b1c5695f59ab6a5e8",
+        "hle-66ecd3c6e8b95a8f971fb485",
+        "hle-66ef98088171e6ed71be1454"
+      ]
+    }
+  ],
+  "candidate": {
+    "profile": "arm-v2.2-answer-commit",
+    "records": 25,
+    "correct": 0,
+    "incorrect": 15,
+    "invalid": 10,
+    "model_errors": 0,
+    "model_calls": 50,
+    "average_model_calls": 2.0,
+    "finish_reason_counts": {
+      "stop": 50
+    },
+    "truncation_count": 0,
+    "compact_finalizer_activations": 0,
+    "incumbent_guard_activations": 0
+  },
+  "baseline": {
+    "profile": "cfr-answer-commit-pressure",
+    "records": 25,
+    "correct": 1,
+    "incorrect": 15,
+    "invalid": 9,
+    "model_errors": 0,
+    "model_calls": 50,
+    "average_model_calls": 2.0,
+    "finish_reason_counts": {
+      "length": 3,
+      "stop": 47
+    },
+    "truncation_count": 3,
+    "compact_finalizer_activations": 0,
+    "incumbent_guard_activations": 0
+  },
+  "paired_transitions": {
+    "correct__to__incorrect": 1,
+    "incorrect__to__incorrect": 14,
+    "incorrect__to__invalid": 1,
+    "invalid__to__invalid": 9
+  },
+  "outcome_differences": [
+    {
+      "candidate_round_id": "Q01",
+      "baseline_round_id": "Q02",
+      "item_id": "OlymMATH-HARD-17-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "correct",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q09",
+      "baseline_round_id": "Q10",
+      "item_id": "hle-66ecd3c6e8b95a8f971fb485",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "abstain"
+    }
+  ],
+  "pairs": [
+    {
+      "candidate_round_id": "Q01",
+      "baseline_round_id": "Q02",
+      "item_id": "OlymMATH-HARD-13-ZH",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q01",
+      "baseline_round_id": "Q02",
+      "item_id": "OlymMATH-HARD-15-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q01",
+      "baseline_round_id": "Q02",
+      "item_id": "OlymMATH-HARD-17-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "correct",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q01",
+      "baseline_round_id": "Q02",
+      "item_id": "OlymMATH-HARD-18-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q01",
+      "baseline_round_id": "Q02",
+      "item_id": "OlymMATH-HARD-19-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "length"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q03",
+      "baseline_round_id": "Q04",
+      "item_id": "OlymMATH-HARD-20-ZH",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q03",
+      "baseline_round_id": "Q04",
+      "item_id": "OlymMATH-HARD-21-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q03",
+      "baseline_round_id": "Q04",
+      "item_id": "OlymMATH-HARD-22-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q03",
+      "baseline_round_id": "Q04",
+      "item_id": "OlymMATH-HARD-23-ZH",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q03",
+      "baseline_round_id": "Q04",
+      "item_id": "OlymMATH-HARD-24-EN",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "length"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "abstain"
+    },
+    {
+      "candidate_round_id": "Q05",
+      "baseline_round_id": "Q06",
+      "item_id": "aime-2024-II-1",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q05",
+      "baseline_round_id": "Q06",
+      "item_id": "aime-2024-II-14",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q05",
+      "baseline_round_id": "Q06",
+      "item_id": "aime-2024-II-2",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q05",
+      "baseline_round_id": "Q06",
+      "item_id": "aime-2024-II-5",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "length",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "abstain"
+    },
+    {
+      "candidate_round_id": "Q05",
+      "baseline_round_id": "Q06",
+      "item_id": "aime-2024-II-9",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q09",
+      "baseline_round_id": "Q10",
+      "item_id": "hle-66ecd3c6e8b95a8f971fb485",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "abstain"
+    },
+    {
+      "candidate_round_id": "Q09",
+      "baseline_round_id": "Q10",
+      "item_id": "hle-66ef98088171e6ed71be1454",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q09",
+      "baseline_round_id": "Q10",
+      "item_id": "hle-66fb8135483861eb2d0252a3",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "abstain"
+    },
+    {
+      "candidate_round_id": "Q07",
+      "baseline_round_id": "Q08",
+      "item_id": "hle-66fbd5aca177ae967e47041b",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q09",
+      "baseline_round_id": "Q10",
+      "item_id": "hle-66fc633698a7264ef58309c0",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "safe_candidate"
+    },
+    {
+      "candidate_round_id": "Q07",
+      "baseline_round_id": "Q08",
+      "item_id": "hle-67053981f8ad2742675478b4",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q07",
+      "baseline_round_id": "Q08",
+      "item_id": "hle-6718977144d804f3d0418866",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q07",
+      "baseline_round_id": "Q08",
+      "item_id": "hle-6721154d5968ddcc0df3a25c",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    },
+    {
+      "candidate_round_id": "Q09",
+      "baseline_round_id": "Q10",
+      "item_id": "hle-6730ab9b1c5695f59ab6a5e8",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "abstain"
+    },
+    {
+      "candidate_round_id": "Q07",
+      "baseline_round_id": "Q08",
+      "item_id": "hle-6742f485e9256150e88912f1",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_model_calls": 2,
+      "baseline_model_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_primary_prompt_variant": "answer_commit_first_v1",
+      "candidate_second_backend": "challenger",
+      "candidate_final_source": "consensus"
+    }
+  ],
+  "gate_decision": {
+    "void_gate": "PASS",
+    "protocol_gate": "PASS",
+    "safety_gate": "FAIL",
+    "safety_reasons": [
+      "correct_to_incorrect=1"
+    ],
+    "exploration_gain_gate": "FAIL",
+    "exploration_reasons": [
+      "candidate_correct_decreased_from_1_to_0",
+      "candidate_invalid_increased_from_9_to_10"
+    ],
+    "cost_gate": "PASS",
+    "candidate_truncation_reduction": 3,
+    "candidate_invalid_delta": 1,
+    "candidate_correct_delta": -1,
+    "candidate_average_calls_delta": 0.0
+  },
+  "evidence_boundary": "The runner, judge, and endpoint are local replay; this window does not replace the official hidden-set evaluation, modify SUBMISSION_CONFIG, or change the official selector."
+}
