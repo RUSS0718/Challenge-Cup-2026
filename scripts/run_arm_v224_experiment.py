@@ -14,6 +14,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import subprocess
 import sys
 from typing import Any, Iterable
 
@@ -26,6 +27,23 @@ from scripts.run_robustness_matrix import run_matrix  # noqa: E402
 
 
 METHOD_ID = "ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005"
+
+
+def require_clean_worktree() -> None:
+    """Stop before any model call when the paired experiment is unreproducible."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain=v1"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("git_status_failed_before_experiment")
+    if result.stdout.strip():
+        raise RuntimeError(
+            "clean_worktree_required_before_arm_v224; commit or isolate unrelated changes"
+        )
 
 
 def risk_gated_round_specs() -> tuple[RoundSpec, ...]:
@@ -294,6 +312,7 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--timeout", type=int, default=120)
     args = parser.parse_args()
+    require_clean_worktree()
     specs = risk_gated_round_specs()
     output_root = Path(args.output_dir)
     run_matrix(

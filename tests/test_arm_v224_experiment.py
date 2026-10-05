@@ -2,8 +2,13 @@
 
 import unittest
 from collections import Counter
+from unittest.mock import patch
 
-from scripts.run_arm_v224_experiment import _gate_decisions, risk_gated_round_specs
+from scripts.run_arm_v224_experiment import (
+    _gate_decisions,
+    require_clean_worktree,
+    risk_gated_round_specs,
+)
 from reasoning_agent.paired_run_audit import audit_paired_round
 
 
@@ -77,6 +82,12 @@ class ARMV224ExperimentTest(unittest.TestCase):
             dataset_sha256="b" * 64,
         )
         self.assertIn("manifest[0]:invalid:strict_manifest_requires_clean_worktree", errors)
+
+    def test_clean_worktree_preflight_rejects_dirty_state(self):
+        completed = type("Completed", (), {"returncode": 0, "stdout": "?? scratch.txt\n"})()
+        with patch("scripts.run_arm_v224_experiment.subprocess.run", return_value=completed):
+            with self.assertRaisesRegex(RuntimeError, "clean_worktree_required"):
+                require_clean_worktree()
 
 
 if __name__ == "__main__":
