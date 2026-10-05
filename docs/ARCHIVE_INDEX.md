@@ -6,7 +6,30 @@
 
 ## 当前应优先阅读
 
+- [当前发布状态](current_release.json)：由 `scripts/show_repo_state.py` 生成，包含 selector、Git ref、运行工件和 runtime hash 检查。
+- [实验处置注册表](experiment_registry.json)：机器可查询的近期方案状态；完整历史仍以 `excluded_approaches.md` 为准。
+- [代理经历审查](research/codex_agent_experience_audit_2026-10-05.md)：最近十次任务的检索热点、过时文档风险和治理落地记录。
 - [CONTEXT.md](../CONTEXT.md)：领域术语与当前默认配置语义。
+- [ARM v2.1.4 CFR 发布协议](releases/arm-v2.1.4-cfr-20261004/protocol.md)：当前正式 selector、
+  Challenger/Repair/Review 门和官方复评边界。
+- [ARM v2.1.7 structured confirmation](experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/result.md)：
+  默认关闭的 incumbent-only Challenger 配对结果和处置。
+- [ARM v2.1.8 external length-pressure](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005/result.md)：
+  首次窗口的 VOID 审计记录；纠正后的结果见 [window 002](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/result.md)。
+- [ARM v2.1.8 external length-pressure replication](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/result.md)：
+  使用不重叠外部题目的独立 Y 窗口；安全门未通过，保持默认关闭。
+- [ARM v2.1.9 incumbent guard](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/preregistration.md)：
+  Z01–Z10 已完成，guard 激活但出现安全门损害；保持 `NO_GO / DEFAULT_OFF`，结果见
+  [result](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md)。
+- [ARM v2.2 answer-commit-first](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/result.md)：
+  Q01–Q10 已完成；截断从 3 降到 0，但出现 `correct → incorrect`，候选保持
+  `EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册见同目录的 `preregistration.md`。
+- [ARM v2.3 primary-tail continuation](experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/result.md)：
+  T01–T10 已完成；候选 continuation `0/25` 激活，invalid 未下降，保持
+  `EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册、逐题转移和比较工件见同目录。
+- [ARM v2.4 risk-gated answer reservation](experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/result.md)：
+  U01–U10 已完成；候选激活 `25/25`，但正确数下降、invalid 和截断均未改善，保持
+  `EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册、逐题转移和比较工件见同目录。
 - [architecture_evolution.md](architecture_evolution.md)：从赛事模板到当前 Harness 的架构谱系、版本状态和证据边界。
 - [official_evaluations/](official_evaluations/)：按北京日期归档官方原始日志与 agent 分析。
 - [excluded_approaches.md](excluded_approaches.md)：实验处置的单一事实源。
@@ -34,6 +57,9 @@
 
 ## 已归档的旧总结
 
+- [invalid_rescue_round3_2026-10-04.md](archive/invalid_rescue_round3_2026-10-04.md)：
+  invalid rescue 第三轮综合归档。全量回放出现正确损失，因此 43a02da 保留为回滚锚；相关
+  实验代码和大型参考资源已从发布树移除。当前正式路径见 CFR 发布协议。
 - [P0-提交总结-2026-07.md](archive/legacy/P0-提交总结-2026-07.md)：已移出根目录，
   仅用于历史追溯。
 - [TODO_LIST-2026-07.md](archive/legacy/TODO_LIST-2026-07.md)：已移出根目录，早期任务

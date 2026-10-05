@@ -3,16 +3,70 @@
 数学推理智能体,参加挑战杯 2026 AI 赛道。官方评测在隐藏题上调用
 `ReasoningAgent.solve()`,按 `final_response` 的答案正确性评分。
 
+当前运行事实以 `docs/current_release.json` 和对应 release manifest 为准。开始实验前运行
+`python scripts/show_repo_state.py --write --check`；默认输出摘要和最近工件路径，需完整机器快照时
+加 `--json`。不要根据历史实验文档、长期记忆或目录名推断当前 selector。实验状态查询使用
+`python scripts/experiment_status.py --id <method_id>`。
+
 ## Language
 
 ### 配置与部署
 
 **SUBMISSION_CONFIG / canary profile**:
-官方 runner 无参构造时唯一生效的提交配置。2026-09-03 经用户明确授权切换为
-`contextual_answer_reconstruction_v1`，随后于 2026-09-04 经用户再次明确授权切换为
-`fork_select_deepen_finish_v1`；运营参考锚为 `hetero_k5 @ 25f99b5`
-（GitCode `34bc353`）。改它等于改变官方得分行为。
+官方 runner 无参构造时唯一生效的提交配置。当前正式 selector 为
+`arm-v2.1.4-cfr`，即 ARM v2.1.4 CFR（Challenger → Targeted Repair → Fresh Review）。
+改它等于改变官方得分行为；GRH v1.1 / 119 正确版本 `43a02da` 只作为回滚锚和历史对照。
+当前 CFR 已有 2026-10-04 官方 100 题报告（`21/6/73`），但该范围与历史 112 题表格不同，
+不作跨范围能力比较；状态为 `DEPLOYED_EVALUATED_NO_PROMOTION`。
 _Avoid_: 默认配置、线上配置(指代不清)
+
+**ARM v2.1.4 CFR**:
+Primary 先生成一个候选；Challenger 必须给出结构化、可定位且带证据的异议，才可执行
+一次 Targeted Repair；Fresh Review 必须精确复核同一异议并返回 `PASS`，修复候选才能替换
+incumbent。异议解析失败、证据不足、复核不匹配或复核失败时保留安全候选或返回 `UNKNOWN`。
+每题最多 4 次模型调用，adaptive/deep 各使用 16,384 token 总预算；答案库、RAG、Skill
+和 hybrid router 均关闭。官方 client 只要求三参数 `chat`，可选请求控制由统一兼容层降级。
+
+**ARM v2.1.6 missing-candidate recovery**:
+实验性、默认关闭的 v2.1.4 派生 profile。仅当 Primary 没有可解析候选时，第二次请求才
+改为独立答案形成；已有候选继续走 CFR Challenger。它不能把不存在的答案补成可信答案，
+仍受 positive-evidence Trust Gate 和 fail-closed 规则约束；没有独立 paired window 前不得
+修改 `SUBMISSION_CONFIG`。
+
+**ARM v2.1.7 structured confirmation**:
+实验性、默认关闭的 incumbent-only Challenger。第二次响应必须是结构化 JSON，只有 `PASS`
+且复述已有值才会形成共识；新值、答案标记、UNKNOWN 和 malformed JSON 都 fail-closed。
+fresh 25 题、10 轮 paired replay 的结果为候选/基线均 `24/0/1`，候选激活 `17/25`，没有
+invalid 或成本收益；详见 `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/`。
+
+**ARM v2.1.9 incumbent guard**:
+实验性、默认关闭的 v2.1.8 触发门。只要 Primary 已形成结构有效且完整的 incumbent（含
+明确答案尾的截断响应），第二次请求必须回到原 CFR Challenger；compact finalizer 仅用于
+缺失或不完整 Primary。Z01–Z10 guard 激活 25/25，但出现 1 个 `correct → incorrect`，
+状态为 `NO_GO`；不得修改 `SUBMISSION_CONFIG` 或把候选数字当作官方能力结论。
+
+**ARM v2.2 answer-commit-first**:
+实验性、默认关闭的首轮答案提交协议。第一次请求必须先输出唯一 `Final answer`，随后最多
+四行核对；第二次请求仍使用 v2.1.4 CFR Challenger。它针对官方 70/200 次 length 和 73
+个 invalid 的工程风险，不等同于数学能力提升。Q01–Q10 的候选/基线为 `0/15/10` 对
+`1/15/9`，截断从 3 降到 0，但出现 1 个 `correct → incorrect`，状态为
+`EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册和结果见
+`docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/`；不得修改 `SUBMISSION_CONFIG`。
+
+**ARM v2.3 primary-tail continuation**:
+实验性、默认关闭的缺失候选恢复。仅当 Primary 没有候选且有部分输出时，宿主才把有限尾部
+交给一次最多 2,048 token 的同轨迹 continuation；完整 incumbent 继续走 CFR Challenger，
+原始尾部不写入 trace。T01–T10 中激活 `0/25`，候选 `4/15/6`、基线 `3/16/6`，invalid
+未下降，因此保持 `EXPLORATORY_NO_GO / DEFAULT_OFF`，不得修改 `SUBMISSION_CONFIG`。
+详见 `docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/`。
+
+**ARM v2.4 risk-gated answer reservation**:
+实验性、默认关闭的首轮提示门。只有宿主路由为 `structured/deep` 或置信度不是 `high` 时，
+才启用答案保留位；`direct/high-confidence` 题继续使用 v2.1 首轮，第二轮仍走 CFR。
+U01–U10 的候选/对照为 `0/21/4` 对 `1/22/2`，候选激活 `25/25`，截断 `2` 对 `0`，
+出现候选与对照的逐题差异；但 10 个 manifest 均记录脏工作树，严格 provenance 审计将窗口判为
+`VOID / DEFAULT_OFF`。不得修改 `SUBMISSION_CONFIG`，详见
+`docs/experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/`。
 
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，
@@ -20,9 +74,9 @@ _Avoid_: 默认配置、线上配置(指代不清)
 BTCS/KCV/PS-C/V5 路径均关闭。
 
 **FSDF v1**:
-当前经用户授权的官方默认路径：Analyze → B/C Fork → D Select/Deepen → E Finish，
+历史官方默认路径和 CFR 的显式对照：Analyze → B/C Fork → D Select/Deepen → E Finish，
 固定最多五次调用和 `[2048, 2048, 2048, 8192, 4096]` token 序列。仅完成零模型代码验收，
-不产生数学能力或正确率结论；`SUBMISSION_CONFIG` 中 contextual reconstruction 保持关闭。
+不产生数学能力或正确率结论；当前 `SUBMISSION_CONFIG` 不再启用 FSDF 作为正式 selector。
 
 **异构候选**:
 同一 client 下采用互补求解策略产生的候选；不等同于多模型集成。

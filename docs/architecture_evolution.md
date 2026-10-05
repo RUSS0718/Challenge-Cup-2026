@@ -1,6 +1,6 @@
 # 数学推理智能体架构演进总表
 
-更新时间：2026-09-21
+更新时间：2026-10-05
 
 本表回答“每个版本的架构是什么、解决什么问题、现在是否还在默认路径”。
 它记录的是架构家族和关键版本，不把每个温度、token、题集或单题 A/B 变体伪装成
@@ -19,9 +19,10 @@
 | `ARCHIVED` | 实验已封卷，保留用于复核，不应原样复跑 |
 | `REJECTED` / `NO_GO` | 已有证据不支持晋升，除非新假设、新编号和新预注册 |
 
-## 当前架构（2026-09-21）
+## 当前架构（2026-10-05）
 
-当前活动分支为 `codex/repo-hygiene-cleanup`，运行时核心仍保持
+当前活动分支为 `codex/arm-v214-cfr`，GitCode 发布面将采用本协议对应的 CFR 提交，
+`43a02da` 作为回滚锚，运行时核心仍保持
 `ReasoningAgent(client, solve)` 的赛事接口：
 
 ```text
@@ -31,9 +32,12 @@ ReasoningAgent / SUBMISSION_CONFIG
     ↓ 题型与答案形态分类
 ConstraintFitOrchestrator
     ├─ SubmissionGateway（bank-off）
-    ├─ HostRouter → Direct
-    ├─ HostRouter → Deep typed lane
-    └─ HostRouter → FSDF legacy fallback
+    ├─ HostRouter → Direct / Deep
+    ├─ ARM v2.1.4 CFR
+    │   ├─ Primary → Challenger
+    │   ├─ Targeted Repair（仅具体可修复异议）
+    │   └─ Fresh Review（精确对齐且 PASS 才替换）
+    └─ FSDF legacy fallback（显式历史对照）
     ↓
 HostParser / TypedParser / EvidenceLedger / conservative selection
     ↓
@@ -42,8 +46,10 @@ final_response + compact trace
 
 当前提交 profile 的边界：
 
-- Constraint-Fit Harness、Deep lane、hybrid router 和 FSDF fallback 在配置层可达；
-- reference RAG、reference Skill、temporary answer bank 默认关闭；
+- Constraint-Fit Harness、Deep lane 和 ARM v2.1.4 CFR 在正式配置中可达；hybrid router、
+  FSDF fallback、答案库、RAG 和 Skill 均关闭；
+- temporary answer bank 默认关闭；已移除 reference RAG、reference Skill 和 method-card RAG
+  运行时及其大型资源，避免默认发布树携带无效实验闭包；
 - `final_response`、JSON 序列化、调用预算和 fail-closed 是硬接口；
 - Deep formation、Direct/endpoint health 等历史窗口没有转化为数学能力结论。
 
@@ -72,9 +78,17 @@ final_response + compact trace
 | 2026-09-08 | CAR-001：thinking-on adaptive candidate-first，候选梯度、短恢复、有限裁决 | `DEFAULT_OFF` / 健康窗 `VOID` | `bd16a3f`、`CAR-001-ADAPTIVE-CANDIDATE-FIRST-*` |
 | 2026-09-08–09 | CAR-002：两个互盲短候选 + 一致性选择；代码门、P3 健康窗通过，但 hard10 未过能力门 | `DEFAULT_OFF` / `NO_P5` | `CAR-002-DUAL-CANDIDATE-CONSENSUS-*` |
 | 2026-09-10–11 | MATH-HARNESS-V1：ProblemContract、双轴 HostRouter、Evidence Ledger、typed parser、Deep lane、预算/观察/回退 | `CURRENT` / `CODE_ACCEPTED` / health `NO_GO` | `e6ea4e8`、`MATH-HARNESS-*`、`MATH-CONTRACT-ROUTER-CODE-001` |
-| 2026-09-12–16 | reference RAG、18 学科 Skill、MCP/knowledge layers：作为可插拔上下文层接入，再从 GitCode 默认路径关闭 | `ENGINEERING_ONLY` / `DEFAULT_OFF` | `45ba13a`、`b218003`、`9edb5d4`、`1507d3a`、`ca15d39` |
+| 2026-09-12–16 | reference RAG、18 学科 Skill、MCP/knowledge layers：作为可插拔上下文层接入，随后因无默认收益而归档并从发布树移除 | `ENGINEERING_ONLY` / `ARCHIVED` | `45ba13a`、`b218003`、`9edb5d4`、`1507d3a`、`ca15d39` |
 | 2026-09-16 | HENG-only / COT+PoT：Issue #19 公开 client 契约、migration hardening、fallback budget 的独立 profile/A-B | `EXPERIMENTAL` / 非默认 | `fca3d2b`、`archive/codex/pre-cot-pot-20260916`、`HENG-COT-*` |
 | 2026-09-21 | repo-hygiene 内部重构：解析和 Harness contracts 拆为深模块，保留旧导出 facade | `CURRENT` / 行为保持 | `codex/repo-hygiene-cleanup` |
+| 2026-10-04 | GRH v1.1 / 119 回退锚与 invalid rescue 第三轮归档；删除默认关闭的 RAG/Skill 实验闭包 | `ARCHIVED` / `ROLLBACK_ANCHOR` | `43a02da`、`docs/archive/invalid_rescue_round3_2026-10-04.md` |
+| 2026-10-04 | ARM v2.1.4 CFR：Primary → Challenger → 具体异议 Targeted Repair → 精确 Fresh Review | `CURRENT` / `DEPLOYED_EVALUATED_NO_PROMOTION` / `CODE_ACCEPTED` | `docs/releases/arm-v2.1.4-cfr-20261004/` |
+| 2026-10-05 | ARM v2.1.7 incumbent-only structured confirmation | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/` |
+| 2026-10-05 | ARM v2.1.8 compact finalizer：独立外部长度压力复验 | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/` |
+| 2026-10-05 | ARM v2.1.9 incumbent guard：完整 incumbent 保留 CFR Challenger，收束器只处理缺失/不完整输出 | `NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/` |
+| 2026-10-05 | ARM v2.2 answer-commit-first：第一次请求先提交唯一答案，再进行最多四行核对；第二次仍走 CFR Challenger | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/` |
+| 2026-10-05 | ARM v2.3 primary-tail continuation：仅在 Primary 无候选且有部分输出时沿同一轨迹续写有限尾部；完整 incumbent 保留 CFR Challenger | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` / 未激活 | `docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/` |
+| 2026-10-05 | ARM v2.4 risk-gated answer reservation：只对 structured/deep 或低置信路由改变首轮答案形成顺序，direct/high-confidence 保留 v2.1 提示；10 个 manifest 均为脏工作树，严格 provenance 先判 VOID | `VOID` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/` |
 
 ## FSDF v2 迭代子谱系
 
@@ -104,7 +118,7 @@ final_response + compact trace
 | --- | --- | --- |
 | BCOMP bounded completion | 观察 client 生命周期、completion token、durable records | 工程诊断，不改变答案选择 |
 | Error Notebook / temporary answer bank | 本地错误经验和显式 bank-on gateway | bank-off 默认隔离；不能混入能力结论 |
-| Reference RAG / Skills | 提供参考题或软路线提示 | 默认关闭；需独立资格门 |
+| Reference RAG / Skills | 提供参考题或软路线提示 | 已归档；代码和大型资源已从发布树移除 |
 | Host Loop | intake、obligation、verifier adapter、evidence bridge | F0–F5 代码门不等于能力门，默认关闭 |
 | Causal MCP / causal_lens | 独立因果分析 demo/工程 smoke | 不接入默认数学求解；`NO_CAPABILITY_CONCLUSION` |
 | HENG/COT snapshots | 公开 client 迁移硬化与架构配对实验 | 只作实验/迁移证据，不是当前 submission profile |

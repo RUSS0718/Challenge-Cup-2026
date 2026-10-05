@@ -1,0 +1,537 @@
+{
+  "status": "completed",
+  "evaluation_scope": "local_replay",
+  "method_id": "ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005",
+  "round_ids": [
+    "X01",
+    "X02",
+    "X03",
+    "X04",
+    "X05",
+    "X06",
+    "X07",
+    "X08",
+    "X09",
+    "X10"
+  ],
+  "records": 25,
+  "preflight": {
+    "scoring_dependency": "sympy",
+    "configuration_equal_except": [
+      "arm_harness_version"
+    ],
+    "primary_tokens": 1024,
+    "ordinary_second_tokens": 4096,
+    "finalizer_cap_tokens": 2048
+  },
+  "candidate": {
+    "profile": "arm-v2.1.8-external-pressure",
+    "correct": 5,
+    "incorrect": 15,
+    "invalid": 5,
+    "model_errors": 0,
+    "model_calls": 50,
+    "compact_finalizer_activations": 3,
+    "compact_finalizer_trigger_reason_counts": {
+      "primary_missing": 1,
+      "primary_incomplete": 2
+    },
+    "truncation_count": 0
+  },
+  "baseline": {
+    "profile": "cfr-external-pressure",
+    "correct": 3,
+    "incorrect": 17,
+    "invalid": 5,
+    "model_errors": 0,
+    "model_calls": 50,
+    "truncation_count": 3
+  },
+  "paired_transitions": {
+    "correct__to__correct": 3,
+    "correct__to__incorrect": 2,
+    "incorrect__to__incorrect": 15,
+    "invalid__to__invalid": 5
+  },
+  "activation_rows": [
+    {
+      "round_id": "X07",
+      "item_id": "hle-67486cd4501c568127ed52d4",
+      "reasons": [
+        "primary_missing"
+      ]
+    },
+    {
+      "round_id": "X07",
+      "item_id": "hle-671ada4eed3d54e87368bc78",
+      "reasons": [
+        "primary_incomplete"
+      ]
+    },
+    {
+      "round_id": "X09",
+      "item_id": "hle-675853c6101f66905f003073",
+      "reasons": [
+        "primary_incomplete"
+      ]
+    }
+  ],
+  "pairs": [
+    {
+      "round_id": "X01",
+      "item_id": "OlymMATH-HARD-0-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X01",
+      "item_id": "OlymMATH-HARD-6-ZH",
+      "candidate_outcome": "correct",
+      "baseline_outcome": "correct",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X01",
+      "item_id": "OlymMATH-HARD-1-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X01",
+      "item_id": "OlymMATH-HARD-10-ZH",
+      "candidate_outcome": "correct",
+      "baseline_outcome": "correct",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X01",
+      "item_id": "OlymMATH-HARD-2-EN",
+      "candidate_outcome": "correct",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "length",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X03",
+      "item_id": "OlymMATH-HARD-8-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X03",
+      "item_id": "OlymMATH-HARD-5-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X03",
+      "item_id": "OlymMATH-HARD-11-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X03",
+      "item_id": "OlymMATH-HARD-4-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X03",
+      "item_id": "OlymMATH-HARD-13-EN",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X05",
+      "item_id": "aime-2024-I-4",
+      "candidate_outcome": "correct",
+      "baseline_outcome": "correct",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X05",
+      "item_id": "aime-2024-I-12",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X05",
+      "item_id": "aime-2024-I-8",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X05",
+      "item_id": "aime-2024-II-6",
+      "candidate_outcome": "correct",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "length",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X05",
+      "item_id": "aime-2024-I-11",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "length",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X07",
+      "item_id": "hle-67486cd4501c568127ed52d4",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 1,
+      "candidate_finalizer_reasons": [
+        "primary_missing"
+      ]
+    },
+    {
+      "round_id": "X07",
+      "item_id": "hle-67053981f8ad2742675478b4",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X07",
+      "item_id": "hle-66ff68bec7e8ec38a6188f9c",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X07",
+      "item_id": "hle-670df2e172288739ca35e0e1",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X07",
+      "item_id": "hle-671ada4eed3d54e87368bc78",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 1,
+      "candidate_finalizer_reasons": [
+        "primary_incomplete"
+      ]
+    },
+    {
+      "round_id": "X09",
+      "item_id": "hle-673b5fdff0294e2cbdb5bebb",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X09",
+      "item_id": "hle-6742f485e9256150e88912f1",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X09",
+      "item_id": "hle-675853c6101f66905f003073",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 1,
+      "candidate_finalizer_reasons": [
+        "primary_incomplete"
+      ]
+    },
+    {
+      "round_id": "X09",
+      "item_id": "hle-6754baec618d187bb3362936",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    },
+    {
+      "round_id": "X09",
+      "item_id": "hle-6720ca4b696f86db458bcfe9",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_calls": 2,
+      "baseline_calls": 2,
+      "candidate_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "baseline_finish_reasons": [
+        "stop",
+        "stop"
+      ],
+      "candidate_finalizer": 0,
+      "candidate_finalizer_reasons": []
+    }
+  ]
+}

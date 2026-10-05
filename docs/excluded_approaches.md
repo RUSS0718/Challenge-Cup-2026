@@ -1,4 +1,4 @@
-# 已排除方案与实验处置注册表（截至 2026-08-27）
+# 已排除方案与实验处置注册表（截至 2026-10-04）
 
 > 目的：任何新会话、成员或联网调研在提出实验前先查此表，避免重复试错。
 > 官方评测是最终裁决；本地数据只用于预筛。同窗口交错是能力比较的必要条件。
@@ -158,7 +158,9 @@
    的排序逐个做代码缝隙与预算审计，再写单方法预注册。
 4. 只有独立通过的单方法才可进入融合；优先考虑“能力方法 + 已证明的成本控制”，不融合两个
    尚未验证的能力方法。
-5. 官方候选始终从 `b8b78aa` 对照面构造聚焦单变量 diff；本地 main/实验分支不得直接推送。
+5. 当前官方候选由 `ARM-V2.1.4-CFR-20261004` 协议约束；发布到 GitCode main 前必须先通过
+   离线 verifier、公开 client 契约和提交门禁，`43a02da` 保留为回滚锚。历史实验分支不得
+   直接冒充官方成绩。
 
 ## 六点九、FSDF-V1-CODE-ACCEPTANCE-001（2026-09-04）
 
@@ -765,3 +767,138 @@ native/contract 在本窗一致；这些均为本地 smoke 证据，不是官方
 隔离重跑显示 `8192` token 档的裸端点也发生 6/6 超时，因此不支持把超时单独归因于 ARM Agent；但部分实验格未收到响应，不能比较完整能力或建立 endpoint 与 Agent 的唯一因果关系。结果审计已成为后续实验的固定报告基座，但不会把本地 native/contract 判定当作官方 judger 等价物，也不会把 timeout 后的 `invalid` 自动改写成模型错误或正确答案。
 
 完整可读归档见 [`docs/9.28/v2/ARM-Harness v2 完成情况归档.md`](9.28/v2/ARM-Harness%20v2%20完成情况归档.md)；raw 请求和机器汇总继续按仓库卫生规则留在本地实验目录，不作为新提交的必要内容。
+
+## 六点五十八、ARM-V2.1.4-CFR-20261004
+
+| 候选 | 代码/接口证据 | 处置 |
+|---|---|---|
+| `arm-v2.1.4-cfr`：Primary → Challenger → Targeted Repair → Fresh Review | 结构化异议、可修复证据门、精确 issue 对齐、严格三参数 client 降级、bank/RAG/Skill 隔离；相关回归和离线 verifier 通过，2026-10-04 官方 100 题报告已归档 | `DEPLOYED_EVALUATED_NO_PROMOTION / CODE_ACCEPTED / NO_CAPABILITY_CONCLUSION` |
+
+CFR 是 invalid rescue 的全新方法 ID，不是 GRH v1.1 / 119 基线的别名，也不把旧
+`arm-v2.1.4-off`/`adaptive` freeze 当作正式 selector。默认配置为 `selective`、solver
+reasoning off、正证据 Trust Gate、4 次调用和 16,384 token；hybrid router、答案库、RAG
+和 Skill 关闭。Fresh Review 不通过时保留 incumbent，避免把未经证据支持的修复写回最终答案。
+
+官方 100 题报告已归档为 `21 / 6 / 73`，200 次请求中 70 次 `finish_reason=length`，
+基础设施错误和 deadline failure 均为 0；结果范围不同于历史 112 题记录，不能据此填写
+相对 119 的能力提升。若出现 correct→invalid 损失、model error 超门或三参数入口失败，
+回滚到 `43a02da`。协议、manifest 和 verifier 见
+[`docs/releases/arm-v2.1.4-cfr-20261004/`](releases/arm-v2.1.4-cfr-20261004/)。
+
+## 六点五十九、ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005
+
+| 候选 | 预注册状态 | 处置 |
+|---|---|---|
+| `arm-v2.1.5-bounded-tail`：唯一显式截断尾的 1,024-token 短确认 | 10 轮、50 题完成；激活 0 次 | `ENGINEERING_NOT_ACTIVATED / NO_CAPABILITY_CONCLUSION`；默认关闭，不修改 `SUBMISSION_CONFIG` |
+
+该候选只改变 v2.1.4 的第二次请求选择：确认与主候选等价才形成共识；UNKNOWN、冲突或
+不满足截断尾条件时保留 v2.1.4 的安全候选/Challenger 行为。本轮候选与基线均为
+`7 correct / 9 incorrect / 9 invalid`，没有真实确认请求；逐题转移和处置见
+[`ARM-V2.1.5 result`](experiments/ARM-V2.1.5-BOUNDED-TAIL-RECOVERY-20261005/result.md)。
+若要继续，必须先执行独立的
+[`length-pressure activation probe`](experiments/ARM-V2.1.5-LENGTH-PRESSURE-ACTIVATION-PROBE-20261005/preregistration.md)，
+再以新 method ID 注册真实端点窗口。
+
+## 七、ARM-V2.1.6-MISSING-CANDIDATE-RECOVERY-20261005
+
+| 候选 | 结果 | 处置 |
+|---|---|---|
+| `arm-v2.1.6-missing-candidate`：Primary 无候选时用一次独立短答案形成替代空 Challenger | 10 轮、50 题完成；候选 `20/4/1`，基线 `19/5/1`；触发 `1/25`；0 model error | `EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；invalid 未下降，保持默认关闭 |
+
+唯一逐题变化是 `incorrect → correct` 1 题；由于机制几乎未激活，不能把该变化归因于候选路径。完整结果见
+[`ARM-V2.1.6 result`](experiments/ARM-V2.1.6-MISSING-CANDIDATE-RECOVERY-20261005/result.md)。任何重启都必须提出不同假设、使用干净工作树和新的 paired 预注册。
+
+## 七、ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005
+
+| 候选 | 结果 | 处置 |
+| --- | --- | --- |
+| `arm-v2.1.7-structured-confirmation`：Challenger 只对 incumbent 做结构化 JSON 确认 | 10 轮、50 条记录；候选和基线均为 `24 correct / 0 incorrect / 1 invalid`，平均调用 `1.68`，截断率 `0`；候选触发 `17/25` | `NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；保持默认关闭 |
+
+激活门通过，且实现拒绝新值、答案标记和 malformed JSON；探索收益门失败，因为 invalid、
+correct 和 incorrect 均没有相对基线变化。完整逐题转移、成本和范围字段见
+[`ARM-V2.1.7 result`](experiments/ARM-V2.1.7-STRUCTURED-CONFIRMATION-20261005/result.md)。
+该窗口只验证了 incumbent-only 协议路径，不能推断官方能力收益；任何重启都必须使用新鲜题集、
+新假设和新的 paired 预注册。
+
+## 七点零零、ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005
+
+| 候选 | 结果 | 处置 |
+| --- | --- | --- |
+| `arm-v2.1.8-external-pressure` 首次 X01–X10 | 评分依赖未预检，且第二次预算实际为 2,048/4,096，违反唯一变量约束 | `VOID / NO_CAPABILITY_CONCLUSION`；不得使用其数字，纠正窗口改用新 method ID |
+
+审计记录见 [`ARM-V2.1.8 VOID result`](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-20261005/result.md)。
+
+## 七点零一、ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005
+
+| 候选 | 结果 | 处置 |
+| --- | --- | --- |
+| `arm-v2.1.8-external-pressure`：Primary 不完整/截断时使用一次最多 2,048 token 的 answer-only finalizer | 纠正窗口 10 轮、50 条记录；候选 `5/15/5`，基线 `3/17/5`；触发 `3/25`；候选截断 0、基线截断 3 | `EXPLORATORY_GO / REPLICATION_REQUIRED / NO_PROMOTION`；保持默认关闭 |
+
+纠正窗口通过了激活、安全、收益和成本门；逐题转移包含 2 个 `incorrect → correct`，没有
+`correct → incorrect`，但 invalid 没有下降。该结果只允许进入新的独立 paired 复验，不能
+外推为官方能力提升或直接修改 `SUBMISSION_CONFIG`。完整证据见
+[`ARM-V2.1.8-002 result`](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-002-20261005/result.md)。
+
+## 七点零二、ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005
+
+| 候选 | 结果 | 处置 |
+| --- | --- | --- |
+| `arm-v2.1.8-external-pressure` 独立 Y01–Y10 复验 | 10 轮、50 条记录；候选/基线均为 `3/15/7`，候选截断 `0`、基线 `2`，候选触发 `3/25`，平均调用均为 `2.00` | `EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；存在 1 个 `correct → incorrect`，保持默认关闭 |
+
+Y 窗口使用与 X01–X10 不重叠的 OlymMATH、AIME 和 HLE Math 题目。截断事件虽减少 2 个，
+但 invalid 没有下降，且出现一个正确到错误的逐题反转，因此不能把截断改善解释为无损能力
+收益。完整证据见
+[`ARM-V2.1.8 replication result`](experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/result.md)。
+
+## 七点零三、ARM-V2.1.9-INCUMBENT-GUARD-20261005
+
+| 候选 | 结果 | 处置 |
+| --- | --- | --- |
+| `arm-v2.1.9-incumbent-guard`：完整 incumbent 触发原 CFR Challenger，只有缺失/不完整 Primary 才触发 compact finalizer | Z01–Z10：候选 `6/15/4`，基线 `2/17/6`；guard `25/25`；出现 1 个 `correct → incorrect` | `NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；保持默认关闭 |
+
+该实验只改变 v2.1.8 的 finalizer 触发门，候选和基线共用 1,024/4,096 token
+压力预算，题目与 X/Y 窗口不重叠。guard 激活且成本相同，但安全门因一条
+`correct → incorrect` 转移失败；完整证据见
+[`ARM-V2.1.9 result`](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md) 和
+[`comparison.json`](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/comparison.json)。
+不得把本地数字用于晋升或官方结论。
+
+## 七点零四、ARM-V2.2-ANSWER-COMMIT-20261005
+
+| 候选 | 预注册状态 | 处置 |
+| --- | --- | --- |
+| `arm-v2.2-answer-commit`：第一次请求先提交唯一 `Final answer`，再进行最多四行核对；第二次仍走 CFR Challenger | Q01–Q10 完成；候选 `0/15/10`，基线 `1/15/9`，截断 `0` 对 `3`，0 model error | `EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；默认关闭 |
+
+该假设改变第一次答案形成顺序，不复用 v2.1.8/2.1.9 的截断后收束器。候选和基线共用
+2,048/4,096 token 请求预算，题目来自与 X/Y/Z 不重叠的外部 OlymMATH、AIME 和 HLE 池。
+截断事件减少 3 个，但出现 1 个 `correct → incorrect`，invalid 反而增加 1 个，安全门和
+探索收益门均失败；不得修改 `SUBMISSION_CONFIG`、正式 selector、GitCode main 或官方作品。
+预注册、逐题转移和门判定见
+[`ARM-V2.2 result`](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/result.md) 与
+[`comparison.json`](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/comparison.json)。
+
+## 七点零五、ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005
+
+| 候选 | 预注册状态 | 处置 |
+|---|---|---|
+| `arm-v2.3-primary-tail`：Primary 无候选但有部分输出时，把有限尾部交给同一轨迹 continuation；完整 incumbent 保留 CFR Challenger | T01–T10 完成；候选 `4/15/6`，基线 `3/16/6`；0/25 continuation 激活；0 model error | `EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；默认关闭 |
+
+该方案只允许一次最多 2,048 token 的 continuation，原始尾部不进入 trace 或提交工件。本窗口
+没有触发 continuation，invalid 未下降且候选截断多 1 次；因此不能把普通 CFR 路径的一题
+差异归因于 v2.3。完整结果、逐题转移和门判定见
+[`ARM-V2.3 result`](experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/result.md)。
+
+## 七点零六、ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005
+
+| 候选 | 预注册状态 | 处置 |
+|---|---|---|
+| `arm-v2.4-risk-gated`：仅对 structured/deep 或低置信路由启用答案保留位，direct/high-confidence 保留 v2.1 首轮 | U01–U10 原始诊断计数为候选 `0/21/4`、对照 `1/22/2`、激活 `25/25`，但 10 个 manifest 均为 `working_tree_dirty=true` | `VOID / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；默认关闭 |
+
+该窗口使用新的 OlymMATH、AIME 和 HLE Math 题目，首轮/次轮预算为 2,048/4,096，且与
+X/Y/Z/Q/T 不重叠。严格 provenance 审计发现所有 manifest 都带脏工作树标记，故整窗先判 `VOID`；
+原始计数不能支持能力或安全门结论。不得修改 `SUBMISSION_CONFIG`、正式 selector、GitCode
+main 或官方作品；重启必须在干净工作树上使用不同的、可解释的答案形成假设和新的独立配对窗口。
+
+完整结果、逐题转移和门判定见
+[`ARM-V2.4 result`](experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/result.md)
+与 [`comparison.json`](experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/comparison.json)。

@@ -1,4 +1,4 @@
-# 分支与发布面地图（2026-09-21 梳理）
+# 分支与发布面地图（2026-10-04 梳理）
 
 > 目的：记录当前 GitCode 发布面、本地工作分支和历史档案分支。GitHub `origin`
 > 与 GitCode 分开维护；未明确授权时不互相删除或同步。
@@ -10,17 +10,18 @@ ref/worktree 发布拓扑，不重复记录每个实验架构的细节。
 
 | ref | tip | 角色 |
 | --- | --- | --- |
-| **gitcode/main** | `ca15d39` | **AtomGit/赛事发布面** |
+| **gitcode/main** | 以远端 `main` 为准 | **AtomGit/赛事发布面；ARM v2.1.4 CFR canary** |
 | **gitcode/codex/harness** | `1bc41ac` | Harness 分支拓扑文档线，非当前 checkout |
 | **local codex/harness** | `1bc41ac` | 保留的 Harness 文档分支，非当前 checkout |
-| **local main** | `7779ab7` | 本地 main，保留但未与 GitCode main 对齐 |
-| **origin/main**（GitHub） | `fc1b671` | GitHub 发布面，未在本轮修改 |
+| **local main** | `e346bf5` | 本地 main，保留但未与 GitCode main 对齐 |
+| **origin/main**（GitHub） | `b730409` | GitHub 发布面，未在本轮修改 |
 
 ## 当前工作分支
 
 | 分支 | tip | 内容 |
 | --- | --- | --- |
-| **codex/repo-hygiene-cleanup** | `fca3d2b` | 当前唯一活动 worktree；profile 开关与 worktree 收敛整理 |
+| **codex/arm-v214-cfr** | 以分支 HEAD 为准 | 当前活动分支；ARM v2.1.4 CFR 新方案、接口兼容与发布文档 |
+| **codex/rollback-119** | `43a02da` | 回滚锚；GRH v1.1 / 119 正确基线与实验归档 |
 
 ## GitCode 历史档案分支
 
@@ -57,7 +58,7 @@ ref/worktree 发布拓扑，不重复记录每个实验架构的细节。
 
 ## 发布后例行动作（每次 canary 发布/回滚后）
 
-1. 先在 `codex/repo-hygiene-cleanup` 或新的实验分支完成 scoped commit；
+1. 先在 `codex/arm-v214-cfr` 或新的实验分支完成 scoped commit；
 2. 发布到 GitCode 时显式指定目标 ref，不默认同步 `origin`；
 3. 本表只记录已核验的 commit tip、archive ref 和 worktree 状态。
 

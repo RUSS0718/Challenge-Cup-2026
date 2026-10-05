@@ -1,0 +1,45 @@
+{
+  "protocol_id": "ARM-V2.1.4-CFR-20261004",
+  "method_id": "arm_v2.1.4_cfr",
+  "submission_mode": "arm-v2.1.4-cfr",
+  "status": "DEPLOYED_EVALUATED_NO_PROMOTION",
+  "target_ref": "gitcode/main",
+  "rollback_anchor": "43a02da",
+  "official_evaluation": true,
+  "official_evaluation_id": "OFFICIAL-20261004-B63059",
+  "official_evaluation_summary": {
+    "dataset_records": 100,
+    "correct": 21,
+    "incorrect": 6,
+    "invalid": 73,
+    "valid_accuracy": 0.7777777778,
+    "requests": 200,
+    "finish_reason_length": 70,
+    "infrastructure_errors": 0,
+    "deadline_failures": 0,
+    "runner_completed": true,
+    "record": "docs/official_evaluations/2026-10-04/report.json"
+  },
+  "runtime_files": [
+    "user_agent.py",
+    "reasoning_agent/submission_config.py",
+    "reasoning_agent/profiles.py",
+    "reasoning_agent/math_harness.py",
+    "reasoning_agent/client_dispatch.py",
+    "reasoning_agent/arm_harness_v214.py",
+    "reasoning_agent/arm_v214_verification.py",
+    "reasoning_agent/answer_completeness_v214.py"
+  ],
+  "runtime_file_sha256": {
+    "user_agent.py": "72f6b54f593b675990ffdaa36718e7a928abcfc1d18980785b4dfda9648abe3c",
+    "reasoning_agent/submission_config.py": "462adfbfc941b7cca35d96961c9643129c34f5e01001cc3ae830aeffb5ee5fe9",
+    "reasoning_agent/profiles.py": "856a6a493af8ea3fcf3a850b2558adaec672e62141b939549edc9e6dd6b47154",
+    "reasoning_agent/math_harness.py": "22d13321ba03f29096f4d4848f1b2a34fa677f2fb4f76b0df873247df00f663f",
+    "reasoning_agent/client_dispatch.py": "b700bee7169a5dc942ad6cba8bacd97ba93c4d44934b909f733933445fecd5f3",
+    "reasoning_agent/arm_harness_v214.py": "3fdac9da431d4ba65e25a73b725c7757bad6218092ca03771fe9b524b2fd287b",
+    "reasoning_agent/arm_v214_verification.py": "e88e1762295706c47e08d898a3eedde0e53b4d8fa4a1b733e69c343453705bda",
+    "reasoning_agent/answer_completeness_v214.py": "4c112dc979ff7d44cd72aa97349aef06e5f600cc09317f86d50dc49d9872191a"
+  },
+  "notes": "Runtime hashes describe the release snapshot. The 2026-10-04 official report is archived separately; its 100-item scope is not comparable to the historical 112-item table.",
+  "hash_format": "sha256 with CRLF normalized to LF"
+}
