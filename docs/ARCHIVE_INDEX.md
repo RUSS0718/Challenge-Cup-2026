@@ -27,6 +27,9 @@
 - [ARM v2.3 primary-tail continuation](experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/result.md)：
   T01–T10 已完成；候选 continuation `0/25` 激活，invalid 未下降，保持
   `EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册、逐题转移和比较工件见同目录。
+- [ARM v2.4 risk-gated answer reservation](experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/result.md)：
+  U01–U10 已完成；候选激活 `25/25`，但正确数下降、invalid 和截断均未改善，保持
+  `EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册、逐题转移和比较工件见同目录。
 - [architecture_evolution.md](architecture_evolution.md)：从赛事模板到当前 Harness 的架构谱系、版本状态和证据边界。
 - [official_evaluations/](official_evaluations/)：按北京日期归档官方原始日志与 agent 分析。
 - [excluded_approaches.md](excluded_approaches.md)：实验处置的单一事实源。

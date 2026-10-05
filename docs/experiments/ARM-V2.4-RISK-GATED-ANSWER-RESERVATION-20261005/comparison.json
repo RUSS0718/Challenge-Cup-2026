@@ -1,0 +1,293 @@
+{
+  "method_id": "ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005",
+  "status": "EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION",
+  "evaluation_scope": "local_replay",
+  "official_evaluation": false,
+  "round_ids": [
+    "U01",
+    "U02",
+    "U03",
+    "U04",
+    "U05",
+    "U06",
+    "U07",
+    "U08",
+    "U09",
+    "U10"
+  ],
+  "paired_records": 25,
+  "datasets": [
+    {
+      "candidate_round": "U01",
+      "baseline_round": "U02",
+      "dataset": "external_olymmath",
+      "records": 5,
+      "selected_items_equal": true
+    },
+    {
+      "candidate_round": "U03",
+      "baseline_round": "U04",
+      "dataset": "external_olymmath",
+      "records": 5,
+      "selected_items_equal": true
+    },
+    {
+      "candidate_round": "U05",
+      "baseline_round": "U06",
+      "dataset": "external_aime",
+      "records": 5,
+      "selected_items_equal": true
+    },
+    {
+      "candidate_round": "U07",
+      "baseline_round": "U08",
+      "dataset": "external_hle",
+      "records": 5,
+      "selected_items_equal": true
+    },
+    {
+      "candidate_round": "U09",
+      "baseline_round": "U10",
+      "dataset": "external_hle",
+      "records": 5,
+      "selected_items_equal": true
+    }
+  ],
+  "candidate": {
+    "incorrect": 21,
+    "invalid": 4,
+    "model_errors": 0,
+    "total_model_calls": 50,
+    "average_model_calls": 2.0,
+    "risk_gate_activation": {
+      "activated": 25
+    },
+    "truncation_count": 2
+  },
+  "baseline": {
+    "incorrect": 22,
+    "correct": 1,
+    "invalid": 2,
+    "model_errors": 0,
+    "total_model_calls": 50,
+    "average_model_calls": 2.0,
+    "risk_gate_activation": {},
+    "truncation_count": 0
+  },
+  "paired_transitions": {
+    "incorrect__to__incorrect": 20,
+    "incorrect__to__correct": 1,
+    "invalid__to__invalid": 2,
+    "invalid__to__incorrect": 2
+  },
+  "gates": {
+    "void_gate": "PASS",
+    "activation_gate": "PASS",
+    "safety_gate": "FAIL",
+    "exploration_gain_gate": "FAIL",
+    "cost_gate": "PASS"
+  },
+  "pairs": [
+    {
+      "round": "U01",
+      "item_id": "OlymMATH-HARD-42-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U01",
+      "item_id": "OlymMATH-HARD-43-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U01",
+      "item_id": "OlymMATH-HARD-44-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U01",
+      "item_id": "OlymMATH-HARD-45-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U01",
+      "item_id": "OlymMATH-HARD-46-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U03",
+      "item_id": "OlymMATH-HARD-50-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U03",
+      "item_id": "OlymMATH-HARD-51-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U03",
+      "item_id": "OlymMATH-HARD-52-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U03",
+      "item_id": "OlymMATH-HARD-53-EN",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U03",
+      "item_id": "OlymMATH-HARD-54-ZH",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U05",
+      "item_id": "aime-5",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "correct",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U05",
+      "item_id": "aime-6",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U05",
+      "item_id": "aime-7",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U05",
+      "item_id": "aime-8",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U05",
+      "item_id": "aime-9",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U07",
+      "item_id": "hle-670df2e172288739ca35e0e1",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U07",
+      "item_id": "hle-6754baec618d187bb3362936",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U07",
+      "item_id": "hle-670c2d61886695e43e7c18b3",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U07",
+      "item_id": "hle-6708862963c4d58d76c98746",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "invalid",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U07",
+      "item_id": "hle-673716bd2773953bca4195d7",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U09",
+      "item_id": "hle-673e9bb58e7609d034b4ec54",
+      "candidate_outcome": "invalid",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U09",
+      "item_id": "hle-6732a917934ffe0cf439cf30",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U09",
+      "item_id": "hle-673b192f331c2eeff8631ccf",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U09",
+      "item_id": "hle-672067805681ce2b6f5a08a7",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    },
+    {
+      "round": "U09",
+      "item_id": "hle-66f708eec8903a7f2c03edbe",
+      "candidate_outcome": "incorrect",
+      "baseline_outcome": "incorrect",
+      "candidate_calls": 2,
+      "baseline_calls": 2
+    }
+  ],
+  "evidence_boundary": "Local endpoint replay only; no official selector or submission config is changed."
+}

@@ -37,6 +37,8 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V219_INCUMBENT_GUARD,
     PROFILE_ARM_V220_ANSWER_COMMIT,
     PROFILE_ARM_V223_PRIMARY_TAIL,
+    PROFILE_ARM_V224_RISK_GATED,
+    PROFILE_ARM_V224_CFR_PRESSURE,
     PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
@@ -84,6 +86,8 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V219_INCUMBENT_GUARD,
                 PROFILE_ARM_V220_ANSWER_COMMIT,
                 PROFILE_ARM_V223_PRIMARY_TAIL,
+                PROFILE_ARM_V224_RISK_GATED,
+                PROFILE_ARM_V224_CFR_PRESSURE,
             ),
             available_profiles(),
         )
@@ -216,6 +220,16 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("v2.3", continuation.arm_harness_version)
         self.assertTrue(continuation.enable_arm_harness)
         self.assertEqual("positive_evidence", continuation.arm_trust_policy)
+        self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
+
+    def test_v224_risk_gated_profile_is_explicit_and_pressure_is_equalized(self):
+        candidate = build_profile_config(PROFILE_ARM_V224_RISK_GATED)
+        baseline = build_profile_config(PROFILE_ARM_V224_CFR_PRESSURE)
+        self.assertEqual("v2.4", candidate.arm_harness_version)
+        self.assertEqual("v2.1.4", baseline.arm_harness_version)
+        self.assertEqual(2_048, candidate.harness_attempt_a_max_tokens)
+        self.assertEqual(candidate.harness_attempt_a_max_tokens, baseline.harness_attempt_a_max_tokens)
+        self.assertEqual(candidate.harness_attempt_b_max_tokens, baseline.harness_attempt_b_max_tokens)
         self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
 
     def test_main_parser_accepts_profile_switch(self):

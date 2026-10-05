@@ -93,6 +93,14 @@ invalid 没有下降，不能把一题差异归因于该机制。因此保持
 `EXPLORATORY_NO_GO / DEFAULT_OFF`，不改变正式 selector。预注册和结果见
 `docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/`。
 
+### ARM v2.4 risk-gated answer reservation（实验 profile，默认关闭）
+
+该候选只对 `structured/deep` 或低置信路由启用答案保留位，`direct/high-confidence` 题保持
+v2.1 首轮，第二轮仍走 CFR。U01–U10 结果为候选 `0/21/4`、对照 `1/22/2`，候选激活 `25/25`，
+严格 provenance 复核发现 10 个 manifest 均为脏工作树，整窗判为 `VOID / DEFAULT_OFF`；原始计数不能支持能力结论，正式 selector
+仍为 ARM v2.1.4 CFR。预注册和完整结果见
+`docs/experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/`。
+
 ### Contextual Answer Reconstruction 历史实验路径
 
 该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用

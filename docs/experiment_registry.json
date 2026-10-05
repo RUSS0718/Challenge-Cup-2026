@@ -168,6 +168,17 @@
       "report": "docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/",
       "last_evidence": "docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/comparison.json",
       "restart_rule": "Keep default-off. Do not infer capability from this unactivated window; any restart requires an activation-focused, disjoint paired preregistration with a minimum activation gate and the no-regression safety gate."
+    },
+    {
+      "method_id": "ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005",
+      "status": "VOID",
+      "evaluation_scope": "local_replay",
+      "dataset_scope": "fresh external OlymMATH, AIME, and HLE Math pools; U01-U10 paired window",
+      "summary": "U01-U10 raw diagnostic counts were candidate 0/21/4 versus baseline 1/22/2, but all ten manifests recorded a dirty working tree; strict provenance therefore voided the paired comparison.",
+      "baseline": "ARM-V2.1.4-CFR-20261004",
+      "report": "docs/experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/result.md",
+      "last_evidence": "docs/experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/comparison.json",
+      "restart_rule": "Keep default-off. Do not reuse this dirty-tree window; restart only with a materially different answer-formation hypothesis, a clean checkout, a fresh disjoint paired preregistration, and provenance validation before capability gates."
     }
   ]
 }

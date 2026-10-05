@@ -60,6 +60,14 @@ invalid 或成本收益；详见 `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRM
 未下降，因此保持 `EXPLORATORY_NO_GO / DEFAULT_OFF`，不得修改 `SUBMISSION_CONFIG`。
 详见 `docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/`。
 
+**ARM v2.4 risk-gated answer reservation**:
+实验性、默认关闭的首轮提示门。只有宿主路由为 `structured/deep` 或置信度不是 `high` 时，
+才启用答案保留位；`direct/high-confidence` 题继续使用 v2.1 首轮，第二轮仍走 CFR。
+U01–U10 的候选/对照为 `0/21/4` 对 `1/22/2`，候选激活 `25/25`，截断 `2` 对 `0`，
+出现候选与对照的逐题差异；但 10 个 manifest 均记录脏工作树，严格 provenance 审计将窗口判为
+`VOID / DEFAULT_OFF`。不得修改 `SUBMISSION_CONFIG`，详见
+`docs/experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/`。
+
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，
 才使用一次受限上下文重构。该路径尚未完成真实能力验证；RAG、工具、MCP、旧

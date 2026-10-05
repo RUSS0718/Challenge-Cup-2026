@@ -153,6 +153,13 @@ primary-tail continuation 的 T01–T10 窗口。v2.2 虽把截断从 3 降到 0
 default-off。实验注册表、预注册、逐题 comparison 和结果页现在是下一次代理进入任务时的
 首查入口，避免把未激活或失败的机制误当成当前默认路径。
 
+随后新增 v2.4 risk-gated answer reservation，并完成 U01–U10 的 25 条配对复验。候选只在
+structured/deep 或低置信路由使用答案保留位，实际激活 `25/25`；原始诊断计数为候选 `0/21/4`、
+基线 `1/22/2`，截断 `2` 对 `0`。复核发现 10 个 manifest 都记录 `working_tree_dirty=true`，
+因此严格 provenance 门把整窗判为 `VOID`；这些计数不能被宣传为能力比较。此次还把候选到基线的
+所有正确答案回退（`incorrect/invalid/error → correct`）纳入安全门，并加入脏工作树回归测试，
+防止代理把不可复现的实验或单项卫生指标误读为收益。后续实验必须在干净工作树上重新预注册。
+
 ## 证据边界
 
 线程耗时和搜索计数来自 Codex 线程事件，是检索成本的信号，不是模型能力基准；部分线程有未加载的更早 turn，且少数任务页带 `hasMore=true`。历史文档中的分数和配置只在其注明的范围内成立，不能把不同题数的结果直接比较。2026-10-04 官方 100 题报告已归档，但它只支持 `21/6/73` 和 70 次 length 结束的范围内事实，不构成 CFR 的跨数据集能力结论，见 [`docs/official_evaluations/2026-10-04/record.md`](../official_evaluations/2026-10-04/record.md)。

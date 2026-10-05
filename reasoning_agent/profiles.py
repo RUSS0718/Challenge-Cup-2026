@@ -44,6 +44,8 @@ PROFILE_ARM_V218_COMPACT_FINALIZER: Final = "arm-v2.1.8-compact-finalizer"
 PROFILE_ARM_V219_INCUMBENT_GUARD: Final = "arm-v2.1.9-incumbent-guard"
 PROFILE_ARM_V220_ANSWER_COMMIT: Final = "arm-v2.2-answer-commit"
 PROFILE_ARM_V223_PRIMARY_TAIL: Final = "arm-v2.3-primary-tail"
+PROFILE_ARM_V224_RISK_GATED: Final = "arm-v2.4-risk-gated"
+PROFILE_ARM_V224_CFR_PRESSURE: Final = "cfr-v2.4-risk-pressure"
 ARM_V21_REQUEST_TIMEOUT_SECONDS: Final = 600
 PROFILE_NAMES: Final = (
     PROFILE_SUBMISSION,
@@ -79,6 +81,8 @@ PROFILE_NAMES: Final = (
     PROFILE_ARM_V219_INCUMBENT_GUARD,
     PROFILE_ARM_V220_ANSWER_COMMIT,
     PROFILE_ARM_V223_PRIMARY_TAIL,
+    PROFILE_ARM_V224_RISK_GATED,
+    PROFILE_ARM_V224_CFR_PRESSURE,
 )
 
 
@@ -275,6 +279,21 @@ def build_profile_config(profile: str) -> AgentConfig:
         return replace(
             build_submission_config("arm-v2.1.4-cfr"),
             arm_harness_version="v2.3",
+        )
+    if normalized == PROFILE_ARM_V224_RISK_GATED:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            arm_harness_version="v2.4",
+            harness_attempt_a_max_tokens=2_048,
+            harness_attempt_b_max_tokens=4_096,
+            harness_total_token_budget=16_384,
+        )
+    if normalized == PROFILE_ARM_V224_CFR_PRESSURE:
+        return replace(
+            build_submission_config("arm-v2.1.4-cfr"),
+            harness_attempt_a_max_tokens=2_048,
+            harness_attempt_b_max_tokens=4_096,
+            harness_total_token_budget=16_384,
         )
     choices = ", ".join(PROFILE_NAMES)
     raise ValueError(f"unknown_profile:{profile!r}; choose one of: {choices}")

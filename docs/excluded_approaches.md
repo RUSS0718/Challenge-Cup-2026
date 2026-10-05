@@ -887,3 +887,18 @@ Y 窗口使用与 X01–X10 不重叠的 OlymMATH、AIME 和 HLE Math 题目。�
 没有触发 continuation，invalid 未下降且候选截断多 1 次；因此不能把普通 CFR 路径的一题
 差异归因于 v2.3。完整结果、逐题转移和门判定见
 [`ARM-V2.3 result`](experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/result.md)。
+
+## 七点零六、ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005
+
+| 候选 | 预注册状态 | 处置 |
+|---|---|---|
+| `arm-v2.4-risk-gated`：仅对 structured/deep 或低置信路由启用答案保留位，direct/high-confidence 保留 v2.1 首轮 | U01–U10 原始诊断计数为候选 `0/21/4`、对照 `1/22/2`、激活 `25/25`，但 10 个 manifest 均为 `working_tree_dirty=true` | `VOID / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；默认关闭 |
+
+该窗口使用新的 OlymMATH、AIME 和 HLE Math 题目，首轮/次轮预算为 2,048/4,096，且与
+X/Y/Z/Q/T 不重叠。严格 provenance 审计发现所有 manifest 都带脏工作树标记，故整窗先判 `VOID`；
+原始计数不能支持能力或安全门结论。不得修改 `SUBMISSION_CONFIG`、正式 selector、GitCode
+main 或官方作品；重启必须在干净工作树上使用不同的、可解释的答案形成假设和新的独立配对窗口。
+
+完整结果、逐题转移和门判定见
+[`ARM-V2.4 result`](experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/result.md)
+与 [`comparison.json`](experiments/ARM-V2.4-RISK-GATED-ANSWER-RESERVATION-20261005/comparison.json)。
