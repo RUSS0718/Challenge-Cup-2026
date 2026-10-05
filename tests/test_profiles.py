@@ -35,6 +35,7 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V217_STRUCTURED_CONFIRMATION,
     PROFILE_ARM_V218_COMPACT_FINALIZER,
     PROFILE_ARM_V219_INCUMBENT_GUARD,
+    PROFILE_ARM_V220_ANSWER_COMMIT,
     PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
@@ -80,6 +81,7 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V217_STRUCTURED_CONFIRMATION,
                 PROFILE_ARM_V218_COMPACT_FINALIZER,
                 PROFILE_ARM_V219_INCUMBENT_GUARD,
+                PROFILE_ARM_V220_ANSWER_COMMIT,
             ),
             available_profiles(),
         )
@@ -198,6 +200,13 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("v2.1.9", guarded.arm_harness_version)
         self.assertTrue(guarded.enable_arm_harness)
         self.assertEqual("positive_evidence", guarded.arm_trust_policy)
+        self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
+
+    def test_v220_answer_commit_profile_is_explicit_and_default_off(self):
+        answer_commit = build_profile_config(PROFILE_ARM_V220_ANSWER_COMMIT)
+        self.assertEqual("v2.2", answer_commit.arm_harness_version)
+        self.assertTrue(answer_commit.enable_arm_harness)
+        self.assertEqual("positive_evidence", answer_commit.arm_trust_policy)
         self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
 
     def test_main_parser_accepts_profile_switch(self):

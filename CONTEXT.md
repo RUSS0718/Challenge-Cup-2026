@@ -45,6 +45,13 @@ invalid 或成本收益；详见 `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRM
 缺失或不完整 Primary。Z01–Z10 guard 激活 25/25，但出现 1 个 `correct → incorrect`，
 状态为 `NO_GO`；不得修改 `SUBMISSION_CONFIG` 或把候选数字当作官方能力结论。
 
+**ARM v2.2 answer-commit-first**:
+实验性、默认关闭的首轮答案提交协议。第一次请求必须先输出唯一 `Final answer`，随后最多
+四行核对；第二次请求仍使用 v2.1.4 CFR Challenger。它针对官方 70/200 次 length 和 73
+个 invalid 的工程风险，不等同于数学能力提升。Q01–Q10 预注册见
+`docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md`；在安全门通过前
+不得修改 `SUBMISSION_CONFIG`。
+
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，
 才使用一次受限上下文重构。该路径尚未完成真实能力验证；RAG、工具、MCP、旧

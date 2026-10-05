@@ -398,6 +398,65 @@ def incumbent_guard_round_specs() -> tuple[RoundSpec, ...]:
     return tuple(specs)
 
 
+def answer_commit_round_specs() -> tuple[RoundSpec, ...]:
+    """Return ten paired rounds for the v2.2 answer-commit hypothesis.
+
+    These five groups are disjoint from the X/Y/Z external-pressure windows.
+    Both arms use the same 2,048-token first-call and 4,096-token second-call
+    budgets; only the candidate's first-call output contract changes.
+    """
+    groups = (
+        (
+            "external_olymmath",
+            (
+                "OlymMATH-HARD-13-ZH", "OlymMATH-HARD-15-ZH",
+                "OlymMATH-HARD-17-ZH", "OlymMATH-HARD-18-EN",
+                "OlymMATH-HARD-19-EN",
+            ),
+        ),
+        (
+            "external_olymmath",
+            (
+                "OlymMATH-HARD-20-ZH", "OlymMATH-HARD-21-EN",
+                "OlymMATH-HARD-22-ZH", "OlymMATH-HARD-23-ZH",
+                "OlymMATH-HARD-24-EN",
+            ),
+        ),
+        (
+            "external_aime",
+            (
+                "aime-2024-II-9", "aime-2024-II-14", "aime-2024-II-5",
+                "aime-2024-II-2", "aime-2024-II-1",
+            ),
+        ),
+        (
+            "external_hle",
+            (
+                "hle-66fbd5aca177ae967e47041b", "hle-6718977144d804f3d0418866",
+                "hle-67053981f8ad2742675478b4", "hle-6742f485e9256150e88912f1",
+                "hle-6721154d5968ddcc0df3a25c",
+            ),
+        ),
+        (
+            "external_hle",
+            (
+                "hle-66fc633698a7264ef58309c0", "hle-66fb8135483861eb2d0252a3",
+                "hle-6730ab9b1c5695f59ab6a5e8", "hle-66ecd3c6e8b95a8f971fb485",
+                "hle-66ef98088171e6ed71be1454",
+            ),
+        ),
+    )
+    specs: list[RoundSpec] = []
+    for index, (dataset, keys) in enumerate(groups, start=1):
+        specs.extend(
+            (
+                RoundSpec(f"Q{index * 2 - 1:02d}", "arm-v2.2-answer-commit", dataset, keys),
+                RoundSpec(f"Q{index * 2:02d}", "cfr-answer-commit-pressure", dataset, keys),
+            )
+        )
+    return tuple(specs)
+
+
 def load_scored_rows(path: Path) -> list[dict[str, Any]]:
     """Load JSON or JSONL rows while retaining a stable string item identifier."""
 
@@ -504,6 +563,20 @@ def build_round_config(spec: RoundSpec) -> Any:
         return replace(
             build_profile_config(spec.profile),
             harness_attempt_a_max_tokens=1_024,
+            harness_attempt_b_max_tokens=4_096,
+            harness_total_token_budget=16_384,
+        )
+    if spec.profile == "arm-v2.2-answer-commit":
+        return replace(
+            build_profile_config(spec.profile),
+            harness_attempt_a_max_tokens=2_048,
+            harness_attempt_b_max_tokens=4_096,
+            harness_total_token_budget=16_384,
+        )
+    if spec.profile == "cfr-answer-commit-pressure":
+        return replace(
+            build_profile_config("arm-v2.1.4-cfr"),
+            harness_attempt_a_max_tokens=2_048,
             harness_attempt_b_max_tokens=4_096,
             harness_total_token_budget=16_384,
         )
@@ -656,6 +729,7 @@ __all__ = [
     "external_pressure_round_specs",
     "external_pressure_replication_round_specs",
     "incumbent_guard_round_specs",
+    "answer_commit_round_specs",
     "load_scored_rows",
     "select_rows",
     "summarize_rows",

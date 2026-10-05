@@ -75,6 +75,13 @@ metadata/gold 隔离和 trace 卫生；100 题官方报告已归档，但没有�
 `NO_GO / DEFAULT_OFF`，不改变正式 selector、parser、评分器或调用上限。结果见
 `docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md`。
 
+### ARM v2.2 answer-commit-first（实验 profile，默认关闭）
+
+该候选针对官方报告中的 `70/200` 次 `length` 和 `73` 个 `invalid`：第一次请求先提交一行
+唯一 `Final answer`，再允许最多四行核对；第二次仍使用 v2.1.4 CFR Challenger。它与
+v2.1.8/2.1.9 的截断后收束不同，当前只完成代码门和 Q01–Q10 预注册，不改变正式 selector。
+预注册见 `docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md`。
+
 ### Contextual Answer Reconstruction 历史实验路径
 
 该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用

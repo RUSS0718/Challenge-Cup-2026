@@ -862,3 +862,14 @@ Y 窗口使用与 X01–X10 不重叠的 OlymMATH、AIME 和 HLE Math 题目。�
 [`ARM-V2.1.9 result`](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md) 和
 [`comparison.json`](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/comparison.json)。
 不得把本地数字用于晋升或官方结论。
+
+## 七点零四、ARM-V2.2-ANSWER-COMMIT-20261005
+
+| 候选 | 预注册状态 | 处置 |
+| --- | --- | --- |
+| `arm-v2.2-answer-commit`：第一次请求先提交唯一 `Final answer`，再进行最多四行核对；第二次仍走 CFR Challenger | `OPEN`；待 Q01–Q10 配对窗口 | 默认关闭；不得在结果前修改正式 selector |
+
+该假设改变第一次答案形成顺序，不复用 v2.1.8/2.1.9 的截断后收束器。候选和基线共用
+2,048/4,096 token 请求预算，题目来自与 X/Y/Z 不重叠的外部 OlymMATH、AIME 和 HLE 池。
+预注册、具体题目和门槛见
+[`ARM-V2.2 preregistration`](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md)。

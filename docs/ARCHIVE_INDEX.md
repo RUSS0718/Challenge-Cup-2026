@@ -21,6 +21,8 @@
 - [ARM v2.1.9 incumbent guard](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/preregistration.md)：
   Z01–Z10 已完成，guard 激活但出现安全门损害；保持 `NO_GO / DEFAULT_OFF`，结果见
   [result](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md)。
+- [ARM v2.2 answer-commit-first](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md)：
+  针对官方 `length`/`invalid` 风险的 Q01–Q10 新预注册窗口，候选默认关闭。
 - [architecture_evolution.md](architecture_evolution.md)：从赛事模板到当前 Harness 的架构谱系、版本状态和证据边界。
 - [official_evaluations/](official_evaluations/)：按北京日期归档官方原始日志与 agent 分析。
 - [excluded_approaches.md](excluded_approaches.md)：实验处置的单一事实源。

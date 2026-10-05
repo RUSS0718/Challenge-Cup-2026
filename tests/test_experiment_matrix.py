@@ -22,6 +22,7 @@ from reasoning_agent.experiment_matrix import (
     external_pressure_round_specs,
     external_pressure_replication_round_specs,
     incumbent_guard_round_specs,
+    answer_commit_round_specs,
 )
 from scripts.run_robustness_matrix import (
     _call_telemetry,
@@ -186,6 +187,26 @@ class ExperimentMatrixTest(unittest.TestCase):
             self.assertEqual(candidate.keys, baseline.keys)
             self.assertEqual("arm-v2.1.6-missing-candidate", candidate.profile)
             self.assertEqual("arm-v2.1.4-cfr", baseline.profile)
+
+    def test_answer_commit_plan_is_ten_new_paired_rounds(self):
+        specs = answer_commit_round_specs()
+        self.assertEqual(10, len(specs))
+        self.assertEqual([f"Q{index:02d}" for index in range(1, 11)], [spec.round_id for spec in specs])
+        for candidate, baseline in zip(specs[::2], specs[1::2]):
+            self.assertEqual(candidate.dataset, baseline.dataset)
+            self.assertEqual(candidate.keys, baseline.keys)
+            self.assertEqual("arm-v2.2-answer-commit", candidate.profile)
+            self.assertEqual("cfr-answer-commit-pressure", baseline.profile)
+
+    def test_answer_commit_plan_equalizes_budgets_and_changes_only_harness(self):
+        candidate = asdict(build_round_config(answer_commit_round_specs()[0]))
+        baseline = asdict(build_round_config(answer_commit_round_specs()[1]))
+        self.assertEqual(2_048, candidate["harness_attempt_a_max_tokens"])
+        self.assertEqual(4_096, candidate["harness_attempt_b_max_tokens"])
+        self.assertEqual(candidate["harness_attempt_a_max_tokens"], baseline["harness_attempt_a_max_tokens"])
+        self.assertEqual(candidate["harness_attempt_b_max_tokens"], baseline["harness_attempt_b_max_tokens"])
+        differing = {key for key in candidate if candidate[key] != baseline[key]}
+        self.assertEqual({"arm_harness_version"}, differing)
 
     def test_missing_candidate_profile_builds_v216_without_changing_budget(self):
         config = build_round_config(missing_candidate_round_specs()[0])

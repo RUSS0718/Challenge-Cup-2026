@@ -34,6 +34,7 @@ from reasoning_agent.experiment_matrix import (  # noqa: E402
     external_pressure_round_specs,
     external_pressure_replication_round_specs,
     incumbent_guard_round_specs,
+    answer_commit_round_specs,
     format_matrix_summary,
     load_scored_rows,
     missing_candidate_round_specs,
@@ -474,6 +475,8 @@ def _merge_round_reports(
         known_specs = external_pressure_replication_round_specs()
     elif selected_ids and all(round_id.startswith("Z") for round_id in selected_ids):
         known_specs = incumbent_guard_round_specs()
+    elif selected_ids and all(round_id.startswith("Q") for round_id in selected_ids):
+        known_specs = answer_commit_round_specs()
     elif selected_ids and all(round_id.startswith("R") for round_id in selected_ids):
         known_specs = default_round_specs()
     else:
@@ -486,6 +489,7 @@ def _merge_round_reports(
             *external_pressure_round_specs(),
             *external_pressure_replication_round_specs(),
             *incumbent_guard_round_specs(),
+            *answer_commit_round_specs(),
         )
     for spec in known_specs:
         report = fresh_by_id.get(spec.round_id)
@@ -619,6 +623,7 @@ def main() -> int:
             *external_pressure_round_specs(),
             *external_pressure_replication_round_specs(),
             *incumbent_guard_round_specs(),
+            *answer_commit_round_specs(),
         )
     }
     selected = None

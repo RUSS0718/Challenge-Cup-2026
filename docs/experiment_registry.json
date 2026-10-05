@@ -146,6 +146,17 @@
       "report": "docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md",
       "last_evidence": "docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/comparison.json",
       "restart_rule": "Keep default-off. Do not promote from this window; any restart requires a new disjoint paired window and a materially different incumbent-preservation hypothesis."
+    },
+    {
+      "method_id": "ARM-V2.2-ANSWER-COMMIT-20261005",
+      "status": "OPEN",
+      "evaluation_scope": "local_replay",
+      "dataset_scope": "new external OlymMATH, AIME, and HLE Math pools; 25 paired records across Q01-Q10",
+      "summary": "Pre-registered answer-commit-first primary prompt with equalized 2,048/4,096 token budgets; second call remains the v2.1.4 CFR Challenger.",
+      "baseline": "ARM-V2.1.4-CFR-20261004",
+      "report": "docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/",
+      "last_evidence": "docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/preregistration.md",
+      "restart_rule": "Do not run before the preregistered Q01-Q10 window. Any restart requires a new disjoint paired window and a materially different first-call formation hypothesis."
     }
   ]
 }
