@@ -87,6 +87,7 @@ final_response + compact trace
 | 2026-10-05 | ARM v2.1.8 compact finalizer：独立外部长度压力复验 | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.8-EXTERNAL-LENGTH-PRESSURE-REPLICATION-20261005/` |
 | 2026-10-05 | ARM v2.1.9 incumbent guard：完整 incumbent 保留 CFR Challenger，收束器只处理缺失/不完整输出 | `NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/` |
 | 2026-10-05 | ARM v2.2 answer-commit-first：第一次请求先提交唯一答案，再进行最多四行核对；第二次仍走 CFR Challenger | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` | `docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/` |
+| 2026-10-05 | ARM v2.3 primary-tail continuation：仅在 Primary 无候选且有部分输出时沿同一轨迹续写有限尾部；完整 incumbent 保留 CFR Challenger | `EXPLORATORY_NO_GO` / `DEFAULT_OFF` / 未激活 | `docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/` |
 
 ## FSDF v2 迭代子谱系
 

@@ -36,6 +36,7 @@ from reasoning_agent.profiles import (
     PROFILE_ARM_V218_COMPACT_FINALIZER,
     PROFILE_ARM_V219_INCUMBENT_GUARD,
     PROFILE_ARM_V220_ANSWER_COMMIT,
+    PROFILE_ARM_V223_PRIMARY_TAIL,
     PROFILE_FSDF_BASELINE,
     PROFILE_SUBMISSION,
     available_profiles,
@@ -82,6 +83,7 @@ class ProfileConfigTest(unittest.TestCase):
                 PROFILE_ARM_V218_COMPACT_FINALIZER,
                 PROFILE_ARM_V219_INCUMBENT_GUARD,
                 PROFILE_ARM_V220_ANSWER_COMMIT,
+                PROFILE_ARM_V223_PRIMARY_TAIL,
             ),
             available_profiles(),
         )
@@ -207,6 +209,13 @@ class ProfileConfigTest(unittest.TestCase):
         self.assertEqual("v2.2", answer_commit.arm_harness_version)
         self.assertTrue(answer_commit.enable_arm_harness)
         self.assertEqual("positive_evidence", answer_commit.arm_trust_policy)
+        self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
+
+    def test_v223_primary_tail_profile_is_explicit_and_default_off(self):
+        continuation = build_profile_config(PROFILE_ARM_V223_PRIMARY_TAIL)
+        self.assertEqual("v2.3", continuation.arm_harness_version)
+        self.assertTrue(continuation.enable_arm_harness)
+        self.assertEqual("positive_evidence", continuation.arm_trust_policy)
         self.assertEqual(build_profile_config(PROFILE_ARM_V214_CFR), SUBMISSION_CONFIG)
 
     def test_main_parser_accepts_profile_switch(self):

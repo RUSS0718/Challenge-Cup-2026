@@ -147,6 +147,12 @@ guard 激活 `25/25`，候选 `6/15/4`、基线 `2/17/6`，但出现 1 个
 robustness matrix 的聚合器，使 paired record、总臂记录和按 profile 的 candidate/baseline
 统计分开，避免代理把双臂合计误读成单一题集结果。
 
+随后按相同顺序完成了 v2.2 answer-commit-first 的 Q01–Q10 窗口，并登记了 v2.3
+primary-tail continuation 的 T01–T10 窗口。v2.2 虽把截断从 3 降到 0，却出现正确答案
+损失；v2.3 的 continuation 在 `0/25` 条候选记录中激活，invalid 未下降，因而两者都保持
+default-off。实验注册表、预注册、逐题 comparison 和结果页现在是下一次代理进入任务时的
+首查入口，避免把未激活或失败的机制误当成当前默认路径。
+
 ## 证据边界
 
 线程耗时和搜索计数来自 Codex 线程事件，是检索成本的信号，不是模型能力基准；部分线程有未加载的更早 turn，且少数任务页带 `hasMore=true`。历史文档中的分数和配置只在其注明的范围内成立，不能把不同题数的结果直接比较。2026-10-04 官方 100 题报告已归档，但它只支持 `21/6/73` 和 70 次 length 结束的范围内事实，不构成 CFR 的跨数据集能力结论，见 [`docs/official_evaluations/2026-10-04/record.md`](../official_evaluations/2026-10-04/record.md)。

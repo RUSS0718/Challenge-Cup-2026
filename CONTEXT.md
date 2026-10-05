@@ -53,6 +53,13 @@ invalid 或成本收益；详见 `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRM
 `EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册和结果见
 `docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/`；不得修改 `SUBMISSION_CONFIG`。
 
+**ARM v2.3 primary-tail continuation**:
+实验性、默认关闭的缺失候选恢复。仅当 Primary 没有候选且有部分输出时，宿主才把有限尾部
+交给一次最多 2,048 token 的同轨迹 continuation；完整 incumbent 继续走 CFR Challenger，
+原始尾部不写入 trace。T01–T10 中激活 `0/25`，候选 `4/15/6`、基线 `3/16/6`，invalid
+未下降，因此保持 `EXPLORATORY_NO_GO / DEFAULT_OFF`，不得修改 `SUBMISSION_CONFIG`。
+详见 `docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/`。
+
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，
 才使用一次受限上下文重构。该路径尚未完成真实能力验证；RAG、工具、MCP、旧

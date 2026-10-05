@@ -23,6 +23,7 @@ from reasoning_agent.experiment_matrix import (
     external_pressure_replication_round_specs,
     incumbent_guard_round_specs,
     answer_commit_round_specs,
+    primary_tail_continuation_round_specs,
 )
 from scripts.run_robustness_matrix import (
     _call_telemetry,
@@ -208,6 +209,30 @@ class ExperimentMatrixTest(unittest.TestCase):
         differing = {key for key in candidate if candidate[key] != baseline[key]}
         self.assertEqual({"arm_harness_version"}, differing)
 
+    def test_primary_tail_plan_is_ten_new_paired_rounds_with_equal_pressure(self):
+        specs = primary_tail_continuation_round_specs()
+        self.assertEqual(10, len(specs))
+        self.assertEqual([f"T{index:02d}" for index in range(1, 11)], [spec.round_id for spec in specs])
+        prior = (
+            *external_pressure_round_specs(),
+            *external_pressure_replication_round_specs(),
+            *incumbent_guard_round_specs(),
+            *answer_commit_round_specs(),
+        )
+        prior_items = {(spec.dataset, key) for spec in prior for key in spec.keys}
+        new_items = {(spec.dataset, key) for spec in specs for key in spec.keys}
+        self.assertTrue(new_items.isdisjoint(prior_items))
+        for candidate, baseline in zip(specs[::2], specs[1::2]):
+            self.assertEqual(candidate.dataset, baseline.dataset)
+            self.assertEqual(candidate.keys, baseline.keys)
+            self.assertEqual("arm-v2.3-primary-tail", candidate.profile)
+            self.assertEqual("cfr-primary-tail-pressure", baseline.profile)
+            candidate_config = asdict(build_round_config(candidate))
+            baseline_config = asdict(build_round_config(baseline))
+            candidate_config.pop("arm_harness_version")
+            baseline_config.pop("arm_harness_version")
+            self.assertEqual(baseline_config, candidate_config)
+
     def test_missing_candidate_profile_builds_v216_without_changing_budget(self):
         config = build_round_config(missing_candidate_round_specs()[0])
         baseline = build_round_config(missing_candidate_round_specs()[1])
@@ -377,6 +402,24 @@ class ExperimentMatrixTest(unittest.TestCase):
         )
         self.assertEqual(1, summary["incumbent_guard_activations"])
         self.assertEqual({"complete_incumbent": 1}, summary["incumbent_guard_reason_counts"])
+
+    def test_summary_counts_primary_tail_continuation_events(self):
+        summary = summarize_rows(
+            [
+                {
+                    "outcome": "invalid",
+                    "verdict": "unknown",
+                    "model_calls": 2,
+                    "finish_reasons": ["length", "stop"],
+                    "trace": [{"stage": "primary_tail_continuation", "reason": "primary_truncated_partial"}],
+                }
+            ]
+        )
+        self.assertEqual(1, summary["primary_tail_continuation_activations"])
+        self.assertEqual(
+            {"primary_truncated_partial": 1},
+            summary["primary_tail_continuation_reason_counts"],
+        )
 
     def test_runner_separates_arm_totals_from_paired_totals(self):
         reports = [

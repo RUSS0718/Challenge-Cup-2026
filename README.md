@@ -84,6 +84,15 @@ v2.1.8/2.1.9 的截断后收束不同。Q01–Q10 的候选/基线结果为 `0/1
 `EXPLORATORY_NO_GO / DEFAULT_OFF`，不改变正式 selector。预注册和完整结果见
 `docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/`。
 
+### ARM v2.3 primary-tail continuation（实验 profile，默认关闭）
+
+该候选只在 Primary 没有形成候选、但进程内仍有部分原始输出时，把有限尾部交给一次最多
+2,048 token 的同轨迹 continuation；完整 incumbent 继续使用原 CFR Challenger。T01–T10
+的 25 条配对记录中 continuation 激活 `0/25`，候选为 `4/15/6`、基线为 `3/16/6`，
+invalid 没有下降，不能把一题差异归因于该机制。因此保持
+`EXPLORATORY_NO_GO / DEFAULT_OFF`，不改变正式 selector。预注册和结果见
+`docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/`。
+
 ### Contextual Answer Reconstruction 历史实验路径
 
 该路径保持 default-off，仅作为历史实验实现保留；当前官方无参构造使用

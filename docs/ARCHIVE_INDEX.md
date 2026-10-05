@@ -24,6 +24,9 @@
 - [ARM v2.2 answer-commit-first](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/result.md)：
   Q01–Q10 已完成；截断从 3 降到 0，但出现 `correct → incorrect`，候选保持
   `EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册见同目录的 `preregistration.md`。
+- [ARM v2.3 primary-tail continuation](experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/result.md)：
+  T01–T10 已完成；候选 continuation `0/25` 激活，invalid 未下降，保持
+  `EXPLORATORY_NO_GO / DEFAULT_OFF`。预注册、逐题转移和比较工件见同目录。
 - [architecture_evolution.md](architecture_evolution.md)：从赛事模板到当前 Harness 的架构谱系、版本状态和证据边界。
 - [official_evaluations/](official_evaluations/)：按北京日期归档官方原始日志与 agent 分析。
 - [excluded_approaches.md](excluded_approaches.md)：实验处置的单一事实源。

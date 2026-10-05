@@ -38,6 +38,7 @@ from reasoning_agent.experiment_matrix import (  # noqa: E402
     format_matrix_summary,
     load_scored_rows,
     missing_candidate_round_specs,
+    primary_tail_continuation_round_specs,
     recovery_round_specs,
     select_rows,
     summarize_rows,
@@ -78,6 +79,7 @@ def _summarize_reports_by_profile(reports: list[Mapping[str, Any]]) -> dict[str,
         "truncation_count",
         "compact_finalizer_activations",
         "incumbent_guard_activations",
+        "primary_tail_continuation_activations",
     )
     summaries: dict[str, dict[str, Any]] = {}
     for report in reports:
@@ -409,7 +411,8 @@ def _run_round(
             f"correct={report['correct']}；incorrect={report['incorrect']}；"
             f"invalid={report['invalid']}；truncation_rate={report['truncation_rate']:.3f}。\n\n"
             f"truncation_count={report['truncation_count']}；"
-            f"compact_finalizer_activations={report['compact_finalizer_activations']}。\n\n"
+            f"compact_finalizer_activations={report['compact_finalizer_activations']}；"
+            f"primary_tail_continuation_activations={report['primary_tail_continuation_activations']}。\n\n"
             "这是 local_replay 诊断，不代表官方隐藏集成绩。\n"
         ),
     )
@@ -477,6 +480,8 @@ def _merge_round_reports(
         known_specs = incumbent_guard_round_specs()
     elif selected_ids and all(round_id.startswith("Q") for round_id in selected_ids):
         known_specs = answer_commit_round_specs()
+    elif selected_ids and all(round_id.startswith("T") for round_id in selected_ids):
+        known_specs = primary_tail_continuation_round_specs()
     elif selected_ids and all(round_id.startswith("R") for round_id in selected_ids):
         known_specs = default_round_specs()
     else:
@@ -490,6 +495,7 @@ def _merge_round_reports(
             *external_pressure_replication_round_specs(),
             *incumbent_guard_round_specs(),
             *answer_commit_round_specs(),
+            *primary_tail_continuation_round_specs(),
         )
     for spec in known_specs:
         report = fresh_by_id.get(spec.round_id)
@@ -563,6 +569,9 @@ def run_matrix(
         "incumbent_guard_activations": sum(
             report.get("incumbent_guard_activations", 0) for report in reports
         ),
+        "primary_tail_continuation_activations": sum(
+            report.get("primary_tail_continuation_activations", 0) for report in reports
+        ),
         "incumbent_guard_reason_counts": _merge_counter_dicts(
             report.get("incumbent_guard_reason_counts", {})
             for report in reports
@@ -586,7 +595,8 @@ def run_matrix(
             f"invalid={aggregate['invalid']}；model_errors={aggregate['model_errors']}；"
             f"truncation_count={aggregate['truncation_count']}；"
             f"compact_finalizer_activations={aggregate['compact_finalizer_activations']}；"
-            f"incumbent_guard_activations={aggregate['incumbent_guard_activations']}。\n\n"
+            f"incumbent_guard_activations={aggregate['incumbent_guard_activations']}；"
+            f"primary_tail_continuation_activations={aggregate.get('primary_tail_continuation_activations', 0)}。\n\n"
             f"按 profile 汇总：{json.dumps(arm_summaries, ensure_ascii=False, sort_keys=True)}\n\n"
             "所有结果均为 local_replay，不能替代官方隐藏集评测。\n"
         ),
@@ -624,6 +634,7 @@ def main() -> int:
             *external_pressure_replication_round_specs(),
             *incumbent_guard_round_specs(),
             *answer_commit_round_specs(),
+            *primary_tail_continuation_round_specs(),
         )
     }
     selected = None

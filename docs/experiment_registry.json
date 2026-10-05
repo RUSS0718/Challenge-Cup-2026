@@ -157,6 +157,17 @@
       "report": "docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/result.md",
       "last_evidence": "docs/experiments/ARM-V2.2-ANSWER-COMMIT-20261005/comparison.json",
       "restart_rule": "Keep default-off. Do not promote from this window; any restart requires a materially different first-call formation hypothesis, a new disjoint paired preregistration, and the no-correct-to-incorrect gate."
+    },
+    {
+      "method_id": "ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005",
+      "status": "EXPLORATORY_NO_GO",
+      "evaluation_scope": "local_replay",
+      "dataset_scope": "new external OlymMATH, AIME, and HLE Math pools; T01-T10 preregistered paired window",
+      "summary": "T01-T10 completed with candidate 4/15/6 versus baseline 3/16/6; continuation activated 0/25, invalid did not decrease, and the candidate truncation count was one higher, so the result is not attributable to v2.3.",
+      "baseline": "ARM-V2.1.4-CFR-20261004",
+      "report": "docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/",
+      "last_evidence": "docs/experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/comparison.json",
+      "restart_rule": "Keep default-off. Do not infer capability from this unactivated window; any restart requires an activation-focused, disjoint paired preregistration with a minimum activation gate and the no-regression safety gate."
     }
   ]
 }

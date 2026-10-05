@@ -457,6 +457,62 @@ def answer_commit_round_specs() -> tuple[RoundSpec, ...]:
     return tuple(specs)
 
 
+def primary_tail_continuation_round_specs() -> tuple[RoundSpec, ...]:
+    """Return ten paired rounds for the v2.3 same-trajectory hypothesis.
+
+    The groups are disjoint from the X/Y/Z/Q pressure windows.  Both arms use
+    the same 2,048-token Primary and 4,096-token second-call budgets; only the
+    candidate turns a missing-candidate partial tail into one continuation.
+    """
+    groups = (
+        (
+            "external_olymmath",
+            (
+                "OlymMATH-HARD-32-ZH", "OlymMATH-HARD-33-EN",
+                "OlymMATH-HARD-34-ZH", "OlymMATH-HARD-35-EN",
+                "OlymMATH-HARD-36-ZH",
+            ),
+        ),
+        (
+            "external_olymmath",
+            (
+                "OlymMATH-HARD-37-EN", "OlymMATH-HARD-38-ZH",
+                "OlymMATH-HARD-39-EN", "OlymMATH-HARD-40-ZH",
+                "OlymMATH-HARD-41-EN",
+            ),
+        ),
+        (
+            "external_aime",
+            ("aime-0", "aime-1", "aime-2", "aime-3", "aime-4"),
+        ),
+        (
+            "external_hle",
+            (
+                "hle-672059fc2ea5966e3eddd835", "hle-66fea0c4cb66b0e85c55ee52",
+                "hle-672603f3fd50e2db8a0571ba", "hle-673d70ca1b7b41a118b4b786",
+                "hle-672656a3fd560b1526278952",
+            ),
+        ),
+        (
+            "external_hle",
+            (
+                "hle-67367cbd06a61a42cae30293", "hle-6700aa576c5c0e0d48330ad1",
+                "hle-670a45a0e9cd3ee2e2e3932e", "hle-66f454d18ab578bcbb18387c",
+                "hle-6739ec066a53385958bca5e8",
+            ),
+        ),
+    )
+    specs: list[RoundSpec] = []
+    for index, (dataset, keys) in enumerate(groups, start=1):
+        specs.extend(
+            (
+                RoundSpec(f"T{index * 2 - 1:02d}", "arm-v2.3-primary-tail", dataset, keys),
+                RoundSpec(f"T{index * 2:02d}", "cfr-primary-tail-pressure", dataset, keys),
+            )
+        )
+    return tuple(specs)
+
+
 def load_scored_rows(path: Path) -> list[dict[str, Any]]:
     """Load JSON or JSONL rows while retaining a stable string item identifier."""
 
@@ -573,6 +629,20 @@ def build_round_config(spec: RoundSpec) -> Any:
             harness_attempt_b_max_tokens=4_096,
             harness_total_token_budget=16_384,
         )
+    if spec.profile == "arm-v2.3-primary-tail":
+        return replace(
+            build_profile_config(spec.profile),
+            harness_attempt_a_max_tokens=2_048,
+            harness_attempt_b_max_tokens=4_096,
+            harness_total_token_budget=16_384,
+        )
+    if spec.profile == "cfr-primary-tail-pressure":
+        return replace(
+            build_profile_config("arm-v2.1.4-cfr"),
+            harness_attempt_a_max_tokens=2_048,
+            harness_attempt_b_max_tokens=4_096,
+            harness_total_token_budget=16_384,
+        )
     if spec.profile == "cfr-answer-commit-pressure":
         return replace(
             build_profile_config("arm-v2.1.4-cfr"),
@@ -626,8 +696,10 @@ def summarize_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     parser_reasons: Counter[str] = Counter()
     finalizer_reasons: Counter[str] = Counter()
     incumbent_guard_reasons: Counter[str] = Counter()
+    continuation_reasons: Counter[str] = Counter()
     compact_finalizer_activations = 0
     incumbent_guard_activations = 0
+    primary_tail_continuation_activations = 0
     truncation_count = 0
     for row in rows:
         summary = _latest_summary(row.get("trace"))
@@ -658,6 +730,11 @@ def summarize_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
                 reason = entry.get("reason")
                 if reason:
                     incumbent_guard_reasons[str(reason)] += 1
+            elif stage == "primary_tail_continuation":
+                primary_tail_continuation_activations += 1
+                reason = entry.get("reason")
+                if reason:
+                    continuation_reasons[str(reason)] += 1
     decided = outcomes.get("correct", 0) + outcomes.get("incorrect", 0)
     total_calls = sum(int(row.get("model_calls", 0) or 0) for row in rows)
     total_finish = sum(finish_reasons.values())
@@ -685,6 +762,8 @@ def summarize_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "compact_finalizer_trigger_reason_counts": dict(finalizer_reasons),
         "incumbent_guard_activations": incumbent_guard_activations,
         "incumbent_guard_reason_counts": dict(incumbent_guard_reasons),
+        "primary_tail_continuation_activations": primary_tail_continuation_activations,
+        "primary_tail_continuation_reason_counts": dict(continuation_reasons),
         "decided_accuracy": outcomes.get("correct", 0) / decided if decided else None,
     }
 
@@ -730,6 +809,7 @@ __all__ = [
     "external_pressure_replication_round_specs",
     "incumbent_guard_round_specs",
     "answer_commit_round_specs",
+    "primary_tail_continuation_round_specs",
     "load_scored_rows",
     "select_rows",
     "summarize_rows",

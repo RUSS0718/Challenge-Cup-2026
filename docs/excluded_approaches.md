@@ -876,3 +876,14 @@ Y 窗口使用与 X01–X10 不重叠的 OlymMATH、AIME 和 HLE Math 题目。�
 预注册、逐题转移和门判定见
 [`ARM-V2.2 result`](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/result.md) 与
 [`comparison.json`](experiments/ARM-V2.2-ANSWER-COMMIT-20261005/comparison.json)。
+
+## 七点零五、ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005
+
+| 候选 | 预注册状态 | 处置 |
+|---|---|---|
+| `arm-v2.3-primary-tail`：Primary 无候选但有部分输出时，把有限尾部交给同一轨迹 continuation；完整 incumbent 保留 CFR Challenger | T01–T10 完成；候选 `4/15/6`，基线 `3/16/6`；0/25 continuation 激活；0 model error | `EXPLORATORY_NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；默认关闭 |
+
+该方案只允许一次最多 2,048 token 的 continuation，原始尾部不进入 trace 或提交工件。本窗口
+没有触发 continuation，invalid 未下降且候选截断多 1 次；因此不能把普通 CFR 路径的一题
+差异归因于 v2.3。完整结果、逐题转移和门判定见
+[`ARM-V2.3 result`](experiments/ARM-V2.3-PRIMARY-TAIL-CONTINUATION-20261005/result.md)。
