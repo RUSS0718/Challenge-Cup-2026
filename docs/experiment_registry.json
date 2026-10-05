@@ -138,14 +138,14 @@
     },
     {
       "method_id": "ARM-V2.1.9-INCUMBENT-GUARD-20261005",
-      "status": "OPEN",
+      "status": "NO_GO",
       "evaluation_scope": "local_replay",
       "dataset_scope": "independent external OlymMATH, AIME, and HLE Math pools; 50 paired records disjoint from X/Y windows",
-      "summary": "Candidate keeps the original CFR Challenger whenever Primary has a complete incumbent; compact finalizer remains limited to missing or incomplete Primary outputs.",
+      "summary": "Guard activated 25/25 and kept the original CFR Challenger for complete incumbents; candidate scored 6/15/4 versus baseline 2/17/6, but one correct-to-incorrect transition failed the safety gate.",
       "baseline": "ARM-V2.1.4-CFR-20261004",
-      "report": "docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/",
-      "last_evidence": "docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/preregistration.md",
-      "restart_rule": "Run the preregistered Z01-Z10 window. Any restart requires a new disjoint paired window and a materially different incumbent-preservation hypothesis."
+      "report": "docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md",
+      "last_evidence": "docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/comparison.json",
+      "restart_rule": "Keep default-off. Do not promote from this window; any restart requires a new disjoint paired window and a materially different incumbent-preservation hypothesis."
     }
   ]
 }

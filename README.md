@@ -70,10 +70,10 @@ metadata/gold 隔离和 trace 卫生；100 题官方报告已归档，但没有�
 ### ARM v2.1.9 incumbent guard（实验 profile，默认关闭）
 
 该候选只改变 v2.1.8 的收束器触发门：Primary 已经形成完整 incumbent 时，第二次请求回到
-原 CFR Challenger；只有缺失或不完整 Primary 才使用 bounded compact finalizer。它不改变
-正式 selector、parser、评分器或调用上限，当前状态为 `OPEN`，待独立 Z01–Z10 paired
-窗口完成后再处置。预注册见
-`docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/preregistration.md`。
+原 CFR Challenger；只有缺失或不完整 Primary 才使用 bounded compact finalizer。Z01–Z10
+中 guard 激活 25/25，但出现 1 个 `correct → incorrect`，因此状态为
+`NO_GO / DEFAULT_OFF`，不改变正式 selector、parser、评分器或调用上限。结果见
+`docs/experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md`。
 
 ### Contextual Answer Reconstruction 历史实验路径
 

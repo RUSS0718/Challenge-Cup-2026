@@ -140,6 +140,13 @@ v2.1.5 的十轮 paired replay 也按上述范围字段落档；结果为
 默认关闭；Y 的题目、配置和逐题转移已写入实验注册表和 comparison 工件。这个结果把
 “减少截断”与“无损提升答案质量”分开，避免代理把单一卫生指标当成能力晋升依据。
 
+随后按同一改进顺序注册并运行 v2.1.9 incumbent guard。它只允许完整 incumbent 继续
+走原 CFR Challenger，将 compact finalizer 限制在缺失/不完整 Primary。Z01–Z10 中
+guard 激活 `25/25`，候选 `6/15/4`、基线 `2/17/6`，但出现 1 个
+`correct → incorrect`，因此安全门失败并登记 `NO_GO / DEFAULT_OFF`。同时修正了
+robustness matrix 的聚合器，使 paired record、总臂记录和按 profile 的 candidate/baseline
+统计分开，避免代理把双臂合计误读成单一题集结果。
+
 ## 证据边界
 
 线程耗时和搜索计数来自 Codex 线程事件，是检索成本的信号，不是模型能力基准；部分线程有未加载的更早 turn，且少数任务页带 `hasMore=true`。历史文档中的分数和配置只在其注明的范围内成立，不能把不同题数的结果直接比较。2026-10-04 官方 100 题报告已归档，但它只支持 `21/6/73` 和 70 次 length 结束的范围内事实，不构成 CFR 的跨数据集能力结论，见 [`docs/official_evaluations/2026-10-04/record.md`](../official_evaluations/2026-10-04/record.md)。

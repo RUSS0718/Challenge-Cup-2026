@@ -854,9 +854,11 @@ Y 窗口使用与 X01–X10 不重叠的 OlymMATH、AIME 和 HLE Math 题目。�
 
 | 候选 | 结果 | 处置 |
 | --- | --- | --- |
-| `arm-v2.1.9-incumbent-guard`：完整 incumbent 触发原 CFR Challenger，只有缺失/不完整 Primary 才触发 compact finalizer | `OPEN`；待 Z01–Z10 paired 窗口 | 默认关闭；不修改正式 selector |
+| `arm-v2.1.9-incumbent-guard`：完整 incumbent 触发原 CFR Challenger，只有缺失/不完整 Primary 才触发 compact finalizer | Z01–Z10：候选 `6/15/4`，基线 `2/17/6`；guard `25/25`；出现 1 个 `correct → incorrect` | `NO_GO / NO_PROMOTION / NO_CAPABILITY_CONCLUSION`；保持默认关闭 |
 
 该实验只改变 v2.1.8 的 finalizer 触发门，候选和基线共用 1,024/4,096 token
-压力预算，题目与 X/Y 窗口不重叠。预注册门、题目选择和运行命令见
-[`ARM-V2.1.9 preregistration`](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/preregistration.md)。
-在窗口完成并写回 result、comparison 和处置前，不得把候选数字用于晋升或官方结论。
+压力预算，题目与 X/Y 窗口不重叠。guard 激活且成本相同，但安全门因一条
+`correct → incorrect` 转移失败；完整证据见
+[`ARM-V2.1.9 result`](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/result.md) 和
+[`comparison.json`](experiments/ARM-V2.1.9-INCUMBENT-GUARD-20261005/comparison.json)。
+不得把本地数字用于晋升或官方结论。

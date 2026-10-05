@@ -1,6 +1,6 @@
 # ARM-V2.1.9-INCUMBENT-GUARD-20261005 — preregistration
 
-状态：`OPEN`
+状态：`CLOSED / NO_GO`
 
 ## 目的与假设
 

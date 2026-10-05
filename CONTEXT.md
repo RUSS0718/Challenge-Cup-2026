@@ -42,8 +42,8 @@ invalid 或成本收益；详见 `docs/experiments/ARM-V2.1.7-STRUCTURED-CONFIRM
 **ARM v2.1.9 incumbent guard**:
 实验性、默认关闭的 v2.1.8 触发门。只要 Primary 已形成结构有效且完整的 incumbent（含
 明确答案尾的截断响应），第二次请求必须回到原 CFR Challenger；compact finalizer 仅用于
-缺失或不完整 Primary。当前状态为 `OPEN`，Z01–Z10 的独立 paired 结果写回前，不得修改
-`SUBMISSION_CONFIG` 或把候选数字当作官方能力结论。
+缺失或不完整 Primary。Z01–Z10 guard 激活 25/25，但出现 1 个 `correct → incorrect`，
+状态为 `NO_GO`；不得修改 `SUBMISSION_CONFIG` 或把候选数字当作官方能力结论。
 
 **Contextual Answer Reconstruction v1**:
 历史 default-off 路径，先生成最多三路异构候选；只有无共识、无答案或输出结构不可信时，
