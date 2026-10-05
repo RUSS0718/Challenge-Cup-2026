@@ -64,6 +64,63 @@ def _merge_counter_dicts(counters: Any) -> dict[str, int]:
     return merged
 
 
+def _summarize_reports_by_profile(reports: list[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Aggregate paired-run metrics by profile so candidate and baseline stay distinct."""
+
+    fields = (
+        "records",
+        "correct",
+        "incorrect",
+        "invalid",
+        "model_errors",
+        "total_model_calls",
+        "truncation_count",
+        "compact_finalizer_activations",
+        "incumbent_guard_activations",
+    )
+    summaries: dict[str, dict[str, Any]] = {}
+    for report in reports:
+        profile = str(report.get("profile") or "unknown")
+        summary = summaries.setdefault(profile, {field: 0 for field in fields})
+        for field in fields:
+            value = report.get(field, 0)
+            if field == "model_errors":
+                summary[field] += int(bool(value))
+            else:
+                try:
+                    summary[field] += int(value or 0)
+                except (TypeError, ValueError):
+                    continue
+    for summary in summaries.values():
+        records = summary["records"]
+        summary["average_model_calls"] = (
+            summary["total_model_calls"] / records if records else 0.0
+        )
+    return summaries
+
+
+def _paired_record_count(reports: list[Mapping[str, Any]]) -> int | None:
+    """Return paired records only when adjacent reports share the same items."""
+
+    if len(reports) % 2:
+        return None
+    paired = 0
+    for left, right in zip(reports[::2], reports[1::2]):
+        left_items = left.get("selected_items")
+        right_items = right.get("selected_items")
+        if not isinstance(left_items, list) or left_items != right_items:
+            return None
+        try:
+            left_records = int(left.get("records", 0) or 0)
+            right_records = int(right.get("records", 0) or 0)
+        except (TypeError, ValueError):
+            return None
+        if left_records != right_records:
+            return None
+        paired += left_records
+    return paired
+
+
 def _assert_scoring_dependencies() -> None:
     """Fail before endpoint calls when the local judge cannot score safely."""
 
@@ -472,6 +529,8 @@ def run_matrix(
         for spec in selected_rounds
     ]
     reports, reused_round_ids = _merge_round_reports(output_root, selected_rounds, fresh_reports=reports)
+    arm_summaries = _summarize_reports_by_profile(reports)
+    paired_records = _paired_record_count(reports)
     aggregate = {
         "run_id": matrix_id,
         "status": "completed",
@@ -487,6 +546,7 @@ def run_matrix(
         "invalid": sum(report["invalid"] for report in reports),
         "model_errors": sum(report["model_errors"] for report in reports),
         "total_records": sum(report["records"] for report in reports),
+        "paired_records": paired_records,
         "total_model_calls": sum(report["total_model_calls"] for report in reports),
         "truncation_count": sum(report.get("truncation_count", 0) for report in reports),
         "compact_finalizer_activations": sum(
@@ -503,6 +563,7 @@ def run_matrix(
             report.get("incumbent_guard_reason_counts", {})
             for report in reports
         ),
+        "arm_summaries": arm_summaries,
         "rounds": reports,
         "elapsed_seconds": round(time.perf_counter() - started, 3),
     }
@@ -513,12 +574,16 @@ def run_matrix(
     (output_root / "result.md").write_text(
         (
             f"# {matrix_id}\n\n"
-            f"完成 {aggregate['round_count']} 轮、{aggregate['total_records']} 题；"
+            f"完成 {aggregate['round_count']} 轮、"
+            f"{aggregate['paired_records'] if aggregate['paired_records'] is not None else aggregate['total_records']} 条"
+            f"{'配对记录' if aggregate['paired_records'] is not None else '运行记录'}"
+            f"（{aggregate['total_records']} 条臂记录）；"
             f"correct={aggregate['correct']}；incorrect={aggregate['incorrect']}；"
             f"invalid={aggregate['invalid']}；model_errors={aggregate['model_errors']}；"
             f"truncation_count={aggregate['truncation_count']}；"
             f"compact_finalizer_activations={aggregate['compact_finalizer_activations']}；"
             f"incumbent_guard_activations={aggregate['incumbent_guard_activations']}。\n\n"
+            f"按 profile 汇总：{json.dumps(arm_summaries, ensure_ascii=False, sort_keys=True)}\n\n"
             "所有结果均为 local_replay，不能替代官方隐藏集评测。\n"
         ),
         encoding="utf-8",

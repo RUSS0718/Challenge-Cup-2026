@@ -628,7 +628,8 @@ def format_matrix_summary(aggregate: Mapping[str, Any], artifact_dir: Path | str
             f"scope={aggregate.get('evaluation_scope') or 'unknown'}",
             "results: "
             f"rounds={aggregate.get('round_count', 0)} "
-            f"records={aggregate.get('total_records', 0)} "
+            f"records={aggregate.get('paired_records') if aggregate.get('paired_records') is not None else aggregate.get('total_records', 0)} "
+            f"arm_records={aggregate.get('total_records', 0)} "
             f"correct={aggregate.get('correct', 0)} "
             f"incorrect={aggregate.get('incorrect', 0)} "
             f"invalid={aggregate.get('invalid', 0)} "

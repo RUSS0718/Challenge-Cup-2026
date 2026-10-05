@@ -23,7 +23,13 @@ from reasoning_agent.experiment_matrix import (
     external_pressure_replication_round_specs,
     incumbent_guard_round_specs,
 )
-from scripts.run_robustness_matrix import _call_telemetry, _merge_round_reports, run_matrix
+from scripts.run_robustness_matrix import (
+    _call_telemetry,
+    _merge_round_reports,
+    _paired_record_count,
+    _summarize_reports_by_profile,
+    run_matrix,
+)
 
 
 class ExperimentMatrixTest(unittest.TestCase):
@@ -350,6 +356,41 @@ class ExperimentMatrixTest(unittest.TestCase):
         )
         self.assertEqual(1, summary["incumbent_guard_activations"])
         self.assertEqual({"complete_incumbent": 1}, summary["incumbent_guard_reason_counts"])
+
+    def test_runner_separates_arm_totals_from_paired_totals(self):
+        reports = [
+            {
+                "profile": "candidate",
+                "records": 2,
+                "selected_items": ["a", "b"],
+                "correct": 1,
+                "incorrect": 1,
+                "invalid": 0,
+                "model_errors": 0,
+                "total_model_calls": 4,
+                "truncation_count": 1,
+                "compact_finalizer_activations": 0,
+                "incumbent_guard_activations": 2,
+            },
+            {
+                "profile": "baseline",
+                "records": 2,
+                "selected_items": ["a", "b"],
+                "correct": 0,
+                "incorrect": 2,
+                "invalid": 0,
+                "model_errors": 0,
+                "total_model_calls": 4,
+                "truncation_count": 0,
+                "compact_finalizer_activations": 0,
+                "incumbent_guard_activations": 0,
+            },
+        ]
+        by_profile = _summarize_reports_by_profile(reports)
+        self.assertEqual(2, _paired_record_count(reports))
+        self.assertEqual(1, by_profile["candidate"]["correct"])
+        self.assertEqual(2, by_profile["candidate"]["incumbent_guard_activations"])
+        self.assertEqual(0, by_profile["baseline"]["correct"])
 
 
 if __name__ == "__main__":
