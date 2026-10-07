@@ -1,0 +1,119 @@
+{
+  "pool_id": "external_hard_pools_v1",
+  "frozen_date": "2026-09-05",
+  "seed": 20260905,
+  "domains": [
+    "Algebra",
+    "Combinatorics",
+    "Geometry",
+    "Number Theory"
+  ],
+  "difficulty_anchor": "official_like_hard20_v1 (OlymMATH HARD + AIME level), repo's established official-difficulty proxy",
+  "sampling_rule": "per round: stratified by 4 domains with per-(set,domain) floor 2, remainder proportional; OlymMATH sampled at problem-group level with at most one language per group; seeded and recorded in each run manifest",
+  "sources": {
+    "OlymMATH": "RUC-AIBox/OlymMATH via hf-mirror, data/OlymMATH-{ZH,EN}-HARD.jsonl (HARD tier)",
+    "AIME": "local frozen copies tmp/p1_data/run/aime2024_30.jsonl + aime2025_30.jsonl (2025 items also mirrored on HF)",
+    "HLE": "cais/hle (official, gated) text columns fetched via ModelScope mirror AI-ModelScope/hle data/test-00000-of-00001.parquet"
+  },
+  "source_sha256": {
+    "OlymMATH-ZH-HARD.jsonl": "f56746b739a20b3abf0c3daa3209cd2f48fc0663352bf7bdff34ae18b01fef58",
+    "OlymMATH-EN-HARD.jsonl": "f43b48f5569a5e6d3068e110f8ce6c5ec641ba4d6ba06d9a91a1c944526b7be4",
+    "aime2024_30.jsonl": "277f40227f1cfbcbe15511261a21833ffaf2d8632fbc7b862fd12c8e328e5a85",
+    "aime2025_30.jsonl": "ab850c8e8e2d37a8862b5d7ee38029ceb5dd14f43e313a3e8cbf97e2864af8f4",
+    "hle_text_columns.jsonl": "e5689495b3b340b1cd395eea53535895feb17242a05cf19df9ba1b06543bde64"
+  },
+  "excluded_items": {
+    "reason": "disjoint from V4-HARD20-DUAL-001 official_like_hard20_v1",
+    "olymmath_groups": [
+      "OlymMATH-HARD-12-ZH",
+      "OlymMATH-HARD-14-EN",
+      "OlymMATH-HARD-16-EN",
+      "OlymMATH-HARD-3-EN",
+      "OlymMATH-HARD-49-ZH",
+      "OlymMATH-HARD-56-EN",
+      "OlymMATH-HARD-62-EN",
+      "OlymMATH-HARD-69-EN",
+      "OlymMATH-HARD-70-ZH",
+      "OlymMATH-HARD-77-ZH",
+      "OlymMATH-HARD-78-ZH",
+      "OlymMATH-HARD-9-ZH"
+    ],
+    "aime_ids": [
+      "2024-I-10",
+      "2024-I-13",
+      "2024-I-5",
+      "2024-I-9",
+      "2024-II-11",
+      "2024-II-12",
+      "2024-II-4",
+      "2024-II-8"
+    ]
+  },
+  "files": {
+    "set_a_olymmath_hard": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+    "set_b_aime": "e39108744b5b0548fccfc28a089ddd1cccd0821e7235a6f2e18fa74449cd8315",
+    "set_c_hle_math": "51cf0dd6349ba387ed26b1641c38ac47ef82891bc7a607b502aa8848fccaf4f8"
+  },
+  "set_manifests": {
+    "set_a": {
+      "unique_groups": 88,
+      "rows": 176,
+      "domain_unique_groups": {
+        "Algebra": 22,
+        "Combinatorics": 22,
+        "Geometry": 22,
+        "Number Theory": 22
+      },
+      "excluded_hard20_groups": [
+        "OlymMATH-HARD-12-ZH",
+        "OlymMATH-HARD-14-EN",
+        "OlymMATH-HARD-16-EN",
+        "OlymMATH-HARD-3-EN",
+        "OlymMATH-HARD-49-ZH",
+        "OlymMATH-HARD-56-EN",
+        "OlymMATH-HARD-62-EN",
+        "OlymMATH-HARD-69-EN",
+        "OlymMATH-HARD-70-ZH",
+        "OlymMATH-HARD-77-ZH",
+        "OlymMATH-HARD-78-ZH",
+        "OlymMATH-HARD-9-ZH"
+      ]
+    },
+    "set_b": {
+      "rows": 52,
+      "domain_rows": {
+        "Algebra": 11,
+        "Combinatorics": 17,
+        "Geometry": 16,
+        "Number Theory": 8
+      },
+      "excluded_hard20_ids": [
+        "2024-I-10",
+        "2024-I-13",
+        "2024-I-5",
+        "2024-I-9",
+        "2024-II-11",
+        "2024-II-12",
+        "2024-II-4",
+        "2024-II-8"
+      ]
+    },
+    "set_c": {
+      "rows": 80,
+      "clean_pool": 396,
+      "domain_availability": {
+        "Algebra": 195,
+        "Combinatorics": 105,
+        "Geometry": 65,
+        "Number Theory": 31
+      },
+      "domain_rows": {
+        "Algebra": 20,
+        "Combinatorics": 20,
+        "Geometry": 20,
+        "Number Theory": 20
+      },
+      "answer_form_gate": "rejects prose/multi-decision/percent/list-with-letters/uppercase-run/function-def answers; official-style judging must be able to compare"
+    }
+  }
+}

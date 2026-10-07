@@ -1,0 +1,3 @@
+{"id": "aime25_0", "final_response": "70", "extracted_answer": "70", "model_calls": 3, "tail_continuation_triggered": false, "trace_step_count": 6}
+{"id": "aime25_1", "final_response": "M=(-0.14,0.29)insecondquadrant", "extracted_answer": "M=(-0.14,0.29)insecondquadrant", "model_calls": 5, "tail_continuation_triggered": false, "trace_step_count": 8}
+{"id": "aime25_2", "final_response": "16", "extracted_answer": "16", "model_calls": 3, "tail_continuation_triggered": false, "trace_step_count": 6}

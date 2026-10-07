@@ -1,0 +1,20 @@
+{
+  "run_id": "STATEFUL-TAIL-V1-FIDELITY-001",
+  "method_id": "stateful_tail_completion_v1",
+  "timestamp": "2026-09-03T07:11:44Z",
+  "total_problems": 20,
+  "continuation_attempts": 4,
+  "continuation_formed_answers": 3,
+  "continuation_placeholders": 0,
+  "continuation_formation_rate": 0.75,
+  "model_errors": 0,
+  "model_error_rate": 0.0,
+  "elapsed_seconds": 2597.89141702652,
+  "gates": {
+    "health_gate_pass": true,
+    "formation_rate_pass": true,
+    "zero_placeholder_pass": true,
+    "json_and_hygiene_pass": true
+  },
+  "verdict": "PASS"
+}

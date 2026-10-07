@@ -1,0 +1,161 @@
+[
+  {
+    "dataset_size": 112,
+    "verdict_counts": {
+      "correct": 88,
+      "unknown": 24
+    },
+    "correct": 88,
+    "incorrect": 0,
+    "invalid": 2,
+    "accuracy": 0.7857142857142857,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 1.0,
+    "retry_count": 7,
+    "average_model_calls": 1.0625,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 468.91964285714283,
+    "p95_completion_tokens": 1118,
+    "average_latency_seconds": 13.806607142857143,
+    "p95_latency_seconds": 48.355,
+    "diagnostic_reason_counts": {
+      "no_marker": 3,
+      "model_error": 4,
+      "all_candidates_rejected": 2,
+      "fallback": 2
+    },
+    "variant": "baseline86",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": false,
+      "strict_salvage": false,
+      "conditional_token_retry": false
+    },
+    "round": 1,
+    "input_file": "sample_data/public_regression_112.jsonl",
+    "temperature": 0.6
+  },
+  {
+    "dataset_size": 112,
+    "verdict_counts": {
+      "correct": 75,
+      "unknown": 37
+    },
+    "correct": 75,
+    "incorrect": 0,
+    "invalid": 28,
+    "accuracy": 0.6696428571428571,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.75,
+    "retry_count": 48,
+    "average_model_calls": 1.4285714285714286,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 753.1339285714286,
+    "p95_completion_tokens": 1974,
+    "average_latency_seconds": 61.92523214285713,
+    "p95_latency_seconds": 120.274,
+    "diagnostic_reason_counts": {
+      "model_error": 48,
+      "fallback": 28
+    },
+    "variant": "A",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": true,
+      "strict_salvage": false,
+      "conditional_token_retry": false
+    },
+    "round": 1,
+    "input_file": "sample_data/public_regression_112.jsonl",
+    "temperature": 0.6
+  },
+  {
+    "dataset_size": 112,
+    "verdict_counts": {
+      "correct": 83,
+      "unknown": 29
+    },
+    "correct": 83,
+    "incorrect": 0,
+    "invalid": 1,
+    "accuracy": 0.7410714285714286,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.9910714285714286,
+    "retry_count": 6,
+    "average_model_calls": 1.0535714285714286,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 454.05357142857144,
+    "p95_completion_tokens": 1200,
+    "average_latency_seconds": 15.910803571428564,
+    "p95_latency_seconds": 37.427,
+    "diagnostic_reason_counts": {
+      "model_error": 3,
+      "no_marker": 3,
+      "fallback": 1
+    },
+    "variant": "baseline86",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": false,
+      "strict_salvage": false,
+      "conditional_token_retry": false
+    },
+    "round": 2,
+    "input_file": "sample_data/public_regression_112.jsonl",
+    "temperature": 0.6
+  },
+  {
+    "dataset_size": 112,
+    "verdict_counts": {
+      "correct": 69,
+      "unknown": 43
+    },
+    "correct": 69,
+    "incorrect": 0,
+    "invalid": 29,
+    "accuracy": 0.6160714285714286,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.7410714285714286,
+    "retry_count": 43,
+    "average_model_calls": 1.3839285714285714,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 783.2321428571429,
+    "p95_completion_tokens": 2088,
+    "average_latency_seconds": 60.53772321428571,
+    "p95_latency_seconds": 120.268,
+    "diagnostic_reason_counts": {
+      "model_error": 43,
+      "fallback": 29
+    },
+    "variant": "A",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": true,
+      "strict_salvage": false,
+      "conditional_token_retry": false
+    },
+    "round": 2,
+    "input_file": "sample_data/public_regression_112.jsonl",
+    "temperature": 0.6
+  }
+]

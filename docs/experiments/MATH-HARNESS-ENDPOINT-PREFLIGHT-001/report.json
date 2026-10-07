@@ -1,0 +1,49 @@
+{
+  "experiment_id": "MATH-HARNESS-ENDPOINT-PREFLIGHT-001",
+  "phase": "endpoint_preflight",
+  "method_id": "bounded_evidence_trajectory_selection_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "status": "completed",
+  "void": true,
+  "void_reasons": [
+    "incomplete_records",
+    "model_error_present",
+    "unique_extractable_candidate_below_gate",
+    "stopped_after_irrecoverable_failure"
+  ],
+  "records": 3,
+  "expected_records": 10,
+  "model_error_count": 2,
+  "timeout_count": 2,
+  "response_present_count": 1,
+  "unique_extractable_candidate_count": 1,
+  "unique_extractable_candidate_rate": 0.1,
+  "extractable_gate": 8,
+  "parser_status_counts": {
+    "truncated_with_candidate": 1,
+    "missing": 2
+  },
+  "finish_reason_counts": {
+    "stop": 1,
+    "missing": 2
+  },
+  "candidate_stage_source_counts": {
+    "endpoint_preflight": 1
+  },
+  "average_latency_seconds": 418.588,
+  "p95_latency_seconds": 600.176,
+  "max_latency_seconds": 600.176,
+  "average_completion_tokens": 527.6666666666666,
+  "max_completion_tokens": 1583,
+  "remote_model_calls": 3,
+  "temporary_answer_bank": "off",
+  "capability_conclusion": "NONE",
+  "runtime": {
+    "model": "intern-s2-preview-397b",
+    "api_host": "chat.intern-ai.org.cn",
+    "thinking_mode": "official_default",
+    "python": "3.12.14"
+  },
+  "elapsed_seconds": 1255.766,
+  "disposition": "ARCHIVED / NO_GO / NO_CAPABILITY_CONCLUSION"
+}

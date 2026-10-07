@@ -1,0 +1,22 @@
+ISOLATED_RUNTIME
+Python 3.12.14
+requests 2.34.2
+sympy 1.14.0
+
+TARGETED_REGRESSION
+Ran 249 tests in 0.540s
+OK
+
+PY_COMPILE
+OK
+
+OFFICIAL_CONSTRUCTOR_SMOKE
+official_client_constructor=ok
+reasoning_agent_constructor=ok
+network_calls=0
+
+FULL_DISCOVER_NOTE
+The repository-wide discover was not used as the Harness gate: an existing
+tests/test_causal_demo.py imports mcp, which is not declared in requirements.txt.
+The same discover also exercises existing runner-validator error cases. The
+Harness-scoped and related regression command above passed.

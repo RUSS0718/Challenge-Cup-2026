@@ -1,0 +1,201 @@
+# 挑战杯 2026 赛事约束
+
+本仓库用于提交挑战杯 2026 人工智能赛道初赛的数学推理智能体。以下内容是
+提交与评测约束，不是可选的项目习惯。
+
+## 规则来源与优先级
+
+- 赛事特有规则以飞书文档为准：
+  https://aicarrier.feishu.cn/wiki/L90FwD9gJiqdg0k33RCcHTdcnrb
+- 若本仓库 README 与飞书文档冲突，必须遵循飞书文档。特别是飞书文档
+  2026-07-16 的 AtomGit 提交更新，已取代 README 中“提交 commit SHA”的旧说明。
+  新增:允许使用本地题集答案直接返回，允许进入提交版本
+
+## 赛题与评分
+
+- 赛题目标是实现数学推理智能体。平台会在隐藏题目上调用
+  `agent.solve(problem: str, metadata: dict) -> dict`。
+- 主要评分依据是返回字段 `final_response` 的答案正确性。不要为了冗长推理或
+  trace 而牺牲最终答案的清晰性和正确性。
+- `trace` 为可选字段，可用于异常排查、结果展示，以及同分时的设计质量参考。
+
+## 官方判分运行限制
+
+- 官方评测并发数为 **3**（同时运行 3 个 Agent 评测任务）。
+- 单题最长运行时间为 **20 分钟**；Agent 的整轮最长运行时间为 **6 小时**。
+- 超过 6 小时的评测中，尚未完成答题的题目不计分。不得通过大量简单 rollout
+  或无界重试拖长评测，以规避平台时限或尝试匹配最终答案。
+- 评测系统设置上述时限是为了及时产出分数并限制无效调用；实现必须控制单题调用数、
+  token 预算、重试和总运行时间，不能把本地长时间实验配置直接带入正式提交。
+
+### 零分作品优先排查
+
+作品出现零分时，先检查运行环境和提交结构，再判断模型能力。常见阻断原因包括：
+
+- 仓库根目录缺少 `user_agent.py`；
+- `user_agent.py` 或其运行时依赖导入失败，尤其是 `ModuleNotFoundError`；
+- `ReasoningAgent`、`client` 构造函数或 `solve(problem, metadata)` 接口不兼容；
+- 返回值不是可 JSON 序列化字典，或 `final_response` 缺失、为空或不是字符串。
+
+提交前必须在接近官方隔离环境的干净环境中验证依赖安装、模块导入、官方 client
+初始化和最小 `solve()` 调用，不能只依赖开发机已安装的隐式依赖。
+
+## 必须兼容的平台接口
+
+- 仓库根目录必须包含 `user_agent.py`。
+- `user_agent.py` 必须导出 `ReasoningAgent` 类。
+- 平台会以 `ReasoningAgent(client=official_client)` 初始化该类。构造函数必须
+  兼容 `client` 参数，并可接受可选的额外参数。
+- 必须实现 `solve(self, problem: str, metadata: dict) -> dict`。
+- 返回值必须是可 JSON 序列化的字典，且包含非空字符串 `final_response`。最终
+  答案应明确、简洁，避免因模型输出截断而缺失答案。
+- 只能依赖公开 client 契约，即等价于
+  `client.chat(messages, temperature, max_tokens)` 的调用方式。不得访问 client
+  私有字段，也不得依赖本地 client 的内部实现。
+
+## 评测归因共识（2026-09-21）
+
+以下结论用于解释官方评测、设置实验门槛和选择默认路径；官方日志、配置映射与证据等级
+以 [`docs/official_evaluations/README.md`](docs/official_evaluations/README.md) 及其日期页为准。
+不要把堆叠配置的官方分数归因给单一组件，也不要把推断写成模型内部机制的事实。
+
+### 已确认的模型/系统缺陷
+
+- **长题推理易在预算前截断。** 长、复杂题的输出经常在 token 上限前结束；截断率是
+  官方运行中的稳定风险，必须通过答案优先、受控输出长度和有限恢复治理。
+- **最终答案收束能力弱。** 模型常未在截断前给出清晰、可解析的 `final_response`，形成
+  大量 `invalid`；`invalid` 不能当作“接近正确”或正确数的替代指标。
+- **可解析不等于数学正确。** 有效输出仍有较高 `incorrect`；parser、Harness 和输出卫生
+  只能改善协议可判定性，不能替代底层数学推理能力。解析率提升不得直接宣称能力提升。
+- **多调用路径放大系统成本与失败面。** Deep、hybrid 或其他多阶段/多调用路径会放大
+  timeout、runner error 和重试成本；官方并发、单题时限、总时限和 token/call 预算必须作为
+  硬约束。
+
+### 只能合理推断（尚未由当前日志单独证实）
+
+- **本地公开题集的高分不能外推到官方隐藏分布。** 本地回归、Math Harness 或 answer-bank
+  结果只能作为候选筛选证据；除非有适用数据上的独立官方或等价盲测证据，不得据此宣称
+  隐藏集能力已经提升。
+
+## 隐藏评测约束
+
+- 隐藏测试题和标准答案不会提供。不得读取、推断、构造或依赖隐藏测试、judger
+  内部信息或标准答案。
+- 不得假设题目按固定顺序执行、一定复用同一进程，或跨调用保留状态。每次
+  `solve` 都必须可独立运行。
+- `metadata` 可能不止包含 `idx`。只能使用已明确允许的正常元信息，且不得
+  要求其中存在答案或等价字段。
+
+## 团队自建 112 题集
+
+`reasoning_agent/error_notebook/eval_112.json` 是团队自行编写/整理、仿官方格式制作的
+answer-bearing 内部题集，不是官方评测题，也不是隐藏测试数据。用户于 2026-09-28 作出
+长期授权：本地实验可将该文件的 `problem` 字段发送到已配置的外部模型 API。API 请求、
+metadata、日志和答案库不得包含 `answer`/gold；标准答案只留在本地评估器评分。该题集也可用于
+离线评测、人工错误审计，以及在明确启用 `temporary_answer_bank` 时构建提交答案库；bank 命中
+必须与模型能力分开统计。
+
+该文件继续保持本地受控、不得被 Git 跟踪；在线 `solve()` 默认不读取它，除非显式配置的
+submission answer-bank 路径被启用。真正的官方隐藏题、标准答案和 judger 内部信息仍受上方
+隐藏评测约束保护，不能用 `eval_112.json` 的团队身份规则扩大读取范围。
+
+## 运行、资源与安全约束
+
+- 官方 client 和平台 runner 负责模型访问、限流、token 统计、超时、并发与安全
+  控制。不得绕过、规避或尝试对抗这些控制。
+- 不得硬编码 API key、token、个人凭证，也不得假设本地存在固定 API 配置。
+- 必须控制模型调用次数和 token 用量。单题失败不应无谓地影响本地批处理的其余
+  题目。
+- 不得执行破坏性操作、恶意行为，或尝试利用评测环境漏洞。
+
+## 仓库与提交约束
+
+- 新增代码、提示词、工具和资源必须通过仓库相对路径读取。不得依赖开发机绝对
+  路径或未声明的本地文件。
+- 所有运行时依赖必须声明在 `requirements.txt` 或赛事明确允许的依赖清单中，并
+  确保可在隔离环境中稳定安装和复现。
+- 官方 baseline 可从 GitHub 获取；参赛代码必须托管在队伍 AtomGit 组织下的仓库。
+- 根据飞书文档 2026-07-16 更新，评测会拉取已关联并提交作品的仓库最新 `main`
+  分支。队伍须先在 AtomGit 作品页面点击“提交作品”。固定评测时间为北京时间
+  每日 12:00 与 24:00；不要采用旧 README 中提交 commit SHA 的流程。
+
+## Trace 与输出卫生
+
+- `trace` 中不得包含 API key、访问 token、个人信息、隐藏答案数据或其他敏感信息。
+- trace 必须简洁且可 JSON 序列化。应记录有用的决策摘要、工具结果和失败原因，
+  不要重复保存完整 prompt 或冗长模型输出。
+- 提交前必须验证：`user_agent.py` 可正常 import，
+  `ReasoningAgent(client=official_client)` 可初始化，且 `solve` 不依赖仅本地存在
+  的资源，并返回非空字符串 `final_response`。
+
+## 普适性优先：拒绝答题能力过拟合
+
+本仓库本地 112 题测试集统一使用：
+`reasoning_agent/error_notebook/eval_112.json`。`sample_data/dev.jsonl`（3 题）
+只用于快速冒烟测试；此前的 `sample_data/public_regression_112.jsonl` 已移除，
+不再作为本地测试依赖。以上数据均不是隐藏评测题库。任何为抬高开发集单题分而对
+"答题能力"做的特化，都有过拟合风险，默认**拒绝**。
+
+112 题集合不能单独证明证明题、推导/解释、长题面、跨方向混合题或 P3
+验证/修正的收益。后续复杂能力冻结集必须与 RAG 语料隔离，不得据其逐题调
+Prompt；默认路径晋升必须在适用数据集上完成至少双轮独立 A/B。
+
+
+
+### 允许的通用改进（必须可迁移）
+
+- 规则对**任意**满足同一数学/文本条件的输入成立（如：无序多根有理数集合规范化、
+  占位符答案拒绝、统一 token/调用预算、答案优先 Prompt）。
+- 改动不引用具体开发集题号或固定题面片段。
+- 有清晰的“适用条件 / 明确不做”边界；有序结构、不等式、非数值式等不得被误伤。
+- 在冻结开发集上独立对照；提升应来自可复现的通用机制，而非单次运气或单题特判。
+- 评测报告必须记录实际启用的 P2/P3 开关、有效调用上限、Prompt/配置版本和
+  平均/P95 成本；不能用未暴露配置或错误调用上限的报告做默认路径晋升。
+
+### 决策口径
+
+- 若一项改动能抬高开发集个别题，但依赖题号/题面特判，或会损害未见题上的通用
+  行为 → **KEEP 现状，拒绝合入默认路径**。
+- 若一项改动对开发集中“像 idx10 那样算对但表示不一致”的**一类**表面形式生效，
+  且条件可形式化、可单测、不绑定题号 → 可以进入默认路径（须双轮复评与接口验收）。
+- 硬推理失败（开发集上长期错的抽象题等）优先考虑通用 Prompt、预算、抽取卫生或
+  可验证工具证据；**禁止**为抬分而牺牲普适性。
+
+## 实验闭环与方法融合
+
+提出新方法、复跑旧实验或设计融合前，必须完整读取
+`docs/excluded_approaches.md`。该表是方案处置的单一事实源；实验报告和 manifest
+仍是数字证据源。
+
+1. 先确认候选不属于 `REJECTED` 的原样复跑，也不重复 `ARCHIVED` 的同协议抽样；
+   若关键机制或证据前提确有变化，必须以新名称、新假设和新预注册进入 `OPEN`。
+2. 共享模型端点的实验串行运行；先判预注册的 VOID 门，再判能力、卫生和成本门。
+3. 每个实验结束后，先把报告、manifest 与处置写回排除表，再启动下一个方法。
+4. 融合只使用已经在适用数据上独立过门的组件；融合臂相对最强单方法只增加一个
+   可归因变量，并保持官方调用、token 与总时限约束。
+5. 本地过门只产生官方候选，不自动修改 `SUBMISSION_CONFIG`、提交仓库 main 或作品。
+
+## 仓库卫生与实验产物
+
+源码、测试、fixture、实验配置和压缩后的结论进入 Git；每次运行的 answers、
+report、manifest、metrics、日志和 raw dump 留在 `artifacts/<run_id>/` 等被忽略的
+运行目录。新增或修改 harness、评测 runner、实验脚本时，先阅读并遵守
+[`docs/agents/repository-hygiene.md`](docs/agents/repository-hygiene.md)，并通过
+`reasoning_agent.artifacts.RunContext` / `ArtifactManager` 统一写入运行产物。
+
+该文档也规定了 `docs/experiments/` 历史文件的兼容迁移边界：保留可读 summary，
+不要把新 raw 结果继续写入该目录；已有被跟踪的历史 raw 文件不在一次改动中批量删除。
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues at RUSS0718/Challenge-Cup-2026 (via `gh`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles, label strings equal to role names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` + `docs/adr/`. See `docs/agents/domain.md`.

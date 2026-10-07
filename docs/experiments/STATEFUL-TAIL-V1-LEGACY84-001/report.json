@@ -1,0 +1,39 @@
+{
+  "run_id": "STATEFUL-TAIL-V1-LEGACY84-001",
+  "dataset": "sample_data\\legacy84.jsonl",
+  "total_pairs_evaluated": 168,
+  "round1": {
+    "total": 84,
+    "baseline_correct": 47,
+    "candidate_correct": 45,
+    "delta": -2
+  },
+  "round2": {
+    "total": 84,
+    "baseline_correct": 47,
+    "candidate_correct": 48,
+    "delta": 1
+  },
+  "combined": {
+    "baseline_correct": 94,
+    "candidate_correct": 93,
+    "delta_correct": -1,
+    "b_pairs_candidate_wins": 4,
+    "c_pairs_baseline_wins": 5,
+    "cluster_b_items": 3,
+    "cluster_c_items": 5,
+    "baseline_total_calls": 658,
+    "candidate_total_calls": 678,
+    "baseline_mean_calls": 3.9166666666666665,
+    "candidate_mean_calls": 4.035714285714286,
+    "baseline_errors": 0,
+    "candidate_errors": 0
+  },
+  "gates": {
+    "health_pass": true,
+    "non_negative_delta_pass": false,
+    "cluster_b_ge_c_pass": false,
+    "cost_gate_pass": true
+  },
+  "elapsed_seconds": 7934.867126703262
+}

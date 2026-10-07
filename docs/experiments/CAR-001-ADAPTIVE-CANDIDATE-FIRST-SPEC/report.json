@@ -1,0 +1,35 @@
+{
+  "method_id": "adaptive_candidate_first_v1",
+  "phase": "F0_code_gate",
+  "captured_at": "2026-09-08",
+  "zero_model_calls": true,
+  "target_tests": {
+    "command": "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest tests.test_adaptive_candidate_first -q",
+    "passed": 12,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "full_regression": {
+    "command": "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest discover -s tests -q",
+    "total": 736,
+    "passed": 732,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 4,
+    "skip_scope": "archived BTCS tests"
+  },
+  "budget": {
+    "max_model_calls": 3,
+    "token_sequence": [2048, 2048, 4096],
+    "worst_case_completion_tokens": 8192,
+    "soft_deadline_seconds": 600,
+    "hard_deadline_seconds": 900
+  },
+  "default_config_unchanged": true,
+  "soft_skill_hint": "implemented_opt_in_only",
+  "thinking_mode": "official_default_uncontrolled",
+  "capability_conclusion": "NONE",
+  "disposition": "CODE_ACCEPTED / DEFAULT_OFF / ZERO_MODEL_CALLS / NO_CAPABILITY_CONCLUSION",
+  "next_phase": "F1 health probe"
+}

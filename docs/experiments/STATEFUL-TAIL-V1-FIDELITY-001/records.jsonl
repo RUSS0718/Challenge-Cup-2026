@@ -1,0 +1,20 @@
+{"id": "aime25_0", "status": "initial_solved", "init_length": 1007, "extracted_answer": "70", "gold_answer": "70"}
+{"id": "aime25_1", "status": "initial_solved", "init_length": 10828, "extracted_answer": "Hmm, this path goes A -> F -> N -> B -> C -> E -> M -> A.", "gold_answer": "588"}
+{"id": "aime25_2", "status": "initial_solved", "init_length": 1157, "extracted_answer": "16", "gold_answer": "16"}
+{"id": "aime25_3", "status": "initial_solved", "init_length": 1375, "extracted_answer": "117", "gold_answer": "117"}
+{"id": "aime25_4", "status": "initial_solved", "init_length": 10235, "extracted_answer": "2+", "gold_answer": "279"}
+{"id": "aime25_5", "status": "initial_solved", "init_length": 1005, "extracted_answer": "$504$", "gold_answer": "504"}
+{"id": "aime25_6", "status": "initial_solved", "init_length": 11010, "extracted_answer": "So a pairing is a partition into 6 sets of size 2.", "gold_answer": "821"}
+{"id": "aime25_7", "status": "initial_solved", "init_length": 9499, "extracted_answer": "The radius of the circle is also 5.", "gold_answer": "77"}
+{"id": "aime25_8", "status": "continuation_evaluated", "init_length": 7977, "tail_length": 7977, "cont_length": 7738, "cont_latency": 94.7456283569336, "formed_answer": false, "extracted_answer": "", "has_placeholder": false, "gold_answer": "62"}
+{"id": "aime25_9", "status": "initial_solved", "init_length": 10520, "extracted_answer": "There are 3 rows and 3 blocks, so 9 such segments.", "gold_answer": "81"}
+{"id": "aime25_10", "status": "initial_solved", "init_length": 10024, "extracted_answer": "Also note that r = t - 4k = 34 y^2 - 4k.", "gold_answer": "259"}
+{"id": "aime25_11", "status": "initial_solved", "init_length": 9519, "extracted_answer": "So we need to calculate the area of Region 1.", "gold_answer": "510"}
+{"id": "aime25_12", "status": "initial_solved", "init_length": 12369, "extracted_answer": "There are 4 such pairs.", "gold_answer": "204"}
+{"id": "aime25_13", "status": "initial_solved", "init_length": 10412, "extracted_answer": "Here we have 5 terms.", "gold_answer": "60"}
+{"id": "aime25_14", "status": "continuation_evaluated", "init_length": 8069, "tail_length": 8000, "cont_length": 11727, "cont_latency": 152.91049790382385, "formed_answer": true, "extracted_answer": "We can use the fact that v_3(a^3 + b^3 + c^3) ≥ 7.", "has_placeholder": false, "gold_answer": "735"}
+{"id": "aime25_15", "status": "initial_solved", "init_length": 1232, "extracted_answer": "468", "gold_answer": "468"}
+{"id": "aime25_16", "status": "initial_solved", "init_length": 799, "extracted_answer": "49", "gold_answer": "49"}
+{"id": "aime25_17", "status": "initial_solved", "init_length": 9696, "extracted_answer": "Boundary edges are 8 edges, 2 per square.", "gold_answer": "82"}
+{"id": "aime25_18", "status": "continuation_evaluated", "init_length": 8512, "tail_length": 8000, "cont_length": 12479, "cont_latency": 144.78104639053345, "formed_answer": true, "extracted_answer": "106\".", "has_placeholder": false, "gold_answer": "106"}
+{"id": "aime25_19", "status": "continuation_evaluated", "init_length": 5676, "tail_length": 5676, "cont_length": 11026, "cont_latency": 101.55442380905151, "formed_answer": true, "extracted_answer": "5. We need to calculate the arc measures.", "has_placeholder": false, "gold_answer": "336"}

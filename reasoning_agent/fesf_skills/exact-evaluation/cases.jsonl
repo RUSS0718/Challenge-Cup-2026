@@ -1,0 +1,25 @@
+{"case_id":"pos_01","applicable":true,"request":"EXACT_EVAL: claim_id=C1; expr=1+2*3; scope=arithmetic value","expected_status":"EXACT"}
+{"case_id":"pos_02","applicable":true,"request":"EXACT_EVAL: claim_id=C2; expr=(8-3)/5; expected=1; scope=quotient check","expected_status":"EXACT"}
+{"case_id":"pos_03","applicable":true,"request":"EXACT_EVAL: claim_id=C3; expr=2^10; scope=power value","expected_status":"EXACT"}
+{"case_id":"pos_04","applicable":true,"request":"EXACT_EVAL: claim_id=C4; expr=x^2+2*x+1; expected=(x+1)^2; scope=polynomial identity","expected_status":"EXACT"}
+{"case_id":"pos_05","applicable":true,"request":"EXACT_EVAL: claim_id=C5; expr=7/3+2/3; expected=3; scope=rational sum","expected_status":"EXACT"}
+{"case_id":"pos_06","applicable":true,"request":"EXACT_EVAL: claim_id=C6; expr=-4*(3-5); scope=signed arithmetic","expected_status":"EXACT"}
+{"case_id":"pos_07","applicable":true,"request":"EXACT_EVAL: claim_id=C7; expr=a+b; scope=symbolic sum","expected_status":"EXACT"}
+{"case_id":"pos_08","applicable":true,"request":"EXACT_EVAL: claim_id=C8; expr=(n+1)^2-n^2; expected=2*n+1; scope=finite difference","expected_status":"EXACT"}
+{"case_id":"pos_09","applicable":true,"request":"EXACT_EVAL: claim_id=C9; expr=12/4; expected=3; scope=division check","expected_status":"EXACT"}
+{"case_id":"pos_10","applicable":true,"request":"EXACT_EVAL: claim_id=C10; expr=3^0; expected=1; scope=zero exponent","expected_status":"EXACT"}
+{"case_id":"pos_11","applicable":true,"request":"EXACT_EVAL: claim_id=C11; expr=(5+1)*(5-1); expected=24; scope=factorisation check","expected_status":"EXACT"}
+{"case_id":"pos_12","applicable":true,"request":"EXACT_EVAL: claim_id=C12; expr=100-17*2; expected=66; scope=bounded calculation","expected_status":"EXACT"}
+{"case_id":"neg_01","applicable":false,"request":"EXACT_EVAL: claim_id=C13; expr=2^13; scope=oversized exponent","expected_status":"UNKNOWN"}
+{"case_id":"neg_02","applicable":false,"request":"EXACT_EVAL: claim_id=C14; expr=sin(1); scope=unknown function","expected_status":"UNKNOWN"}
+{"case_id":"neg_03","applicable":false,"request":"EXACT_EVAL: claim_id=C15; expr=x=1; scope=assignment","expected_status":"UNKNOWN"}
+{"case_id":"neg_04","applicable":false,"request":"EXACT_EVAL: claim_id=C16; expr=__import__('os'); scope=module access","expected_status":"UNKNOWN"}
+{"case_id":"neg_05","applicable":false,"request":"EXACT_EVAL: claim_id=C17; expr=open('x'); scope=file access","expected_status":"UNKNOWN"}
+{"case_id":"neg_06","applicable":false,"request":"EXACT_EVAL: claim_id=C18; expr=requests.get('https://x'); scope=network access","expected_status":"UNKNOWN"}
+{"case_id":"neg_07","applicable":false,"request":"EXACT_EVAL: claim_id=C19; expr=1//2; scope=floor division","expected_status":"UNKNOWN"}
+{"case_id":"neg_08","applicable":false,"request":"EXACT_EVAL: claim_id=C20; expr=1/0; scope=undefined quotient","expected_status":"UNKNOWN"}
+{"case_id":"neg_09","applicable":false,"request":"EXACT_EVAL: claim_id=C21; expr=1+; scope=malformed expression","expected_status":"UNKNOWN"}
+{"case_id":"neg_10","applicable":false,"request":"EXACT_EVAL: claim_id=C22; expr=1+2; scope=","expected_status":"UNKNOWN"}
+{"case_id":"pos_13","applicable":true,"request":"EXACT_EVAL: claim_id=C23; expr=1+2; expected=4; scope=contradiction","expected_status":"REFUTED"}
+{"case_id":"neg_12","applicable":false,"request":"EXACT_EVAL: claim_id=C24; expr=\"a\"*300; scope=length limit","expected_status":"UNKNOWN"}
+{"case_id":"neg_13","applicable":false,"request":"EXACT_EVAL: claim_id=C25; expr=0^(-1); scope=undefined value","expected_status":"UNKNOWN"}

@@ -1,0 +1,120 @@
+{
+  "stage": "p1_failure_salvage_regression",
+  "screen": false,
+  "formal_gate": true,
+  "official_score": false,
+  "preregistration": "docs/experiments/p1_salvage_preregistration_2026-08-27.md",
+  "started_at": "2026-08-27T16:45:33+08:00",
+  "ended_at": "2026-08-27T19:05:35+08:00",
+  "commit": "cedad82",
+  "ref": "codex/b1-4k-canary",
+  "variants": [
+    "current",
+    "current_salvage"
+  ],
+  "parameters": {
+    "rounds_per_dataset": 2,
+    "workers": 3,
+    "timeout_seconds": 90,
+    "retry_count": 1,
+    "temperature": 0.6,
+    "interleave_items": true
+  },
+  "planned_commands": [
+    "D:/Anaconda/envs/CA-py310/python.exe scripts/evaluate_protocol_ab.py --input-files sample_data/complex_capability_freeze_48.jsonl --variants current,current_salvage --rounds 2 --workers 3 --timeout-seconds 90 --retry-count 1 --interleave-items --output-file tmp/p1_salvage_2026-08-27/complex48_r12.json",
+    "D:/Anaconda/envs/CA-py310/python.exe scripts/evaluate_protocol_ab.py --input-files sample_data/public_regression_112.jsonl --variants current,current_salvage --rounds 2 --workers 3 --timeout-seconds 90 --retry-count 1 --interleave-items --output-file tmp/p1_salvage_2026-08-27/public112_r12.json"
+  ],
+  "files": [
+    "docs/experiments/p1_salvage_complex48_r12_2026-08-27.json"
+  ],
+  "missing_planned_files": [
+    "tmp/p1_salvage_2026-08-27/public112_r12.json"
+  ],
+  "sha256": {
+    "complex48_result": "A32835ABEDAD731C7A1A1703D46E9D3E4AAF7B028CFA5B1B1E24DE9B27B77544",
+    "complex48_input": "57F78259C185623BEB144CDE29D1C0ACAD15915404736163481A35E119F25C0E",
+    "public112_input": "0AA46A24C26A1BF95042BB5A1D6E00EF1B9C93E3278595B0FFE13C5BEFCE89E3",
+    "preregistration": "B8FCA1DCB4C92370B218D3F20B1BB24C0E2A2A0281A3A154E7C3BA7D9F0865E1",
+    "runner": "37AFFA63477E662AD1FA257F786BED572F0AEBFC35F1BB8C190140D8ECFEC931",
+    "user_agent": "377BC7F93033D8CC69CCDBF79C56C9A2C086245E2E33917CE591EA27215507A0"
+  },
+  "completed_reports": [
+    {
+      "dataset": "complex48",
+      "round": 1,
+      "variant": "current",
+      "n": 48,
+      "correct": 23,
+      "invalid": 0,
+      "model_error": 9,
+      "model_error_rate": 0.1875,
+      "average_model_calls": 4.104166666666667,
+      "p95_model_calls": 5
+    },
+    {
+      "dataset": "complex48",
+      "round": 1,
+      "variant": "current_salvage",
+      "n": 48,
+      "correct": 23,
+      "invalid": 0,
+      "model_error": 6,
+      "model_error_rate": 0.125,
+      "average_model_calls": 4.145833333333333,
+      "p95_model_calls": 5
+    },
+    {
+      "dataset": "complex48",
+      "round": 2,
+      "variant": "current",
+      "n": 48,
+      "correct": 24,
+      "invalid": 0,
+      "model_error": 1,
+      "model_error_rate": 0.020833333333333332,
+      "average_model_calls": 4.041666666666667,
+      "p95_model_calls": 5
+    },
+    {
+      "dataset": "complex48",
+      "round": 2,
+      "variant": "current_salvage",
+      "n": 48,
+      "correct": 23,
+      "invalid": 0,
+      "model_error": 6,
+      "model_error_rate": 0.125,
+      "average_model_calls": 4.083333333333333,
+      "p95_model_calls": 5
+    }
+  ],
+  "runner_circuit_breaker": {
+    "triggered": false,
+    "max_consecutive_model_errors": 4
+  },
+  "descriptive_mechanism_coverage": {
+    "current_salvage_item_rounds": 96,
+    "finalization_salvaged": 0,
+    "finalization_fallback": 0,
+    "finalization_selected": 96,
+    "interpretation": "complex48 did not exercise the P1 failure-salvage path"
+  },
+  "preregistered_window_health_gate": {
+    "threshold": "any arm model_error rate > 0.10",
+    "triggered": true,
+    "triggered_reports": [
+      "complex48:r1:current (9/48)",
+      "complex48:r1:current_salvage (6/48)",
+      "complex48:r2:current_salvage (6/48)"
+    ]
+  },
+  "void": true,
+  "void_reason": "preregistered symmetric window-health gate exceeded before invalid and accuracy gates; public112 artifact was not produced",
+  "verdict_summary": {
+    "invalid_reduction_gate": "NOT_EVALUATED",
+    "accuracy_non_regression_gate": "NOT_EVALUATED",
+    "official_change_quota": "NOT_QUALIFIED",
+    "method_disposition": "OPEN / NO_VALID_CONCLUSION",
+    "window_disposition": "ARCHIVED_VOID"
+  }
+}

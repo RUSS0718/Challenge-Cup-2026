@@ -1,0 +1,60 @@
+{
+  "method_id": "adaptive_candidate_first_v1",
+  "phase": "F1_health_probe",
+  "baseline_id": "fsdf_v1",
+  "records": 12,
+  "expected_records": 12,
+  "arm_reports": {
+    "fsdf_v1": {
+      "n": 6,
+      "expected": 6,
+      "model_error_count": 6,
+      "model_error_rate": 1.0,
+      "missing_results": 0,
+      "stage_error_count": 6,
+      "average_model_calls": 5.0,
+      "max_model_calls": 5,
+      "average_duration_seconds": 291.08666666666664,
+      "max_duration_seconds": 424.527,
+      "finish_reason_counts": {
+        "stop": 7,
+        "length": 3
+      },
+      "completion_tokens_total": 17386
+    },
+    "car_001": {
+      "n": 6,
+      "expected": 6,
+      "model_error_count": 2,
+      "model_error_rate": 0.3333333333333333,
+      "missing_results": 0,
+      "stage_error_count": 2,
+      "average_model_calls": 1.8333333333333333,
+      "max_model_calls": 3,
+      "average_duration_seconds": 119.80649999999999,
+      "max_duration_seconds": 225.65,
+      "finish_reason_counts": {
+        "stop": 3,
+        "length": 2
+      },
+      "completion_tokens_total": 9094
+    }
+  },
+  "void": true,
+  "void_reasons": [
+    "fsdf_v1_model_error_rate",
+    "car_001_model_error_rate"
+  ],
+  "capability_conclusion": "NONE",
+  "status": "completed",
+  "unfinished_jobs": 0,
+  "items_path": "sample_data\\medium_capability_freeze_60.jsonl",
+  "items_sha256": "a3d1287c555669e4943c306abe767d651706804eb64f72012da68bcfb2d761a0",
+  "workers": 3,
+  "request_timeout_seconds": 120,
+  "retry": 1,
+  "thinking_mode": "default",
+  "started_at_utc": "2026-09-08T07:10:32.240167+00:00",
+  "elapsed_seconds": 942.414,
+  "hard_stop_seconds": 1200.0
+}

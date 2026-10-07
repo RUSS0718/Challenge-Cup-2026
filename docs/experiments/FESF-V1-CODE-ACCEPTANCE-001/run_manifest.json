@@ -1,0 +1,41 @@
+{
+  "run_id": "FESF-V1-CODE-ACCEPTANCE-001",
+  "kind": "zero_model_engineering_acceptance",
+  "status": "PASS_LUNA_MAX_REVIEW",
+  "model_calls": 0,
+  "submission_profile": "FSDF v1 rollback anchor; FESF opt-in",
+  "commands": [
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest tests.test_fesf tests.test_fesf_skills tests.test_fork_select_deepen_finish tests.test_external_hard_sets_runner_report tests.test_fsdf_reliability_v2",
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m unittest discover -s tests -p 'test_*.py'",
+    "D:\\Anaconda\\envs\\CA-py310\\python.exe -m py_compile user_agent.py reasoning_agent\\fork_evidence_synthesize_finish.py reasoning_agent\\fesf_memory\\solve_state.py scripts\\run_external_hard_sets_smoke.py",
+    "quick_validate.py reasoning_agent\\fesf_skills\\exact-evaluation",
+    "git diff --check"
+  ],
+  "results": {
+    "unittest": "187 tests OK (focused suite after review fixes); 648 tests OK, 4 skipped (full suite)",
+    "skill_validator": "Skill is valid!",
+    "py_compile": "PASS",
+    "diff_check": "PASS"
+  },
+  "independent_review": {
+    "reviewer": "Luna max subagent",
+    "status": "PASS",
+    "scope": "read-only zero-model code and Skill engineering review",
+    "model_calls": 0,
+    "capability_conclusion": "NONE"
+  },
+  "source_sha256": {
+    "docs/experiments/FESF-V1-SPEC/spec.md": "79f10511264014b1d220576204f00f7ab4d6c02470ea7b63c7b21440a0b34ee5",
+    "reasoning_agent/fork_evidence_synthesize_finish.py": "c48397c6f74c2aca9a0d213bda58e927796274da1ca5bd653cae9617103522fa",
+    "reasoning_agent/fesf_memory/__init__.py": "b667aec2942ebaa125f230f63a1f8cd2f7b9092b11f69c62120a01bbe74ba80e",
+    "reasoning_agent/fesf_memory/solve_state.py": "42eb9ad215d79340525aede269b4b720acd06490f7df2ce10923d4371d6b8471",
+    "reasoning_agent/fesf_skills/exact-evaluation/SKILL.md": "2847cc3ba025d9fbb2bde9f7578fa1552a9b5f6e7fd9b523a5fa4972bc170387",
+    "reasoning_agent/fesf_skills/exact-evaluation/cases.jsonl": "cb8b8d3a65a9abd2045a904c6564a02652aae0216334cd3cc65e607c053064fa",
+    "user_agent.py": "99431d85707babef46d0f9874c611cdeea59a3fd13ce3eebf08a96dc1a4ab9a5",
+    "scripts/run_external_hard_sets_smoke.py": "e495741a765653a480450c37540a63310f1dfe5baaceeaa8e290d84f04b24c18",
+    "tests/test_fesf.py": "eedc69dd467c8241e5955734111e6585f56cc93a65f16061c9d73e108d30a0d4",
+    "tests/test_fesf_skills.py": "d16b2c05903f3782f2c21e828339250db2a7b027dc25bc41a1185dab7565cebe"
+  },
+  "model_experiment": "DEFERRED_BY_USER",
+  "release": "NO_RELEASE"
+}

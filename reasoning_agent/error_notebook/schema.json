@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "required": [
+    "entry_id",
+    "pattern",
+    "domain",
+    "mistake",
+    "corrective_rule",
+    "use_when",
+    "do_not_use",
+    "source_trace_ids",
+    "validation"
+  ],
+  "validation": {
+    "status": ["draft", "reviewed", "validated", "rejected"],
+    "held_out_total": "non-negative integer",
+    "held_out_pass": "integer between 0 and held_out_total"
+  },
+  "forbidden_fields": [
+    "answer",
+    "answers",
+    "gold",
+    "gold_answer",
+    "reference_answer",
+    "solution",
+    "reference_solution",
+    "raw_response",
+    "raw_prompt",
+    "full_prompt",
+    "prompt",
+    "response",
+    "problem",
+    "raw_problem",
+    "problem_text",
+    "hidden_answer"
+  ]
+}

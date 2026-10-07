@@ -1,0 +1,50 @@
+{
+  "stage": "hetero_k5_preflight_health_probe_2130",
+  "operational_probe": true,
+  "capability_evidence": false,
+  "official_score": false,
+  "automation_id": "challenge-cup",
+  "protocol": "docs/experiments/hetero_k5_health_probe_2130_2026-08-27.md",
+  "runtime_commit": "25f99b5",
+  "implementation_commit": "18f4f5a",
+  "ended_at": "2026-08-27T21:36:52+08:00",
+  "input_file": "sample_data/dev.jsonl",
+  "variant": "current",
+  "command": "D:/Anaconda/envs/CA-py310/python.exe scripts/evaluate_protocol_ab.py --input-files sample_data/dev.jsonl --variants current --rounds 1 --workers 3 --timeout-seconds 90 --retry-count 1 --output-file tmp/hetero_k5_2026-08-27/health_dev_2130.json",
+  "parameters": {
+    "rounds": 1,
+    "workers": 3,
+    "timeout_seconds": 90,
+    "retry_count": 1,
+    "temperature": 0.6
+  },
+  "files": [
+    "docs/experiments/hetero_k5_health_dev_2130_2026-08-27.json"
+  ],
+  "sha256": {
+    "result": "F3B42CBBBB6E9AD4DDC46C1107D7107F0FDC88B355EB7131E02C8DED9C8297EB",
+    "protocol": "CE4397130D6ACC4124BD5288EEB2C06C60BE56AD5FFF11C3B6C3378AAA522FFE",
+    "input": "B7CE841AFEDA28E9BC9B026574678E1201EAAF12F7DE08F7FCEC48A3B176A281",
+    "user_agent": "B908925F99FD283B3BB003F38277E8739F065D5B562739070A3A0B7F29641452",
+    "runner": "9EEB01D5C414F4029D8721ADA8DAAD9EF002893613D14D541FC198438DA6850A"
+  },
+  "result": {
+    "dataset_size": 3,
+    "model_error_diagnostics": 1,
+    "correct_descriptive_only": 2,
+    "invalid": 0,
+    "final_response_nonempty_rate": 1.0,
+    "average_model_calls": 4.0,
+    "p95_model_calls": 5,
+    "average_completion_tokens": 5845.333333333333,
+    "p95_completion_tokens": 7929,
+    "average_latency_seconds": 235.201,
+    "p95_latency_seconds": 356.697,
+    "main_length_rate": 0.0,
+    "runner_void": false,
+    "max_consecutive_model_errors": 1
+  },
+  "verdict": "UNHEALTHY",
+  "hetero_screen_started": false,
+  "automation_disposition": "delete_after_completion"
+}

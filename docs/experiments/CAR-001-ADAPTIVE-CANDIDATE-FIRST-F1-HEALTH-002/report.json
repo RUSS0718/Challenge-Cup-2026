@@ -1,0 +1,56 @@
+{
+  "method_id": "adaptive_candidate_first_v1",
+  "phase": "F1_health_probe",
+  "baseline_id": "fsdf_v1",
+  "records": 12,
+  "expected_records": 12,
+  "arm_reports": {
+    "fsdf_v1": {
+      "n": 6,
+      "expected": 6,
+      "model_error_count": 6,
+      "model_error_rate": 1.0,
+      "missing_results": 0,
+      "stage_error_count": 6,
+      "average_model_calls": 5.0,
+      "max_model_calls": 5,
+      "average_duration_seconds": 509.8978333333334,
+      "max_duration_seconds": 567.128,
+      "finish_reason_counts": {
+        "stop": 7,
+        "length": 1
+      },
+      "completion_tokens_total": 12777
+    },
+    "car_001": {
+      "n": 6,
+      "expected": 6,
+      "model_error_count": 4,
+      "model_error_rate": 0.6666666666666666,
+      "missing_results": 0,
+      "stage_error_count": 4,
+      "average_model_calls": 2.5,
+      "max_model_calls": 3,
+      "average_duration_seconds": 256.89416666666665,
+      "max_duration_seconds": 360.383,
+      "finish_reason_counts": {
+        "length": 3,
+        "stop": 4
+      },
+      "completion_tokens_total": 9364
+    }
+  },
+  "void": true,
+  "void_reasons": [
+    "fsdf_v1_model_error_rate",
+    "car_001_model_error_rate"
+  ],
+  "capability_conclusion": "NONE",
+  "items_path": "sample_data\\medium_capability_freeze_60.jsonl",
+  "items_sha256": "a3d1287c555669e4943c306abe767d651706804eb64f72012da68bcfb2d761a0",
+  "workers": 3,
+  "request_timeout_seconds": 120,
+  "retry": 1,
+  "thinking_mode": "default",
+  "elapsed_seconds": 1770.676
+}

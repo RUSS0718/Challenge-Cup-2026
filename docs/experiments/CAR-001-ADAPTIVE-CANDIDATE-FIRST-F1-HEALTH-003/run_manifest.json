@@ -1,0 +1,20 @@
+{
+  "method_id": "adaptive_candidate_first_v1",
+  "phase": "F1_health_probe",
+  "protocol": {
+    "baseline": "fsdf_v1",
+    "candidate": "car_001",
+    "items": 6,
+    "workers": 3,
+    "thinking_mode": "official_default",
+    "single_question_internal_parallelism": false,
+    "request_timeout_seconds": 120,
+    "retry": 1
+  },
+  "status": "aborted",
+  "void_reasons": ["manual_hard_stop", "no_durable_task_records"],
+  "records_written": 0,
+  "expected_records": 12,
+  "capability_conclusion": "NONE",
+  "submission_status": "NOT_PUBLISHED"
+}

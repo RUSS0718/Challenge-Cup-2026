@@ -1,0 +1,574 @@
+2026-09-15T12:15:45.375909762Z === Step 1: Check and prepare the environment ===
+2026-09-15T12:15:47.338631815Z Name: lagent
+2026-09-15T12:15:47.338864506Z Version: 0.5.0rc3
+2026-09-15T12:15:47.339098897Z Summary: A lightweight framework for building LLM-based agents
+2026-09-15T12:15:47.339338868Z Home-page: https://github.com/InternLM/lagent
+2026-09-15T12:15:47.339564219Z Author: 
+2026-09-15T12:15:47.339783560Z Author-email: 
+2026-09-15T12:15:47.340000031Z License: Apache 2.0
+2026-09-15T12:15:47.340276133Z Location: /usr/local/lib/python3.11/site-packages
+2026-09-15T12:15:47.340469854Z Editable project location: /tmp/lagent
+2026-09-15T12:15:47.340691165Z Requires: aiohttp, anthropic, arxiv, asyncache, asyncer, distro, filelock, func_timeout, griffe, json5, jsonschema, jupyter, jupyter_client, jupyter_core, openai, pydantic, ray, requests, tenacity, termcolor, tiktoken, timeout-decorator, typing-extensions
+2026-09-15T12:15:47.340881616Z Required-by: 
+2026-09-15T12:15:47.436938327Z === upgreade pip start === 
+2026-09-15T12:15:48.010152486Z Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+2026-09-15T12:15:48.011388902Z Requirement already satisfied: pip in /usr/local/lib/python3.11/site-packages (24.0)
+2026-09-15T12:15:48.855566441Z Collecting pip
+2026-09-15T12:15:48.965749422Z   Downloading https://pypi.tuna.tsinghua.edu.cn/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl (1.8 MB)
+2026-09-15T12:15:49.443272799Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 3.8 MB/s eta 0:00:00
+2026-09-15T12:15:50.830937741Z Installing collected packages: pip
+2026-09-15T12:15:50.831326893Z   Attempting uninstall: pip
+2026-09-15T12:15:50.836809449Z     Found existing installation: pip 24.0
+2026-09-15T12:15:50.907882908Z     Uninstalling pip-24.0:
+2026-09-15T12:15:51.202025044Z       Successfully uninstalled pip-24.0
+2026-09-15T12:15:52.522698955Z Successfully installed pip-26.2.1
+2026-09-15T12:15:52.523500809Z WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+2026-09-15T12:15:53.492594137Z === upgreade pip end === 
+2026-09-15T12:15:53.918134853Z Name: lagent
+2026-09-15T12:15:53.918349874Z Version: 0.5.0rc3
+2026-09-15T12:15:53.918582445Z Summary: A lightweight framework for building LLM-based agents
+2026-09-15T12:15:53.918805186Z Home-page: https://github.com/InternLM/lagent
+2026-09-15T12:15:53.919004637Z Author: 
+2026-09-15T12:15:53.919201128Z Author-email: 
+2026-09-15T12:15:53.919389799Z License: Apache 2.0
+2026-09-15T12:15:53.919625250Z Location: /usr/local/lib/python3.11/site-packages
+2026-09-15T12:15:53.919808431Z Editable project location: /tmp/lagent
+2026-09-15T12:15:53.920041442Z Requires: aiohttp, anthropic, arxiv, asyncache, asyncer, distro, filelock, func_timeout, griffe, json5, jsonschema, jupyter, jupyter_client, jupyter_core, openai, pydantic, ray, requests, tenacity, termcolor, tiktoken, timeout-decorator, typing-extensions
+2026-09-15T12:15:53.920178722Z Required-by: 
+2026-09-15T12:15:53.999526021Z === gcc:gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+2026-09-15T12:15:53.999537291Z Copyright (C) 2021 Free Software Foundation, Inc.
+2026-09-15T12:15:53.999542371Z This is free software; see the source for copying conditions.  There is NO
+2026-09-15T12:15:53.999546911Z warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. ==
+2026-09-15T12:15:54.002781936Z ===z3 :Z3 version 4.8.12 - 64 bit ==
+2026-09-15T12:15:54.456409862Z === Step 2: Clone repository ===
+2026-09-15T12:15:54.457997119Z Cloning into 'challenger_agent_judge'...
+2026-09-15T12:15:55.523924148Z === JUDGE_PATH set to: /opt/atomgit/challenger_agent_judge ===
+2026-09-15T12:15:55.748629731Z === Step 6: Clone user project repository ===
+2026-09-15T12:15:55.750071057Z JUDGE_PARENT_DIR：/opt/atomgit
+2026-09-15T12:15:55.750812581Z PROJECT_DIR：/opt/atomgit
+2026-09-15T12:15:55.752528979Z Cloning into 'Challenge-Cup-2026'...
+2026-09-15T12:16:41.647469880Z Updating files:  72% (414/573)Updating files:  72% (416/573)Updating files:  73% (419/573)Updating files:  74% (425/573)Updating files:  74% (426/573)Updating files:  74% (428/573)Updating files:  75% (430/573)Updating files:  75% (431/573)Updating files:  75% (433/573)Updating files:  75% (434/573)Updating files:  76% (436/573)Updating files:  76% (437/573)Updating files:  76% (439/573)Updating files:  76% (441/573)Updating files:  77% (442/573)Updating files:  78% (447/573)Updating files:  79% (453/573)Updating files:  80% (459/573)Updating files:  81% (465/573)Updating files:  82% (470/573)Updating files:  83% (476/573)Updating files:  84% (482/573)Updating files:  85% (488/573)Updating files:  86% (493/573)Updating files:  87% (499/573)Updating files:  88% (505/573)Updating files:  89% (510/573)Updating files:  90% (516/573)Updating files:  91% (522/573)Updating files:  92% (528/573)Updating files:  93% (533/573)Updating files:  94% (539/573)Updating files:  95% (545/573)Updating files:  96% (551/573)Updating files:  97% (556/573)Updating files:  98% (562/573)Updating files:  99% (568/573)Updating files: 100% (573/573)Updating files: 100% (573/573), done.
+2026-09-15T12:16:41.710444677Z Commit ID: 1507d3af9e378aab12de90602d4f7b42161f8649
+2026-09-15T12:16:41.954461034Z USER_AGENT script path: /opt/atomgit/Challenge-Cup-2026/user_agent.py
+2026-09-15T12:16:42.182096175Z === user project pip start === 
+2026-09-15T12:16:42.678757801Z Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+2026-09-15T12:16:42.679464594Z Requirement already satisfied: requests>=2.31.0 in /usr/local/lib/python3.11/site-packages (from -r requirements.txt (line 1)) (2.33.1)
+2026-09-15T12:16:43.455770315Z Collecting sympy<1.15,>=1.13 (from -r requirements.txt (line 2))
+2026-09-15T12:16:43.620671251Z   Downloading sympy-1.14.0-py3-none-any.whl (6.3 MB)
+2026-09-15T12:16:44.727584417Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.3/6.3 MB 8.6 MB/s  0:00:01
+2026-09-15T12:16:44.944672168Z Collecting chromadb==1.5.9 (from -r requirements.txt (line 5))
+2026-09-15T12:16:45.092578673Z   Downloading chromadb-1.5.9-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (22.7 MB)
+2026-09-15T12:16:46.096642706Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 22.7/22.7 MB 22.4 MB/s  0:00:01
+2026-09-15T12:16:46.286789381Z Collecting sentence-transformers==6.0.1 (from -r requirements.txt (line 6))
+2026-09-15T12:16:46.423658556Z   Downloading sentence_transformers-6.0.1-py3-none-any.whl (739 kB)
+2026-09-15T12:16:46.441426450Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 739.8/739.8 kB 38.4 MB/s  0:00:00
+2026-09-15T12:16:46.695709148Z Collecting torch==2.6.0 (from -r requirements.txt (line 7))
+2026-09-15T12:16:46.835614807Z   Downloading torch-2.6.0-cp311-cp311-manylinux_2_28_aarch64.whl (95.8 MB)
+2026-09-15T12:16:50.439132658Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 95.8/95.8 MB 26.5 MB/s  0:00:03
+2026-09-15T12:16:50.823810350Z Collecting transformers==5.17.0 (from -r requirements.txt (line 8))
+2026-09-15T12:16:50.950025695Z   Downloading transformers-5.17.0-py3-none-any.whl (12.3 MB)
+2026-09-15T12:16:51.454186281Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.3/12.3 MB 24.2 MB/s  0:00:00
+2026-09-15T12:16:51.667274095Z Collecting build>=1.0.3 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:51.775775546Z   Downloading build-1.6.1-py3-none-any.whl (31 kB)
+2026-09-15T12:16:51.781304312Z Requirement already satisfied: pydantic>=2.0 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (2.13.4)
+2026-09-15T12:16:51.782068016Z Requirement already satisfied: pydantic-settings>=2.0 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (2.14.2)
+2026-09-15T12:16:52.079687668Z Collecting pybase64>=1.4.1 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:52.185772688Z   Downloading pybase64-1.5.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (83 kB)
+2026-09-15T12:16:52.194084567Z Requirement already satisfied: uvicorn>=0.18.3 in /usr/local/lib/python3.11/site-packages (from uvicorn[standard]>=0.18.3->chromadb==1.5.9->-r requirements.txt (line 5)) (0.51.0)
+2026-09-15T12:16:52.194836091Z Requirement already satisfied: numpy>=1.22.5 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (2.4.6)
+2026-09-15T12:16:52.195371993Z Requirement already satisfied: typing-extensions>=4.5.0 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (4.16.0)
+2026-09-15T12:16:52.409460232Z Collecting onnxruntime>=1.14.1 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:52.519080059Z   Downloading onnxruntime-1.30.0-cp311-cp311-manylinux_2_28_aarch64.whl (21.3 MB)
+2026-09-15T12:16:53.468692144Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 21.3/21.3 MB 22.5 MB/s  0:00:00
+2026-09-15T12:16:53.637130457Z Collecting opentelemetry-api>=1.2.0 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:53.750290231Z   Downloading opentelemetry_api-1.44.0-py3-none-any.whl (60 kB)
+2026-09-15T12:16:53.886226581Z Collecting opentelemetry-exporter-otlp-proto-grpc>=1.2.0 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:53.995571386Z   Downloading opentelemetry_exporter_otlp_proto_grpc-1.44.0-py3-none-any.whl (19 kB)
+2026-09-15T12:16:54.122519815Z Collecting opentelemetry-sdk>=1.2.0 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:54.218967739Z   Downloading opentelemetry_sdk-1.44.0-py3-none-any.whl (137 kB)
+2026-09-15T12:16:54.604773547Z Collecting tokenizers>=0.13.2 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:54.722190180Z   Downloading tokenizers-0.23.2-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (3.5 MB)
+2026-09-15T12:16:54.911792784Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.5/3.5 MB 18.3 MB/s  0:00:00
+2026-09-15T12:16:55.055414570Z Collecting pypika>=0.48.9 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:55.169253327Z   Downloading pypika-0.51.1-py2.py3-none-any.whl (60 kB)
+2026-09-15T12:16:55.178860612Z Requirement already satisfied: tqdm>=4.65.0 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (4.70.0)
+2026-09-15T12:16:55.179404525Z Requirement already satisfied: overrides>=7.3.1 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (7.7.0)
+2026-09-15T12:16:55.311131175Z Collecting importlib-resources (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:55.415229106Z   Downloading importlib_resources-7.1.0-py3-none-any.whl (37 kB)
+2026-09-15T12:16:56.552432695Z Collecting grpcio>=1.58.0 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:56.649029550Z   Downloading grpcio-1.84.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (7.0 MB)
+2026-09-15T12:16:56.991744595Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 7.0/7.0 MB 20.6 MB/s  0:00:00
+2026-09-15T12:16:57.176053663Z Collecting bcrypt>=4.0.1 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:57.291296566Z   Downloading bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl (275 kB)
+2026-09-15T12:16:57.431245716Z Collecting typer>=0.9.0 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:57.539811647Z   Downloading typer-0.27.2-py3-none-any.whl (123 kB)
+2026-09-15T12:16:57.675817858Z Collecting kubernetes>=28.1.0 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:57.757074691Z   Downloading kubernetes-36.0.3-py2.py3-none-any.whl (4.6 MB)
+2026-09-15T12:16:57.931544913Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 26.7 MB/s  0:00:00
+2026-09-15T12:16:57.954028489Z Requirement already satisfied: tenacity>=8.2.3 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (9.1.4)
+2026-09-15T12:16:57.954600762Z Requirement already satisfied: pyyaml>=6.0.0 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (6.0.3)
+2026-09-15T12:16:58.120631334Z Collecting mmh3>=4.0.1 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:58.212877979Z   Downloading mmh3-5.3.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (106 kB)
+2026-09-15T12:16:58.826210219Z Collecting orjson>=3.9.12 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:58.974248057Z   Downloading orjson-3.12.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (130 kB)
+2026-09-15T12:16:58.985690551Z Requirement already satisfied: httpx>=0.27.0 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (0.28.1)
+2026-09-15T12:16:59.166390212Z Collecting rich>=10.11.0 (from chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:16:59.298523625Z   Downloading rich-15.0.0-py3-none-any.whl (310 kB)
+2026-09-15T12:16:59.314692001Z Requirement already satisfied: jsonschema>=4.19.0 in /usr/local/lib/python3.11/site-packages (from chromadb==1.5.9->-r requirements.txt (line 5)) (4.26.0)
+2026-09-15T12:16:59.514225331Z Collecting huggingface-hub<2.0.0,>=1.3.0 (from sentence-transformers==6.0.1->-r requirements.txt (line 6))
+2026-09-15T12:16:59.638764748Z   Downloading huggingface_hub-1.31.0-py3-none-any.whl (798 kB)
+2026-09-15T12:16:59.672466367Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 798.3/798.3 kB 23.9 MB/s  0:00:00
+2026-09-15T12:16:59.972879162Z Collecting scikit-learn>=1.1.0 (from sentence-transformers==6.0.1->-r requirements.txt (line 6))
+2026-09-15T12:17:00.096913507Z   Downloading scikit_learn-1.9.1-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (9.0 MB)
+2026-09-15T12:17:00.511725352Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9.0/9.0 MB 21.6 MB/s  0:00:00
+2026-09-15T12:17:00.908701282Z Collecting scipy>=1.0.0 (from sentence-transformers==6.0.1->-r requirements.txt (line 6))
+2026-09-15T12:17:01.048368460Z   Downloading scipy-1.17.1-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (33.1 MB)
+2026-09-15T12:17:02.774997331Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 33.1/33.1 MB 19.1 MB/s  0:00:01
+2026-09-15T12:17:02.855450305Z Requirement already satisfied: packaging>=20.0 in /usr/local/lib/python3.11/site-packages (from transformers==5.17.0->-r requirements.txt (line 8)) (26.2)
+2026-09-15T12:17:02.856115468Z Requirement already satisfied: regex>=2025.10.22 in /usr/local/lib/python3.11/site-packages (from transformers==5.17.0->-r requirements.txt (line 8)) (2026.7.19)
+2026-09-15T12:17:03.208097062Z Collecting safetensors>=0.8.0 (from transformers==5.17.0->-r requirements.txt (line 8))
+2026-09-15T12:17:03.344040863Z   Downloading safetensors-0.8.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (502 kB)
+2026-09-15T12:17:03.380218581Z Requirement already satisfied: filelock in /usr/local/lib/python3.11/site-packages (from torch==2.6.0->-r requirements.txt (line 7)) (3.32.0)
+2026-09-15T12:17:03.382102040Z Collecting sympy<1.15,>=1.13 (from -r requirements.txt (line 2))
+2026-09-15T12:17:03.528570310Z   Downloading sympy-1.13.1-py3-none-any.whl (6.2 MB)
+2026-09-15T12:17:03.834116589Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 20.2 MB/s  0:00:00
+2026-09-15T12:17:04.021684350Z Collecting networkx (from torch==2.6.0->-r requirements.txt (line 7))
+2026-09-15T12:17:04.148104197Z   Downloading networkx-3.6.1-py3-none-any.whl (2.1 MB)
+2026-09-15T12:17:04.258549670Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 19.1 MB/s  0:00:00
+2026-09-15T12:17:04.273553929Z Requirement already satisfied: jinja2 in /usr/local/lib/python3.11/site-packages (from torch==2.6.0->-r requirements.txt (line 7)) (3.1.6)
+2026-09-15T12:17:04.430379267Z Collecting fsspec (from torch==2.6.0->-r requirements.txt (line 7))
+2026-09-15T12:17:04.570845700Z   Downloading fsspec-2026.7.0-py3-none-any.whl (206 kB)
+2026-09-15T12:17:04.768385567Z Collecting mpmath<1.4,>=1.1.0 (from sympy<1.15,>=1.13->-r requirements.txt (line 2))
+2026-09-15T12:17:04.923531017Z   Downloading mpmath-1.3.0-py3-none-any.whl (536 kB)
+2026-09-15T12:17:04.952026710Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 536.2/536.2 kB 19.2 MB/s  0:00:00
+2026-09-15T12:17:04.958396329Z Requirement already satisfied: click<9.0.0,>=8.4.2 in /usr/local/lib/python3.11/site-packages (from huggingface-hub<2.0.0,>=1.3.0->sentence-transformers==6.0.1->-r requirements.txt (line 6)) (8.4.2)
+2026-09-15T12:17:05.246067555Z Collecting hf-xet<2.0.0,>=1.5.2 (from huggingface-hub<2.0.0,>=1.3.0->sentence-transformers==6.0.1->-r requirements.txt (line 6))
+2026-09-15T12:17:05.406894462Z   Downloading hf_xet-1.6.0-cp38-abi3-manylinux_2_28_aarch64.whl (4.3 MB)
+2026-09-15T12:17:05.668610927Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 16.1 MB/s  0:00:00
+2026-09-15T12:17:05.683528156Z Requirement already satisfied: anyio in /usr/local/lib/python3.11/site-packages (from httpx>=0.27.0->chromadb==1.5.9->-r requirements.txt (line 5)) (4.14.2)
+2026-09-15T12:17:05.684061629Z Requirement already satisfied: certifi in /usr/local/lib/python3.11/site-packages (from httpx>=0.27.0->chromadb==1.5.9->-r requirements.txt (line 5)) (2026.7.22)
+2026-09-15T12:17:05.684663611Z Requirement already satisfied: httpcore==1.* in /usr/local/lib/python3.11/site-packages (from httpx>=0.27.0->chromadb==1.5.9->-r requirements.txt (line 5)) (1.0.9)
+2026-09-15T12:17:05.685178944Z Requirement already satisfied: idna in /usr/local/lib/python3.11/site-packages (from httpx>=0.27.0->chromadb==1.5.9->-r requirements.txt (line 5)) (3.18)
+2026-09-15T12:17:05.688290318Z Requirement already satisfied: h11>=0.16 in /usr/local/lib/python3.11/site-packages (from httpcore==1.*->httpx>=0.27.0->chromadb==1.5.9->-r requirements.txt (line 5)) (0.16.0)
+2026-09-15T12:17:05.699882612Z Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (3.4.9)
+2026-09-15T12:17:05.700703036Z Requirement already satisfied: urllib3<3,>=1.26 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (2.7.0)
+2026-09-15T12:17:05.897725211Z Collecting pyproject_hooks (from build>=1.0.3->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:06.075088674Z   Downloading pyproject_hooks-1.2.0-py3-none-any.whl (10 kB)
+2026-09-15T12:17:06.089664692Z Requirement already satisfied: attrs>=22.2.0 in /usr/local/lib/python3.11/site-packages (from jsonschema>=4.19.0->chromadb==1.5.9->-r requirements.txt (line 5)) (26.1.0)
+2026-09-15T12:17:06.090322945Z Requirement already satisfied: jsonschema-specifications>=2023.03.6 in /usr/local/lib/python3.11/site-packages (from jsonschema>=4.19.0->chromadb==1.5.9->-r requirements.txt (line 5)) (2025.9.1)
+2026-09-15T12:17:06.090892538Z Requirement already satisfied: referencing>=0.28.4 in /usr/local/lib/python3.11/site-packages (from jsonschema>=4.19.0->chromadb==1.5.9->-r requirements.txt (line 5)) (0.37.0)
+2026-09-15T12:17:06.091469950Z Requirement already satisfied: rpds-py>=0.25.0 in /usr/local/lib/python3.11/site-packages (from jsonschema>=4.19.0->chromadb==1.5.9->-r requirements.txt (line 5)) (2026.6.3)
+2026-09-15T12:17:06.097453078Z Requirement already satisfied: six>=1.9.0 in /usr/local/lib/python3.11/site-packages (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (1.17.0)
+2026-09-15T12:17:06.098064391Z Requirement already satisfied: python-dateutil>=2.5.3 in /usr/local/lib/python3.11/site-packages (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (2.9.0.post0)
+2026-09-15T12:17:06.098829975Z Requirement already satisfied: websocket-client!=0.40.0,!=0.41.*,!=0.42.*,>=0.32.0 in /usr/local/lib/python3.11/site-packages (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (1.9.0)
+2026-09-15T12:17:06.275291164Z Collecting requests-oauthlib (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:06.441126214Z   Downloading requests_oauthlib-2.0.0-py2.py3-none-any.whl (24 kB)
+2026-09-15T12:17:06.606585362Z Collecting durationpy>=0.7 (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:06.769343758Z   Downloading durationpy-0.11-py3-none-any.whl (4.1 kB)
+2026-09-15T12:17:06.773727698Z Requirement already satisfied: aiohttp<4.0.0,>=3.13.5 in /usr/local/lib/python3.11/site-packages (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (3.14.3)
+2026-09-15T12:17:06.776149600Z Requirement already satisfied: aiohappyeyeballs>=2.5.0 in /usr/local/lib/python3.11/site-packages (from aiohttp<4.0.0,>=3.13.5->kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (2.7.1)
+2026-09-15T12:17:06.776770162Z Requirement already satisfied: aiosignal>=1.4.0 in /usr/local/lib/python3.11/site-packages (from aiohttp<4.0.0,>=3.13.5->kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (1.4.0)
+2026-09-15T12:17:06.777631096Z Requirement already satisfied: frozenlist>=1.1.1 in /usr/local/lib/python3.11/site-packages (from aiohttp<4.0.0,>=3.13.5->kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (1.8.0)
+2026-09-15T12:17:06.778319160Z Requirement already satisfied: multidict<7.0,>=4.5 in /usr/local/lib/python3.11/site-packages (from aiohttp<4.0.0,>=3.13.5->kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (6.7.1)
+2026-09-15T12:17:06.778900442Z Requirement already satisfied: propcache>=0.2.0 in /usr/local/lib/python3.11/site-packages (from aiohttp<4.0.0,>=3.13.5->kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (0.5.2)
+2026-09-15T12:17:06.779901157Z Requirement already satisfied: yarl<2.0,>=1.17.0 in /usr/local/lib/python3.11/site-packages (from aiohttp<4.0.0,>=3.13.5->kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5)) (1.24.5)
+2026-09-15T12:17:06.955374032Z Collecting flatbuffers (from onnxruntime>=1.14.1->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:07.087820957Z   Downloading flatbuffers-25.12.19-py2.py3-none-any.whl (26 kB)
+2026-09-15T12:17:07.092045016Z Requirement already satisfied: protobuf>=4.25.8 in /usr/local/lib/python3.11/site-packages (from onnxruntime>=1.14.1->chromadb==1.5.9->-r requirements.txt (line 5)) (7.35.1)
+2026-09-15T12:17:07.243596260Z Collecting googleapis-common-protos~=1.57 (from opentelemetry-exporter-otlp-proto-grpc>=1.2.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:07.387803840Z   Downloading googleapis_common_protos-1.75.3-py3-none-any.whl (306 kB)
+2026-09-15T12:17:07.573412542Z Collecting opentelemetry-exporter-otlp-proto-common==1.44.0 (from opentelemetry-exporter-otlp-proto-grpc>=1.2.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:07.728611462Z   Downloading opentelemetry_exporter_otlp_proto_common-1.44.0-py3-none-any.whl (17 kB)
+2026-09-15T12:17:07.900502680Z Collecting opentelemetry-proto==1.44.0 (from opentelemetry-exporter-otlp-proto-grpc>=1.2.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:08.157817205Z   Downloading opentelemetry_proto-1.44.0-py3-none-any.whl (72 kB)
+2026-09-15T12:17:08.291335495Z Collecting opentelemetry-semantic-conventions==0.65b0 (from opentelemetry-sdk>=1.2.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:08.358094725Z   Downloading opentelemetry_semantic_conventions-0.65b0-py3-none-any.whl (204 kB)
+2026-09-15T12:17:08.389398070Z Requirement already satisfied: annotated-types>=0.6.0 in /usr/local/lib/python3.11/site-packages (from pydantic>=2.0->chromadb==1.5.9->-r requirements.txt (line 5)) (0.8.0)
+2026-09-15T12:17:08.389969303Z Requirement already satisfied: pydantic-core==2.46.4 in /usr/local/lib/python3.11/site-packages (from pydantic>=2.0->chromadb==1.5.9->-r requirements.txt (line 5)) (2.46.4)
+2026-09-15T12:17:08.390917587Z Requirement already satisfied: typing-inspection>=0.4.2 in /usr/local/lib/python3.11/site-packages (from pydantic>=2.0->chromadb==1.5.9->-r requirements.txt (line 5)) (0.4.2)
+2026-09-15T12:17:08.397686779Z Requirement already satisfied: python-dotenv>=0.21.0 in /usr/local/lib/python3.11/site-packages (from pydantic-settings>=2.0->chromadb==1.5.9->-r requirements.txt (line 5)) (1.2.2)
+2026-09-15T12:17:08.511422967Z Collecting markdown-it-py>=2.2.0 (from rich>=10.11.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:08.614686366Z   Downloading markdown_it_py-4.2.0-py3-none-any.whl (91 kB)
+2026-09-15T12:17:08.625439126Z Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.11/site-packages (from rich>=10.11.0->chromadb==1.5.9->-r requirements.txt (line 5)) (2.20.0)
+2026-09-15T12:17:08.747952675Z Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=10.11.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:08.858241157Z   Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+2026-09-15T12:17:09.005690862Z Collecting joblib>=1.4.0 (from scikit-learn>=1.1.0->sentence-transformers==6.0.1->-r requirements.txt (line 6))
+2026-09-15T12:17:09.123182258Z   Downloading joblib-1.6.0-py3-none-any.whl (306 kB)
+2026-09-15T12:17:09.304057017Z Collecting narwhals>=2.0.1 (from scikit-learn>=1.1.0->sentence-transformers==6.0.1->-r requirements.txt (line 6))
+2026-09-15T12:17:09.427671691Z   Downloading narwhals-2.26.0-py3-none-any.whl (474 kB)
+2026-09-15T12:17:09.580781222Z Collecting threadpoolctl>=3.5.0 (from scikit-learn>=1.1.0->sentence-transformers==6.0.1->-r requirements.txt (line 6))
+2026-09-15T12:17:09.696286109Z   Downloading threadpoolctl-3.6.0-py3-none-any.whl (18 kB)
+2026-09-15T12:17:09.829128405Z Collecting cloudpickle>=3.0 (from joblib>=1.4.0->scikit-learn>=1.1.0->sentence-transformers==6.0.1->-r requirements.txt (line 6))
+2026-09-15T12:17:09.921644045Z   Downloading cloudpickle-3.1.2-py3-none-any.whl (22 kB)
+2026-09-15T12:17:10.038066816Z Collecting shellingham>=1.3.0 (from typer>=0.9.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:10.131577150Z   Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+2026-09-15T12:17:10.242128013Z Collecting annotated-doc>=0.0.2 (from typer>=0.9.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:10.345247272Z   Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+2026-09-15T12:17:10.513113691Z Collecting httptools>=0.8.0 (from uvicorn[standard]>=0.18.3->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:10.628408147Z   Downloading httptools-0.8.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (464 kB)
+2026-09-15T12:17:10.838200401Z Collecting uvloop>=0.15.1 (from uvicorn[standard]>=0.18.3->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:10.964901399Z   Downloading uvloop-0.22.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (3.8 MB)
+2026-09-15T12:17:11.188924969Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.8/3.8 MB 16.7 MB/s  0:00:00
+2026-09-15T12:17:11.452174272Z Collecting watchfiles>=0.20 (from uvicorn[standard]>=0.18.3->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:11.577235782Z   Downloading watchfiles-1.2.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (456 kB)
+2026-09-15T12:17:11.934101469Z Collecting websockets>=13.0 (from uvicorn[standard]>=0.18.3->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:12.044069410Z   Downloading websockets-17.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (225 kB)
+2026-09-15T12:17:12.083995135Z Requirement already satisfied: MarkupSafe>=2.0 in /usr/local/lib/python3.11/site-packages (from jinja2->torch==2.6.0->-r requirements.txt (line 7)) (3.0.3)
+2026-09-15T12:17:12.221182432Z Collecting oauthlib>=3.0.0 (from requests-oauthlib->kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 5))
+2026-09-15T12:17:12.351248886Z   Downloading oauthlib-3.3.1-py3-none-any.whl (160 kB)
+2026-09-15T12:17:12.966841215Z Installing collected packages: pypika, mpmath, flatbuffers, durationpy, websockets, uvloop, threadpoolctl, sympy, shellingham, scipy, safetensors, pyproject_hooks, pybase64, orjson, opentelemetry-proto, opentelemetry-api, onnxruntime, oauthlib, networkx, narwhals, mmh3, mdurl, importlib-resources, httptools, hf-xet, grpcio, googleapis-common-protos, fsspec, cloudpickle, bcrypt, annotated-doc, watchfiles, torch, requests-oauthlib, opentelemetry-semantic-conventions, opentelemetry-exporter-otlp-proto-common, markdown-it-py, joblib, build, scikit-learn, rich, opentelemetry-sdk, kubernetes, huggingface-hub, typer, tokenizers, opentelemetry-exporter-otlp-proto-grpc, transformers, chromadb, sentence-transformers
+2026-09-15T12:18:09.691954558Z 
+2026-09-15T12:18:09.702926757Z Successfully installed annotated-doc-0.0.5 bcrypt-5.0.0 build-1.6.1 chromadb-1.5.9 cloudpickle-3.1.2 durationpy-0.11 flatbuffers-25.12.19 fsspec-2026.7.0 googleapis-common-protos-1.75.3 grpcio-1.84.0 hf-xet-1.6.0 httptools-0.8.0 huggingface-hub-1.31.0 importlib-resources-7.1.0 joblib-1.6.0 kubernetes-36.0.3 markdown-it-py-4.2.0 mdurl-0.1.2 mmh3-5.3.0 mpmath-1.3.0 narwhals-2.26.0 networkx-3.6.1 oauthlib-3.3.1 onnxruntime-1.30.0 opentelemetry-api-1.44.0 opentelemetry-exporter-otlp-proto-common-1.44.0 opentelemetry-exporter-otlp-proto-grpc-1.44.0 opentelemetry-proto-1.44.0 opentelemetry-sdk-1.44.0 opentelemetry-semantic-conventions-0.65b0 orjson-3.12.0 pybase64-1.5.0 pypika-0.51.1 pyproject_hooks-1.2.0 requests-oauthlib-2.0.0 rich-15.0.0 safetensors-0.8.0 scikit-learn-1.9.1 scipy-1.17.1 sentence-transformers-6.0.1 shellingham-1.5.4 sympy-1.13.1 threadpoolctl-3.6.0 tokenizers-0.23.2 torch-2.6.0 transformers-5.17.0 typer-0.27.2 uvloop-0.22.1 watchfiles-1.2.0 websockets-17.1
+2026-09-15T12:18:09.703167488Z WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+2026-09-15T12:18:10.098326337Z === user project pip end === 
+2026-09-15T12:18:10.098380607Z === judge project pip start === 
+2026-09-15T12:18:10.558286623Z Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+2026-09-15T12:18:10.558995246Z Requirement already satisfied: requests>=2.31.0 in /usr/local/lib/python3.11/site-packages (from -r requirements.txt (line 1)) (2.33.1)
+2026-09-15T12:18:10.559611529Z Requirement already satisfied: aiohttp>=3.9.0 in /usr/local/lib/python3.11/site-packages (from -r requirements.txt (line 2)) (3.14.3)
+2026-09-15T12:18:10.560193951Z Requirement already satisfied: python-dotenv>=1.0.0 in /usr/local/lib/python3.11/site-packages (from -r requirements.txt (line 3)) (1.2.2)
+2026-09-15T12:18:10.561665088Z Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (3.4.9)
+2026-09-15T12:18:10.562399461Z Requirement already satisfied: idna<4,>=2.5 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (3.18)
+2026-09-15T12:18:10.563094914Z Requirement already satisfied: urllib3<3,>=1.26 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (2.7.0)
+2026-09-15T12:18:10.563860698Z Requirement already satisfied: certifi>=2023.5.7 in /usr/local/lib/python3.11/site-packages (from requests>=2.31.0->-r requirements.txt (line 1)) (2026.7.22)
+2026-09-15T12:18:10.569932724Z Requirement already satisfied: aiohappyeyeballs>=2.5.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (2.7.1)
+2026-09-15T12:18:10.570508847Z Requirement already satisfied: aiosignal>=1.4.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (1.4.0)
+2026-09-15T12:18:10.571342591Z Requirement already satisfied: attrs>=17.3.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (26.1.0)
+2026-09-15T12:18:10.571903723Z Requirement already satisfied: frozenlist>=1.1.1 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (1.8.0)
+2026-09-15T12:18:10.572516856Z Requirement already satisfied: multidict<7.0,>=4.5 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (6.7.1)
+2026-09-15T12:18:10.573068248Z Requirement already satisfied: propcache>=0.2.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (0.5.2)
+2026-09-15T12:18:10.573880062Z Requirement already satisfied: typing_extensions>=4.4 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (4.16.0)
+2026-09-15T12:18:10.574481215Z Requirement already satisfied: yarl<2.0,>=1.17.0 in /usr/local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r requirements.txt (line 2)) (1.24.5)
+2026-09-15T12:18:10.906960516Z WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+2026-09-15T12:18:11.038689339Z === judge project pip end === 
+2026-09-15T12:18:11.321333530Z JUDGE script path: /opt/atomgit/challenger_agent_judge/run_judge.sh
+2026-09-15T12:18:11.558069438Z delete demo path: /opt/atomgit/challenger_agent_judge/run/demo  start
+2026-09-15T12:18:11.559030073Z delete demo path: /opt/atomgit/challenger_agent_judge/run/demo  end
+2026-09-15T12:18:11.559048083Z judge evaluation start
+2026-09-15T12:18:11.766713102Z [evaluation] agent stage started
+2026-09-15T15:30:13.329182365Z [evaluation] agent stage completed
+2026-09-15T15:30:23.768892347Z {
+2026-09-15T15:30:23.768942367Z   "status": "completed",
+2026-09-15T15:30:23.768948597Z   "total": 112,
+2026-09-15T15:30:23.768953947Z   "accuracy": 0.10714285714285714
+2026-09-15T15:30:23.768958437Z }
+2026-09-15T15:30:24.190224758Z judge evaluation finish
+2026-09-15T15:30:24.475605217Z find evaluation report folder path: /opt/atomgit/challenger_agent_judge/run
+2026-09-15T15:30:25.478321605Z === accuracy value is： 0.10714285714285714
+2026-09-15T15:30:25.479234348Z === accuracy converted to a percentage score: 10.7143
+2026-09-15T15:30:25.715112083Z === summary ： {
+2026-09-15T15:30:25.715146593Z   "total": 112,
+2026-09-15T15:30:25.715152423Z   "graded": 112,
+2026-09-15T15:30:25.715156513Z   "correct": 12,
+2026-09-15T15:30:25.715160463Z   "incorrect": 32,
+2026-09-15T15:30:25.715164253Z   "invalid": 68,
+2026-09-15T15:30:25.715168053Z   "accuracy": 0.10714285714285714,
+2026-09-15T15:30:25.715172063Z   "valid_accuracy": 0.2727272727272727,
+2026-09-15T15:30:25.715175993Z   "skipped": 0,
+2026-09-15T15:30:25.715179713Z   "failed": [],
+2026-09-15T15:30:25.715184363Z   "degraded": false,
+2026-09-15T15:30:25.715204383Z   "infra_error_count": 0,
+2026-09-15T15:30:25.715208773Z   "infra_errors": [],
+2026-09-15T15:30:25.715212623Z   "runner_status": "completed",
+2026-09-15T15:30:25.715216513Z   "runner_exit_code": 0,
+2026-09-15T15:30:25.715220153Z   "deadline_seconds": 0,
+2026-09-15T15:30:25.715224633Z   "synthesized_count": 0,
+2026-09-15T15:30:25.715228233Z   "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f"
+2026-09-15T15:30:25.715232533Z }
+2026-09-15T15:30:25.715236293Z === run_summary的值为： {
+2026-09-15T15:30:25.715240193Z   "schema_version": 1,
+2026-09-15T15:30:25.715243803Z   "total": 112,
+2026-09-15T15:30:25.715247503Z   "expected_indices": [
+2026-09-15T15:30:25.715251143Z     "0",
+2026-09-15T15:30:25.715254773Z     "1",
+2026-09-15T15:30:25.715258663Z     "2",
+2026-09-15T15:30:25.715262583Z     "3",
+2026-09-15T15:30:25.715266373Z     "4",
+2026-09-15T15:30:25.715269923Z     "5",
+2026-09-15T15:30:25.715273683Z     "6",
+2026-09-15T15:30:25.715277273Z     "7",
+2026-09-15T15:30:25.715280763Z     "8",
+2026-09-15T15:30:25.715284333Z     "9",
+2026-09-15T15:30:25.715287773Z     "10",
+2026-09-15T15:30:25.715291343Z     "11",
+2026-09-15T15:30:25.715294823Z     "12",
+2026-09-15T15:30:25.715299323Z     "13",
+2026-09-15T15:30:25.715302833Z     "14",
+2026-09-15T15:30:25.715306583Z     "15",
+2026-09-15T15:30:25.715310113Z     "16",
+2026-09-15T15:30:25.715313603Z     "17",
+2026-09-15T15:30:25.715317073Z     "18",
+2026-09-15T15:30:25.715320593Z     "19",
+2026-09-15T15:30:25.715324073Z     "20",
+2026-09-15T15:30:25.715327553Z     "21",
+2026-09-15T15:30:25.715331043Z     "22",
+2026-09-15T15:30:25.715334553Z     "23",
+2026-09-15T15:30:25.715338123Z     "24",
+2026-09-15T15:30:25.715341863Z     "25",
+2026-09-15T15:30:25.715345653Z     "26",
+2026-09-15T15:30:25.715349173Z     "27",
+2026-09-15T15:30:25.715352753Z     "28",
+2026-09-15T15:30:25.715356283Z     "29",
+2026-09-15T15:30:25.715359803Z     "30",
+2026-09-15T15:30:25.715363493Z     "31",
+2026-09-15T15:30:25.715366923Z     "32",
+2026-09-15T15:30:25.715370383Z     "33",
+2026-09-15T15:30:25.715374414Z     "34",
+2026-09-15T15:30:25.715382114Z     "35",
+2026-09-15T15:30:25.715386154Z     "36",
+2026-09-15T15:30:25.715389734Z     "37",
+2026-09-15T15:30:25.715393314Z     "38",
+2026-09-15T15:30:25.715396954Z     "39",
+2026-09-15T15:30:25.715400594Z     "40",
+2026-09-15T15:30:25.715404154Z     "41",
+2026-09-15T15:30:25.715407704Z     "42",
+2026-09-15T15:30:25.715411424Z     "43",
+2026-09-15T15:30:25.715415304Z     "44",
+2026-09-15T15:30:25.715419054Z     "45",
+2026-09-15T15:30:25.715422704Z     "46",
+2026-09-15T15:30:25.715426554Z     "47",
+2026-09-15T15:30:25.715430194Z     "48",
+2026-09-15T15:30:25.715433914Z     "49",
+2026-09-15T15:30:25.715437714Z     "50",
+2026-09-15T15:30:25.715441374Z     "51",
+2026-09-15T15:30:25.715445174Z     "52",
+2026-09-15T15:30:25.715449454Z     "53",
+2026-09-15T15:30:25.715453094Z     "54",
+2026-09-15T15:30:25.715456614Z     "55",
+2026-09-15T15:30:25.715460064Z     "56",
+2026-09-15T15:30:25.715463804Z     "57",
+2026-09-15T15:30:25.715467404Z     "58",
+2026-09-15T15:30:25.715470914Z     "59",
+2026-09-15T15:30:25.715474394Z     "60",
+2026-09-15T15:30:25.715477884Z     "61",
+2026-09-15T15:30:25.715481564Z     "62",
+2026-09-15T15:30:25.715485174Z     "63",
+2026-09-15T15:30:25.715488834Z     "64",
+2026-09-15T15:30:25.715492574Z     "65",
+2026-09-15T15:30:25.715496124Z     "66",
+2026-09-15T15:30:25.715499574Z     "67",
+2026-09-15T15:30:25.715503164Z     "68",
+2026-09-15T15:30:25.715506664Z     "69",
+2026-09-15T15:30:25.715510194Z     "70",
+2026-09-15T15:30:25.715518144Z     "71",
+2026-09-15T15:30:25.715522854Z     "72",
+2026-09-15T15:30:25.715526484Z     "73",
+2026-09-15T15:30:25.715530074Z     "74",
+2026-09-15T15:30:25.715533844Z     "75",
+2026-09-15T15:30:25.715537594Z     "76",
+2026-09-15T15:30:25.715541044Z     "77",
+2026-09-15T15:30:25.715544584Z     "78",
+2026-09-15T15:30:25.715548194Z     "79",
+2026-09-15T15:30:25.715551714Z     "80",
+2026-09-15T15:30:25.715555274Z     "81",
+2026-09-15T15:30:25.715558744Z     "82",
+2026-09-15T15:30:25.715562404Z     "83",
+2026-09-15T15:30:25.715566024Z     "84",
+2026-09-15T15:30:25.715573564Z     "85",
+2026-09-15T15:30:25.715577624Z     "86",
+2026-09-15T15:30:25.715581324Z     "87",
+2026-09-15T15:30:25.715585034Z     "88",
+2026-09-15T15:30:25.715588544Z     "89",
+2026-09-15T15:30:25.715592064Z     "90",
+2026-09-15T15:30:25.715596534Z     "91",
+2026-09-15T15:30:25.715600214Z     "92",
+2026-09-15T15:30:25.715603774Z     "93",
+2026-09-15T15:30:25.715607344Z     "94",
+2026-09-15T15:30:25.715610954Z     "95",
+2026-09-15T15:30:25.715614394Z     "96",
+2026-09-15T15:30:25.715617944Z     "97",
+2026-09-15T15:30:25.715621334Z     "98",
+2026-09-15T15:30:25.715625014Z     "99",
+2026-09-15T15:30:25.715628434Z     "100",
+2026-09-15T15:30:25.715632024Z     "101",
+2026-09-15T15:30:25.715635734Z     "102",
+2026-09-15T15:30:25.715639484Z     "103",
+2026-09-15T15:30:25.715643144Z     "104",
+2026-09-15T15:30:25.715646814Z     "105",
+2026-09-15T15:30:25.715650274Z     "106",
+2026-09-15T15:30:25.715653874Z     "107",
+2026-09-15T15:30:25.715657395Z     "108",
+2026-09-15T15:30:25.715660855Z     "109",
+2026-09-15T15:30:25.715664265Z     "110",
+2026-09-15T15:30:25.715667925Z     "111"
+2026-09-15T15:30:25.715672395Z   ],
+2026-09-15T15:30:25.715675935Z   "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f",
+2026-09-15T15:30:25.715679885Z   "record_count": 112,
+2026-09-15T15:30:25.715684075Z   "success": 112,
+2026-09-15T15:30:25.715687605Z   "error": 0,
+2026-09-15T15:30:25.715691135Z   "skipped": 0,
+2026-09-15T15:30:25.715694835Z   "synthesized_count": 0,
+2026-09-15T15:30:25.715698615Z   "runner_status": "completed",
+2026-09-15T15:30:25.715702445Z   "runner_exit_code": 0,
+2026-09-15T15:30:25.715706165Z   "deadline_seconds": 0,
+2026-09-15T15:30:25.715709615Z   "manifest_complete": true,
+2026-09-15T15:30:25.715713305Z   "client_usage": {
+2026-09-15T15:30:25.715717045Z     "request_count": 458,
+2026-09-15T15:30:25.715721215Z     "attempt_count": 458,
+2026-09-15T15:30:25.715725095Z     "retry_count": 0,
+2026-09-15T15:30:25.715728835Z     "truncated_count": 391,
+2026-09-15T15:30:25.715732435Z     "prompt_tokens": 670107,
+2026-09-15T15:30:25.715736215Z     "completion_tokens": 1682730,
+2026-09-15T15:30:25.715739955Z     "total_tokens": 2352837
+2026-09-15T15:30:25.715747895Z   },
+2026-09-15T15:30:25.715751785Z   "client_usage_complete": true
+2026-09-15T15:30:25.715755635Z }
+2026-09-15T15:30:25.759501450Z output_json:{
+2026-09-15T15:30:25.759528150Z   "summary": {
+2026-09-15T15:30:25.759533250Z     "total": 112,
+2026-09-15T15:30:25.759537350Z     "graded": 112,
+2026-09-15T15:30:25.759541290Z     "correct": 12,
+2026-09-15T15:30:25.759545450Z     "incorrect": 32,
+2026-09-15T15:30:25.759549240Z     "invalid": 68,
+2026-09-15T15:30:25.759553030Z     "accuracy": 0.10714285714285714,
+2026-09-15T15:30:25.759556820Z     "valid_accuracy": 0.2727272727272727,
+2026-09-15T15:30:25.759560830Z     "skipped": 0,
+2026-09-15T15:30:25.759564600Z     "failed": [],
+2026-09-15T15:30:25.759568360Z     "degraded": false,
+2026-09-15T15:30:25.759572130Z     "infra_error_count": 0,
+2026-09-15T15:30:25.759576080Z     "infra_errors": [],
+2026-09-15T15:30:25.759579770Z     "runner_status": "completed",
+2026-09-15T15:30:25.759583560Z     "runner_exit_code": 0,
+2026-09-15T15:30:25.759587140Z     "deadline_seconds": 0,
+2026-09-15T15:30:25.759590980Z     "synthesized_count": 0,
+2026-09-15T15:30:25.759594830Z     "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f"
+2026-09-15T15:30:25.759599030Z   },
+2026-09-15T15:30:25.759602700Z   "run_summary": {
+2026-09-15T15:30:25.759606660Z     "schema_version": 1,
+2026-09-15T15:30:25.759610310Z     "total": 112,
+2026-09-15T15:30:25.759614080Z     "expected_indices": [
+2026-09-15T15:30:25.759617930Z       "0",
+2026-09-15T15:30:25.759621760Z       "1",
+2026-09-15T15:30:25.759625510Z       "2",
+2026-09-15T15:30:25.759629170Z       "3",
+2026-09-15T15:30:25.759632700Z       "4",
+2026-09-15T15:30:25.759636450Z       "5",
+2026-09-15T15:30:25.759640010Z       "6",
+2026-09-15T15:30:25.759643480Z       "7",
+2026-09-15T15:30:25.759647040Z       "8",
+2026-09-15T15:30:25.759650910Z       "9",
+2026-09-15T15:30:25.759654540Z       "10",
+2026-09-15T15:30:25.759658460Z       "11",
+2026-09-15T15:30:25.759661980Z       "12",
+2026-09-15T15:30:25.759665780Z       "13",
+2026-09-15T15:30:25.759669380Z       "14",
+2026-09-15T15:30:25.759673210Z       "15",
+2026-09-15T15:30:25.759677190Z       "16",
+2026-09-15T15:30:25.759680890Z       "17",
+2026-09-15T15:30:25.759684630Z       "18",
+2026-09-15T15:30:25.759719720Z       "19",
+2026-09-15T15:30:25.759724100Z       "20",
+2026-09-15T15:30:25.759727980Z       "21",
+2026-09-15T15:30:25.759731760Z       "22",
+2026-09-15T15:30:25.759735440Z       "23",
+2026-09-15T15:30:25.759739060Z       "24",
+2026-09-15T15:30:25.759742760Z       "25",
+2026-09-15T15:30:25.759746350Z       "26",
+2026-09-15T15:30:25.759749940Z       "27",
+2026-09-15T15:30:25.759753481Z       "28",
+2026-09-15T15:30:25.759757211Z       "29",
+2026-09-15T15:30:25.759760901Z       "30",
+2026-09-15T15:30:25.759764521Z       "31",
+2026-09-15T15:30:25.759768191Z       "32",
+2026-09-15T15:30:25.759771891Z       "33",
+2026-09-15T15:30:25.759775461Z       "34",
+2026-09-15T15:30:25.759779311Z       "35",
+2026-09-15T15:30:25.759782831Z       "36",
+2026-09-15T15:30:25.759786461Z       "37",
+2026-09-15T15:30:25.759790021Z       "38",
+2026-09-15T15:30:25.759793621Z       "39",
+2026-09-15T15:30:25.759797601Z       "40",
+2026-09-15T15:30:25.759801361Z       "41",
+2026-09-15T15:30:25.759804911Z       "42",
+2026-09-15T15:30:25.759808411Z       "43",
+2026-09-15T15:30:25.759811991Z       "44",
+2026-09-15T15:30:25.759815731Z       "45",
+2026-09-15T15:30:25.759819291Z       "46",
+2026-09-15T15:30:25.759822861Z       "47",
+2026-09-15T15:30:25.759826741Z       "48",
+2026-09-15T15:30:25.759830431Z       "49",
+2026-09-15T15:30:25.759834241Z       "50",
+2026-09-15T15:30:25.759838091Z       "51",
+2026-09-15T15:30:25.759841771Z       "52",
+2026-09-15T15:30:25.759845691Z       "53",
+2026-09-15T15:30:25.759849491Z       "54",
+2026-09-15T15:30:25.759852961Z       "55",
+2026-09-15T15:30:25.759856721Z       "56",
+2026-09-15T15:30:25.759860351Z       "57",
+2026-09-15T15:30:25.759863851Z       "58",
+2026-09-15T15:30:25.759867281Z       "59",
+2026-09-15T15:30:25.759870781Z       "60",
+2026-09-15T15:30:25.759874401Z       "61",
+2026-09-15T15:30:25.759877921Z       "62",
+2026-09-15T15:30:25.759881471Z       "63",
+2026-09-15T15:30:25.759885011Z       "64",
+2026-09-15T15:30:25.759888921Z       "65",
+2026-09-15T15:30:25.759892741Z       "66",
+2026-09-15T15:30:25.759896451Z       "67",
+2026-09-15T15:30:25.759904271Z       "68",
+2026-09-15T15:30:25.759908311Z       "69",
+2026-09-15T15:30:25.759911891Z       "70",
+2026-09-15T15:30:25.759915521Z       "71",
+2026-09-15T15:30:25.759918971Z       "72",
+2026-09-15T15:30:25.759922651Z       "73",
+2026-09-15T15:30:25.759926431Z       "74",
+2026-09-15T15:30:25.759929931Z       "75",
+2026-09-15T15:30:25.759933681Z       "76",
+2026-09-15T15:30:25.759937611Z       "77",
+2026-09-15T15:30:25.759941091Z       "78",
+2026-09-15T15:30:25.759944631Z       "79",
+2026-09-15T15:30:25.759948081Z       "80",
+2026-09-15T15:30:25.759951741Z       "81",
+2026-09-15T15:30:25.759955241Z       "82",
+2026-09-15T15:30:25.759958741Z       "83",
+2026-09-15T15:30:25.759962231Z       "84",
+2026-09-15T15:30:25.759966161Z       "85",
+2026-09-15T15:30:25.759969941Z       "86",
+2026-09-15T15:30:25.759973701Z       "87",
+2026-09-15T15:30:25.759977631Z       "88",
+2026-09-15T15:30:25.759981131Z       "89",
+2026-09-15T15:30:25.759984611Z       "90",
+2026-09-15T15:30:25.759988211Z       "91",
+2026-09-15T15:30:25.759991901Z       "92",
+2026-09-15T15:30:25.759995481Z       "93",
+2026-09-15T15:30:25.759998991Z       "94",
+2026-09-15T15:30:25.760002761Z       "95",
+2026-09-15T15:30:25.760006371Z       "96",
+2026-09-15T15:30:25.760009831Z       "97",
+2026-09-15T15:30:25.760013311Z       "98",
+2026-09-15T15:30:25.760016761Z       "99",
+2026-09-15T15:30:25.760020381Z       "100",
+2026-09-15T15:30:25.760023871Z       "101",
+2026-09-15T15:30:25.760027331Z       "102",
+2026-09-15T15:30:25.760030921Z       "103",
+2026-09-15T15:30:25.760034522Z       "104",
+2026-09-15T15:30:25.760037982Z       "105",
+2026-09-15T15:30:25.760041432Z       "106",
+2026-09-15T15:30:25.760044902Z       "107",
+2026-09-15T15:30:25.760048552Z       "108",
+2026-09-15T15:30:25.760052022Z       "109",
+2026-09-15T15:30:25.760055562Z       "110",
+2026-09-15T15:30:25.760059032Z       "111"
+2026-09-15T15:30:25.760063152Z     ],
+2026-09-15T15:30:25.760067382Z     "input_sha256": "7f2499c53f52cbcb17dcab7cc4b99c9e79f53e23c1392587289a02695284201f",
+2026-09-15T15:30:25.760071552Z     "record_count": 112,
+2026-09-15T15:30:25.760078922Z     "success": 112,
+2026-09-15T15:30:25.760082992Z     "error": 0,
+2026-09-15T15:30:25.760086672Z     "skipped": 0,
+2026-09-15T15:30:25.760090282Z     "synthesized_count": 0,
+2026-09-15T15:30:25.760093922Z     "runner_status": "completed",
+2026-09-15T15:30:25.760097822Z     "runner_exit_code": 0,
+2026-09-15T15:30:25.760101432Z     "deadline_seconds": 0,
+2026-09-15T15:30:25.760105012Z     "manifest_complete": true,
+2026-09-15T15:30:25.760108622Z     "client_usage": {
+2026-09-15T15:30:25.760112312Z       "request_count": 458,
+2026-09-15T15:30:25.760115922Z       "attempt_count": 458,
+2026-09-15T15:30:25.760119562Z       "retry_count": 0,
+2026-09-15T15:30:25.760123312Z       "truncated_count": 391,
+2026-09-15T15:30:25.760126962Z       "prompt_tokens": 670107,
+2026-09-15T15:30:25.760130662Z       "completion_tokens": 1682730,
+2026-09-15T15:30:25.760134362Z       "total_tokens": 2352837
+2026-09-15T15:30:25.760138212Z     },
+2026-09-15T15:30:25.760141672Z     "client_usage_complete": true
+2026-09-15T15:30:25.760145382Z   }
+2026-09-15T15:30:25.760148912Z }
+2026-09-15T15:30:26.045828573Z === model evaluation completed successfully ===

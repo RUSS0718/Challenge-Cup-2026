@@ -1,0 +1,29 @@
+{
+  "protocol_id": "ARM-v2.1.4-correctness-first-P0",
+  "method_id": "ARM-v2.1.4",
+  "dataset_id": "freeze-unverified-local-state",
+  "frozen_commit": "a603ef1",
+  "frozen_branch": "feat/arm-harness-v2.1.1",
+  "generated_at": "2026-09-30T00:00:00+08:00",
+  "submission_mode": "arm-v2.1.3-off",
+  "source_hashes": {
+    "user_agent.py": "a83c70bbe88117dd6c4f22f19eddb5e63553e7438c9e43fcc3f7c0c80d6d2c6c",
+    "reasoning_agent/arm_harness_v2.py": "78cfa67f01ae822a238bd3b70d4d7d1792f08b072e29dab04b0909b446627317",
+    "reasoning_agent/arm_harness_v213.py": "33838f5a7902cd4b4a1e20ea2c6ca94994a88e51edb60e666665c051f16b5e51",
+    "reasoning_agent/arm_v21_support.py": "b3652f510e07f110def6a0f965ec0afd0167fa2b6c07671ee8ef4ee71269d855",
+    "reasoning_agent/arm_v21_verification.py": "ddc3781f6bdca7281c00778c0d0712e8b2d8577d5fecbde13bdf5ad6abb26292",
+    "reasoning_agent/harness_contracts.py": "491b2d32ab37d4720266495eb9b49e71097273378d9b60dab0def35d30f1404e",
+    "reasoning_agent/safe_candidate.py": "fcd8ebcb650d3da5624d00525abd726699e065632bb9bde9d4c494457488bc8b",
+    "reasoning_agent/answer_completeness.py": "80ea855ce5ea08dd377ccecd98a045e92217008fb308378f66ee9f3eddd9e57e",
+    "reasoning_agent/submission_diagnostics.py": "0ab1b9ca171e8dc4b111bc3102d6c5cba11d918e910ae368cac82188c8efc776",
+    "sample_data/dev.jsonl": "b7ce841afeda28e9bc9b026574678e1201eaaf12f7de08f7fcec48a3b176a281",
+    "docs/excluded_approaches.md": "abfac2b811cf084431ec85eda37a18814b2cccf782f633199b102094c3153655"
+  },
+  "answer_bank": {
+    "path": "reasoning_agent/error_notebook/eval_112.json",
+    "tracked": false,
+    "runtime_read_default": false
+  },
+  "working_tree_note": "P0 freezes HEAD and the named source/config inputs; pre-existing working-tree changes are excluded from this manifest and must not be overwritten.",
+  "artifact_policy": "Do not overwrite prior experiment artifacts; runtime outputs stay under artifacts/<run_id>/"
+}

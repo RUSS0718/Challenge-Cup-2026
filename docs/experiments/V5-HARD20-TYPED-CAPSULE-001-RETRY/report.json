@@ -1,0 +1,27 @@
+{
+  "run_id": "V5-HARD20-TYPED-CAPSULE-001",
+  "method_id": "typed_answer_capsule_v1",
+  "dataset_sha256": "3cf90e65ef9239a70d9675b3807a01692d19aef27fa7cd1e5ffcefdc70ef12dd",
+  "total_items": 20,
+  "typed_answer_formed": 4,
+  "typed_answer_formation_rate": 0.2,
+  "native_correct": 2,
+  "native_incorrect": 1,
+  "invalid": 17,
+  "model_errors": 0,
+  "model_error_rate": 0.0,
+  "retry_triggered": 17,
+  "total_calls": 37,
+  "mean_calls": 1.85,
+  "mean_duration_seconds": 164.63797882499784,
+  "elapsed_seconds": 1144.5801871999865,
+  "gates": {
+    "complete_20": true,
+    "health_pass": true,
+    "formation_pass": false,
+    "native_correct_screen_pass": false,
+    "invalid_error_pass": false,
+    "mean_calls_pass": false
+  },
+  "verdict": "EXPLORATORY_NO_GO"
+}

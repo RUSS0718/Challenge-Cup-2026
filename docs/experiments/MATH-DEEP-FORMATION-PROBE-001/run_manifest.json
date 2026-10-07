@@ -1,0 +1,65 @@
+{
+  "run_id": "MATH-DEEP-FORMATION-PROBE-001",
+  "phase": "deep_typed_answer_formation_probe",
+  "method_id": "typed_contract_adaptive_deep_v1",
+  "harness_version": "MATH-HARNESS-V1",
+  "status": "completed",
+  "started_at_utc": "2026-09-10T15:16:01.639162+00:00",
+  "source_dataset": "sample_data\\external_hard_sets\\set_a_olymmath_hard.jsonl",
+  "source_dataset_sha256": "b9d26b6568fc7032fe70b7b6592176c3ed011074be2ec9dff3bd3ccbef41c610",
+  "spec_sha256": "a0a2e9723c32669a5b9ad094238d3b5e14e52afdc9f9a5d476ffc86d1c4dbae7",
+  "selection_ids": [
+    "OlymMATH-HARD-34-EN",
+    "OlymMATH-HARD-47-EN",
+    "OlymMATH-HARD-53-EN",
+    "OlymMATH-HARD-57-EN",
+    "OlymMATH-HARD-90-EN",
+    "OlymMATH-HARD-95-EN"
+  ],
+  "records_expected": 6,
+  "freshness": {
+    "relative_to": [
+      "MATH-HARNESS-EVAL112-SMOKE-001",
+      "CAR-002C-ENDPOINT-COMPATIBILITY-PROBE-001",
+      "FSDF archived hard windows"
+    ],
+    "selection_is_prompt_safe_only": true,
+    "gold_passed_to_agent": false
+  },
+  "workers": 3,
+  "batch_plan": "first_three_then_remaining_three; stop if first_three_typed_complete_zero",
+  "request_timeout_seconds": 1200,
+  "per_item_wall_seconds": 1200.0,
+  "window_hard_stop_seconds": 7200.0,
+  "temporary_answer_bank": "off",
+  "thinking_mode": "client_default / thinking_mode=None",
+  "temperature": 0.6,
+  "deep_primary_max_tokens": 8192,
+  "deep_review_max_tokens": 4096,
+  "deep_continuation_max_tokens": 4096,
+  "deep_critic_max_tokens": 4096,
+  "logical_calls_per_item_max": 3,
+  "total_requested_tokens_per_item_max": 16384,
+  "formation_gate": {
+    "typed_complete_minimum": 5,
+    "model_errors_maximum": 0,
+    "timeouts_maximum": 0,
+    "first_three_typed_complete_zero_stop": true
+  },
+  "answers": "answers.jsonl",
+  "report": "report.json",
+  "result": "result.md",
+  "zero_model_calls": false,
+  "capability_conclusion": "NONE",
+  "ended_at_utc": "2026-09-10T15:36:01.875489+00:00",
+  "records": 3,
+  "remote_model_calls": 3,
+  "final_void": true,
+  "stopped_early": true,
+  "stop_reason": "first_three_typed_complete_zero",
+  "runtime": {
+    "model": "intern-s2-preview-397b",
+    "thinking_mode": null,
+    "api_host": "chat.intern-ai.org.cn"
+  }
+}

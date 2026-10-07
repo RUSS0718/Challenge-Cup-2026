@@ -1,0 +1,5 @@
+{"run_id":"BTCS-FRAME-V2-RESOURCE-001","event":"resource_probe_start","workers":1,"expected_requests":3}
+{"run_id":"BTCS-FRAME-V2-RESOURCE-001","event":"request_end","idx":0,"status":"error","error_category":"timeout","latency_seconds":21.042}
+{"run_id":"BTCS-FRAME-V2-RESOURCE-001","event":"request_end","idx":1,"status":"error","error_category":"timeout","latency_seconds":300.137}
+{"run_id":"BTCS-FRAME-V2-RESOURCE-001","event":"request_end","idx":2,"status":"ok","latency_seconds":60.48}
+{"run_id":"BTCS-FRAME-V2-RESOURCE-001","event":"resource_probe_end","status":"VOID_RESOURCE_HEALTH","completed_requests":3,"ok":1,"error":2,"deadline_exceeded_count":0,"orphan_completions":0}

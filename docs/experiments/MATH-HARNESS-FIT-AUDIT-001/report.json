@@ -1,0 +1,28 @@
+{
+  "experiment_id": "MATH-HARNESS-FIT-AUDIT-001",
+  "phase": "fit_audit",
+  "status": "PASS",
+  "method_id": "bounded_evidence_trajectory_selection_v1",
+  "remote_model_calls": 0,
+  "checks": {
+    "public_client_contract": "PASS",
+    "official_constructor_shape": "PASS",
+    "per_question_call_cap": 5,
+    "per_question_requested_token_cap": 16384,
+    "per_question_wall_cap_seconds": 1200,
+    "official_worker_cap": 3,
+    "bank_off_boundary": "PASS",
+    "state_isolation": "PASS",
+    "fail_closed_output": "PASS",
+    "trace_hygiene": "PASS",
+    "legacy_backend_boundary": "PASS",
+    "typed_tool_default": "OFF"
+  },
+  "known_non_goals": [
+    "No endpoint compatibility conclusion",
+    "No health conclusion",
+    "No mathematical capability conclusion",
+    "No submission or release action"
+  ],
+  "recorded_at": "2026-09-10T00:50:46+08:00"
+}

@@ -1,0 +1,2508 @@
+"""Constraint-fit math harness.
+
+This module is independent from the legacy FSDF relay.  The public seam is
+ConstraintFitOrchestrator.solve; all state and budgets are local to one solve
+and the only model contract used here is
+client.chat(messages, temperature, max_tokens).
+
+The first implementation is a bounded scalar-answer candidate selector.  It
+does not require a visible marker protocol, execute generated code, or use an
+answer bank unless the caller explicitly selects bank_mode="on".
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+import math
+import re
+import threading
+import time
+from typing import Any, Callable, Iterable, Mapping
+
+from reasoning_agent.migration_hardening import (
+    DeterministicPlayoff,
+    EvidenceAdapter,
+    EvidenceRecord,
+    HardeningBudget,
+    HardeningLedger,
+    PrefillAdapter,
+    ProcessAuditParser,
+    EVIDENCE_CONTRADICT,
+    EVIDENCE_INCONCLUSIVE,
+    EVIDENCE_SUPPORT,
+    PLAYOFF_A,
+    PLAYOFF_B,
+    PLAYOFF_BOTH,
+    PLAYOFF_NEITHER,
+)
+from reasoning_agent.client_dispatch import call_chat_compat
+from reasoning_agent.diagnostic_trace import summarize_agent_trace
+from reasoning_agent.inference_policy import CallPolicy, ReasoningMode
+from reasoning_agent.harness_contracts import (
+    ANSWER_CHOICE,
+    ANSWER_DERIVATION,
+    ANSWER_EXACT_EXPRESSION,
+    ANSWER_EXPLANATION,
+    ANSWER_INTEGER,
+    ANSWER_PROOF,
+    ANSWER_RATIONAL,
+    ANSWER_SCALAR,
+    ANSWER_SET,
+    ANSWER_UNKNOWN,
+    ANSWER_SHAPE_FINITE_SET,
+    ANSWER_SHAPE_FUNCTION_FAMILY,
+    ANSWER_SHAPE_INTERVAL_OR_RANGE,
+    ANSWER_SHAPE_PARAMETERIZED_EXPRESSION,
+    ANSWER_SHAPE_PROOF_TEXT,
+    ANSWER_SHAPE_SINGLE_NUMERIC,
+    ANSWER_SHAPE_UNKNOWN,
+    CANDIDATE_CONFLICT,
+    CANDIDATE_MISSING,
+    CANDIDATE_PARSED,
+    CANDIDATE_REJECTED,
+    CANDIDATE_TRUNCATED,
+    CANDIDATE_VERIFIED,
+    HostParser,
+    ParsedResponse,
+    ProblemContract,
+    REASONING_RISK_DEEP,
+    REASONING_RISK_DIRECT,
+    REASONING_RISK_STRUCTURED,
+    ROUTE_CONFIDENCE_HIGH,
+    ROUTE_CONFIDENCE_LOW,
+    ROUTE_CONFIDENCE_MEDIUM,
+    STATE_ABSTAINED,
+    STATE_ATTEMPT_A,
+    STATE_ATTEMPT_B,
+    STATE_CANDIDATE_A,
+    STATE_CANDIDATE_B,
+    STATE_CONFLICT,
+    STATE_CONTINUATION,
+    STATE_CRITIC,
+    STATE_DEEP_CONTINUATION,
+    STATE_DEEP_CRITIC,
+    STATE_DEEP_PRIMARY,
+    STATE_DEEP_REVIEW,
+    STATE_FINALIZED,
+    STATE_REPAIR,
+    STATE_SELECTED,
+    STATE_START,
+    TypedParseResult,
+    TypedParser,
+    _answer_shape_from_problem,
+    _answer_type_from_problem,
+    _as_int,
+    _balanced,
+    _candidate_value_valid,
+    _canonical_set,
+    _clip,
+    _error_category,
+    _extract_boxed,
+    _format_numeric,
+    _has_conflict,
+    _infer_value_type,
+    _is_placeholder,
+    _parse_numeric,
+    _prompt_problem,
+    _reasoning_risk_from_problem,
+    _response_is_truncated,
+    _scalar_rhs,
+    _strip_math_wrappers,
+    _task_signal_count,
+    _unique_candidates,
+    normalize_value,
+    value_equivalence,
+)
+
+
+HARNESS_VERSION = "MATH-HARNESS-V1"
+METHOD_ID = "bounded_evidence_trajectory_selection_v1"
+DEEP_METHOD_ID = "typed_contract_adaptive_deep_v1"
+
+MAX_LOGICAL_CALLS = 5
+MAX_TOTAL_REQUESTED_TOKENS = 16_384
+MAX_WALL_SECONDS = 1_200.0
+MAX_PROBLEM_CHARS = 12_000
+MAX_RESPONSE_CHARS = 24_000
+MAX_CANDIDATE_CHARS = 256
+MAX_REASON_CHARS = 240
+
+
+@dataclass
+class HarnessConfig:
+    """Frozen default profile for the first candidate implementation."""
+
+    attempt_a_max_tokens: int = 4_096
+    attempt_b_max_tokens: int = 4_096
+    critic_max_tokens: int = 2_048
+    repair_max_tokens: int = 4_096
+    continuation_max_tokens: int = 2_048
+    max_model_calls: int = MAX_LOGICAL_CALLS
+    total_token_budget: int = MAX_TOTAL_REQUESTED_TOKENS
+    temperature: float = 0.6
+    max_wall_seconds: float = MAX_WALL_SECONDS
+    bank_mode: str = "off"
+    early_stop: bool = True
+    enable_deep_lane: bool = False
+    deep_primary_max_tokens: int = 8_192
+    deep_review_max_tokens: int = 4_096
+    deep_continuation_max_tokens: int = 4_096
+    deep_critic_max_tokens: int = 4_096
+    deep_max_model_calls: int = 3
+    enable_typed_tools: bool = False
+    max_problem_chars: int = MAX_PROBLEM_CHARS
+    # Issue #19 migration hardening is opt-in and does not alter the default
+    # Harness/FSDF submission profile.
+    enable_migration_hardening: bool = False
+    enable_deterministic_playoff: bool = False
+    enable_process_audit: bool = False
+    enable_prefill: bool = False
+    process_audit_max_tokens: int = 2_048
+    enable_arm_harness: bool = False
+    arm_harness_version: str = "v1"
+    arm_v2_mode: str = "selective"
+    arm_solver_reasoning_mode: str = "off"
+    arm_trust_policy: str = "legacy"
+    arm_primary_prompt_variant: str = "v21"
+    arm_finalization_margin_seconds: float = 15.0
+    arm_off_finalizer_max_tokens: int = 1024
+    arm_off_recovery_max_tokens: int = 4096
+    arm_force_ab_diagnostic: bool = False
+    arm_challenger_shadow: bool = False
+    arm_enable_targeted_repair: bool = False
+    arm_enable_fresh_review: bool = False
+    arm_enable_skill_guidance: bool = False
+    arm_enable_skill_for_second: bool = False
+    arm_enable_skill_audit: bool = False
+    arm_max_skill_audits: int = 1
+    arm_timeout_recovery_mode: str = "none"
+    arm_primary_timeout_seconds: int | None = None
+    # GRH v1.1 bounds optional challenger latency independently from Primary.
+    arm_second_timeout_with_incumbent_seconds: int = 180
+    arm_second_timeout_without_incumbent_seconds: int = 300
+    arm_second_salvage_timeout_seconds: int = 90
+    arm_second_salvage_max_tokens: int = 2_048
+    arm_salvage_timeout_seconds: int = 15
+    arm_salvage_max_tokens: int = 1_024
+    arm_allow_thinking_on: bool = False
+    arm_default_lane: str = "adaptive"
+    arm_fast_max_calls: int = 2
+    arm_adaptive_max_calls: int = 3
+    arm_deep_max_calls: int = 3
+    arm_fast_token_budget: int = 8_192
+    arm_adaptive_token_budget: int = 16_384
+    arm_deep_token_budget: int = 16_384
+
+    def __post_init__(self) -> None:
+        if self.bank_mode not in {"off", "on"}:
+            raise ValueError("bank_mode must be 'off' or 'on'")
+        if int(self.max_model_calls) < 1:
+            raise ValueError("max_model_calls must be positive")
+        if int(self.total_token_budget) < 1:
+            raise ValueError("total_token_budget must be positive")
+        if not math.isfinite(float(self.max_wall_seconds)) or float(self.max_wall_seconds) <= 0:
+            raise ValueError("max_wall_seconds must be positive")
+        if self.arm_harness_version not in {"v1", "v2", "v2.1.3", "v2.1.4"}:
+            raise ValueError("invalid_arm_harness_version")
+        if self.arm_solver_reasoning_mode not in {"off", "on", "adaptive"}:
+            raise ValueError("invalid_arm_solver_reasoning_mode")
+        if self.arm_trust_policy not in {"legacy", "evidence", "positive_evidence"}:
+            raise ValueError("invalid_arm_trust_policy")
+        if self.arm_primary_prompt_variant not in {"v2", "marker_only", "v21"}:
+            raise ValueError("invalid_arm_primary_prompt_variant")
+        if not math.isfinite(float(self.arm_finalization_margin_seconds)) or float(self.arm_finalization_margin_seconds) < 0:
+            raise ValueError("arm_finalization_margin_seconds_must_be_nonnegative")
+        if int(self.arm_off_finalizer_max_tokens) < 1:
+            raise ValueError("arm_off_finalizer_max_tokens_must_be_positive")
+        if int(self.arm_off_recovery_max_tokens) < 1:
+            raise ValueError("arm_off_recovery_max_tokens_must_be_positive")
+        if not math.isfinite(float(self.arm_max_skill_audits)) or float(self.arm_max_skill_audits) < 0:
+            raise ValueError("arm_max_skill_audits_must_be_nonnegative")
+        if self.arm_v2_mode not in {"single", "selective", "long_timeout", "salvage"}:
+            raise ValueError("invalid_arm_v2_mode")
+        if self.arm_timeout_recovery_mode not in {"repeat", "longer_first", "compact_salvage", "none"}:
+            raise ValueError("invalid_arm_timeout_recovery_mode")
+        if self.arm_primary_timeout_seconds is not None and int(self.arm_primary_timeout_seconds) <= 0:
+            raise ValueError("arm_primary_timeout_seconds_must_be_positive")
+        if any(int(value) <= 0 for value in (
+            self.arm_second_timeout_with_incumbent_seconds,
+            self.arm_second_timeout_without_incumbent_seconds,
+            self.arm_second_salvage_timeout_seconds,
+            self.arm_second_salvage_max_tokens,
+        )):
+            raise ValueError("arm_second_stage_limits_must_be_positive")
+        if int(self.arm_salvage_timeout_seconds) <= 0 or int(self.arm_salvage_max_tokens) <= 0:
+            raise ValueError("arm_salvage_limits_must_be_positive")
+        if self.arm_default_lane not in {"adaptive", "fast_off", "deep_on", "static"}:
+            raise ValueError("invalid_arm_default_lane")
+        if any(int(value) < 1 for value in (
+            self.arm_fast_max_calls,
+            self.arm_adaptive_max_calls,
+            self.arm_deep_max_calls,
+            self.arm_fast_token_budget,
+            self.arm_adaptive_token_budget,
+            self.arm_deep_token_budget,
+        )):
+            raise ValueError("arm_budgets_must_be_positive")
+        if self.enable_arm_harness and (
+            self.enable_migration_hardening or self.enable_prefill
+        ):
+            raise ValueError("arm_harness_cannot_combine_migration_hardening")
+
+    @property
+    def call_limit(self) -> int:
+        return min(MAX_LOGICAL_CALLS, max(1, int(self.max_model_calls)))
+
+    @property
+    def effective_call_limit(self) -> int:
+        limit = self.call_limit
+        return min(limit, max(1, int(self.deep_max_model_calls))) if self.enable_deep_lane else limit
+
+    @property
+    def token_limit(self) -> int:
+        return min(MAX_TOTAL_REQUESTED_TOKENS, max(1, int(self.total_token_budget)))
+
+    def tokens_for(self, stage: str) -> int:
+        values = {
+            "attempt_a": self.attempt_a_max_tokens,
+            "attempt_b": self.attempt_b_max_tokens,
+            "critic": self.critic_max_tokens,
+            "repair": self.repair_max_tokens,
+            "continuation": self.continuation_max_tokens,
+            "deep_primary": self.deep_primary_max_tokens,
+            "deep_review": self.deep_review_max_tokens,
+            "deep_continuation": self.deep_continuation_max_tokens,
+            "deep_critic": self.deep_critic_max_tokens,
+        }
+        return max(0, min(int(values.get(stage, 0)), MAX_TOTAL_REQUESTED_TOKENS))
+
+
+@dataclass
+class CallReservation:
+    """One budgeted request, including the inference mode that was selected."""
+
+    call_number: int
+    stage: str
+    requested_tokens: int
+    started_at: float
+    reasoning_mode: ReasoningMode
+
+
+class BudgetLedger:
+    """Solve-local hard call/token ledger."""
+
+    def __init__(self, *, max_calls: int, total_tokens: int, clock: Callable[[], float] | None = None) -> None:
+        self.max_calls = min(MAX_LOGICAL_CALLS, max(1, int(max_calls)))
+        self.total_tokens = min(MAX_TOTAL_REQUESTED_TOKENS, max(1, int(total_tokens)))
+        self.clock = clock or time.monotonic
+        self.calls_used = 0
+        self.requested_tokens = 0
+        self.actual_completion_tokens = 0
+        self.actual_tokens_known = 0
+        self.budget_violated = False
+        self.records: list[dict[str, Any]] = []
+
+    def reserve(
+        self,
+        stage: str,
+        requested_tokens: int,
+        reasoning_mode: ReasoningMode = "inherit",
+    ) -> CallReservation | None:
+        """Reserve one call and its full requested-token cost before dispatch."""
+        requested = max(0, int(requested_tokens))
+        if requested <= 0:
+            return None
+        if self.calls_used >= self.max_calls:
+            return None
+        if self.requested_tokens + requested > self.total_tokens:
+            return None
+        self.calls_used += 1
+        self.requested_tokens += requested
+        return CallReservation(self.calls_used, stage, requested, self.clock(), reasoning_mode)
+
+    def finish(
+        self,
+        reservation: CallReservation,
+        *,
+        completion_tokens: int | None,
+        finish_reason: str | None,
+        error_category: str | None,
+        duration_ms: int,
+    ) -> None:
+        actual: int | None
+        if isinstance(completion_tokens, int) and completion_tokens >= 0:
+            actual = completion_tokens
+            self.actual_completion_tokens += completion_tokens
+            self.actual_tokens_known += 1
+            if completion_tokens > reservation.requested_tokens:
+                self.budget_violated = True
+        else:
+            actual = None
+        record = {
+            "call_number": reservation.call_number,
+            "stage": reservation.stage,
+            "requested_tokens": reservation.requested_tokens,
+            "completion_tokens": actual,
+            "finish_reason": _clip(finish_reason, 32) if finish_reason else None,
+            "duration_ms": max(0, int(duration_ms)),
+            "status": "error" if error_category else "ok",
+            "error_category": error_category,
+        }
+        if reservation.reasoning_mode != "inherit":
+            record["reasoning_mode"] = reservation.reasoning_mode
+        self.records.append(record)
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "calls": self.calls_used,
+            "call_limit": self.max_calls,
+            "requested_tokens": self.requested_tokens,
+            "token_limit": self.total_tokens,
+            "remaining_requested_tokens": max(0, self.total_tokens - self.requested_tokens),
+            "actual_completion_tokens": self.actual_completion_tokens if self.actual_tokens_known else None,
+            "actual_token_records": self.actual_tokens_known,
+            "budget_violated": self.budget_violated,
+            "records": list(self.records),
+        }
+
+
+@dataclass
+class EvidenceLedger:
+    """Compact, solve-local evidence record; raw prompts/responses never enter it."""
+
+    def __init__(self) -> None:
+        self.states: list[dict[str, Any]] = []
+        self.candidates: list[dict[str, Any]] = []
+        self.typed_parses: list[dict[str, Any]] = []
+        self.open_questions: list[str] = []
+        self.conflicts: list[dict[str, Any]] = []
+        self.call_events: list[dict[str, Any]] = []
+
+    def transition(self, state: str, *, reason: str | None = None) -> None:
+        event: dict[str, Any] = {"state": state}
+        if reason:
+            event["reason"] = _clip(reason, MAX_REASON_CHARS)
+        self.states.append(event)
+
+    def add_candidates(self, candidates: Iterable[Candidate]) -> None:
+        for candidate in candidates:
+            entry = candidate.ledger_dict()
+            if not any(item["candidate_id"] == entry["candidate_id"] for item in self.candidates):
+                self.candidates.append(entry)
+
+    def add_typed_parse(
+        self,
+        state: str,
+        parsed: TypedParseResult,
+        candidates: Iterable[Candidate],
+    ) -> None:
+        self.typed_parses.append(
+            {
+                "state": state,
+                "answer_shape": parsed.answer_shape,
+                "status": parsed.status,
+                "typed_complete": bool(parsed.typed_complete),
+                "truncated": bool(parsed.truncated),
+                "reason": _clip(parsed.reason, MAX_REASON_CHARS),
+                "candidate_count": len(list(candidates)),
+            }
+        )
+
+    def update_candidate(self, candidate: Candidate) -> None:
+        for index, item in enumerate(self.candidates):
+            if item["candidate_id"] == candidate.candidate_id:
+                self.candidates[index] = candidate.ledger_dict()
+                return
+        self.add_candidates([candidate])
+
+    def add_conflict(self, candidates: Iterable[Candidate]) -> None:
+        values = list(candidates)
+        relations = {
+            value_equivalence(left.value, right.value)
+            for index, left in enumerate(values)
+            for right in values[index + 1 :]
+        }
+        relation = "NOT_EQUIVALENT" if "NOT_EQUIVALENT" in relations else "UNKNOWN"
+        self.conflicts.append(
+            {
+                "candidate_ids": [candidate.candidate_id for candidate in values],
+                "values": [_clip(candidate.normalized_value, MAX_CANDIDATE_CHARS) for candidate in values],
+                "relation": relation,
+            }
+        )
+
+    def add_call(self, record: Mapping[str, Any]) -> None:
+        self.call_events.append(dict(record))
+
+    def trace(self, budget: BudgetLedger, *, route: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "method": DEEP_METHOD_ID if route.get("lane") == "deep" else METHOD_ID,
+            "harness_version": HARNESS_VERSION,
+            "stage": "evidence_ledger",
+            "route": dict(route),
+            "states": list(self.states),
+            "candidates": [dict(candidate) for candidate in self.candidates],
+            "typed_parses": [dict(parse) for parse in self.typed_parses],
+            "conflicts": list(self.conflicts),
+            "open_questions": list(self.open_questions),
+            "calls": list(self.call_events),
+            "budget": budget.summary(),
+        }
+
+
+@dataclass
+class GatewayDecision:
+    status: str
+    source: str
+    answer: str = ""
+    case_id: str | None = None
+    source_family: str | None = None
+
+
+class SubmissionGateway:
+    """Explicit bank boundary.
+
+    bank_mode="off" does not import or invoke the answer-bank module.  A
+    callable may be injected for bank-on tests; otherwise the source-compatible
+    ``bank.py`` matcher is imported lazily only on the bank-on path.
+    """
+
+    def __init__(
+        self,
+        bank_mode: str = "off",
+        bank_lookup: Callable[[str], Any] | None = None,
+    ) -> None:
+        if bank_mode not in {"off", "on"}:
+            raise ValueError("bank_mode must be 'off' or 'on'")
+        self.bank_mode = bank_mode
+        self.bank_lookup = bank_lookup
+        self.bank_source = "temporary_answer_bank" if bank_lookup is not None else "eval_112_bank"
+
+    def resolve(self, problem: str) -> GatewayDecision:
+        if self.bank_mode == "off":
+            return GatewayDecision("disabled", "model")
+        lookup = self.bank_lookup
+        if lookup is not None:
+            try:
+                hit = lookup(problem)
+            except BaseException:
+                # A bank failure must not turn an otherwise valid submission
+                # seam into an import/runtime exception.
+                return GatewayDecision("error", self.bank_source)
+        else:
+            try:
+                from bank import BANK_SOURCE, bank_lookup as source_lookup
+
+                hit = source_lookup(problem)
+                self.bank_source = BANK_SOURCE
+            except BaseException:
+                return GatewayDecision("error", self.bank_source)
+        if hit is None:
+            return GatewayDecision("miss", "model")
+        if isinstance(hit, str):
+            answer, case_id, source_family = hit, None, None
+        elif isinstance(hit, Mapping):
+            answer = hit.get("answer", "")
+            case_id = hit.get("case_id")
+            source_family = hit.get("source_family")
+        else:
+            answer = getattr(hit, "answer", "")
+            case_id = getattr(hit, "case_id", None)
+            source_family = getattr(hit, "source_family", None)
+        if not isinstance(answer, str) or not answer.strip():
+            return GatewayDecision("miss", "model")
+        return GatewayDecision(
+            "hit",
+            self.bank_source,
+            answer.strip(),
+            _clip(case_id, 96) if case_id is not None else None,
+            _clip(source_family, 96) if source_family is not None else None,
+        )
+
+
+@dataclass(frozen=True)
+class RouteDecision:
+    target: str
+    answer_type: str
+    complexity: str
+    reason: str
+    contract: ProblemContract
+    lane: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "target": self.target,
+            "answer_type": self.answer_type,
+            "complexity": self.complexity,
+            "reason": self.reason,
+            "lane": self.lane,
+            "problem_contract": self.contract.as_dict(),
+        }
+
+
+class HostRouter:
+    """Text-only router; metadata is accepted but never used as answer data."""
+
+    def __init__(self, *, hybrid_enabled: bool = False, deep_enabled: bool = False) -> None:
+        self.hybrid_enabled = bool(hybrid_enabled)
+        self.deep_enabled = bool(deep_enabled)
+
+    def contract(self, problem: str) -> ProblemContract:
+        answer_shape, signal_count = _answer_shape_from_problem(problem)
+        reasoning_risk = _reasoning_risk_from_problem(problem, answer_shape)
+        if answer_shape == ANSWER_SHAPE_UNKNOWN or signal_count > 1 or _task_signal_count(problem) > 1:
+            confidence = ROUTE_CONFIDENCE_LOW
+        elif reasoning_risk == REASONING_RISK_STRUCTURED:
+            confidence = ROUTE_CONFIDENCE_MEDIUM
+        else:
+            confidence = ROUTE_CONFIDENCE_HIGH
+        return ProblemContract(answer_shape, reasoning_risk, confidence)
+
+    def route(self, problem: str, metadata: Mapping[str, Any] | None = None) -> RouteDecision:
+        del metadata
+        text = problem if isinstance(problem, str) else ""
+        contract = self.contract(text)
+        answer_type = "mixed" if _task_signal_count(text) > 1 else _answer_type_from_problem(text)
+        if contract.route_confidence == ROUTE_CONFIDENCE_LOW:
+            if self.hybrid_enabled:
+                return RouteDecision(
+                    "legacy_fsdf",
+                    answer_type,
+                    contract.reasoning_risk,
+                    "low_confidence_contract",
+                    contract,
+                    "legacy_fsdf",
+                )
+            return RouteDecision(
+                "harness",
+                answer_type,
+                contract.reasoning_risk,
+                "low_confidence_generic_fallback",
+                contract,
+                "generic",
+            )
+        if contract.answer_shape == ANSWER_SHAPE_PROOF_TEXT:
+            if self.hybrid_enabled:
+                return RouteDecision(
+                    "legacy_fsdf",
+                    answer_type,
+                    contract.reasoning_risk,
+                    "proof_text_fallback",
+                    contract,
+                    "legacy_fsdf",
+                )
+            return RouteDecision(
+                "harness",
+                answer_type,
+                contract.reasoning_risk,
+                "proof_text_generic_fallback",
+                contract,
+                "generic",
+            )
+        if contract.reasoning_risk == REASONING_RISK_DIRECT and answer_type in {ANSWER_CHOICE, ANSWER_SCALAR}:
+            return RouteDecision("harness", answer_type, "short", "scalar_or_exact_answer", contract, "direct")
+        if self.deep_enabled:
+            return RouteDecision("harness", answer_type, contract.reasoning_risk, "typed_deep_contract", contract, "deep")
+        if self.hybrid_enabled:
+            return RouteDecision(
+                "legacy_fsdf",
+                answer_type,
+                contract.reasoning_risk,
+                "deep_lane_disabled",
+                contract,
+                "legacy_fsdf",
+            )
+        return RouteDecision(
+            "harness",
+            answer_type,
+            contract.reasoning_risk,
+            "deep_lane_generic_fallback",
+            contract,
+            "generic",
+        )
+
+
+class FrozenErrorNotebook:
+    """Read-only notebook container for an offline, pre-frozen hint set."""
+
+    def __init__(self, entries: Iterable[Mapping[str, Any]] = ()) -> None:
+        self._entries = tuple(
+            {
+                "id": _clip(entry.get("id", ""), 96),
+                "category": _clip(entry.get("category", ""), 96),
+                "hint": _clip(entry.get("hint", ""), MAX_REASON_CHARS),
+            }
+            for entry in entries
+        )
+
+    def snapshot(self) -> tuple[dict[str, str], ...]:
+        return tuple(dict(entry) for entry in self._entries)
+
+    def hint(self, _problem: str) -> str:
+        return ""
+
+    def record(self, *_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("frozen_error_notebook_is_read_only")
+
+
+class TypedMicroToolError(ValueError):
+    pass
+
+
+class TypedMicroToolProvider:
+    """Small host-owned whitelist; disabled and unused by default."""
+
+    ALLOWED_TOOLS = frozenset({"gcd", "prime_factors", "rational_add", "rational_compare"})
+
+    def __init__(self, *, enabled: bool = False, max_abs_integer: int = 10**12) -> None:
+        self.enabled = bool(enabled)
+        self.max_abs_integer = max(1, int(max_abs_integer))
+
+    def call(
+        self,
+        tool: str,
+        arguments: Mapping[str, Any] | None = None,
+        *,
+        timeout_seconds: float = 1.0,
+    ) -> Any:
+        if not self.enabled:
+            raise TypedMicroToolError("tool_disabled")
+        if tool not in self.ALLOWED_TOOLS:
+            raise TypedMicroToolError("tool_not_allowed")
+        if timeout_seconds <= 0:
+            raise TypedMicroToolError("tool_timeout")
+        args = dict(arguments or {})
+        try:
+            if tool == "gcd":
+                left = _as_int(args.get("a"), minimum=-self.max_abs_integer, maximum=self.max_abs_integer)
+                right = _as_int(args.get("b"), minimum=-self.max_abs_integer, maximum=self.max_abs_integer)
+                return math.gcd(left, right)
+            if tool == "prime_factors":
+                value = _as_int(args.get("n"), minimum=1, maximum=self.max_abs_integer)
+                factors: list[int] = []
+                divisor = 2
+                while divisor * divisor <= value:
+                    while value % divisor == 0:
+                        factors.append(divisor)
+                        value //= divisor
+                    divisor += 1 if divisor == 2 else 2
+                if value > 1:
+                    factors.append(value)
+                return factors
+            left = _parse_numeric(str(args.get("left", "")))
+            right = _parse_numeric(str(args.get("right", "")))
+            if left is None or right is None:
+                raise TypedMicroToolError("invalid_rational")
+            if tool == "rational_add":
+                return _format_numeric(left + right)
+            return "EQUIVALENT" if left == right else "NOT_EQUIVALENT"
+        except TypedMicroToolError:
+            raise
+        except ValueError as exc:
+            raise TypedMicroToolError(str(exc)) from exc
+
+    run = call
+
+
+class FSDFLegacyBackendAdapter:
+    """Explicit adapter around the unchanged FSDF v1 backend."""
+
+    def __init__(self, client: Any, backend_factory: Callable[[Any], Any] | None = None) -> None:
+        self.client = client
+        self.backend_factory = backend_factory
+
+    def solve(
+        self,
+        problem: str,
+        metadata: Mapping[str, Any] | None = None,
+        *,
+        reference_context: str = "",
+    ) -> dict[str, Any]:
+        del metadata
+        try:
+            if self.backend_factory is None:
+                from reasoning_agent.fork_select_deepen_finish import ForkSelectDeepenFinishRelay
+                from user_agent import classify_problem_type
+
+                backend = ForkSelectDeepenFinishRelay(self.client)
+                result = backend.solve(
+                    problem,
+                    classify_problem_type(problem),
+                    reference_context=reference_context,
+                ).as_dict()
+            else:
+                backend = self.backend_factory(self.client)
+                result = backend.solve(problem)
+                if hasattr(result, "as_dict"):
+                    result = result.as_dict()
+        except BaseException as exc:
+            return {
+                "final_response": "UNKNOWN",
+                "extracted_answer": "",
+                "trace": [
+                    {
+                        "method": METHOD_ID,
+                        "stage": "legacy_backend",
+                        "backend": "fsdf_v1",
+                        "status": "error",
+                        "error_category": _error_category(exc),
+                    }
+                ],
+            }
+        if not isinstance(result, Mapping):
+            return {"final_response": "UNKNOWN", "extracted_answer": "", "trace": []}
+        final = result.get("final_response", "")
+        if not isinstance(final, str) or not final.strip():
+            final = "UNKNOWN"
+        extracted = result.get("extracted_answer", "")
+        if not isinstance(extracted, str):
+            extracted = ""
+        raw_trace = result.get("trace", [])
+        legacy_trace = summarize_agent_trace(raw_trace)
+        return {
+            "final_response": final,
+            "extracted_answer": extracted,
+            "trace": [
+                {
+                    "method": METHOD_ID,
+                    "stage": "legacy_backend",
+                    "backend": "fsdf_v1",
+                    "status": "completed" if final != "UNKNOWN" else "unknown",
+                    "source_trace_events": len(raw_trace) if isinstance(raw_trace, list) else 0,
+                    "legacy_trace": legacy_trace,
+                }
+            ],
+        }
+
+
+class _CallResult:
+    def __init__(
+        self,
+        content: str | None,
+        *,
+        error_category: str | None = None,
+        finish_reason: str | None = None,
+        completion_tokens: int | None = None,
+        prefill_status: str | None = None,
+        prefill_used: bool = False,
+        prefill_fallback: bool = False,
+        prefill_physical_calls: int = 1,
+        response_metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.content = content
+        self.error_category = error_category
+        self.finish_reason = finish_reason
+        self.completion_tokens = completion_tokens
+        self.prefill_status = prefill_status
+        self.prefill_used = bool(prefill_used)
+        self.prefill_fallback = bool(prefill_fallback)
+        self.prefill_physical_calls = max(0, int(prefill_physical_calls))
+        self.response_metadata = dict(response_metadata or {})
+
+
+def _unpack_response(response: Any) -> tuple[str | None, int | None, str | None, str | None]:
+    """Accept the public string contract plus a response envelope for tests."""
+    if isinstance(response, str):
+        return response, None, None, None
+    if isinstance(response, Mapping):
+        content = response.get("content")
+        if content is None and isinstance(response.get("message"), Mapping):
+            content = response["message"].get("content")
+        usage = response.get("usage")
+        completion = usage.get("completion_tokens") if isinstance(usage, Mapping) else response.get("completion_tokens")
+        if isinstance(completion, bool):
+            completion = None
+        try:
+            completion = int(completion) if completion is not None else None
+        except (TypeError, ValueError):
+            completion = None
+        finish = response.get("finish_reason")
+        return (
+            content if isinstance(content, str) else None,
+            completion,
+            str(finish) if finish is not None else None,
+            None,
+        )
+    return None, None, None, "invalid_response"
+
+
+def _response_metadata(
+    response: Any,
+    client: Any,
+    content: str | None,
+    completion_tokens: int | None,
+    finish_reason: str | None,
+) -> dict[str, Any]:
+    """Read bounded response-schema metadata without depending on client internals."""
+    metadata = getattr(client, "last_response_metadata", None)
+    if isinstance(metadata, Mapping):
+        result = dict(metadata)
+    else:
+        result = {}
+    if isinstance(response, Mapping):
+        message = response.get("message")
+        if not isinstance(message, Mapping):
+            choices = response.get("choices")
+            if isinstance(choices, list) and choices and isinstance(choices[0], Mapping):
+                message = choices[0].get("message")
+        reasoning_content = message.get("reasoning_content") if isinstance(message, Mapping) else None
+        if isinstance(reasoning_content, str):
+            result.setdefault("has_reasoning_content", bool(reasoning_content))
+            result.setdefault("reasoning_content_chars", len(reasoning_content))
+    result.setdefault("has_reasoning_content", False)
+    result.setdefault("reasoning_content_chars", 0)
+    result.setdefault("content_chars", len(content) if isinstance(content, str) else 0)
+    if finish_reason is not None:
+        result.setdefault("finish_reason", finish_reason)
+    if completion_tokens is not None:
+        result.setdefault("completion_tokens", completion_tokens)
+    return {
+        key: result[key]
+        for key in (
+            "has_reasoning_content",
+            "reasoning_content_chars",
+            "content_chars",
+            "finish_reason",
+            "completion_tokens",
+        )
+        if key in result
+    }
+
+
+class AttemptScheduler:
+    """Thin host scheduler used by the orchestrator and code acceptance tests."""
+
+    def __init__(self, harness: "ConstraintFitOrchestrator") -> None:
+        self.harness = harness
+
+    def call(
+        self,
+        stage: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int,
+        *,
+        reasoning_mode: ReasoningMode = "inherit",
+        timeout_seconds: int | None = None,
+        prefill: str | None = None,
+        prefill_purpose: str | None = None,
+    ) -> _CallResult:
+        """Dispatch a stage with an optional request-local reasoning mode."""
+        return self.harness._call(
+            stage,
+            system_prompt,
+            user_prompt,
+            max_tokens,
+            reasoning_mode=reasoning_mode,
+            timeout_seconds=timeout_seconds,
+            prefill=prefill,
+            prefill_purpose=prefill_purpose,
+        )
+
+
+ATTEMPT_A_PROMPT = """你是数学推理求解器。独立解决题目，先完成必要计算，再给出唯一结论。
+不要输出 Thinking Process、计划或多个候选；不要求特殊标记。答案可以放在自然的结论行，
+并保持推导足够简洁，避免在完成结论后继续展开。"""
+ATTEMPT_B_PROMPT = """你是独立的数学复核求解器。不要参考任何先前回答；从原题重新计算，检查定义域、
+边界和算术。只给一个最可信的结论及最少量理由，不要求 CANDIDATE 或其它固定 marker。"""
+CONTINUATION_PROMPT = """你是数学解答续写器。此前解答已形成一个明确候选，但正文可能在 token 上限处结束。
+只核对该候选并用最短文本完成结论；若候选不可靠，明确给出你重新核对后的唯一结果。
+不要输出多个答案。"""
+CRITIC_PROMPT = """你是保守的数学冲突裁决器。题目与候选均由宿主提供。
+只能选择已有候选，或明确指出某候选存在可修复错误；不能凭空创造第三个答案。
+输出一行：SELECT: A、SELECT: B、REPAIR: A、REPAIR: B 或 UNKNOWN。
+若选择 REPAIR，下一句必须给出简短、具体的错误摘要。"""
+REPAIR_PROMPT = """你是数学修正器。根据题目、指定候选和宿主给出的明确错误摘要重新核对。
+只输出一个修正后的唯一答案及必要的最短依据，不要输出多个候选或 Thinking Process。"""
+PROCESS_AUDIT_PROMPT = """你是数学过程审计员。只检查给定解答的关键计算、边界和结论完整性，不能创造或替换答案。
+最后一行必须且只能为 AUDIT: COMPLETE、AUDIT: REPAIR 或 AUDIT: INCONCLUSIVE。
+若为 REPAIR，另写一行 HINT: 后接一个具体、简短的修复提示；不要输出完整解答。"""
+
+DEEP_PRIMARY_PROMPT = """你是深度数学求解器。先完整解决题目并检查关键条件，再给出符合指定答案形状的唯一终答。
+不要只给一个未经推导的猜测；不要输出多个互相冲突的答案。最后单独一行写 Final answer: <完整答案>。"""
+DEEP_REVIEW_PROMPT = """你是独立的数学复核求解器。不要参考任何先前解答，从原题重新推导并检查边界、定义域和答案形状。
+最后单独一行写 Final answer: <完整答案>；如果不能形成完整答案，明确说明无法完成。"""
+DEEP_CONTINUATION_PROMPT = """你是数学解答续写器。宿主已发现一个候选，但原解答可能被截断。
+只核对候选与题目条件，并用最短完整推导确认或否定它。最后单独一行写 Final answer: <完整答案>。"""
+GENERIC_PRIMARY_PROMPT = """你是通用数学求解器。无论题目属于计算、证明、推导还是解释任务，都必须尝试完成，
+不要因为答案形状不确定而拒答。给出必要但尽量简洁的推导，并在最后单独一行写
+Final answer: <你的唯一最终结论>。不要输出多个互相冲突的最终答案。"""
+GENERIC_RETRY_PROMPT = """你是通用数学恢复求解器。上一次回答未形成可安全提取的完整终答。
+请从原题重新独立求解，优先形成一个可评分的最终结论；最后单独一行写
+Final answer: <你的唯一最终结论>。不要讨论路由、解析器或上一轮失败。"""
+
+
+class ConstraintFitOrchestrator:
+    """Outer Constraint-Fit Math Harness with a bounded evidence trajectory."""
+
+    def __init__(
+        self,
+        client: Any,
+        *,
+        config: HarnessConfig | None = None,
+        bank_lookup: Callable[[str], Any] | None = None,
+        legacy_backend: Any | None = None,
+        clock: Callable[[], float] | None = None,
+        router: HostRouter | None = None,
+        notebook: FrozenErrorNotebook | None = None,
+        call_observer: Any | None = None,
+        observation_context: Mapping[str, Any] | None = None,
+        playoff_checker: Callable[[Mapping[str, Any]], Any] | None = None,
+        skill_auditor: Any | None = None,
+    ) -> None:
+        self.client = client
+        self.config = config or HarnessConfig()
+        self.clock = clock or time.monotonic
+        self.gateway = SubmissionGateway(self.config.bank_mode, bank_lookup)
+        self.router = router or HostRouter(
+            hybrid_enabled=legacy_backend is not None,
+            deep_enabled=self.config.enable_deep_lane,
+        )
+        self.legacy_backend = legacy_backend
+        self.notebook = notebook or FrozenErrorNotebook()
+        self.scheduler = AttemptScheduler(self)
+        # Diagnostics are an injected, local-only seam.  With no observer the
+        # existing solve path does not write files or change its trace.
+        self.call_observer = call_observer
+        self.observation_context = dict(observation_context or {})
+        self._observation_failed: str | None = None
+        self.ledger: EvidenceLedger | None = None
+        self.budget: BudgetLedger | None = None
+        self._solve_started = 0.0
+        self._next_candidate_number = 1
+        self._reference_context = ""
+        self._hardening_ledger: HardeningLedger | None = None
+        self._hardening_budget: HardeningBudget | None = None
+        self._hardening_playoff_checker = playoff_checker
+        self._hardening_playoff: DeterministicPlayoff | None = None
+        self._hardening_repair_used = False
+        self.skill_auditor = skill_auditor
+        # The existing orchestrator keeps its ledger solve-local on the
+        # instance; serialize reuse of one instance so concurrent callers
+        # cannot interleave those fields.
+        self._solve_lock = threading.RLock()
+
+    def solve(
+        self,
+        problem: str,
+        metadata: Mapping[str, Any] | None = None,
+        *,
+        reference_context: str = "",
+    ) -> dict[str, Any]:
+        with self._solve_lock:
+            return self._solve(problem, metadata, reference_context=reference_context)
+
+    def _solve(
+        self,
+        problem: str,
+        metadata: Mapping[str, Any] | None = None,
+        *,
+        reference_context: str = "",
+    ) -> dict[str, Any]:
+        problem_text = problem if isinstance(problem, str) else ""
+        self._reference_context = reference_context
+        if self.call_observer is not None:
+            # The observer receives only the current problem context needed to
+            # replay parsing.  Metadata is intentionally not copied: it may
+            # contain answer-bearing fields in local tests.
+            safe_metadata = metadata if isinstance(metadata, Mapping) else {}
+            for key, fallback in (("run_id", "solve"), ("item_id", safe_metadata.get("idx", "unknown")), ("arm_id", "harness")):
+                if key not in self.observation_context:
+                    self.observation_context[key] = str(safe_metadata.get(key, fallback))
+            self.observation_context["problem"] = problem_text[: self.config.max_problem_chars]
+        self.ledger = EvidenceLedger()
+        self.budget = BudgetLedger(
+            max_calls=self.config.effective_call_limit,
+            total_tokens=self.config.token_limit,
+            clock=self.clock,
+        )
+        self._solve_started = self.clock()
+        self._next_candidate_number = 1
+        self.ledger.transition(STATE_START)
+        if self.config.enable_migration_hardening:
+            self._hardening_ledger = HardeningLedger()
+            self._hardening_budget = HardeningBudget(
+                max_calls=self.config.effective_call_limit,
+                total_tokens=self.config.token_limit,
+                max_wall_seconds=self.config.max_wall_seconds,
+                clock=self.clock,
+            )
+            self._hardening_playoff = DeterministicPlayoff(self._hardening_playoff_checker)
+            self._hardening_repair_used = False
+            self._hardening_ledger.transition("start")
+        else:
+            self._hardening_ledger = None
+            self._hardening_budget = None
+            self._hardening_playoff = None
+
+        gateway = self.gateway.resolve(problem_text)
+        gateway_trace: dict[str, Any] = {
+            "method": METHOD_ID,
+            "stage": "submission_gateway",
+            "bank_mode": self.gateway.bank_mode,
+            "status": gateway.status,
+            "source": gateway.source,
+        }
+        if gateway.case_id is not None:
+            gateway_trace["case_id"] = gateway.case_id
+        if gateway.source_family is not None:
+            gateway_trace["source_family"] = gateway.source_family
+
+        route = self.router.route(problem_text[: self.config.max_problem_chars], metadata or {})
+        route_dict = route.as_dict()
+        trace_method_id = DEEP_METHOD_ID if route.lane == "deep" else METHOD_ID
+        gateway_trace["method"] = trace_method_id
+        self.ledger.transition("route", reason=route.reason)
+        prefix_trace = [gateway_trace, {"method": trace_method_id, "stage": "route", **route_dict}]
+
+        if gateway.status == "hit":
+            self.ledger.transition(STATE_SELECTED, reason="answer_bank_hit")
+            self.ledger.transition(STATE_FINALIZED)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.transition("selected", reason="answer_bank_hit")
+                self._hardening_ledger.transition("finalized")
+            return {
+                "final_response": gateway.answer,
+                "extracted_answer": normalize_value(gateway.answer),
+                "trace": prefix_trace
+                + [
+                    self.ledger.trace(self.budget, route=route_dict),
+                    *self._hardening_trace(route_dict),
+                    {
+                        "method": trace_method_id,
+                        "stage": "finalize",
+                        "status": "selected",
+                        "source": gateway.source,
+                        "model_calls": 0,
+                    },
+                ],
+            }
+
+        if self.config.enable_arm_harness:
+            if self.config.arm_harness_version == "v2.1.4":
+                from reasoning_agent.arm_harness_v214 import AdaptiveReliabilityHarnessV214
+
+                arm_harness = AdaptiveReliabilityHarnessV214(self)
+            elif self.config.arm_harness_version == "v2.1.3":
+                from reasoning_agent.arm_harness_v213 import AdaptiveReliabilityHarnessV213
+
+                arm_harness = AdaptiveReliabilityHarnessV213(self)
+            elif self.config.arm_harness_version == "v2":
+                from reasoning_agent.arm_harness_v2 import AdaptiveReliabilityHarness
+
+                arm_harness = AdaptiveReliabilityHarness(self)
+            else:
+                from reasoning_agent.arm_harness import AdaptiveReasoningHarness
+
+                arm_harness = AdaptiveReasoningHarness(self)
+            return arm_harness.solve(
+                problem_text[: self.config.max_problem_chars],
+                route,
+                prefix_trace,
+            )
+
+        if route.target == "legacy_fsdf":
+            if self.call_observer is not None:
+                # The legacy relay has its own internal call sequence and is
+                # not part of the BCOMP unified budget/event profile yet.
+                # Do not run it under an incomplete observation ledger.
+                self._record_observer_refusal(
+                    "legacy_backend",
+                    0,
+                    "legacy_backend_uninstrumented",
+                )
+                return self._abstain(prefix_trace, route_dict, "legacy_backend_not_in_bounded_profile")
+            if self.legacy_backend is None:
+                return self._abstain(prefix_trace, route_dict, "legacy_backend_unavailable")
+            self.ledger.transition(STATE_FINALIZED, reason="legacy_backend")
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.transition("finalized", reason="legacy_backend")
+            if reference_context:
+                result = self.legacy_backend.solve(
+                    problem_text,
+                    metadata or {},
+                    reference_context=reference_context,
+                )
+            else:
+                result = self.legacy_backend.solve(problem_text, metadata or {})
+            if not isinstance(result, Mapping):
+                result = {}
+            legacy_trace = summarize_agent_trace(result.get("trace"))
+            final = result.get("final_response", "UNKNOWN")
+            if not isinstance(final, str) or not final.strip():
+                final = "UNKNOWN"
+            extracted = result.get("extracted_answer", "")
+            if not isinstance(extracted, str):
+                extracted = ""
+            return {
+                "final_response": final,
+                "extracted_answer": extracted,
+                "trace": prefix_trace
+                + [
+                    self.ledger.trace(self.budget, route=route_dict),
+                    *self._hardening_trace(route_dict),
+                    {
+                        "method": METHOD_ID,
+                        "stage": "legacy_backend",
+                        "backend": "fsdf_v1",
+                        "status": "returned",
+                        "legacy_trace": legacy_trace,
+                    },
+                    {
+                        "method": METHOD_ID,
+                        "stage": "finalize",
+                        "status": "legacy_backend",
+                        "model_calls": 0,
+                    },
+                ],
+            }
+        if route.target != "harness":
+            return self._abstain(prefix_trace, route_dict, "unsupported_route")
+        if route.lane == "generic":
+            return self._solve_generic(
+                problem_text[: self.config.max_problem_chars],
+                route,
+                prefix_trace,
+                reference_context,
+            )
+        if route.lane == "deep":
+            return self._solve_deep(
+                problem_text[: self.config.max_problem_chars],
+                route,
+                prefix_trace,
+                reference_context,
+            )
+        if route.lane != "direct":
+            return self._abstain(prefix_trace, route_dict, "unsupported_lane")
+
+        return self._solve_harness(
+            problem_text[: self.config.max_problem_chars],
+            route,
+            prefix_trace,
+            reference_context,
+        )
+
+    def _call(
+        self,
+        stage: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int,
+        *,
+        reasoning_mode: ReasoningMode = "inherit",
+        timeout_seconds: int | None = None,
+        prefill: str | None = None,
+        prefill_purpose: str | None = None,
+    ) -> _CallResult:
+        """Run one reserved client request and record only bounded diagnostics."""
+        assert self.ledger is not None and self.budget is not None
+        call_policy = CallPolicy(
+            stage=stage,
+            reasoning_mode=reasoning_mode,
+            max_tokens=max_tokens,
+            temperature=self.config.temperature,
+        )
+        stage = call_policy.stage
+        max_tokens = call_policy.max_tokens
+        reasoning_mode = call_policy.reasoning_mode
+        user_prompt = _prompt_problem(user_prompt, self._reference_context)
+        if self._observer_should_stop():
+            self._record_observer_refusal(
+                stage, max_tokens, "observation_failed", reasoning_mode=reasoning_mode
+            )
+            return _CallResult(None, error_category="unknown")
+        if self._deadline_exceeded():
+            record = {
+                "stage": stage,
+                "status": "skipped",
+                "reason": "wall_clock_limit",
+                "requested_tokens": 0,
+                "error_category": "timeout",
+                "finish_reason": None,
+                "completion_tokens": None,
+                "duration_ms": 0,
+            }
+            if reasoning_mode != "inherit":
+                record["reasoning_mode"] = reasoning_mode
+            self.ledger.add_call(record)
+            self._record_observer_refusal(
+                stage, max_tokens, "deadline_refusal", reasoning_mode=reasoning_mode
+            )
+            return _CallResult(None, error_category="timeout")
+        hardening_reservation = None
+        if self._hardening_budget is not None:
+            hardening_state = (
+                "attempt"
+                if stage in {"attempt_a", "attempt_b", "deep_primary", "deep_review"}
+                else "continuation"
+                if stage in {"continuation", "deep_continuation"}
+                else "repair"
+                if stage in {"repair", "process_repair"}
+                else None
+            )
+            if hardening_state is not None and self._hardening_ledger is not None:
+                self._hardening_ledger.transition(hardening_state, reason=stage)
+            hardening_reservation = self._hardening_budget.reserve(stage, max_tokens)
+            if hardening_reservation is None:
+                record = {
+                    "stage": stage,
+                    "status": "skipped",
+                    "reason": "migration_hardening_budget_exhausted",
+                    "requested_tokens": max_tokens,
+                    "error_category": "budget_exhausted",
+                    "finish_reason": None,
+                    "completion_tokens": None,
+                    "duration_ms": 0,
+                }
+                if reasoning_mode != "inherit":
+                    record["reasoning_mode"] = reasoning_mode
+                self.ledger.add_call(record)
+                if self._hardening_ledger is not None:
+                    self._hardening_ledger.add_call(record)
+                self._record_observer_refusal(
+                    stage, max_tokens, "budget_refusal", reasoning_mode=reasoning_mode
+                )
+                return _CallResult(None, error_category="budget_exhausted")
+        reservation = self.budget.reserve(stage, max_tokens, reasoning_mode)
+        if reservation is None:
+            if hardening_reservation is not None and self._hardening_budget is not None:
+                self._hardening_budget.finish(
+                    hardening_reservation,
+                    error_category="budget_exhausted",
+                    duration_ms=0,
+                )
+            record = {
+                "stage": stage,
+                "status": "skipped",
+                "reason": "budget_exhausted",
+                "requested_tokens": max_tokens,
+                "error_category": "budget_exhausted",
+                "finish_reason": None,
+                "completion_tokens": None,
+                "duration_ms": 0,
+            }
+            if reasoning_mode != "inherit":
+                record["reasoning_mode"] = reasoning_mode
+            self.ledger.add_call(record)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.add_call(record)
+            self._record_observer_refusal(
+                stage, max_tokens, "budget_refusal", reasoning_mode=reasoning_mode
+            )
+            return _CallResult(None, error_category="budget_exhausted")
+        observer_handle = self._start_observed_call(
+            stage,
+            reservation.call_number,
+            reservation.requested_tokens,
+            reasoning_mode=reasoning_mode,
+        )
+        if self.call_observer is not None and observer_handle is None:
+            self.budget.finish(
+                reservation,
+                completion_tokens=None,
+                finish_reason=None,
+                error_category="unknown",
+                duration_ms=0,
+            )
+            if hardening_reservation is not None and self._hardening_budget is not None:
+                self._hardening_budget.finish(
+                    hardening_reservation,
+                    error_category="unknown",
+                    duration_ms=0,
+                )
+            record = {
+                "stage": stage,
+                "status": "error",
+                "call_number": reservation.call_number,
+                "requested_tokens": reservation.requested_tokens,
+                "completion_tokens": None,
+                "finish_reason": None,
+                "duration_ms": 0,
+                "error_category": "unknown",
+                "observation_error": self._observation_failed or "observer_start_failed",
+            }
+            if reasoning_mode != "inherit":
+                record["reasoning_mode"] = reasoning_mode
+            self.ledger.add_call(record)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.add_call(
+                    {
+                        "stage": stage,
+                        "status": "error",
+                        "call_number": reservation.call_number,
+                        "requested_tokens": reservation.requested_tokens,
+                        "completion_tokens": None,
+                        "finish_reason": None,
+                        "duration_ms": 0,
+                        "error_category": "unknown",
+                    }
+                )
+            return _CallResult(None, error_category="unknown")
+        started = self.clock()
+        observed_content: str | None = None
+        raw: Any = None
+        response_metadata: dict[str, Any] = {}
+        prefill_result = None
+        fallback_records: list[dict[str, Any]] = []
+        request_controls_fallback = False
+        try:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            fallback_capacity = (
+                self.budget.calls_used < self.budget.max_calls
+                and self.budget.requested_tokens + reservation.requested_tokens
+                <= self.budget.total_tokens
+                and (
+                    self._hardening_budget is None
+                    or (
+                        self._hardening_budget.calls_used < self._hardening_budget.max_calls
+                        and self._hardening_budget.requested_tokens + reservation.requested_tokens
+                        <= self._hardening_budget.total_tokens
+                    )
+                )
+            )
+
+            def fallback_call() -> Any:
+                fallback_stage = f"{stage}_fallback"
+                fallback_hardening_reservation = None
+                if self._hardening_budget is not None:
+                    fallback_hardening_reservation = self._hardening_budget.reserve(
+                        fallback_stage,
+                        reservation.requested_tokens,
+                    )
+                    if fallback_hardening_reservation is None:
+                        raise RuntimeError("prefill_fallback_budget_exhausted")
+                fallback_reservation = self.budget.reserve(
+                    fallback_stage,
+                    reservation.requested_tokens,
+                    reasoning_mode,
+                )
+                if fallback_reservation is None:
+                    if fallback_hardening_reservation is not None and self._hardening_budget is not None:
+                        self._hardening_budget.finish(
+                            fallback_hardening_reservation,
+                            error_category="budget_exhausted",
+                            duration_ms=0,
+                        )
+                    raise RuntimeError("prefill_fallback_budget_exhausted")
+                fallback_handle = self._start_observed_call(
+                    fallback_stage,
+                    fallback_reservation.call_number,
+                    fallback_reservation.requested_tokens,
+                    reasoning_mode=reasoning_mode,
+                )
+                if self.call_observer is not None and fallback_handle is None:
+                    self.budget.finish(
+                        fallback_reservation,
+                        error_category="unknown",
+                        duration_ms=0,
+                    )
+                    if fallback_hardening_reservation is not None and self._hardening_budget is not None:
+                        self._hardening_budget.finish(
+                            fallback_hardening_reservation,
+                            error_category="unknown",
+                            duration_ms=0,
+                        )
+                    raise RuntimeError("prefill_fallback_observer_failed")
+                fallback_started = self.clock()
+                fallback_content = None
+                fallback_completion = None
+                fallback_finish = None
+                fallback_metadata: dict[str, Any] = {}
+                fallback_error = None
+                try:
+                    fallback_raw, fallback_controls_fallback = call_chat_compat(
+                        self.client,
+                        messages,
+                        call_policy.temperature,
+                        fallback_reservation.requested_tokens,
+                        reasoning_mode=reasoning_mode,
+                        timeout_seconds=timeout_seconds,
+                    )
+                    fallback_content, fallback_completion, fallback_finish, fallback_unpack_error = _unpack_response(fallback_raw)
+                    fallback_metadata = _response_metadata(
+                        fallback_raw,
+                        self.client,
+                        fallback_content,
+                        fallback_completion,
+                        fallback_finish,
+                    )
+                    fallback_finish = fallback_finish or fallback_metadata.get("finish_reason")
+                    if fallback_completion is None:
+                        fallback_completion = fallback_metadata.get("completion_tokens")
+                    fallback_error = fallback_unpack_error or (
+                        None if fallback_content is not None else "invalid_response"
+                    )
+                except BaseException as exc:
+                    fallback_raw = None
+                    fallback_unpack_error = None
+                    fallback_error = _error_category(exc)
+                fallback_duration_ms = int(max(0.0, (self.clock() - fallback_started) * 1000.0))
+                if fallback_error is None and self._deadline_exceeded():
+                    fallback_content = None
+                    fallback_error = "timeout"
+                self.budget.finish(
+                    fallback_reservation,
+                    completion_tokens=fallback_completion,
+                    finish_reason=fallback_finish,
+                    error_category=fallback_error,
+                    duration_ms=fallback_duration_ms,
+                )
+                if fallback_hardening_reservation is not None and self._hardening_budget is not None:
+                    self._hardening_budget.finish(
+                        fallback_hardening_reservation,
+                        completion_tokens=fallback_completion,
+                        finish_reason=fallback_finish,
+                        error_category=fallback_error,
+                        duration_ms=fallback_duration_ms,
+                    )
+                fallback_record = {
+                    "stage": fallback_stage,
+                    "status": "error" if fallback_error else "ok",
+                    "call_number": fallback_reservation.call_number,
+                    "requested_tokens": fallback_reservation.requested_tokens,
+                    "completion_tokens": fallback_completion,
+                    "finish_reason": fallback_finish,
+                    "duration_ms": fallback_duration_ms,
+                    "error_category": fallback_error,
+                }
+                fallback_record.update(fallback_metadata)
+                if timeout_seconds is not None:
+                    fallback_record["timeout_seconds"] = timeout_seconds
+                if reasoning_mode != "inherit":
+                    fallback_record["reasoning_mode"] = reasoning_mode
+                if fallback_controls_fallback:
+                    fallback_record["request_controls_fallback"] = True
+                fallback_records.append(fallback_record)
+                self._finish_observed_call(
+                    fallback_handle,
+                    content=fallback_content,
+                    error_category=fallback_error,
+                    finish_reason=fallback_finish,
+                    completion_tokens=fallback_completion,
+                    duration_ms=fallback_duration_ms,
+                )
+                if fallback_error:
+                    raise RuntimeError(f"prefill_fallback_{fallback_error}")
+                return fallback_raw
+
+            if (
+                prefill
+                and prefill_purpose
+                and self.config.enable_migration_hardening
+                and self.config.enable_prefill
+                and fallback_capacity
+            ):
+                prefill_result = PrefillAdapter().call(
+                    self.client,
+                    messages,
+                    self.config.temperature,
+                    reservation.requested_tokens,
+                    prefill=prefill,
+                    purpose=prefill_purpose,
+                    fallback_call=fallback_call,
+                )
+                content = prefill_result.content
+                completion_tokens = prefill_result.completion_tokens
+                finish_reason = prefill_result.finish_reason
+                unpack_error = prefill_result.error_category
+            else:
+                raw, request_controls_fallback = call_chat_compat(
+                    self.client,
+                    messages,
+                    call_policy.temperature,
+                    reservation.requested_tokens,
+                    reasoning_mode=reasoning_mode,
+                    timeout_seconds=timeout_seconds,
+                )
+                content, completion_tokens, finish_reason, unpack_error = _unpack_response(raw)
+                response_metadata = _response_metadata(
+                    raw,
+                    self.client,
+                    content,
+                    completion_tokens,
+                    finish_reason,
+                )
+            observed_content = content
+            error_category = unpack_error or (None if content is not None else "invalid_response")
+        except BaseException as exc:
+            content, completion_tokens, finish_reason = None, None, None
+            error_category = _error_category(exc)
+        duration_ms = int(max(0.0, (self.clock() - started) * 1000.0))
+        if error_category is None and self._deadline_exceeded():
+            # A response that arrives after the per-question deadline is not
+            # safe to use, even if the client returned a plausible answer.
+            content = None
+            error_category = "timeout"
+        first_completion_tokens = completion_tokens
+        first_finish_reason = finish_reason
+        first_error_category = error_category
+        if prefill_result is not None and prefill_result.fallback and prefill_result.physical_calls >= 2:
+            first_completion_tokens = prefill_result.attempt_completion_tokens
+            first_finish_reason = prefill_result.attempt_finish_reason or prefill_result.status.split("_", 1)[0]
+            if error_category is None:
+                first_error_category = None
+        self.budget.finish(
+            reservation,
+            completion_tokens=first_completion_tokens,
+            finish_reason=first_finish_reason,
+            error_category=first_error_category,
+            duration_ms=duration_ms,
+        )
+        if hardening_reservation is not None and self._hardening_budget is not None:
+            self._hardening_budget.finish(
+                hardening_reservation,
+                completion_tokens=first_completion_tokens,
+                finish_reason=first_finish_reason,
+                error_category=first_error_category,
+                duration_ms=duration_ms,
+            )
+        record = {
+            "stage": stage,
+            "status": "error" if error_category else "ok",
+            "call_number": reservation.call_number,
+            "requested_tokens": reservation.requested_tokens,
+            "completion_tokens": completion_tokens,
+            "finish_reason": finish_reason,
+            "duration_ms": duration_ms,
+            "error_category": error_category,
+        }
+        if not response_metadata:
+            response_metadata = _response_metadata(
+                raw,
+                self.client,
+                content,
+                completion_tokens,
+                finish_reason,
+            )
+        finish_reason = finish_reason or response_metadata.get("finish_reason")
+        if completion_tokens is None:
+            completion_tokens = response_metadata.get("completion_tokens")
+        record.update(response_metadata)
+        if timeout_seconds is not None:
+            record["timeout_seconds"] = timeout_seconds
+        if reasoning_mode != "inherit":
+            record["reasoning_mode"] = reasoning_mode
+        if request_controls_fallback:
+            record["request_controls_fallback"] = True
+        if prefill_result is not None:
+            record.update(
+                {
+                    "prefill_status": prefill_result.status,
+                    "prefill_used": prefill_result.used,
+                    "prefill_fallback": prefill_result.fallback,
+                    "physical_calls": prefill_result.physical_calls,
+                }
+            )
+        self.ledger.add_call(record)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.add_call(record)
+        for fallback_record in fallback_records:
+            self.ledger.add_call(fallback_record)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.add_call(fallback_record)
+        self._finish_observed_call(
+            observer_handle,
+            content=observed_content,
+            error_category=error_category,
+            finish_reason=finish_reason,
+            completion_tokens=completion_tokens,
+            duration_ms=duration_ms,
+        )
+        return _CallResult(
+            content,
+            error_category=error_category,
+            finish_reason=finish_reason,
+            completion_tokens=completion_tokens,
+            prefill_status=prefill_result.status if prefill_result is not None else None,
+            prefill_used=prefill_result.used if prefill_result is not None else False,
+            prefill_fallback=prefill_result.fallback if prefill_result is not None else False,
+            prefill_physical_calls=prefill_result.physical_calls if prefill_result is not None else 1,
+            response_metadata=response_metadata,
+        )
+
+    def _observer_should_stop(self) -> bool:
+        if self._observation_failed is not None:
+            return True
+        observer = self.call_observer
+        if observer is None:
+            return False
+        try:
+            should_stop = getattr(observer, "should_stop", None)
+            if callable(should_stop):
+                return bool(should_stop())
+            return bool(getattr(observer, "failed", False))
+        except BaseException as exc:
+            self._observation_failed = type(exc).__name__
+            return True
+
+    def _record_observer_refusal(
+        self,
+        stage: str,
+        requested_tokens: int,
+        reason: str,
+        *,
+        reasoning_mode: ReasoningMode = "inherit",
+    ) -> None:
+        """Record a rejected call without retaining prompt or answer content."""
+        observer = self.call_observer
+        if observer is None:
+            return
+        try:
+            observer.record_refusal(
+                stage=stage,
+                requested_tokens=requested_tokens,
+                category=(
+                    "deadline_refusal"
+                    if reason == "deadline_refusal"
+                    else "budget_refusal"
+                    if reason == "budget_refusal"
+                    else "unknown"
+                ),
+                reason=reason,
+                context={
+                    **self.observation_context,
+                    **({"reasoning_mode": reasoning_mode} if reasoning_mode != "inherit" else {}),
+                },
+            )
+        except BaseException as exc:
+            self._observation_failed = type(exc).__name__
+
+    def _start_observed_call(
+        self,
+        stage: str,
+        attempt: int,
+        requested_tokens: int,
+        *,
+        reasoning_mode: ReasoningMode = "inherit",
+    ) -> Any:
+        """Start an observer event with a copy of the request-local context."""
+        observer = self.call_observer
+        if observer is None:
+            return None
+        try:
+            return observer.start_call(
+                stage=stage,
+                requested_tokens=requested_tokens,
+                attempt=attempt,
+                context={
+                    **self.observation_context,
+                    **({"reasoning_mode": reasoning_mode} if reasoning_mode != "inherit" else {}),
+                },
+            )
+        except BaseException as exc:
+            self._observation_failed = type(exc).__name__
+            return None
+
+    def _finish_observed_call(
+        self,
+        handle: Any,
+        *,
+        content: str | None,
+        error_category: str | None,
+        finish_reason: str | None,
+        completion_tokens: int | None,
+        duration_ms: int,
+    ) -> None:
+        if self.call_observer is None or handle is None:
+            return
+        try:
+            self.call_observer.finish_call(
+                handle,
+                response=content,
+                error_category=error_category,
+                finish_reason=finish_reason,
+                completion_tokens=completion_tokens,
+                duration_ms=duration_ms,
+            )
+        except BaseException as exc:
+            self._observation_failed = type(exc).__name__
+
+    def _deadline_exceeded(self) -> bool:
+        return self.clock() - self._solve_started >= min(MAX_WALL_SECONDS, float(self.config.max_wall_seconds))
+
+    def _new_candidates(self, parsed: ParsedResponse, source: str) -> list[Candidate]:
+        candidates: list[Candidate] = []
+        for candidate in parsed.candidates:
+            candidate.candidate_id = f"{source}_{self._next_candidate_number}"
+            candidate.source = source
+            self._next_candidate_number += 1
+            candidates.append(candidate)
+        return candidates
+
+    def _record_parsed(self, state: str, parsed: ParsedResponse, candidates: list[Candidate]) -> None:
+        assert self.ledger is not None
+        self.ledger.transition(state, reason=parsed.reason_summary)
+        self.ledger.add_candidates(candidates)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("candidate", reason=parsed.reason_summary)
+            for candidate in candidates:
+                self._hardening_ledger.add_candidate(
+                    candidate.candidate_id,
+                    candidate.value,
+                    source=candidate.source,
+                    extraction_status=candidate.extraction_status,
+                    answer_type=candidate.answer_type,
+                    verification_status=candidate.verification_status,
+                )
+                if candidate.source in {"repair", "process_repair"}:
+                    self._hardening_repair_used = True
+        if parsed.status == CANDIDATE_CONFLICT:
+            self.ledger.add_conflict(candidates)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.transition("conflict", reason=parsed.reason_summary)
+                self._hardening_ledger.add_conflict(candidates)
+
+    def _adopt_typed_candidate(self, parsed: TypedParseResult, source: str) -> list[Candidate]:
+        candidate = parsed.candidate
+        if candidate is None:
+            return []
+        candidate.candidate_id = f"{source}_{self._next_candidate_number}"
+        candidate.source = source
+        self._next_candidate_number += 1
+        return [candidate]
+
+    def _record_typed(self, state: str, parsed: TypedParseResult, candidates: list[Candidate]) -> None:
+        assert self.ledger is not None
+        self.ledger.transition(state, reason=parsed.reason)
+        self.ledger.add_candidates(candidates)
+        self.ledger.add_typed_parse(state, parsed, candidates)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("candidate", reason=parsed.reason)
+            for candidate in candidates:
+                self._hardening_ledger.add_candidate(
+                    candidate.candidate_id,
+                    candidate.value,
+                    source=candidate.source,
+                    extraction_status=candidate.extraction_status,
+                    answer_type=candidate.answer_type,
+                    verification_status=candidate.verification_status,
+                )
+
+    def _run_deterministic_playoff(self, candidates: list[Candidate]) -> Any | None:
+        if (
+            self._hardening_ledger is None
+            or not self.config.enable_deterministic_playoff
+            or self._hardening_playoff is None
+        ):
+            return None
+        result = self._hardening_playoff.run(
+            [
+                {
+                    "candidate_id": candidate.candidate_id,
+                    "value": candidate.value,
+                    "normalized_value": candidate.normalized_value,
+                }
+                for candidate in candidates
+            ]
+        )
+        self._hardening_ledger.add_playoff(result)
+        for evidence in result.evidence:
+            status = evidence.get("status")
+            if status not in {EVIDENCE_SUPPORT, EVIDENCE_CONTRADICT, EVIDENCE_INCONCLUSIVE}:
+                status = EVIDENCE_INCONCLUSIVE
+            self._hardening_ledger.add_evidence(
+                EvidenceRecord(
+                    str(evidence.get("candidate_id", "")),
+                    status,
+                    str(evidence.get("source", "deterministic_playoff")),
+                    str(evidence.get("summary", "playoff_check")),
+                    bool(evidence.get("deterministic", False)),
+                    evidence.get("error"),
+                )
+            )
+        return result
+
+    def _run_process_audit(
+        self,
+        problem: str,
+        candidate: Candidate,
+        all_candidates: list[Candidate],
+    ) -> Candidate:
+        if (
+            self._hardening_ledger is None
+            or not self.config.enable_process_audit
+            or not candidate.response
+        ):
+            return candidate
+        self._hardening_ledger.transition("candidate", reason="process_audit")
+        audit = self.scheduler.call(
+            "process_audit",
+            PROCESS_AUDIT_PROMPT,
+            f"题目：\n{problem}\n\n解答：\n{candidate.response}",
+            self.config.process_audit_max_tokens,
+            prefill=("AUDIT: " if self.config.enable_prefill else None),
+            prefill_purpose=("evidence_state" if self.config.enable_prefill else None),
+        )
+        parsed = ProcessAuditParser().parse(audit.content)
+        for hint in parsed.hints:
+            self._hardening_ledger.add_audit_hint(hint)
+        self._hardening_ledger.add_evidence(
+            EvidenceRecord(
+                candidate.candidate_id,
+                EVIDENCE_INCONCLUSIVE,
+                "process_audit",
+                parsed.summary,
+                False,
+                None if parsed.status == "complete" else parsed.status,
+            )
+        )
+        if parsed.status != "repair" or self._hardening_repair_used or not parsed.hints:
+            return candidate
+        self._hardening_repair_used = True
+        self._hardening_ledger.transition("repair", reason="process_audit_hint")
+        repair = self.scheduler.call(
+            "process_repair",
+            REPAIR_PROMPT,
+            self._repair_prompt(problem, candidate, parsed.hints[0]),
+            self.config.tokens_for("repair"),
+        )
+        parsed_repair = HostParser().parse(
+            repair.content,
+            problem=problem,
+            source="process_repair",
+            finish_reason=repair.finish_reason,
+        )
+        repaired = self._new_candidates(parsed_repair, "process_repair")
+        all_candidates.extend(repaired)
+        self._record_parsed("candidate_repair", parsed_repair, repaired)
+        if len(repaired) != 1:
+            return candidate
+        repaired[0].verification_status = "unverified"
+        self.ledger.update_candidate(repaired[0])
+        return repaired[0]
+
+    def _hardening_trace(self, route: Mapping[str, Any]) -> list[dict[str, Any]]:
+        if self._hardening_ledger is None:
+            return []
+        return [
+            self._hardening_ledger.trace(
+                budget=self._hardening_budget,
+                route=route,
+            )
+        ]
+
+    def _solve_generic(
+        self,
+        problem: str,
+        route: RouteDecision,
+        prefix_trace: list[dict[str, Any]],
+        reference_context: str = "",
+    ) -> dict[str, Any]:
+        """Fallback solver for valid math inputs whose host contract is uncertain.
+
+        The router's uncertainty is not treated as evidence that the problem is
+        unsolvable.  A complete primary candidate is an incumbent and is never
+        destroyed by a failed recovery attempt.
+        """
+        assert self.ledger is not None and self.budget is not None
+        all_candidates: list[Candidate] = []
+        prompt_problem = _prompt_problem(problem, reference_context)
+
+        self.ledger.transition(STATE_ATTEMPT_A, reason="generic_fallback_primary")
+        first = self.scheduler.call(
+            "attempt_a",
+            GENERIC_PRIMARY_PROMPT,
+            f"题目：\n{prompt_problem}\n\n请完成求解。",
+            self.config.tokens_for("attempt_a"),
+        )
+        parsed_a = HostParser().parse(
+            first.content,
+            problem=problem,
+            source="generic_primary",
+            finish_reason=first.finish_reason,
+        )
+        candidates_a = self._new_candidates(parsed_a, "generic_primary")
+        all_candidates.extend(candidates_a)
+        self._record_parsed(STATE_CANDIDATE_A, parsed_a, candidates_a)
+
+        incumbent = candidates_a[0] if len(candidates_a) == 1 else None
+        if incumbent is not None:
+            incumbent.incumbent = True
+            incumbent.candidate_role = "primary"
+            self.ledger.update_candidate(incumbent)
+            if parsed_a.status == CANDIDATE_PARSED:
+                return self._select(
+                    prefix_trace,
+                    route.as_dict(),
+                    incumbent,
+                    all_candidates,
+                    "generic_primary_complete",
+                    problem=problem,
+                )
+
+        self.ledger.transition(STATE_ATTEMPT_B, reason="generic_primary_incomplete_or_missing")
+        second = self.scheduler.call(
+            "attempt_b",
+            GENERIC_RETRY_PROMPT,
+            f"题目：\n{prompt_problem}\n\n请重新独立求解并形成唯一终答。",
+            self.config.tokens_for("attempt_b"),
+        )
+        parsed_b = HostParser().parse(
+            second.content,
+            problem=problem,
+            source="generic_retry",
+            finish_reason=second.finish_reason,
+        )
+        candidates_b = self._new_candidates(parsed_b, "generic_retry")
+        all_candidates.extend(candidates_b)
+        self._record_parsed(STATE_CANDIDATE_B, parsed_b, candidates_b)
+
+        if incumbent is not None:
+            if (
+                len(candidates_b) == 1
+                and value_equivalence(incumbent.value, candidates_b[0].value) == "EQUIVALENT"
+            ):
+                incumbent.verification_status = "verified"
+                incumbent.extraction_status = CANDIDATE_VERIFIED
+                candidates_b[0].verification_status = "verified"
+                candidates_b[0].extraction_status = CANDIDATE_VERIFIED
+                self.ledger.update_candidate(incumbent)
+                self.ledger.update_candidate(candidates_b[0])
+                source = "generic_retry_agreement"
+            else:
+                # Non-destructive escalation: uncertainty or a conflicting
+                # retry cannot erase an already extractable primary answer.
+                incumbent.challenge_status = "unresolved"
+                self.ledger.update_candidate(incumbent)
+                source = "generic_primary_preserved"
+            return self._select(
+                prefix_trace,
+                route.as_dict(),
+                incumbent,
+                all_candidates,
+                source,
+                problem=problem,
+            )
+
+        if len(candidates_b) == 1:
+            candidates_b[0].candidate_role = "recovery"
+            return self._select(
+                prefix_trace,
+                route.as_dict(),
+                candidates_b[0],
+                all_candidates,
+                "generic_retry_recovered",
+                problem=problem,
+            )
+
+        return self._abstain(
+            prefix_trace,
+            route.as_dict(),
+            "generic_no_extractable_candidate",
+        )
+
+    def _solve_deep(
+        self,
+        problem: str,
+        route: RouteDecision,
+        prefix_trace: list[dict[str, Any]],
+        reference_context: str = "",
+    ) -> dict[str, Any]:
+        assert self.ledger is not None and self.budget is not None
+        parser = TypedParser()
+        contract = route.contract
+        all_candidates: list[Candidate] = []
+        prompt_problem = _prompt_problem(problem, reference_context)
+
+        self.ledger.transition(STATE_DEEP_PRIMARY)
+        primary = self.scheduler.call(
+            "deep_primary",
+            DEEP_PRIMARY_PROMPT,
+            f"题目：\n{prompt_problem}\n\n答案形状：{contract.answer_shape}\n请完整作答。",
+            self.config.tokens_for("deep_primary"),
+        )
+        parsed_primary = parser.parse(primary.content, contract, finish_reason=primary.finish_reason)
+        primary_candidates = self._adopt_typed_candidate(parsed_primary, "deep_primary")
+        all_candidates.extend(primary_candidates)
+        self._record_typed(STATE_CANDIDATE_A, parsed_primary, primary_candidates)
+
+        second_is_continuation = bool(
+            parsed_primary.status == "typed_incomplete" and primary_candidates
+        )
+        second_stage = "deep_continuation" if second_is_continuation else "deep_review"
+        self.ledger.transition(
+            STATE_DEEP_CONTINUATION if second_is_continuation else STATE_DEEP_REVIEW,
+            reason="typed_primary_incomplete" if second_is_continuation else "deep_requires_independent_evidence",
+        )
+        if second_is_continuation:
+            second = self.scheduler.call(
+                second_stage,
+                DEEP_CONTINUATION_PROMPT,
+                f"题目：\n{prompt_problem}\n\n已有候选：{_clip(primary_candidates[0].value, MAX_CANDIDATE_CHARS)}\n请完成核对。",
+                self.config.tokens_for("deep_continuation"),
+            )
+        else:
+            second = self.scheduler.call(
+                second_stage,
+                DEEP_REVIEW_PROMPT,
+                f"题目：\n{prompt_problem}\n\n答案形状：{contract.answer_shape}\n请从头独立复核。",
+                self.config.tokens_for("deep_review"),
+            )
+        parsed_second = parser.parse(second.content, contract, finish_reason=second.finish_reason)
+        second_candidates = self._adopt_typed_candidate(parsed_second, second_stage)
+        all_candidates.extend(second_candidates)
+        self._record_typed("candidate_continuation" if second_is_continuation else "candidate_review", parsed_second, second_candidates)
+
+        if (
+            second_is_continuation
+            and primary_candidates
+            and second_candidates
+            and parsed_second.typed_complete
+            and value_equivalence(primary_candidates[0].value, second_candidates[0].value) == "EQUIVALENT"
+        ):
+            primary_candidates[0].verification_status = "verified"
+            primary_candidates[0].extraction_status = CANDIDATE_VERIFIED
+            second_candidates[0].verification_status = "verified"
+            second_candidates[0].extraction_status = CANDIDATE_VERIFIED
+            self.ledger.update_candidate(primary_candidates[0])
+            self.ledger.update_candidate(second_candidates[0])
+            return self._select(
+                prefix_trace,
+                route.as_dict(),
+                second_candidates[0],
+                all_candidates,
+                "deep_continuation_agreement",
+                problem=problem,
+            )
+
+        complete_candidates = [
+            candidate
+            for candidate, parsed in (
+                [(primary_candidates[0], parsed_primary)] if primary_candidates else []
+            )
+            + (
+                [(second_candidates[0], parsed_second)] if second_candidates else []
+            )
+            if parsed.typed_complete
+        ]
+        if len(complete_candidates) >= 2:
+            relation = value_equivalence(complete_candidates[0].value, complete_candidates[1].value)
+            if relation == "EQUIVALENT":
+                for candidate in complete_candidates:
+                    candidate.verification_status = "verified"
+                    candidate.extraction_status = CANDIDATE_VERIFIED
+                    self.ledger.update_candidate(candidate)
+                return self._select(
+                    prefix_trace,
+                    route.as_dict(),
+                    complete_candidates[0],
+                    all_candidates,
+                    "deep_continuation_agreement" if second_is_continuation else "independent_agreement",
+                    problem=problem,
+                )
+            self.ledger.transition(STATE_CONFLICT, reason="deep_typed_conflict")
+            self.ledger.add_conflict(complete_candidates)
+            if self._hardening_ledger is not None:
+                self._hardening_ledger.transition("conflict", reason="deep_typed_conflict")
+                self._hardening_ledger.add_conflict(complete_candidates)
+            playoff = self._run_deterministic_playoff(complete_candidates)
+            if playoff is not None:
+                if playoff.decision in {PLAYOFF_A, PLAYOFF_B}:
+                    target = complete_candidates[0 if playoff.decision == PLAYOFF_A else 1]
+                    target.verification_status = "verified"
+                    target.extraction_status = CANDIDATE_VERIFIED
+                    self.ledger.update_candidate(target)
+                    return self._select(
+                        prefix_trace,
+                        route.as_dict(),
+                        target,
+                        all_candidates,
+                        "deterministic_playoff",
+                        problem=problem,
+                    )
+                if playoff.decision in {PLAYOFF_BOTH, PLAYOFF_NEITHER}:
+                    return self._abstain(
+                        prefix_trace,
+                        route.as_dict(),
+                        "deterministic_playoff_unresolved",
+                    )
+            self.ledger.transition(STATE_DEEP_CRITIC, reason="deep_conflict")
+            critic = self.scheduler.call(
+                "deep_critic",
+                CRITIC_PROMPT,
+                self._critic_prompt(prompt_problem, complete_candidates),
+                self.config.tokens_for("deep_critic"),
+                prefill=("SELECT: " if self.config.enable_prefill else None),
+                prefill_purpose=("selection" if self.config.enable_prefill else None),
+            )
+            decision, target, reason = self._parse_critic(critic.content, complete_candidates)
+            if decision == "select" and target is not None:
+                target.verification_status = "verified"
+                target.extraction_status = CANDIDATE_VERIFIED
+                self.ledger.update_candidate(target)
+                return self._select(prefix_trace, route.as_dict(), target, all_candidates, "deep_critic_selected", problem=problem)
+            return self._abstain(prefix_trace, route.as_dict(), "deep_critic_unresolved_conflict")
+
+        # A single deep candidate is never promoted by candidate_unproven.
+        return self._abstain(prefix_trace, route.as_dict(), "deep_typed_evidence_incomplete")
+
+    def _solve_harness(
+        self,
+        problem: str,
+        route: RouteDecision,
+        prefix_trace: list[dict[str, Any]],
+        reference_context: str = "",
+    ) -> dict[str, Any]:
+        assert self.ledger is not None and self.budget is not None
+        all_candidates: list[Candidate] = []
+        prompt_problem = _prompt_problem(problem, reference_context)
+        self.ledger.transition(STATE_ATTEMPT_A)
+        first = self.scheduler.call(
+            "attempt_a",
+            ATTEMPT_A_PROMPT,
+            f"题目：\n{prompt_problem}\n\n请独立完成求解并给出唯一结论。",
+            self.config.tokens_for("attempt_a"),
+        )
+        parsed_a = HostParser().parse(
+            first.content,
+            problem=problem,
+            source="attempt_a",
+            finish_reason=first.finish_reason,
+        )
+        candidates_a = self._new_candidates(parsed_a, "attempt_a")
+        all_candidates.extend(candidates_a)
+        self._record_parsed(STATE_CANDIDATE_A, parsed_a, candidates_a)
+
+        if self.config.early_stop and len(candidates_a) == 1 and parsed_a.status == CANDIDATE_PARSED:
+            candidates_a[0].verification_status = "unverified"
+            return self._select(
+                prefix_trace,
+                route.as_dict(),
+                candidates_a[0],
+                all_candidates,
+                "candidate_unproven",
+                problem=problem,
+            )
+
+        if len(candidates_a) == 1 and parsed_a.status == CANDIDATE_TRUNCATED:
+            self.ledger.transition(STATE_CONTINUATION, reason="truncated_candidate_recovery")
+            continuation = self.scheduler.call(
+                "continuation",
+                CONTINUATION_PROMPT,
+                f"题目：\n{prompt_problem}\n\n已有候选：{candidates_a[0].value}\n请完成一次最短核对。",
+                self.config.tokens_for("continuation"),
+            )
+            parsed_cont = HostParser().parse(
+                continuation.content,
+                problem=problem,
+                source="continuation",
+                finish_reason=continuation.finish_reason,
+            )
+            cont_candidates = self._new_candidates(parsed_cont, "continuation")
+            all_candidates.extend(cont_candidates)
+            self._record_parsed("candidate_continuation", parsed_cont, cont_candidates)
+            if cont_candidates and value_equivalence(candidates_a[0].value, cont_candidates[0].value) == "EQUIVALENT":
+                return self._select(
+                    prefix_trace,
+                    route.as_dict(),
+                    candidates_a[0],
+                    all_candidates,
+                    "continuation_agreement",
+                    problem=problem,
+                )
+            if not cont_candidates and not _has_conflict(candidates_a):
+                return self._select(
+                    prefix_trace,
+                    route.as_dict(),
+                    candidates_a[0],
+                    all_candidates,
+                    "truncated_candidate_fallback",
+                    problem=problem,
+                )
+
+        self.ledger.transition(STATE_ATTEMPT_B, reason="first_attempt_missing_conflicting_or_untrusted")
+        second = self.scheduler.call(
+            "attempt_b",
+            ATTEMPT_B_PROMPT,
+            f"题目：\n{prompt_problem}\n\n请从头独立复核并给出唯一结论。",
+            self.config.tokens_for("attempt_b"),
+        )
+        parsed_b = HostParser().parse(
+            second.content,
+            problem=problem,
+            source="attempt_b",
+            finish_reason=second.finish_reason,
+        )
+        candidates_b = self._new_candidates(parsed_b, "attempt_b")
+        all_candidates.extend(candidates_b)
+        self._record_parsed(STATE_CANDIDATE_B, parsed_b, candidates_b)
+
+        unique = _unique_candidates(all_candidates)
+        if len(unique) == 1:
+            candidate = unique[0]
+            independent_count = sum(
+                1
+                for item in all_candidates
+                if value_equivalence(item.value, candidate.value) == "EQUIVALENT"
+            )
+            reason = "independent_agreement" if independent_count >= 2 else "single_survivor_unverified"
+            if independent_count >= 2:
+                for item in all_candidates:
+                    if value_equivalence(item.value, candidate.value) == "EQUIVALENT":
+                        item.extraction_status = CANDIDATE_VERIFIED
+                        item.verification_status = "verified"
+                        self.ledger.update_candidate(item)
+            return self._select(
+                prefix_trace,
+                route.as_dict(),
+                candidate,
+                all_candidates,
+                reason,
+                problem=problem,
+            )
+        if not unique:
+            return self._abstain(prefix_trace, route.as_dict(), "no_extractable_candidate")
+
+        self.ledger.transition(STATE_CONFLICT, reason="conflicting_candidates_retained")
+        self.ledger.add_conflict(unique)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("conflict", reason="conflicting_candidates_retained")
+            self._hardening_ledger.add_conflict(unique)
+        playoff = self._run_deterministic_playoff(unique)
+        if playoff is not None:
+            if playoff.decision in {PLAYOFF_A, PLAYOFF_B}:
+                target = unique[0 if playoff.decision == PLAYOFF_A else 1]
+                target.verification_status = "verified"
+                target.extraction_status = CANDIDATE_VERIFIED
+                self.ledger.update_candidate(target)
+                return self._select(
+                    prefix_trace,
+                    route.as_dict(),
+                    target,
+                    all_candidates,
+                    "deterministic_playoff",
+                    problem=problem,
+                )
+            if playoff.decision in {PLAYOFF_BOTH, PLAYOFF_NEITHER}:
+                return self._abstain(
+                    prefix_trace,
+                    route.as_dict(),
+                    "deterministic_playoff_unresolved",
+                )
+        self.ledger.transition(STATE_CRITIC, reason="genuine_conflict")
+        critic = self.scheduler.call(
+            "critic",
+            CRITIC_PROMPT,
+            self._critic_prompt(prompt_problem, unique),
+            self.config.tokens_for("critic"),
+            prefill=("SELECT: " if self.config.enable_prefill else None),
+            prefill_purpose=("selection" if self.config.enable_prefill else None),
+        )
+        critic_decision, critic_target, critic_reason = self._parse_critic(critic.content, unique)
+        if critic_decision == "select" and critic_target is not None:
+            return self._select(
+                prefix_trace,
+                route.as_dict(),
+                critic_target,
+                all_candidates,
+                "critic_selected",
+                problem=problem,
+            )
+        if critic_decision == "repair" and critic_target is not None and critic_reason:
+            self.ledger.transition(STATE_REPAIR, reason="critic_explicitly_diagnosed_error")
+            repair = self.scheduler.call(
+                "repair",
+                REPAIR_PROMPT,
+                self._repair_prompt(prompt_problem, critic_target, critic_reason),
+                self.config.tokens_for("repair"),
+            )
+            parsed_repair = HostParser().parse(
+                repair.content,
+                problem=problem,
+                source="repair",
+                finish_reason=repair.finish_reason,
+            )
+            repaired = self._new_candidates(parsed_repair, "repair")
+            all_candidates.extend(repaired)
+            self._record_parsed("candidate_repair", parsed_repair, repaired)
+            if len(repaired) == 1:
+                # The critic diagnosed the old candidate; it did not verify
+                # the newly generated repair.  Keep candidate formation and
+                # verification as separate ledger states.
+                repaired[0].verification_status = "unverified"
+                self.ledger.update_candidate(repaired[0])
+                return self._select(
+                    prefix_trace,
+                    route.as_dict(),
+                    repaired[0],
+                    all_candidates,
+                    "critic_repair",
+                    problem=problem,
+                )
+        return self._abstain(prefix_trace, route.as_dict(), "critic_unresolved_conflict")
+
+    def _critic_prompt(self, problem: str, candidates: list[Candidate]) -> str:
+        rows = "\n".join(
+            f"候选 {chr(65 + index)}：{_clip(candidate.value, MAX_CANDIDATE_CHARS)}"
+            for index, candidate in enumerate(candidates[:5])
+        )
+        return f"题目：\n{problem}\n\n候选账本：\n{rows}\n\n请按规定输出裁决。"
+
+    def _repair_prompt(self, problem: str, candidate: Candidate, reason: str) -> str:
+        return (
+            f"题目：\n{problem}\n\n指定候选：{_clip(candidate.value, MAX_CANDIDATE_CHARS)}\n"
+            f"明确错误摘要：{_clip(reason or 'critic_diagnosed_error', MAX_REASON_CHARS)}\n\n请修正并只给一个答案。"
+        )
+
+    @staticmethod
+    def _parse_critic(response: str | None, candidates: list[Candidate]) -> tuple[str, Candidate | None, str]:
+        text = response if isinstance(response, str) else ""
+        repair = re.search(r"(?im)^\s*REPAIR\s*[:：]\s*([A-E])\b", text)
+        select = re.search(r"(?im)^\s*SELECT\s*[:：]\s*([A-E])\b", text)
+        match = repair or select
+        if match:
+            index = ord(match.group(1).upper()) - ord("A")
+            if 0 <= index < len(candidates):
+                decision = "repair" if repair else "select"
+                if decision == "select":
+                    return decision, candidates[index], ""
+                lines = text[match.end() :].splitlines()
+                reason = next((line.strip() for line in lines if line.strip()), "")
+                if reason:
+                    return decision, candidates[index], _clip(reason, MAX_REASON_CHARS)
+        return "unknown", None, ""
+
+    def _select(
+        self,
+        prefix_trace: list[dict[str, Any]],
+        route: Mapping[str, Any],
+        candidate: Candidate,
+        all_candidates: list[Candidate],
+        source: str,
+        *,
+        problem: str | None = None,
+    ) -> dict[str, Any]:
+        assert self.ledger is not None and self.budget is not None
+        if problem is not None and self._hardening_ledger is not None:
+            candidate = self._run_process_audit(problem, candidate, all_candidates)
+            if candidate.verification_status == "verified":
+                self._hardening_ledger.transition("verified", reason=source)
+            self._hardening_ledger.transition("selected", reason=source)
+            self._hardening_ledger.add_candidate(
+                candidate.candidate_id,
+                candidate.value,
+                source=candidate.source,
+                extraction_status=candidate.extraction_status,
+                answer_type=candidate.answer_type,
+                verification_status=candidate.verification_status,
+            )
+        self.ledger.transition(STATE_SELECTED, reason=source)
+        self.ledger.update_candidate(candidate)
+        self.ledger.transition(STATE_FINALIZED)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("finalized")
+        final = _strip_math_wrappers(candidate.value) or "UNKNOWN"
+        hardening_trace = self._hardening_trace(route)
+        return {
+            "final_response": final,
+            "extracted_answer": candidate.normalized_value if final != "UNKNOWN" else "",
+            "trace": prefix_trace
+                + [
+                    self.ledger.trace(self.budget, route=route),
+                    *hardening_trace,
+                    {
+                        "method": DEEP_METHOD_ID if route.get("lane") == "deep" else METHOD_ID,
+                    "stage": "finalize",
+                    "status": "selected" if final != "UNKNOWN" else "abstained",
+                    "source": source,
+                    "candidate_id": candidate.candidate_id,
+                    "candidate_values": [
+                        _clip(item.normalized_value, MAX_CANDIDATE_CHARS)
+                        for item in all_candidates[:5]
+                    ],
+                    "proof_status": candidate.proof_status,
+                    "verification_status": candidate.verification_status,
+                    "model_calls": self.budget.calls_used,
+                },
+            ],
+        }
+
+    def _abstain(
+        self,
+        prefix_trace: list[dict[str, Any]],
+        route: Mapping[str, Any],
+        reason: str,
+    ) -> dict[str, Any]:
+        assert self.ledger is not None and self.budget is not None
+        self.ledger.transition(STATE_ABSTAINED, reason=reason)
+        self.ledger.open_questions.append(_clip(reason, MAX_REASON_CHARS))
+        self.ledger.transition(STATE_FINALIZED)
+        if self._hardening_ledger is not None:
+            self._hardening_ledger.transition("abstained", reason=reason)
+            self._hardening_ledger.transition("finalized")
+        return {
+            "final_response": "UNKNOWN",
+            "extracted_answer": "",
+            "trace": prefix_trace
+                + [
+                    self.ledger.trace(self.budget, route=route),
+                    *self._hardening_trace(route),
+                    {
+                        "method": DEEP_METHOD_ID if route.get("lane") == "deep" else METHOD_ID,
+                    "stage": "finalize",
+                    "status": "abstained",
+                    "source": reason,
+                    "model_calls": self.budget.calls_used,
+                },
+            ],
+        }
+
+
+class ConservativeSelector:
+    """Select one unique candidate only; unresolved conflicts abstain."""
+
+    @staticmethod
+    def select(candidates: Iterable[Candidate]) -> Candidate | None:
+        unique = _unique_candidates(candidates)
+        return unique[0] if len(unique) == 1 else None
+
+
+ConstraintFitMathHarness = ConstraintFitOrchestrator
+normalize_answer = normalize_value
+answer_equivalence = value_equivalence
+
+
+__all__ = [
+    "HARNESS_VERSION",
+    "METHOD_ID",
+    "DEEP_METHOD_ID",
+    "HarnessConfig",
+    "ProblemContract",
+    "RouteDecision",
+    "ANSWER_SHAPE_SINGLE_NUMERIC",
+    "ANSWER_SHAPE_PARAMETERIZED_EXPRESSION",
+    "ANSWER_SHAPE_FINITE_SET",
+    "ANSWER_SHAPE_INTERVAL_OR_RANGE",
+    "ANSWER_SHAPE_FUNCTION_FAMILY",
+    "ANSWER_SHAPE_PROOF_TEXT",
+    "ANSWER_SHAPE_UNKNOWN",
+    "REASONING_RISK_DIRECT",
+    "REASONING_RISK_STRUCTURED",
+    "REASONING_RISK_DEEP",
+    "ROUTE_CONFIDENCE_HIGH",
+    "ROUTE_CONFIDENCE_MEDIUM",
+    "ROUTE_CONFIDENCE_LOW",
+    "BudgetLedger",
+    "EvidenceLedger",
+    "SubmissionGateway",
+    "HostParser",
+    "TypedParser",
+    "TypedParseResult",
+    "HostRouter",
+    "AttemptScheduler",
+    "FrozenErrorNotebook",
+    "TypedMicroToolError",
+    "TypedMicroToolProvider",
+    "FSDFLegacyBackendAdapter",
+    "ConstraintFitOrchestrator",
+    "ConstraintFitMathHarness",
+    "ConservativeSelector",
+    "Candidate",
+    "ParsedResponse",
+    "normalize_value",
+    "value_equivalence",
+    "normalize_answer",
+    "answer_equivalence",
+]

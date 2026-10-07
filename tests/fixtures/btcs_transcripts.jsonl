@@ -1,0 +1,13 @@
+{"name":"numeric_equivalent","responses":["FINAL: 7","FINAL: 7.0"]}
+{"name":"numeric_majority","responses":["FINAL: 1","FINAL: 2","FINAL: 1"]}
+{"name":"numeric_arbiter","responses":["FINAL: 1","FINAL: 2","FINAL: 3","SELECT: B"]}
+{"name":"numeric_arbiter_new_answer","responses":["FINAL: 1","FINAL: 2","FINAL: 3","SELECT: 99"]}
+{"name":"numeric_arbiter_bad_format","responses":["FINAL: 1","FINAL: 2","FINAL: 3","I choose B"]}
+{"name":"numeric_truncated_with_final","responses":["长计算过程\nFINAL: 7\nEVIDENCE: 已完成关键计算\n因此","FINAL: 7\nEVIDENCE: independent"]}
+{"name":"numeric_continuation","responses":["正在列式并整理","仍在检查边界","最后一步尚未写完","FINAL: 7"]}
+{"name":"numeric_continuation_unknown","responses":["正在列式并整理","仍在检查边界","最后一步尚未写完","FINAL: UNKNOWN"]}
+{"name":"proof_complete","responses":["FINAL: 成立\nEVIDENCE: 两边均非负\nBODY:\n由基本不等式可得。","FINAL: 成立\nEVIDENCE: 逐项核对条件\nBODY:\n第一步验证定义域。\n第二步应用基本不等式并得到结论成立。"]}
+{"name":"v2_numeric_final_only","responses":["FINAL: 7","FINAL: 7"]}
+{"name":"v2_numeric_markdown_wrappers","responses":["```text\n- **FINAL: 7**\n```","1. FINAL：7"]}
+{"name":"v2_proof_frame","responses":["FINAL: 成立\nEVIDENCE: 条件满足\nBODY:\n由定义可得。","**FINAL: 成立**\n- EVIDENCE: 逐步核对\n- BODY:\n- 第一步成立。\n- 第二步成立。"]}
+{"name":"v2_packet_diagnostics","responses":["FINAL: 1","FINAL: 2","没有明确结论","SELECT: A"]}

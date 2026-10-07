@@ -1,0 +1,3 @@
+{"run_id":"BTCS-FRAME-V2-RESOURCE-001","idx":0,"status":"error","error_category":"timeout","latency_seconds":21.042}
+{"run_id":"BTCS-FRAME-V2-RESOURCE-001","idx":1,"status":"error","error_category":"timeout","latency_seconds":300.137}
+{"run_id":"BTCS-FRAME-V2-RESOURCE-001","idx":2,"status":"ok","nonempty":true,"finish_reason":"stop","completion_tokens":719,"latency_seconds":60.48}

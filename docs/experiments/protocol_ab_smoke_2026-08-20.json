@@ -1,0 +1,192 @@
+[
+  {
+    "dataset_size": 3,
+    "verdict_counts": {
+      "unknown": 3
+    },
+    "correct": 0,
+    "incorrect": 0,
+    "invalid": 3,
+    "accuracy": 0.0,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.0,
+    "retry_count": 3,
+    "average_model_calls": 2.0,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 0.0,
+    "p95_completion_tokens": 0,
+    "average_latency_seconds": 0.03133333333333333,
+    "p95_latency_seconds": 0.033,
+    "diagnostic_reason_counts": {
+      "model_error": 3,
+      "fallback": 3
+    },
+    "variant": "baseline86",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": false,
+      "strict_salvage": false,
+      "conditional_token_retry": false
+    },
+    "round": 1,
+    "input_file": "sample_data/dev.jsonl",
+    "temperature": 0.6
+  },
+  {
+    "dataset_size": 3,
+    "verdict_counts": {
+      "unknown": 3
+    },
+    "correct": 0,
+    "incorrect": 0,
+    "invalid": 3,
+    "accuracy": 0.0,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.0,
+    "retry_count": 3,
+    "average_model_calls": 2.0,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 0.0,
+    "p95_completion_tokens": 0,
+    "average_latency_seconds": 0.010333333333333333,
+    "p95_latency_seconds": 0.022,
+    "diagnostic_reason_counts": {
+      "model_error": 3,
+      "fallback": 3
+    },
+    "variant": "A",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": true,
+      "strict_salvage": false,
+      "conditional_token_retry": false
+    },
+    "round": 1,
+    "input_file": "sample_data/dev.jsonl",
+    "temperature": 0.6
+  },
+  {
+    "dataset_size": 3,
+    "verdict_counts": {
+      "unknown": 3
+    },
+    "correct": 0,
+    "incorrect": 0,
+    "invalid": 3,
+    "accuracy": 0.0,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.0,
+    "retry_count": 3,
+    "average_model_calls": 2.0,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 0.0,
+    "p95_completion_tokens": 0,
+    "average_latency_seconds": 0.021333333333333333,
+    "p95_latency_seconds": 0.029,
+    "diagnostic_reason_counts": {
+      "model_error": 3,
+      "fallback": 3
+    },
+    "variant": "B",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": false,
+      "strict_salvage": true,
+      "conditional_token_retry": false
+    },
+    "round": 1,
+    "input_file": "sample_data/dev.jsonl",
+    "temperature": 0.6
+  },
+  {
+    "dataset_size": 3,
+    "verdict_counts": {
+      "unknown": 3
+    },
+    "correct": 0,
+    "incorrect": 0,
+    "invalid": 3,
+    "accuracy": 0.0,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.0,
+    "retry_count": 3,
+    "average_model_calls": 2.0,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 0.0,
+    "p95_completion_tokens": 0,
+    "average_latency_seconds": 0.005333333333333333,
+    "p95_latency_seconds": 0.006,
+    "diagnostic_reason_counts": {
+      "model_error": 3,
+      "fallback": 3
+    },
+    "variant": "A+B",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 4096,
+      "max_model_calls": 2,
+      "numeric_prompt": true,
+      "strict_salvage": true,
+      "conditional_token_retry": false
+    },
+    "round": 1,
+    "input_file": "sample_data/dev.jsonl",
+    "temperature": 0.6
+  },
+  {
+    "dataset_size": 3,
+    "verdict_counts": {
+      "unknown": 3
+    },
+    "correct": 0,
+    "incorrect": 0,
+    "invalid": 3,
+    "accuracy": 0.0,
+    "final_response_nonempty_rate": 1.0,
+    "main_length_rate": 0.0,
+    "main_marker_rate": 0.0,
+    "retry_count": 3,
+    "average_model_calls": 2.0,
+    "p95_model_calls": 2,
+    "max_model_calls": 2,
+    "average_completion_tokens": 0.0,
+    "p95_completion_tokens": 0,
+    "average_latency_seconds": 0.016,
+    "p95_latency_seconds": 0.022,
+    "diagnostic_reason_counts": {
+      "model_error": 3,
+      "fallback": 3
+    },
+    "variant": "A+B+6144",
+    "budget_config": {
+      "max_tokens": 4096,
+      "l0_max_tokens": 4096,
+      "retry_max_tokens": 6144,
+      "max_model_calls": 2,
+      "numeric_prompt": true,
+      "strict_salvage": true,
+      "conditional_token_retry": true
+    },
+    "round": 1,
+    "input_file": "sample_data/dev.jsonl",
+    "temperature": 0.6
+  }
+]
