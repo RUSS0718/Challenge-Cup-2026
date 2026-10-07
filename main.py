@@ -117,7 +117,6 @@ async def run(args: argparse.Namespace) -> None:
 
     items = load_jsonl(input_path)
 
-    client = InternChatClient()
     semaphore = asyncio.Semaphore(LOCAL_MAX_CONCURRENCY)
 
     print(
@@ -125,7 +124,7 @@ async def run(args: argparse.Namespace) -> None:
         f"Max concurrency: {LOCAL_MAX_CONCURRENCY}."
     )
     tasks = [
-        process_item(ReasoningAgent(client=client), item, manager, semaphore)
+        process_item(ReasoningAgent(client=InternChatClient()), item, manager, semaphore)
         for item in items
     ]
     await asyncio.gather(*tasks)

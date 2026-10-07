@@ -23,7 +23,7 @@ HTTP endpoint 为 `https://chat.intern-ai.org.cn/api/v1/chat/completions`。
 
 - `llm_client.chat()` 接受源代理的请求级 `thinking_mode` 参数。显式 `reasoning_mode`
   优先，其次请求级 `thinking_mode`，最后客户端默认值；不修改客户端共享默认值。
-- `main.py` 仅保留 `submission` profile，使用新代理默认配置；每题创建独立代理实例，
+- `main.py` 仅保留 `submission` profile，使用新代理默认配置；每题创建独立代理及客户端实例，
   默认并发为 3，避免复用代理中的可变预算与候选状态。
 - `requirements.txt` 原样保留；本地 HTTP runner 另用 `requirements-local.txt` 安装 requests。
   历史实现、文档和测试保留，但不再代表当前入口。
@@ -37,7 +37,7 @@ HTTP endpoint 为 `https://chat.intern-ai.org.cn/api/v1/chat/completions`。
 源代理每次调用传入 `thinking_mode`，不兼容严格只接受
 `chat(messages, temperature, max_tokens)` 的 client：会捕获 TypeError 并返回无法确定。
 原样复制要求使本 PR 不修改代理。官方评测 client 是否支持该扩展必须另行确认；
-这是草稿 PR 的合入阻断项。尚未进行完整真实模型评测。
+这是源架构的已知兼容限制，用户已授权保持原样合入 main。尚未进行完整真实模型评测。
 
 2026-10-07 验证记录：18 项接入/客户端测试通过；干净虚拟环境按原样
 requirements.txt 安装 SymPy 1.13.3 / mpmath 1.3.0 后，导入与支持 thinking_mode 的

@@ -69,10 +69,11 @@ class ImportIntegrationTest(unittest.TestCase):
             source = Path(temporary) / "input.jsonl"
             source.write_text('{"idx": 1, "problem": "计算 1+1"}\n{"idx": 2, "problem": "计算 2+2"}\n', encoding="utf-8")
             args = argparse.Namespace(input_file=str(source), output_dir=str(Path(temporary) / "outputs"), profile="submission")
-            with patch("main.InternChatClient", return_value=self.client()), patch("main.process_item", side_effect=capture):
+            with patch("main.InternChatClient", side_effect=[self.client(), self.client()]), patch("main.process_item", side_effect=capture):
                 asyncio.run(main.run(args))
         self.assertEqual(2, len(agents))
         self.assertIsNot(agents[0], agents[1])
+        self.assertIsNot(agents[0]._source_client, agents[1]._source_client)
         self.assertEqual("implementations.candidates.sl_v3_cont.user_agent", type(agents[0].config).__module__)
 
     def test_request_local_thinking_mode(self):
