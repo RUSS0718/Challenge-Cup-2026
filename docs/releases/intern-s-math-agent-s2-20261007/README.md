@@ -4,6 +4,9 @@
 `intern-s-math-agent-main` 快照。所有 10 个源文件按字节复制，SHA-256 记录在
 `source_sha256.json`；Git 属性禁用这些文件的行尾转换。没有源 Git 元数据，不能声明上游 commit。
 
+2026-10-08 本地修改：默认单题预算从 480 秒改为 1150 秒；其余运行时逻辑
+保持原样。`source_sha256.json` 记录当前哈希及该文件修改前的原始哈希。
+
 ## 模型配置
 
 [官方在线模型文档](https://internlm.intern-ai.org.cn/docEn/docs/Models/) 明确列出：

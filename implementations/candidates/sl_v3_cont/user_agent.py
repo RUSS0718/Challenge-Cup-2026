@@ -80,7 +80,7 @@ CORRECTION_MAX_TOKENS = 3072
 TERSE_CLOSURE_MAX_TOKENS = 512
 CONTINUATION_THINKING_MODE = False
 TEXT_FALLBACK_MIN_CHARS = 0
-SOLVE_DEADLINE_SECONDS = 480.0
+SOLVE_DEADLINE_SECONDS = 1150.0
 EXTENDED_SOLVE_DEADLINE_SECONDS = 1150.0
 EXTENDED_BUDGET_INDICES = frozenset((33, 59, 85, 111))
 # 整题（跨全部采样路）最多 6 次模型调用。加路不重置该计数，
@@ -239,7 +239,7 @@ def _last_metadata(client: Any) -> dict[str, Any] | None:
 
 
 def solve_budget_seconds(metadata: Mapping[str, Any] | None) -> float:
-    """按固定题号槽分配少量长预算；未知题号始终走保守预算。"""
+    """所有题目使用统一的 1150 秒预算；保留原有题号分支。"""
 
     idx = metadata.get("idx") if isinstance(metadata, Mapping) else None
     if (
