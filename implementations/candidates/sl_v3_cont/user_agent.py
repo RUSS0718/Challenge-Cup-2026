@@ -10,6 +10,7 @@ import time
 from typing import Any, Callable, Dict, Mapping, Sequence
 import unicodedata
 
+from .path_prompts import system_prompt_for_path
 from .postprocess import (
     _has_complete_final_line,
     guarded_normalize,
@@ -330,7 +331,7 @@ class _SlV2ReasoningAgent:
     def solve(self, problem: str, metadata: Dict) -> Dict:
         """调用一次模型；两个能力均关闭时严格复刻 frozen single_long。"""
 
-        system_prompt = SYSTEM_PROMPT
+        system_prompt = system_prompt_for_path(SYSTEM_PROMPT, getattr(self, "_prompt_path", 1))
         if self.config.enable_forced_closure:
             system_prompt += CLOSURE_PROMPT_SUFFIX
         messages = [
@@ -1063,6 +1064,7 @@ class ReasoningAgent(_SlV2ReasoningAgent):
         return self._maybe_run_extra_paths(problem, metadata, first)
 
     def _start_solve(self, budget_seconds: float) -> None:
+        self._prompt_path = 1
         self._capture_client.reset()
         self._model_calls = 0
         self._best_result = None
@@ -1095,6 +1097,7 @@ class ReasoningAgent(_SlV2ReasoningAgent):
         于是单题永不超预算 ⇒ stage 投影与预算槽分布一个字都不用改。
         """
 
+        self._prompt_path += 1
         self._capture_client.reset()
         self._best_result = None
         self._verification_events = []
