@@ -2,12 +2,17 @@
 
 当前根目录入口基于导入的 `intern-s-math-agent-main` 数学推理代理：
 主路推理、受预算控制的续写、本地符号验证和候选选择。2026-10-08 将默认单题预算
-从 480 秒改为 1150 秒，所有题目使用同一上限；其余运行时逻辑保持导入基线。
+从 480 秒改为 1150 秒，所有题目使用同一上限。2026-10-09 在该基线上默认启用
+答案保护：已有完整候选时，后续路径失败或截止保留该答案；完整性仅判断输出形态。
+生成和调用预算保持原样，未加入 verified 提前交付或证据优先投票。
 本地 HTTP client 固定默认模型 `intern-s2`（Intern S2 397B 正式版）。
 
 导入来源、模型官方文档、验证范围及严格三参数 client 兼容限制见
 [接入说明](docs/releases/intern-s-math-agent-s2-20261007/README.md)。
-**当前 main 使用此入口；未获得官方评测结果，严格三参数平台 client 尚不兼容。**
+**1150 秒基线 `6a653f5` 官方结果为 85 correct / 15 incorrect / 0 invalid；
+本次启用答案保护的版本尚无官方结果。严格三参数 client 的已知限制保持原样。**
+
+默认启用范围及回退锚见[答案保护发布记录](docs/releases/main-protection-1150-20261009.md)。
 
 本地运行：安装 `requirements-local.txt`，配置 `INTERN_API_KEY` 和
 `INTERN_MODEL=intern-s2`，执行：
