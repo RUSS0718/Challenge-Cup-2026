@@ -34,7 +34,7 @@ class ImportIntegrationTest(unittest.TestCase):
         """All imported files must match the frozen source manifest byte for byte."""
         root = Path(__file__).resolve().parents[1]
         manifest = json.loads((root / "docs/releases/intern-s-math-agent-s2-20261007/source_sha256.json").read_text(encoding="utf-8"))
-        self.assertEqual(11, len(manifest["files"]))
+        self.assertEqual(10, len(manifest["files"]))
         for name, digest in manifest["files"].items():
             with self.subTest(file=name):
                 self.assertEqual(digest, hashlib.sha256((root / name).read_bytes()).hexdigest())

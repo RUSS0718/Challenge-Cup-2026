@@ -9,8 +9,6 @@ from contextlib import contextmanager
 import re
 from typing import Any, Dict, Iterator, Mapping
 
-from implementations.candidates.no_invalid_vote import CompleteAnswerProtection
-
 from implementations.candidates.sl_v3_cont.user_agent import (
     AgentConfig,
     ReasoningAgent as _SLV3ContReasoningAgent,
@@ -85,7 +83,7 @@ def _realtime_deadline(seconds: float) -> Iterator[str]:
             pass
 
 
-class ReasoningAgent(CompleteAnswerProtection, _SLV3ContReasoningAgent):
+class ReasoningAgent(_SLV3ContReasoningAgent):
     """给动态续写 harness 增加批次分摊和截止模式遥测。"""
 
     def _ha_enabled(self) -> bool:
@@ -191,12 +189,6 @@ class ReasoningAgent(CompleteAnswerProtection, _SLV3ContReasoningAgent):
         return fallback
 
     def solve(self, problem: str, metadata: Dict) -> Dict:
-        """Retain this solve's complete answer through optional work and deadlines.
-
-        Keep the uniform 1150-second allowance and original generation controls.
-        Return a serializable result without changing imported generation controls.
-        """
-        self._reset_candidates(problem)
         budget_seconds = solve_budget_seconds(metadata)
         self._start_solve(budget_seconds)
         self._ha_main_boxed_seen = False
@@ -213,16 +205,16 @@ class ReasoningAgent(CompleteAnswerProtection, _SLV3ContReasoningAgent):
                 # 漏了这一行，难度自适应三路采样在线上就是死代码——
                 # 2026-08-15 独立验收（W3）实测正式入口只发 1 调、round_trace 为空，
                 # 而内层类同输入发 2 调，就是这个缺陷。
-                return self._deliver_candidate(self._ha_apply_fallback(
+                return self._ha_apply_fallback(
                     self._maybe_run_extra_paths(problem, metadata, first)
-                ))
+                )
         except _SolveDeadlineExceeded:
-            return self._deliver_candidate(self._ha_apply_fallback(
+            return self._ha_apply_fallback(
                 self._best_effort_result(
                     status="deadline_exceeded",
                     error_type="_SolveDeadlineExceeded",
                 )
-            ))
+            )
 
 
 __all__ = ["AgentConfig", "ReasoningAgent"]

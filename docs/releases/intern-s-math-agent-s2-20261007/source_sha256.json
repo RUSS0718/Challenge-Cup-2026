@@ -2,20 +2,7 @@
   "source": "intern-s-math-agent-main local snapshot",
   "import_date": "2026-10-07",
   "model_id": "intern-s2",
-  "local_changes": [
-    {
-      "date": "2026-10-08",
-      "file": "implementations/candidates/sl_v3_cont/user_agent.py",
-      "change": "Default solve allowance 480 -> 1150 seconds",
-      "original_sha256": "9be1ee89a15e54fa095ecfa0ba0033201b98e52ae5369772a4ffff5cdf814259"
-    },
-    {
-      "date": "2026-10-09",
-      "file": "user_agent.py",
-      "change": "Enable CompleteAnswerProtection by default on the uniform 1150-second main baseline; no verified early delivery or evidence-priority voting",
-      "original_sha256": "953d00017b5226cbaffbe277a1a41c5d2cb227ef90d0406dc1c55b33d5f6aa18"
-    }
-  ],
+  "local_changes": [{"date": "2026-10-08", "file": "implementations/candidates/sl_v3_cont/user_agent.py", "change": "Default solve allowance 480 -> 1150 seconds", "original_sha256": "9be1ee89a15e54fa095ecfa0ba0033201b98e52ae5369772a4ffff5cdf814259"}],
   "files": {
     "implementations/__init__.py": "615bc4695036e6fec4dd4144387fae6e271f47f37e66c43b0f9fa15da5937afc",
     "implementations/candidates/__init__.py": "91018e5d7fea6393da1e1a24b20661770f83a60b17ff8f093d5a68d66cccfc34",
@@ -26,7 +13,6 @@
     "implementations/postprocess/__init__.py": "461bc06c503983159d02b18da6ea3afad2cf60bf3708c64d2c07f2edc42444fe",
     "implementations/postprocess/normalizer.py": "9528dcf7e3725e65153d4e250c4680306470be7995c4c0124b7dbbad3cce056f",
     "requirements.txt": "30dde02b4ba692826a56f7f365630b8451fb3c2c4f830924a7fabfd8c1dfc5c7",
-    "user_agent.py": "e193c23269213f4056545d4f0057efe3122aac32498b66fc2957121945cf57ac",
-    "implementations/candidates/no_invalid_vote.py": "27ac2deddbc8a7491b4d4c21e9019553607730728758e500caa2fb6f79a21c2b"
+    "user_agent.py": "953d00017b5226cbaffbe277a1a41c5d2cb227ef90d0406dc1c55b33d5f6aa18"
   }
 }
